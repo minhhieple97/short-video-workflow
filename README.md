@@ -8,7 +8,7 @@
 
 ## Trạng thái
 
-Đã hoàn thành **M0 — Scaffold**, **M1 — Nhập sách**, **M2 — Bài học**, **M3 — Tạo video & kịch bản** và **M4 — Xem trước & render MP4**. Giọng đọc + Claude CLI + bảng tác vụ (M5) và hoàn thiện (M6) đang tiếp tục; màn hình chưa làm hiển thị rõ "Chưa triển khai".
+Đã hoàn thành **M0–M5**: nhập sách, bài học, tạo video & kịch bản, xem trước & render MP4, giọng đọc tiếng Việt, luồng Claude Code CLI thật và bảng tác vụ. **M6** (hoàn thiện, kiểm thử E2E, tài liệu) đang tiếp tục.
 
 ## Yêu cầu
 
@@ -88,6 +88,26 @@ Xoá sách là xoá mềm (ẩn khỏi thư viện, giữ nguyên tệp) và b�
 - Lần render đầu tiên bundle composition (vài chục giây). Remotion cần trình duyệt headless: nếu máy chưa có, chạy `pnpm exec remotion browser ensure` (cần Internet một lần).
 - Font Be Vietnam Pro (giấy phép OFL, `public/fonts`) được dùng cho cả preview và render để dấu tiếng Việt hiển thị giống nhau.
 - Kiểm tra tệp: `ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate:format=duration -of compact <file.mp4>`.
+
+## Giọng đọc (M5)
+
+- Tab **Giọng đọc** của video: **Tạo giọng đọc** từng cảnh hoặc **Tạo giọng cho các cảnh còn thiếu** bằng edge-tts (`TTS_MODE=edge-tts`, giọng `TTS_VOICE`, tốc độ `TTS_SPEED` %), hoặc **Tải lên MP3/WAV** (tối đa `MAX_AUDIO_UPLOAD_MB`). Nghe thử, thay, gỡ ngay trong tab.
+- Độ dài mỗi cảnh = thời lượng âm thanh thật (ffprobe) + `SCENE_AUDIO_PADDING_MS`. Âm thanh TTS được cắt khoảng lặng đầu/cuối để lời hook bắt đầu ngay; âm thanh tải lên được giữ nguyên và chỉ đo khoảng lặng đầu (cảnh báo nếu > 0,5 giây).
+- Giọng TTS được cache theo `hash(lời dẫn + giọng + tốc độ + phiên bản)`: sửa chữ trên màn hình không làm mất audio; sửa lời dẫn thì audio cũ bị gỡ. Thay audio làm các bản render trước **lỗi thời**.
+- edge-tts là dịch vụ trực tuyến không chính thức. Nếu báo lỗi 403/không tạo được tệp, nâng cấp: `pip install -U edge-tts` (hoặc trỏ `EDGE_TTS_COMMAND` tới bản mới), hoặc dùng tải lên. `TTS_MODE=upload` tắt hẳn TTS.
+
+## Claude Code CLI (AI thật, không API key)
+
+1. Đặt `AI_MODE=cli-task` trong `.env`, khởi động lại web và worker.
+2. Khi bạn bấm **Phân tích** / **Tạo kịch bản** / **Viết lại cảnh này**, worker tạo thư mục `data/ai-tasks/{jobId}/` (prompt có version, dữ liệu đầu vào, JSON Schema đầu ra) và tác vụ chuyển sang **Chờ Claude CLI**.
+3. Trong terminal WSL nơi Claude Code đã đăng nhập: `pnpm ai:run --list` để xem tác vụ chờ, rồi `pnpm ai:run --job <jobId>` (thêm `--dry-run` để xem trước lệnh). Lệnh gọi `claude -p` **không bật tool nào**, không lưu phiên, kèm JSON Schema; prompt đi qua stdin; biến môi trường phiên Claude Code và mọi API key bị loại bỏ.
+4. Kết quả hợp lệ được lưu `output.json` và tác vụ quay lại hàng đợi; worker kiểm tra lại schema rồi lưu vào Studio. Hết hạn mức, chưa đăng nhập, quá thời gian (`AI_TASK_TIMEOUT_SEC`) hoặc sai schema → tác vụ **Lỗi** với mã rõ ràng, không tự thử lại; kết quả thô lưu ở `output.raw.txt`.
+
+Studio không bao giờ tự gọi Claude từ web hay worker và không cần `ANTHROPIC_API_KEY`.
+
+## Bảng tác vụ (M5)
+
+Trang **Tác vụ** liệt kê phân tích, kịch bản, giọng đọc, render với trạng thái, tiến độ, lỗi rút gọn; **Thử lại** (tác vụ lỗi/đã huỷ), **Huỷ** (đang chờ: huỷ ngay; đang chạy: yêu cầu dừng — render dừng giữa chừng và xoá tệp dở), **Chi tiết** (kèm lệnh `pnpm ai:run` để sao chép). Có cảnh báo khi worker không chạy; tác vụ vẫn nằm trong Redis và chạy tiếp khi worker bật lại. Khi khởi động, worker đối soát trạng thái với BullMQ.
 
 ## Chế độ AI
 

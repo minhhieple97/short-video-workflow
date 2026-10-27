@@ -24,22 +24,22 @@ Hard constraints (do not relax without an explicit user decision):
 
 **Package manager: pnpm only.** Never run `npm` or `yarn`, never commit another lockfile. `packageManager` is pinned in `package.json`.
 
-| Task                                       | Command                                              |
-| ------------------------------------------ | ---------------------------------------------------- |
-| Install deps (also runs `prisma generate`) | `pnpm install`                                       |
-| Start Redis (Docker, recommended)          | `docker compose up -d`                               |
-| Apply migrations / create DB               | `pnpm db:migrate`                                    |
-| Regenerate Prisma client                   | `pnpm db:generate`                                   |
-| Seed demo data                             | `pnpm db:seed`                                       |
-| Web dev server (127.0.0.1:3000)            | `pnpm dev`                                           |
-| Worker (watch mode)                        | `pnpm worker:dev`                                    |
-| Worker (no watch)                          | `pnpm worker:start`                                  |
-| Run a real-AI task from the terminal (M5)  | `pnpm ai:run --job <jobId>`                          |
-| Environment diagnostics                    | `pnpm diagnose`                                      |
-| Remotion Studio (inspect compositions)     | `pnpm remotion:studio`                               |
-| Lint / format check / typecheck            | `pnpm lint` · `pnpm format:check` · `pnpm typecheck` |
-| Tests                                      | `pnpm test` (`pnpm test:watch` while developing)     |
-| Production build                           | `pnpm build`                                         |
+| Task                                           | Command                                                        |
+| ---------------------------------------------- | -------------------------------------------------------------- |
+| Install deps (also runs `prisma generate`)     | `pnpm install`                                                 |
+| Start Redis (Docker, recommended)              | `docker compose up -d`                                         |
+| Apply migrations / create DB                   | `pnpm db:migrate`                                              |
+| Regenerate Prisma client                       | `pnpm db:generate`                                             |
+| Seed demo data                                 | `pnpm db:seed`                                                 |
+| Web dev server (127.0.0.1:3000)                | `pnpm dev`                                                     |
+| Worker (watch mode)                            | `pnpm worker:dev`                                              |
+| Worker (no watch)                              | `pnpm worker:start`                                            |
+| List / run Claude CLI tasks (AI_MODE=cli-task) | `pnpm ai:run --list` · `pnpm ai:run --job <jobId> [--dry-run]` |
+| Environment diagnostics                        | `pnpm diagnose`                                                |
+| Remotion Studio (inspect compositions)         | `pnpm remotion:studio`                                         |
+| Lint / format check / typecheck                | `pnpm lint` · `pnpm format:check` · `pnpm typecheck`           |
+| Tests                                          | `pnpm test` (`pnpm test:watch` while developing)               |
+| Production build                               | `pnpm build`                                                   |
 
 First-time setup: `cp .env.example .env` → `pnpm install` → `docker compose up -d` → `pnpm db:migrate` → `pnpm db:seed`.
 Run for development in three terminals: Redis, `pnpm worker:dev`, `pnpm dev`.
@@ -98,10 +98,12 @@ src/
     db/                client.ts: Prisma + better-sqlite3 singleton, WAL setup (shared by Next, worker, scripts)
     queue/             constants, redis-connection.ts (shared: connection factories, probe, redaction), queue.ts (Next-only producer)
     storage/           DATA_DIR resolution (paths.ts), safe-path guard, atomic writes
-    ai/                AiProvider interface, MockAiProvider, LocalCliTaskProvider (M5), contracts/ (Zod I/O), prompts/ (versioned)
+    ai/                AiProvider interface, MockAiProvider, LocalCliTaskProvider, contracts/ (Zod I/O), prompts/ (versioned),
+                       cli-task/ (task files, Claude CLI runner + output parsing used by `pnpm ai:run`)
+    tts/               edge-tts adapter (spawned with argv, text via file)
     diagnostics/       health checks aggregated for /settings, /api/health and `pnpm diagnose`
-    render/            Remotion bundle + renderMedia wrapper (worker only), webpack "@/" alias shared with remotion.config.ts
-    media/             ffprobe wrapper
+    render/            Remotion bundle + renderMedia wrapper and localhost asset server (worker only), webpack "@/" alias
+    media/             ffprobe wrapper, silence trim/measure (ffmpeg)
     http/              route-helpers.ts (AppError → JSON, readJson/parseInput with Zod), page-helpers.ts (orNotFound)
   worker/              Standalone process: main.ts, processors/ (dispatcher + one per job type), lifecycle/ (heartbeat, shutdown)
   remotion/            Pure React video code: index.ts (registerRoot), root.tsx (ShortVideo + calculateMetadata), compositions/,
@@ -236,7 +238,7 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 | M2        | Lessons + mock AI pipeline                                     | done (gate verified)                  |
 | M3        | Video builder / script editor                                  | done (gate verified)                  |
 | M4        | Remotion preview + local render                                | done (gate verified)                  |
-| M5        | Voiceover, real CLI task flow, Jobs dashboard                  | not started                           |
+| M5        | Voiceover, real CLI task flow, Jobs dashboard                  | done (gate verified)                  |
 | M6        | Hardening, E2E, docs                                           | not started                           |
 
 ## 15. Do / Don't quick list
@@ -250,6 +252,7 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - DO keep UI copy in Vietnamese and identifiers in English; DON'T hardcode content in Remotion components.
 - DO export only components from `"use client"` files; DON'T import constants/functions from a client module into a Server Component (it receives a client reference, not the value — move shared values to a plain module).
 - DO import DTO types from `schemas/*.dto.ts` in client components; DON'T import from `services/` there.
+- DO run Claude only through `pnpm ai:run` (user-initiated) with no tools and a sanitized env; DON'T spawn `claude` from the web or worker, and DON'T add an automated CLI provider without the user confirming the terms allow it.
 - DO keep `@remotion/bundler` / `@remotion/renderer` in worker-only modules (`server/render/*`, `*-runner.ts`); DON'T import them from anything a route or page imports.
 - DO build composition props only through `toCompositionProps()` so the Player and the render stay identical; DON'T render editor guides (safe zones) inside the composition.
 - DO state honestly what is unfinished or unverified; DON'T leave fake buttons or fake queue updates.
