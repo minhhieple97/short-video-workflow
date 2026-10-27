@@ -2,7 +2,13 @@ import { z } from "zod";
 
 import { hookOptionSchema } from "@/server/ai/contracts/video-script";
 
-import { assessDurationBudget, estimateNarrationSeconds, HOOK_MAX_SECONDS } from "../domain/duration";
+import {
+  assessDurationBudget,
+  effectiveSceneFrames,
+  estimateNarrationSeconds,
+  HOOK_MAX_SECONDS,
+  VIDEO_FPS,
+} from "../domain/duration";
 import { lessonSnapshotSchema } from "../domain/lesson-snapshot";
 import { toSceneType, toVisualVariant, HOOK_VARIANTS, type HookVariant } from "../domain/scene-types";
 import { toVideoStatus } from "../domain/video-status";
@@ -48,9 +54,10 @@ export function hookIssues(scenes: readonly SceneDto[]): string[] {
 
 export function toVideoDetail(video: VideoDetailRecord): VideoDetail {
   const scenes = video.scenes.map(toSceneDto);
-  const visibleSeconds = scenes
-    .filter((scene) => !scene.hidden)
-    .reduce((sum, scene) => sum + scene.estimatedSeconds, 0);
+  const visibleSeconds =
+    scenes
+      .filter((scene) => !scene.hidden)
+      .reduce((sum, scene) => sum + effectiveSceneFrames(scene.durationFrames), 0) / VIDEO_FPS;
   return {
     id: video.id,
     title: video.title,

@@ -25,6 +25,13 @@ export function secondsToFrames(seconds: number, fps = VIDEO_FPS): number {
   return Math.max(1, Math.ceil(seconds * fps));
 }
 
+// Short scenes still stay on screen long enough to read their on-screen text.
+export const MIN_SCENE_FRAMES = 2 * VIDEO_FPS;
+
+export function effectiveSceneFrames(durationFrames: number): number {
+  return Math.max(durationFrames, MIN_SCENE_FRAMES);
+}
+
 export type BudgetLevel = "empty" | "short" | "ok" | "near" | "over";
 
 export interface DurationBudget {
