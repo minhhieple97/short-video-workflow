@@ -8,6 +8,7 @@ import type * as ChapterAnalysisService from "@/features/chapters/services/chapt
 import type * as ChapterService from "@/features/chapters/services/chapter.service";
 import type * as LessonService from "@/features/lessons/services/lesson.service";
 import type { AiProvider } from "@/server/ai/ai-provider";
+import { MockAiProvider } from "@/server/ai/mock-ai-provider";
 import type * as DbClient from "@/server/db/client";
 
 import { SAMPLE_BOOK_PATH, setupTestEnvironment, type TestEnvironment } from "../helpers/test-environment";
@@ -35,10 +36,10 @@ async function importBook(input: Parameters<typeof BookImportService.previewImpo
   return id;
 }
 
-const providerReturning = (output: unknown): AiProvider => ({
-  mode: "mock",
-  analyzeChapter: () => Promise.resolve({ status: "completed", output: output as never }),
-});
+const providerReturning = (output: unknown): AiProvider =>
+  Object.assign(new MockAiProvider(), {
+    analyzeChapter: () => Promise.resolve({ status: "completed" as const, output: output as never }),
+  });
 
 beforeAll(async () => {
   env = setupTestEnvironment();

@@ -14,6 +14,11 @@ export const analyzeChapterPayloadSchema = baseJobPayloadSchema.extend({
   force: z.boolean().default(false),
 });
 
+export const generateScriptPayloadSchema = baseJobPayloadSchema.extend({
+  videoId: z.string().min(1),
+  sceneId: z.string().min(1).optional(),
+});
+
 export type BaseJobPayload = z.infer<typeof baseJobPayloadSchema>;
 export type DiagnosticPingPayload = z.infer<typeof diagnosticPingPayloadSchema>;
 export type AnalyzeChapterPayload = z.infer<typeof analyzeChapterPayloadSchema>;
