@@ -1,33 +1,15 @@
 import { readDataFile } from "@/features/books/services/book-files";
 import { AppError, NotFoundError } from "@/shared/errors";
 
-import { toChapterAnalysisStatus, type ChapterAnalysisStatus } from "../domain/analysis-status";
+import { toChapterAnalysisStatus } from "../domain/analysis-status";
 import {
   findChapterWithBook,
   listChaptersByBook,
   updateChapterTitle,
   type ChapterWithLessonCount,
 } from "../repositories/chapter.repository";
+import type { ChapterDetail, ChapterSummary } from "../schemas/chapter.dto";
 import type { RenameChapterInput } from "../schemas/chapter.schema";
-
-export interface ChapterSummary {
-  id: string;
-  bookId: string;
-  order: number;
-  title: string;
-  sourceLength: number;
-  analysisStatus: ChapterAnalysisStatus;
-  analyzedAt: string | null;
-  lessonCount: number;
-}
-
-export interface ChapterDetail extends ChapterSummary {
-  book: { id: string; title: string };
-  contentHash: string;
-  sourceStartOffset: number | null;
-  sourceEndOffset: number | null;
-  content: string;
-}
 
 function toChapterSummary(chapter: ChapterWithLessonCount): ChapterSummary {
   return {

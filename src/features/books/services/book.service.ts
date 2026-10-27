@@ -8,19 +8,8 @@ import {
   updateBookMetadata,
   type BookWithCounts,
 } from "../repositories/book.repository";
+import type { BookSummary } from "../schemas/book.dto";
 import type { UpdateBookInput } from "../schemas/book.schema";
-
-export interface BookSummary {
-  id: string;
-  title: string;
-  author: string | null;
-  description: string | null;
-  sourceFileName: string;
-  chapterCount: number;
-  lessonCount: number;
-  videoCount: number;
-  createdAt: string;
-}
 
 function toBookSummary(book: BookWithCounts): BookSummary {
   return {

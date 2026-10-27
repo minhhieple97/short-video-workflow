@@ -4,7 +4,7 @@ import { getAppConfig } from "@/shared/config/env";
 import { AppError } from "@/shared/errors";
 import { createLogger, toSafeErrorMessage } from "@/shared/logger";
 
-import { parseBookStructure, type BookStructure, type ProposedSection } from "../domain/book-structure";
+import { parseBookStructure } from "../domain/book-structure";
 import { assertValidChapterRanges, normalizeChapterContent } from "../domain/chapter-content";
 import { compileExtraPatterns } from "../domain/chapter-markers";
 import {
@@ -17,6 +17,7 @@ import {
   type SourceFormat,
 } from "../domain/source-file";
 import { createBookWithChapters, findActiveBookBySourceHash } from "../repositories/book.repository";
+import type { ImportPreview } from "../schemas/book.dto";
 import type { ConfirmImportInput } from "../schemas/book.schema";
 import {
   bookDirectory,
@@ -33,21 +34,6 @@ const logger = createLogger("books.import");
 export type ImportUpload =
   | { kind: "file"; fileName: string; mimeType: string; bytes: Uint8Array }
   | { kind: "text"; text: string; format: SourceFormat };
-
-export interface ImportPreview {
-  importId: string;
-  fileName: string;
-  format: SourceFormat;
-  sizeBytes: number;
-  sourceHash: string;
-  text: string;
-  suggestedTitle: string;
-  method: BookStructure["method"];
-  headingDepth: number | null;
-  sections: ProposedSection[];
-  warnings: string[];
-  duplicateOf: { id: string; title: string } | null;
-}
 
 const sha256 = (data: Uint8Array | string) => createHash("sha256").update(data).digest("hex");
 

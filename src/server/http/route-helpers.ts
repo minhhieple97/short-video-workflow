@@ -32,7 +32,10 @@ export function parseInput<TSchema extends z.ZodType>(schema: TSchema, input: un
   throw new AppError("VALIDATION_ERROR", issues[0]?.message ?? "Dữ liệu không hợp lệ.", 400, { details: { issues } });
 }
 
-export async function readJson<TSchema extends z.ZodType>(request: Request, schema: TSchema): Promise<z.output<TSchema>> {
+export async function readJson<TSchema extends z.ZodType>(
+  request: Request,
+  schema: TSchema,
+): Promise<z.output<TSchema>> {
   let body: unknown;
   try {
     body = await request.json();
