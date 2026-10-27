@@ -1,10 +1,10 @@
 import fs from "node:fs/promises";
 
 import { probeMedia } from "@/server/media/ffprobe";
-import { renderShortVideo } from "@/server/render/render-short-video";
+import { makeRenderCancelSignal, renderShortVideo } from "@/server/render/render-short-video";
 import { dataPath } from "@/server/storage/paths";
 import { getAppConfig } from "@/shared/config/env";
-import { AppError, NotFoundError } from "@/shared/errors";
+import { AppError, JobCancelledError, NotFoundError } from "@/shared/errors";
 import { createLogger, toSafeErrorMessage } from "@/shared/logger";
 
 import { shortVideoPropsSchema, toCompositionProps } from "../domain/composition-props";
@@ -40,6 +40,7 @@ function verifyOutput(
 
 interface RenderRun {
   renderId: string;
+  signal?: AbortSignal;
   onProgress: (progress: number) => Promise<void>;
 }
 
@@ -68,6 +69,7 @@ export async function runRender(run: RenderRun): Promise<{ renderId: string; dur
       scale: dims.width / getAppConfig().video.final.width,
       concurrency: getAppConfig().concurrency.render,
       outputFile,
+      cancelSignal: makeRenderCancelSignal(run.signal),
       onProgress: (progress) => {
         const percent = Math.round(progress * 90) + 5;
         if (percent - lastReported < 5) return;
@@ -88,6 +90,10 @@ export async function runRender(run: RenderRun): Promise<{ renderId: string; dur
     return { renderId: render.id, durationMs: probe.durationMs };
   } catch (error) {
     await fs.rm(outputFile, { force: true });
+    if (run.signal?.aborted) {
+      await failRenderRecord(render.id, "CANCELLED", "Đã huỷ theo yêu cầu.");
+      throw new JobCancelledError();
+    }
     await failRenderRecord(render.id, "FAILED", toSafeErrorMessage(error));
     logger.error("Render failed", { renderId: render.id, error: toSafeErrorMessage(error) });
     throw error;

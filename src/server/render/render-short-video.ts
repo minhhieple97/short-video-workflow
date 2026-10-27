@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { bundle } from "@remotion/bundler";
-import { renderMedia, selectComposition, type CancelSignal } from "@remotion/renderer";
+import { makeCancelSignal, renderMedia, selectComposition, type CancelSignal } from "@remotion/renderer";
 
 import { SHORT_VIDEO_COMPOSITION_ID, type ShortVideoProps } from "@/features/videos/domain/composition-props";
 import { createLogger } from "@/shared/logger";
@@ -24,6 +24,14 @@ export function ensureRemotionBundle(): Promise<string> {
     throw error;
   });
   return bundleLocation;
+}
+
+export function makeRenderCancelSignal(signal: AbortSignal | undefined): CancelSignal | undefined {
+  if (!signal) return undefined;
+  const { cancelSignal, cancel } = makeCancelSignal();
+  if (signal.aborted) cancel();
+  else signal.addEventListener("abort", cancel, { once: true });
+  return cancelSignal;
 }
 
 export interface RenderShortVideoOptions {
