@@ -8,7 +8,7 @@
 
 ## Trạng thái
 
-Mới hoàn thành **M0 — Scaffold & toolchain**: giao diện khung, schema Prisma đầy đủ, Redis + BullMQ + worker xử lý được một tác vụ thử, trang chẩn đoán. Các tính năng nghiệp vụ (nhập sách, bài học, video, render, giọng đọc) lần lượt ở M1–M6; các màn hình tương ứng hiện chỉ là trang giữ chỗ có ghi rõ "Chưa triển khai".
+Đã hoàn thành **M0 — Scaffold & toolchain** và **M1 — Nhập sách & quản lý chương**. Các phần còn lại (bài học, video, render, giọng đọc) lần lượt ở M2–M6; màn hình chưa làm hiển thị rõ "Chưa triển khai".
 
 ## Yêu cầu
 
@@ -28,7 +28,7 @@ cp .env.example .env          # chỉnh nếu cần; không commit .env
 pnpm install                  # tự chạy `prisma generate`
 docker compose up -d          # Redis (127.0.0.1:6379)
 pnpm db:migrate               # tạo data/studio.db
-pnpm db:seed                  # kiểm tra DB (dữ liệu demo bổ sung ở M1–M2)
+pnpm db:seed                  # nhập sách mẫu prisma/seed-data/atomic-habits-sample.md (chạy lại không tạo trùng)
 ```
 
 ## Chạy ứng dụng
@@ -53,6 +53,16 @@ Mở `http://127.0.0.1:3000` bằng trình duyệt trên Windows. Ứng dụng c
    pnpm diagnose                               # bản chẩn đoán trong terminal
    ```
 4. Chịu lỗi: tắt worker rồi bấm chạy thử → tác vụ giữ `QUEUED`, tự hoàn tất khi bật lại worker. Tắt Redis (`docker stop book-video-studio-redis`) → trang vẫn mở, hiển thị "suy giảm"; enqueue trả `503` kèm hướng dẫn.
+
+## Nhập sách (M1)
+
+1. **Sách → Nhập sách**: tải tệp `.md`/`.txt` (UTF-8, tối đa `MAX_IMPORT_SIZE_MB`, mặc định 10 MB) hoặc dán văn bản.
+2. Studio nhận diện chương: Markdown theo heading (bỏ qua tiêu đề sách, mục lục, lời nói đầu); TXT theo dòng riêng như `Chương 1`, `CHƯƠNG IV`, `Chapter One`, `Phần 2`. Có thể thêm mẫu riêng qua `CHAPTER_HEADING_PATTERNS` (mảng JSON regex).
+3. Kiểm tra danh sách: bỏ chọn mục không phải chương, đổi tên, **Tách** tại một đoạn, **Gộp** với mục liền sau, sắp xếp lại, xem nội dung.
+4. **Xác nhận nhập**. Tệp gốc được lưu nguyên byte, chỉ đọc, tại `data/books/{bookId}/original.*`; mỗi chương là `data/books/{bookId}/chapters/{chapterId}.md`.
+5. Nhập lại cùng một tệp (trùng SHA-256) sẽ được cảnh báo; mặc định không tạo bản trùng.
+
+Xoá sách là xoá mềm (ẩn khỏi thư viện, giữ nguyên tệp) và bị chặn khi sách đã có video.
 
 ## Chế độ AI
 
@@ -84,7 +94,7 @@ Trước khi báo hoàn thành một thay đổi: `pnpm lint && pnpm typecheck &
 ```
 src/app/            Trang và API route mỏng (Next.js App Router)
 src/components/     ui/ (shadcn) và layout/
-src/features/       Module theo tính năng (jobs đã có; books/chapters/lessons/videos ở M1–M4)
+src/features/       Module theo tính năng: books, chapters, jobs (lessons/videos ở M2–M4)
 src/server/         Hạ tầng phía server: db, queue, storage, ai, diagnostics, http
 src/worker/         Tiến trình worker độc lập: main.ts, processors/, lifecycle/
 src/remotion/       Mã video (React thuần): root, compositions, theme
