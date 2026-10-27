@@ -27,4 +27,4 @@ export function setupTestEnvironment(): TestEnvironment {
   return { dataDir, cleanup: () => fs.rmSync(root, { recursive: true, force: true }) };
 }
 
-export const SAMPLE_BOOK_PATH = path.join(import.meta.dirname, "../fixtures/atomic-habits-sample.md");
+export const SAMPLE_BOOK_PATH = path.join(import.meta.dirname, "../../prisma/seed-data/atomic-habits-sample.md");

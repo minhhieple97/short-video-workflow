@@ -7,7 +7,7 @@ import { parseBookStructure, type BookStructure } from "@/features/books/domain/
 import { parseChapterMarker } from "@/features/books/domain/chapter-markers";
 
 const SAMPLE_MARKDOWN = fs.readFileSync(
-  path.join(import.meta.dirname, "../../fixtures/atomic-habits-sample.md"),
+  path.join(import.meta.dirname, "../../../prisma/seed-data/atomic-habits-sample.md"),
   "utf8",
 );
 
