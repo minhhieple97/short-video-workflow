@@ -39,3 +39,30 @@ export interface JobDto {
   startedAt: string | null;
   completedAt: string | null;
 }
+
+export const JOB_TYPE_LABELS: Record<JobType, string> = {
+  DIAGNOSTIC_PING: "Kiểm tra hệ thống",
+  ANALYZE_CHAPTER: "Phân tích chương",
+  GENERATE_VIDEO_SCRIPT: "Tạo kịch bản",
+  GENERATE_SCENE_TTS: "Tạo giọng đọc",
+  RENDER_VIDEO: "Render video",
+};
+
+export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
+  QUEUED: "Đang chờ",
+  WAITING_FOR_CLI: "Chờ Claude CLI",
+  RUNNING: "Đang chạy",
+  COMPLETED: "Hoàn tất",
+  FAILED: "Lỗi",
+  CANCEL_REQUESTED: "Đang huỷ",
+  CANCELLED: "Đã huỷ",
+};
+
+export interface JobListItem extends JobDto {
+  entityLabel: string;
+  entityHref: string | null;
+  attempts: number;
+  cliCommand: string | null;
+  canRetry: boolean;
+  canCancel: boolean;
+}
