@@ -78,6 +78,13 @@ export function updateVideoMetadata(
   return prisma.video.update({ where: { id }, data });
 }
 
+export function setPreviewMode(
+  id: string,
+  platformPreviewMode: "TIKTOK" | "YOUTUBE_SHORTS" | "FACEBOOK_REELS",
+): Promise<Video> {
+  return prisma.video.update({ where: { id }, data: { platformPreviewMode } });
+}
+
 export function deleteVideoRecord(id: string): Promise<Video> {
   return prisma.video.delete({ where: { id } });
 }

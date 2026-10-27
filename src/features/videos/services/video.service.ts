@@ -14,6 +14,7 @@ import {
   findVideoDetail,
   listVideoRecords,
   markScriptApproved,
+  setPreviewMode,
   updateVideoMetadata,
   type VideoDetailRecord,
 } from "../repositories/video.repository";
@@ -98,6 +99,14 @@ export async function updateVideo(id: string, input: UpdateVideoInput): Promise<
     platformPreviewMode: input.platformPreviewMode,
   });
   return getVideo(id);
+}
+
+export async function updatePreviewMode(
+  id: string,
+  mode: "TIKTOK" | "YOUTUBE_SHORTS" | "FACEBOOK_REELS",
+): Promise<void> {
+  await requireVideo(id);
+  await setPreviewMode(id, mode);
 }
 
 export async function deleteVideo(id: string): Promise<void> {

@@ -28,7 +28,7 @@ export async function apiRequest<T>(url: string, init?: RequestInit): Promise<T>
   return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
 }
 
-export function sendJson<T>(url: string, method: "POST" | "PATCH" | "DELETE", body?: unknown): Promise<T> {
+export function sendJson<T>(url: string, method: "POST" | "PUT" | "PATCH" | "DELETE", body?: unknown): Promise<T> {
   return apiRequest<T>(url, {
     method,
     headers: body === undefined ? undefined : { "content-type": "application/json" },

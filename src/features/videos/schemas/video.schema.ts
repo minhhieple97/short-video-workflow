@@ -75,3 +75,11 @@ export type CreateVideoInput = z.infer<typeof createVideoSchema>;
 export type UpdateVideoInput = z.infer<typeof updateVideoSchema>;
 export type UpdateSceneInput = z.infer<typeof updateSceneSchema>;
 export type AddSceneInput = z.infer<typeof addSceneSchema>;
+
+export const renderRequestSchema = z.object({
+  quality: z.enum(["DRAFT", "FINAL"]),
+});
+
+export const previewModeSchema = z.object({
+  platformPreviewMode: z.enum(["TIKTOK", "YOUTUBE_SHORTS", "FACEBOOK_REELS"]),
+});
