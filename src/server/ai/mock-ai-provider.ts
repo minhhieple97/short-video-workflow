@@ -1,5 +1,12 @@
 import type { AiProvider, AiTaskResult } from "./ai-provider";
 import type { ChapterAnalysisInput, ChapterAnalysisOutput, LessonDraft } from "./contracts/chapter-analysis";
+import type {
+  SceneRegenerationInput,
+  SceneRegenerationOutput,
+  VideoScriptInput,
+  VideoScriptOutput,
+} from "./contracts/video-script";
+import { mockSceneRegeneration, mockVideoScript } from "./mock-video-script";
 
 const MAX_EXCERPT_LENGTH = 220;
 
@@ -58,5 +65,13 @@ export class MockAiProvider implements AiProvider {
     ];
 
     return Promise.resolve({ status: "completed", output: { chapterId: input.chapterId, lessons } });
+  }
+
+  generateVideoScript(input: VideoScriptInput): Promise<AiTaskResult<VideoScriptOutput>> {
+    return Promise.resolve({ status: "completed", output: mockVideoScript(input) });
+  }
+
+  regenerateScene(input: SceneRegenerationInput): Promise<AiTaskResult<SceneRegenerationOutput>> {
+    return Promise.resolve({ status: "completed", output: mockSceneRegeneration(input) });
   }
 }

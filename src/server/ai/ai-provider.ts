@@ -1,4 +1,10 @@
 import type { ChapterAnalysisInput, ChapterAnalysisOutput } from "./contracts/chapter-analysis";
+import type {
+  SceneRegenerationInput,
+  SceneRegenerationOutput,
+  VideoScriptInput,
+  VideoScriptOutput,
+} from "./contracts/video-script";
 
 export type AiMode = "mock" | "cli-task";
 
@@ -13,4 +19,9 @@ export interface AiTaskContext {
 export interface AiProvider {
   readonly mode: AiMode;
   analyzeChapter(input: ChapterAnalysisInput, context: AiTaskContext): Promise<AiTaskResult<ChapterAnalysisOutput>>;
+  generateVideoScript(input: VideoScriptInput, context: AiTaskContext): Promise<AiTaskResult<VideoScriptOutput>>;
+  regenerateScene(
+    input: SceneRegenerationInput,
+    context: AiTaskContext,
+  ): Promise<AiTaskResult<SceneRegenerationOutput>>;
 }
