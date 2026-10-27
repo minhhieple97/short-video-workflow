@@ -63,10 +63,10 @@ model Book {
   sourceFilePath  String
   sourceFileName  String
   sourceHash      String
-  // String (not enum): the requirements name this field but do not fix its values; promote to an enum in M1.
+  // "md" | "txt" — validated by features/books/domain (String keeps room for new formats without a migration).
   sourceFormat    String
   sourceSizeBytes Int
-  // String (not enum): value set is defined in M1.
+  // "ACTIVE" | "DELETED" (soft delete, alongside deletedAt).
   status          String
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -93,7 +93,7 @@ model Chapter {
   sourceStartOffset     Int?
   sourceEndOffset       Int?
   contentHash           String
-  // String (not enum): value set is defined in M2.
+  // CHAPTER_ANALYSIS_STATUSES in features/chapters/domain/analysis-status.ts.
   analysisStatus        String
   analyzedAt            DateTime?
   analysisPromptVersion String?
@@ -153,7 +153,7 @@ model Video {
   book                  Book                 @relation(fields: [bookId], references: [id], onDelete: Cascade)
   title                 String
   description           String?
-  // String (not enum): value set (DRAFT, NEEDS_REVIEW, APPROVED, ...) is defined in M3.
+  // VIDEO_STATUSES in features/videos/domain/video-status.ts (DRAFT | NEEDS_REVIEW | APPROVED).
   status                String               @default("DRAFT")
   aspectRatio           String               @default("9:16")
   fps                   Int                  @default(30)
@@ -198,11 +198,11 @@ model VideoLesson {
 }
 
 model VideoScene {
-  id               String       @id @default(cuid())
+  id               String   @id @default(cuid())
   videoId          String
-  video            Video        @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  video            Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
   order            Int
-  // String (not enum): scene types and visual variants are defined in M3/M4.
+  // SCENE_TYPES / VISUAL_VARIANTS / HOOK_VARIANTS in features/videos/domain/scene-types.ts.
   type             String
   title            String?
   narration        String
@@ -215,11 +215,11 @@ model VideoScene {
   // Loose pointer to MediaAsset.id (no relation), mirroring Video.latestRenderId.
   audioAssetId     String?
   contentHash      String
-  version          Int          @default(1)
+  version          Int      @default(1)
   // Hidden scenes stay in the script but are skipped in preview and render.
-  hidden           Boolean      @default(false)
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  hidden           Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   mediaAssets MediaAsset[]
 
@@ -259,7 +259,7 @@ model RenderRecord {
   scriptVersion Int
   // Relative to DATA_DIR.
   outputPath    String
-  // String (not enum): includes an "outdated" state beyond JobStatus; defined in M4.
+  // QUEUED | RENDERING | COMPLETED | FAILED | CANCELLED. "Outdated" is derived (scriptVersion < Video.scriptVersion), not stored.
   status        String
   durationMs    Int?
   qualityPreset RenderQualityPreset
@@ -279,7 +279,7 @@ model JobRecord {
   id                 String       @id @default(cuid())
   bullmqJobId        String       @unique
   jobType            String
-  // SYSTEM for the M0 diagnostic job; BOOK / CHAPTER / VIDEO / SCENE from M1 on.
+  // SYSTEM (diagnostics) | CHAPTER | VIDEO | SCENE | RENDER.
   entityType         String
   entityId           String
   status             JobStatus    @default(QUEUED)
