@@ -41,6 +41,8 @@
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "7.10.1",
     "@prisma/client": "7.10.1",
+    "@remotion/bundler": "4.0.539",
+    "@remotion/fonts": "4.0.539",
     "@remotion/player": "4.0.539",
     "@remotion/renderer": "4.0.539",
     "bullmq": "6.5.0",
