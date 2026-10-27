@@ -61,7 +61,9 @@ export function JobTable({ jobs }: Readonly<{ jobs: readonly JobListItem[] }>) {
               ) : null}
               {job.cliCommand ? <p className="mt-1 font-mono text-xs">{job.cliCommand}</p> : null}
             </TableCell>
-            <TableCell className="text-right tabular-nums">{job.progress}%</TableCell>
+            <TableCell className="text-right tabular-nums">
+              {job.status === "WAITING_FOR_CLI" ? "—" : `${job.progress}%`}
+            </TableCell>
             <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
               <div>{formatDateTime(job.createdAt)}</div>
               {job.startedAt && job.completedAt ? (

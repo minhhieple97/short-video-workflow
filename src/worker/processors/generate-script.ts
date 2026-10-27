@@ -1,7 +1,7 @@
 import { generateScriptPayloadSchema } from "@/features/jobs/schemas/job-payload.schema";
 import { runSceneRegeneration, runScriptGeneration } from "@/features/videos/services/script-generation.service";
 
-import type { JobProcessor } from "./types";
+import { isWaitingForCli, type JobProcessor } from "./types";
 
 export const processGenerateScript: JobProcessor = async ({ job, jobRecordId, reportProgress }) => {
   const payload = generateScriptPayloadSchema.parse(job.data);
@@ -13,6 +13,6 @@ export const processGenerateScript: JobProcessor = async ({ job, jobRecordId, re
   const result = payload.sceneId
     ? await runSceneRegeneration({ videoId: payload.videoId, sceneId: payload.sceneId, jobRecordId, resume })
     : await runScriptGeneration({ videoId: payload.videoId, jobRecordId, resume });
-  await reportProgress(100);
+  if (!isWaitingForCli(result)) await reportProgress(100);
   return result;
 };
