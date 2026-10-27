@@ -80,7 +80,7 @@ Bản production: `pnpm build && pnpm start`, kèm `pnpm worker:start` ở termi
 
 Luồng `cli-task`:
 
-1. Bấm **Phân tích** / **Tạo kịch bản** / **Viết lại cảnh này** → worker tạo `data/ai-tasks/{jobId}/` (`prompt.md` có version, `input.json`, `schema.json`) và tác vụ chuyển sang **Chờ Claude CLI** (không có tiến độ vì đang chờ bạn). Trang video hiện sẵn lệnh cần chạy, khoá nút "Tạo kịch bản" cho tới khi tác vụ xong, và tự cập nhật sau khi bạn chạy lệnh.
+1. Bấm **Phân tích** / **Tạo kịch bản** / **Viết lại cảnh này** → worker tạo `data/ai-tasks/{jobId}/` (`prompt.md` có version, `input.json`, `schema.json`) và tác vụ chuyển sang **Chờ Claude CLI** (không có tiến độ vì đang chờ bạn). Trang video hiện sẵn lệnh cần chạy và tự cập nhật sau khi bạn chạy lệnh. Trong lúc kịch bản đang được tạo, video bị khoá: cài đặt, hook, kịch bản, giọng đọc, duyệt, render và xoá đều tạm tắt (API cũng từ chối với mã `SCRIPT_GENERATION_IN_PROGRESS`); bấm **Huỷ tạo kịch bản** nếu muốn mở khoá.
 2. Trong terminal WSL đã đăng nhập Claude Code: `pnpm ai:run --list`, rồi `pnpm ai:run --job <jobId>` (thêm `--dry-run` để xem trước lệnh).
 3. Lệnh chạy `claude -p` **không bật tool nào**, không lưu phiên, kèm JSON Schema; prompt đi qua stdin; biến môi trường phiên Claude Code và mọi API key bị loại bỏ. Kết quả hợp lệ được lưu và tác vụ quay lại hàng đợi để worker ghi vào Studio.
 4. Hết hạn mức, chưa đăng nhập, quá `AI_TASK_TIMEOUT_SEC` hoặc sai schema → tác vụ **Lỗi** với mã rõ ràng (`AI_QUOTA_EXCEEDED`, `AI_CLI_AUTH`, `AI_CLI_TIMEOUT`…), không tự thử lại; đầu ra thô nằm ở `output.raw.txt`.
