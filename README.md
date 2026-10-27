@@ -73,10 +73,11 @@ Bản production: `pnpm build && pnpm start`, kèm `pnpm worker:start` ở termi
 
 ## AI: mock và Claude Code CLI
 
-| `AI_MODE`  | Hoạt động                                                                                                               |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `mock`     | `MockAiProvider` trả bài học, hook và kịch bản mẫu tất định — không mạng, không tốn hạn mức. Dùng cho demo và kiểm thử. |
-| `cli-task` | AI thật qua **Claude Code CLI của bạn**. Studio chỉ tạo tác vụ; bạn tự chạy lệnh trong terminal.                        |
+| `AI_MODE`  | Hoạt động                                                                                                                   |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `mock`     | `MockAiProvider` trả bài học, hook và kịch bản mẫu tất định — không mạng, không tốn hạn mức. Dùng cho demo và kiểm thử.     |
+| `cli-task` | AI thật qua **Claude Code CLI của bạn**. Studio chỉ tạo tác vụ; bạn tự chạy lệnh trong terminal.                            |
+| `cli-auto` | AI thật, **tự động**: worker tự chạy Claude Code CLI đã đăng nhập của bạn ngay khi tác vụ tới lượt. Tuỳ chọn, mặc định tắt. |
 
 Luồng `cli-task`:
 
@@ -85,6 +86,8 @@ Luồng `cli-task`:
 3. Lệnh chạy `claude -p` **không bật tool nào**, không lưu phiên, kèm JSON Schema; prompt đi qua stdin; biến môi trường phiên Claude Code và mọi API key bị loại bỏ. Kết quả hợp lệ được lưu và tác vụ quay lại hàng đợi để worker ghi vào Studio.
 4. Hết hạn mức, chưa đăng nhập, quá `AI_TASK_TIMEOUT_SEC` hoặc sai schema → tác vụ **Lỗi** với mã rõ ràng (`AI_QUOTA_EXCEEDED`, `AI_CLI_AUTH`, `AI_CLI_TIMEOUT`…), không tự thử lại; đầu ra thô nằm ở `output.raw.txt`.
 
+Chế độ `cli-auto` (requirements §9.2C, `AutomatedCliProvider`) bỏ bước 2: worker gọi đúng lệnh `claude -p` như trên (không tool, không lưu phiên, env đã làm sạch, mỗi lần một tác vụ) ngay khi tác vụ chạy, rồi lưu kết quả. Tác vụ ở trạng thái **Đang chạy** trong lúc Claude xử lý; **Huỷ** dừng luôn tiến trình `claude`. Cần đăng nhập Claude Code trên chính máy chạy worker (`claude`, rồi `/login`). Chế độ này dùng hạn mức tài khoản Claude của bạn cho mọi tác vụ AI và chỉ dành cho dùng cá nhân trên `127.0.0.1` — không chia sẻ, không mở cho người khác; hãy tự đối chiếu điều khoản Anthropic hiện hành trước khi bật.
+
 Nội dung sách luôn được bọc như **dữ liệu không đáng tin**: câu lệnh nằm trong sách (ví dụ "bỏ qua mọi hướng dẫn…") không điều khiển được AI. Trích dẫn không có thật trong chương bị loại tự động. Không nhập mật khẩu, token hay cookie Claude vào Studio.
 
 ## Giọng đọc
@@ -92,7 +95,7 @@ Nội dung sách luôn được bọc như **dữ liệu không đáng tin**: c�
 - edge-tts (`TTS_MODE=edge-tts`, `TTS_VOICE`, `TTS_SPEED`): âm thanh được cắt khoảng lặng đầu/cuối để lời hook bắt đầu ngay, và được cache theo lời dẫn + giọng + tốc độ.
 - Tải lên MP3/WAV (≤ `MAX_AUDIO_UPLOAD_MB`): giữ nguyên tệp, chỉ đo khoảng lặng đầu (cảnh báo nếu > 0,5 giây). `TTS_MODE=upload` tắt hẳn TTS.
 - Độ dài cảnh = âm thanh thật + `SCENE_AUDIO_PADDING_MS`. Sửa chữ trên màn hình giữ nguyên audio; sửa lời dẫn gỡ audio cũ. Thay audio làm các bản render trước **lỗi thời** (tệp không bị xoá).
-- edge-tts là dịch vụ trực tuyến **không chính thức**: nếu báo 403 hoặc không tạo được tệp, chạy `pip install -U edge-tts` (hoặc trỏ `EDGE_TTS_COMMAND` tới bản mới), hoặc dùng tải lên.
+- edge-tts là dịch vụ trực tuyến **không chính thức** và hay chập chờn: khi dịch vụ không trả âm thanh, Studio tự thử lại tối đa 4 lần (sau 2, 5, 10 giây). Lỗi 403 nghĩa là bản edge-tts đã cũ: chạy `pip install -U edge-tts` (hoặc trỏ `EDGE_TTS_COMMAND` tới bản mới), hoặc dùng tải lên.
 
 ## Xem trước và render
 
@@ -129,7 +132,7 @@ Nội dung sách luôn được bọc như **dữ liệu không đáng tin**: c�
 | `DATABASE_URL` / `DATA_DIR`                                      | `file:./data/studio.db` / `./data`                 | SQLite và thư mục dữ liệu (tương đối với thư mục dự án; không được nằm dưới `/mnt`) |
 | `REDIS_URL`                                                      | `redis://127.0.0.1:6379`                           | Hàng đợi BullMQ                                                                     |
 | `MAX_IMPORT_SIZE_MB`, `CHAPTER_HEADING_PATTERNS`                 | `10`, `[]`                                         | Giới hạn tệp sách; mảng JSON regex nhận diện chương bổ sung                         |
-| `AI_MODE`, `CLAUDE_CLI_COMMAND`, `AI_TASK_TIMEOUT_SEC`           | `cli-task`, `claude`, `600`                        | Chế độ AI và lệnh Claude Code                                                       |
+| `AI_MODE`, `CLAUDE_CLI_COMMAND`, `AI_TASK_TIMEOUT_SEC`           | `cli-task`, `claude`, `600`                        | Chế độ AI (`mock` / `cli-task` / `cli-auto`) và lệnh Claude Code                    |
 | `TTS_MODE`, `TTS_VOICE`, `TTS_SPEED`, `EDGE_TTS_COMMAND`         | `edge-tts`, `vi-VN-NamMinhNeural`, `0`, `edge-tts` | Giọng đọc (`TTS_MODE=upload` chỉ dùng âm thanh tải lên)                             |
 | `SCENE_AUDIO_PADDING_MS`, `MAX_AUDIO_UPLOAD_MB`                  | `300`, `20`                                        | Khoảng nghỉ sau mỗi đoạn đọc; giới hạn tải lên                                      |
 | `DEFAULT_VIDEO_DURATION_SEC`, `MAX_VIDEO_DURATION_SEC`           | `60`, `90`                                         | Preset mặc định và giới hạn tuyệt đối                                               |
@@ -184,20 +187,22 @@ sudo service redis-server start
 
 ## Xử lý sự cố
 
-| Triệu chứng                                   | Cách xử lý                                                                                          |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| "Không thể kết nối Redis…" (HTTP 503)         | `docker compose up -d`, rồi thử lại.                                                                |
-| "Worker không chạy" trên trang Tác vụ         | `pnpm worker:dev`. Tác vụ đã xếp hàng sẽ tự chạy.                                                   |
-| Worker thoát ngay khi khởi động               | Redis chưa chạy hoặc `REDIS_URL` sai (mã thoát 1, xem log).                                         |
-| `Invalid environment configuration`           | Đối chiếu `.env` với `.env.example` (tỉ lệ 9:16, preset 30/45/60/90, tối đa 90 giây).               |
-| Tác vụ "Chờ Claude CLI" mãi                   | Chạy `pnpm ai:run --job <id>` (lệnh có trong Chi tiết tác vụ), hoặc đặt `AI_MODE=mock`.             |
-| `AI_CLI_AUTH` / `AI_QUOTA_EXCEEDED`           | Đăng nhập lại Claude Code (`claude`, rồi `/login`) / đợi hạn mức làm mới, sau đó **Thử lại**.       |
-| `AI_CLI_MISSING`                              | Cài Claude Code hoặc chỉnh `CLAUDE_CLI_COMMAND`.                                                    |
-| edge-tts lỗi 403 hoặc tệp rỗng                | `pip install -U edge-tts`, hoặc tải âm thanh lên.                                                   |
-| Render báo thiếu Chromium / thư viện hệ thống | `pnpm exec remotion browser ensure`; nếu vẫn thiếu thư viện, cài theo hướng dẫn Linux của Remotion. |
-| Chữ tiếng Việt lỗi dấu                        | Kiểm tra `public/fonts` còn đủ tệp Be Vietnam Pro.                                                  |
-| `DATA_DIR resolves to /mnt/...`               | Đưa dự án và dữ liệu về filesystem Linux.                                                           |
-| `pnpm install` bị chặn / dùng nhầm npm        | Dự án chỉ dùng pnpm.                                                                                |
+| Triệu chứng                                       | Cách xử lý                                                                                             |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| "Không thể kết nối Redis…" (HTTP 503)             | `docker compose up -d`, rồi thử lại.                                                                   |
+| "Worker không chạy" trên trang Tác vụ             | `pnpm worker:dev`. Tác vụ đã xếp hàng sẽ tự chạy.                                                      |
+| Worker thoát ngay khi khởi động                   | Redis chưa chạy hoặc `REDIS_URL` sai (mã thoát 1, xem log).                                            |
+| `Invalid environment configuration`               | Đối chiếu `.env` với `.env.example` (tỉ lệ 9:16, preset 30/45/60/90, tối đa 90 giây).                  |
+| Tác vụ "Chờ Claude CLI" mãi                       | Chạy `pnpm ai:run --job <id>` (lệnh có trên trang video), đặt `AI_MODE=cli-auto`, hoặc `AI_MODE=mock`. |
+| `AI_CLI_AUTH` / `AI_QUOTA_EXCEEDED`               | Đăng nhập lại Claude Code (`claude`, rồi `/login`) / đợi hạn mức làm mới, sau đó **Thử lại**.          |
+| `AI_CLI_MISSING`                                  | Cài Claude Code hoặc chỉnh `CLAUDE_CLI_COMMAND`.                                                       |
+| `TTS_REJECTED` (403)                              | `pip install -U edge-tts`, hoặc tải âm thanh lên.                                                      |
+| `TTS_FAILED` "không trả về âm thanh"              | Dịch vụ edge-tts đang chập chờn; thử lại sau ít phút hoặc tải âm thanh lên.                            |
+| API báo "is not a function" sau khi cập nhật code | Cache của `pnpm dev` bị cũ: dừng `pnpm dev`, xoá `.next/dev`, chạy lại.                                |
+| Render báo thiếu Chromium / thư viện hệ thống     | `pnpm exec remotion browser ensure`; nếu vẫn thiếu thư viện, cài theo hướng dẫn Linux của Remotion.    |
+| Chữ tiếng Việt lỗi dấu                            | Kiểm tra `public/fonts` còn đủ tệp Be Vietnam Pro.                                                     |
+| `DATA_DIR resolves to /mnt/...`                   | Đưa dự án và dữ liệu về filesystem Linux.                                                              |
+| `pnpm install` bị chặn / dùng nhầm npm            | Dự án chỉ dùng pnpm.                                                                                   |
 
 ## Cấu trúc mã
 
@@ -219,7 +224,7 @@ Chi tiết luồng dữ liệu và trách nhiệm từng tiến trình: [`docs/a
 
 - Chỉ nhập `.md`/`.txt` UTF-8 (chưa hỗ trợ PDF/EPUB/OCR).
 - Phụ đề hiển thị theo cụm từ, căn theo số âm tiết — không đồng bộ chính xác từng từ.
-- Chưa có nhạc nền; chưa có `AutomatedCliProvider` — Studio không bao giờ tự gọi Claude.
+- Chưa có nhạc nền. Studio chỉ tự gọi Claude khi bạn bật `AI_MODE=cli-auto`.
 - Vùng an toàn là ước lượng; hãy kiểm tra lại trên ứng dụng thật trước khi đăng.
 - Không có đăng nhập/phân quyền: chỉ dùng trên `127.0.0.1`. Nếu mở ra mạng LAN/Internet phải bổ sung xác thực, CSRF và giới hạn tần suất trước.
 

@@ -98,7 +98,7 @@ sequenceDiagram
   Worker->>Worker: lưu bài học / kịch bản
 ```
 
-- Giao diện `AiProvider` (`src/server/ai/ai-provider.ts`) có hai bản: `MockAiProvider` (tất định, không mạng) và `LocalCliTaskProvider`. Chọn bằng `AI_MODE`.
+- Giao diện `AiProvider` (`src/server/ai/ai-provider.ts`) có ba bản, chọn bằng `AI_MODE`: `MockAiProvider` (`mock`, tất định, không mạng), `LocalCliTaskProvider` (`cli-task`, sơ đồ trên) và `AutomatedCliProvider` (`cli-auto`, tuỳ chọn): kế thừa `LocalCliTaskProvider`, vẫn ghi đủ tệp tác vụ, nhưng worker gọi `askClaude()` ngay thay vì chờ `pnpm ai:run`. Cả hai đường CLI dùng chung `cli-task/ask-claude.ts` (cùng cờ, cùng env đã làm sạch, cùng phân loại lỗi); `AbortSignal` của tác vụ được truyền tới tiến trình `claude` để **Huỷ** dừng được nó.
 - Prompt có phiên bản (`chapter-analysis-v1`, `video-script-v1`). Văn bản sách được bọc trong khối dữ liệu không đáng tin (`prompts/untrusted-text.ts`), và mỗi lần chỉ gửi một chương hoặc các bài học đã chọn — không bao giờ cả cuốn sách.
 - Đầu ra luôn qua Zod (`contracts/`); JSON Schema gửi cho Claude được sinh từ chính các schema đó (draft-7). Sai schema → `FAILED`, không lưu gì.
 - Lỗi Claude CLI được phân loại thành mã ổn định (`AI_CLI_AUTH`, `AI_QUOTA_EXCEEDED`, `AI_CLI_TIMEOUT`, `AI_CLI_MISSING`, `AI_CLI_ERROR`) và không tự thử lại.

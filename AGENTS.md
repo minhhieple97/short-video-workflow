@@ -100,9 +100,10 @@ src/
     db/                client.ts: Prisma + better-sqlite3 singleton, WAL setup (shared by Next, worker, scripts)
     queue/             constants, redis-connection.ts (shared: connection factories, probe, redaction), queue.ts (Next-only producer)
     storage/           DATA_DIR resolution (paths.ts), safe-path guard, atomic writes
-    ai/                AiProvider interface, MockAiProvider, LocalCliTaskProvider, contracts/ (Zod I/O), prompts/ (versioned),
-                       cli-task/ (task files, Claude CLI runner + output parsing used by `pnpm ai:run`)
-    tts/               edge-tts adapter (spawned with argv, text via file)
+    ai/                AiProvider interface, MockAiProvider, LocalCliTaskProvider, AutomatedCliProvider, contracts/ (Zod I/O),
+                       prompts/ (versioned), cli-task/ (task files, ask-claude.ts + runner + output parsing; shared by `pnpm ai:run`
+                       and cli-auto)
+    tts/               edge-tts adapter (spawned with argv, text via file, retries the service's transient no-audio failures)
     diagnostics/       health checks aggregated for /settings, /api/health and `pnpm diagnose`
     render/            Remotion bundle + renderMedia wrapper and localhost asset server (worker only), webpack "@/" alias
     media/             ffprobe wrapper, silence trim/measure (ffmpeg)
@@ -188,9 +189,11 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 
 ## 9. AI integration rules
 
-- Interface `AiProvider`; implementations: `MockAiProvider` (required, no network), `LocalCliTaskProvider` (default for real AI: writes a task to
-  `data/ai-tasks/{jobId}/`, status `WAITING_FOR_CLI`, the **user** runs `pnpm ai:run --job <id>` in their own terminal), `AutomatedCliProvider`
-  (optional, disabled by default, not implemented until the user confirms it is permitted by the Anthropic terms).
+- Interface `AiProvider`; implementations, chosen by `AI_MODE`: `MockAiProvider` (`mock`, required, no network), `LocalCliTaskProvider`
+  (`cli-task`, the default for real AI: writes a task to `data/ai-tasks/{jobId}/`, status `WAITING_FOR_CLI`, the **user** runs
+  `pnpm ai:run --job <id>` in their own terminal) and `AutomatedCliProvider` (`cli-auto`, opt-in, requirements §9.2C: the worker runs the same
+  task through the user's own logged-in Claude Code CLI right away). The project owner enabled `cli-auto` for personal localhost use; it stays
+  off in `.env.example`. Both CLI paths go through `server/ai/cli-task/ask-claude.ts` — never call `claude` any other way.
 - Never add `@anthropic-ai/sdk`, never create `ANTHROPIC_API_KEY`, never read/copy/log Claude tokens, cookies or credentials.
 - Run subprocesses with `spawn`/`execFile` and an argument array — **never** build shell strings from input, never use `exec` with interpolation.
 - Never use `--dangerously-skip-permissions`. When the model only needs to emit JSON, do not grant file-write/shell tools.
@@ -258,7 +261,7 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - DO keep UI copy in Vietnamese and identifiers in English; DON'T hardcode content in Remotion components.
 - DO export only components from `"use client"` files; DON'T import constants/functions from a client module into a Server Component (it receives a client reference, not the value — move shared values to a plain module).
 - DO import DTO types from `schemas/*.dto.ts` in client components; DON'T import from `services/` there.
-- DO run Claude only through `pnpm ai:run` (user-initiated) with no tools and a sanitized env; DON'T spawn `claude` from the web or worker, and DON'T add an automated CLI provider without the user confirming the terms allow it.
+- DO run Claude only through `askClaude()` (used by `pnpm ai:run` and, when `AI_MODE=cli-auto`, by the worker) with no tools and a sanitized env; DON'T spawn `claude` from the web, from route handlers, or in parallel, and DON'T make `cli-auto` the default.
 - DO keep `@remotion/bundler` / `@remotion/renderer` in worker-only modules (`server/render/*`, `*-runner.ts`); DON'T import them from anything a route or page imports.
 - DO build composition props only through `toCompositionProps()` so the Player and the render stay identical; DON'T render editor guides (safe zones) inside the composition.
 - DO state honestly what is unfinished or unverified; DON'T leave fake buttons or fake queue updates.
