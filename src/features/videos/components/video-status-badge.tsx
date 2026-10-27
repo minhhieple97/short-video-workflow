@@ -2,10 +2,10 @@ import { Badge } from "@/components/ui/badge";
 
 import { VIDEO_STATUS_LABELS, type VideoStatus } from "../domain/video-status";
 
-const VARIANTS: Record<VideoStatus, "default" | "secondary" | "outline"> = {
-  DRAFT: "outline",
-  NEEDS_REVIEW: "secondary",
-  APPROVED: "default",
+const VARIANTS: Record<VideoStatus, "slate" | "amber" | "mint"> = {
+  DRAFT: "slate",
+  NEEDS_REVIEW: "amber",
+  APPROVED: "mint",
 };
 
 export function VideoStatusBadge({ status }: Readonly<{ status: VideoStatus }>) {

@@ -55,7 +55,7 @@ export function RunTestJobButton({
         {label}
       </Button>
       {job ? (
-        <Badge variant={job.status === "FAILED" ? "destructive" : job.status === "COMPLETED" ? "default" : "secondary"}>
+        <Badge variant={job.status === "FAILED" ? "rose" : job.status === "COMPLETED" ? "mint" : "violet"}>
           {job.status} · {job.progress}%
         </Badge>
       ) : null}

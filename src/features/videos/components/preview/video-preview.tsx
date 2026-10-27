@@ -10,7 +10,7 @@ import type { PlatformPreviewMode } from "../../domain/safe-zones";
 
 const PhonePlayer = dynamic(() => import("./phone-player").then((module) => module.PhonePlayer), {
   ssr: false,
-  loading: () => <Skeleton className="h-[660px] w-[380px] rounded-[2.2rem]" />,
+  loading: () => <Skeleton className="h-[700px] w-[420px] rounded-3xl" />,
 });
 
 interface VideoPreviewProps {

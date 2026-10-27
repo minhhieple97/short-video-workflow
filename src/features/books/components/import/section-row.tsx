@@ -48,7 +48,7 @@ export function SectionRow(props: Readonly<SectionRowProps>) {
           maxLength={200}
           className="min-w-48 flex-1"
         />
-        <Badge variant={section.kind === "chapter" ? "default" : "outline"}>{SECTION_KIND_LABELS[section.kind]}</Badge>
+        <Badge variant={section.kind === "chapter" ? "violet" : "slate"}>{SECTION_KIND_LABELS[section.kind]}</Badge>
       </div>
 
       <p className="text-muted-foreground line-clamp-2 text-xs">{sectionExcerpt(text, section) || "(trống)"}</p>

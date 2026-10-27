@@ -2,10 +2,10 @@ import { Badge } from "@/components/ui/badge";
 
 import { LESSON_ORIGIN_LABELS, LESSON_STATUS_LABELS, type LessonStatus } from "../domain/lesson-fields";
 
-const STATUS_VARIANTS: Record<LessonStatus, "default" | "secondary" | "outline"> = {
-  DRAFT: "secondary",
-  APPROVED: "default",
-  ARCHIVED: "outline",
+const STATUS_VARIANTS: Record<LessonStatus, "amber" | "mint" | "slate"> = {
+  DRAFT: "amber",
+  APPROVED: "mint",
+  ARCHIVED: "slate",
 };
 
 export function LessonStatusBadge({ status }: Readonly<{ status: LessonStatus }>) {
@@ -13,5 +13,5 @@ export function LessonStatusBadge({ status }: Readonly<{ status: LessonStatus }>
 }
 
 export function LessonOriginBadge({ origin }: Readonly<{ origin: "AI" | "MANUAL" }>) {
-  return <Badge variant="outline">{LESSON_ORIGIN_LABELS[origin]}</Badge>;
+  return <Badge variant={origin === "AI" ? "violet" : "slate"}>{LESSON_ORIGIN_LABELS[origin]}</Badge>;
 }

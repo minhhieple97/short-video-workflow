@@ -6,10 +6,12 @@ import { useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { apiRequest, sendJson } from "@/lib/api-client";
+import { cn } from "@/lib/utils";
 
 import { LEADING_SILENCE_WARNING_MS } from "../../domain/audio";
 import { SCENE_TYPE_LABELS } from "../../domain/scene-types";
 import type { SceneDto } from "../../schemas/video.dto";
+import { SCENE_TONE } from "../scene-tone";
 import { useVideoAction } from "../use-video-action";
 
 export function SceneVoiceRow({ scene, ttsEnabled }: Readonly<{ scene: SceneDto; ttsEnabled: boolean }>) {
@@ -26,20 +28,21 @@ export function SceneVoiceRow({ scene, ttsEnabled }: Readonly<{ scene: SceneDto;
   }
 
   return (
-    <li className="border-border flex flex-col gap-2 rounded-lg border p-3">
+    <li className="bg-card border-border shadow-card relative flex flex-col gap-2 overflow-hidden rounded-2xl border p-4 pl-5">
+      <span className={cn("absolute inset-y-0 left-0 w-1.5", SCENE_TONE[scene.type].rail)} aria-hidden />
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-muted-foreground w-6 text-sm tabular-nums">{scene.order + 1}</span>
-        <Badge variant={scene.type === "HOOK" ? "default" : "secondary"}>{SCENE_TYPE_LABELS[scene.type]}</Badge>
+        <Badge variant={SCENE_TONE[scene.type].badge}>{SCENE_TYPE_LABELS[scene.type]}</Badge>
         {scene.audio ? (
           <>
-            <Badge variant="outline">{scene.audio.provider === "edge-tts" ? "edge-tts" : "Tải lên"}</Badge>
-            <Badge variant="outline">{(scene.audio.durationMs / 1000).toFixed(1)}s</Badge>
+            <Badge variant="slate">{scene.audio.provider === "edge-tts" ? "edge-tts" : "Tải lên"}</Badge>
+            <Badge variant="mint">{(scene.audio.durationMs / 1000).toFixed(1)}s</Badge>
             {scene.audio.leadingSilenceMs > LEADING_SILENCE_WARNING_MS ? (
-              <Badge variant="destructive">Im lặng đầu {scene.audio.leadingSilenceMs} ms</Badge>
+              <Badge variant="rose">Im lặng đầu {scene.audio.leadingSilenceMs} ms</Badge>
             ) : null}
           </>
         ) : (
-          <Badge variant="outline">Chưa có giọng đọc</Badge>
+          <Badge variant="amber">Chưa có giọng đọc</Badge>
         )}
       </div>
       <p className="text-sm">{scene.narration}</p>

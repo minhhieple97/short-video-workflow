@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RunTestJobButton } from "@/features/jobs/components/run-test-job-button";
@@ -13,11 +14,11 @@ const STATUS_LABEL: Record<CheckStatus, string> = {
   info: "Thông tin",
 };
 
-const STATUS_VARIANT: Record<CheckStatus, "default" | "secondary" | "destructive" | "outline"> = {
-  ok: "default",
-  warn: "secondary",
-  error: "destructive",
-  info: "outline",
+const STATUS_VARIANT: Record<CheckStatus, "mint" | "amber" | "rose" | "slate"> = {
+  ok: "mint",
+  warn: "amber",
+  error: "rose",
+  info: "slate",
 };
 
 const STARTUP_STEPS = [
@@ -59,18 +60,15 @@ export default async function SettingsPage() {
 
   return (
     <section className="flex flex-col gap-8">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Cài đặt &amp; chẩn đoán</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            {snapshot.app.name} v{snapshot.app.version} · cập nhật{" "}
-            {new Date(snapshot.generatedAt).toLocaleTimeString("vi-VN")}
-          </p>
-        </div>
-        <Badge variant={snapshot.overall === "ok" ? "default" : "destructive"}>
-          {snapshot.overall === "ok" ? "Hệ thống sẵn sàng" : "Hệ thống bị suy giảm"}
-        </Badge>
-      </header>
+      <PageHeader
+        title="Cài đặt & chẩn đoán"
+        description={`${snapshot.app.name} v${snapshot.app.version} · cập nhật ${new Date(snapshot.generatedAt).toLocaleTimeString("vi-VN")}`}
+        actions={
+          <Badge variant={snapshot.overall === "ok" ? "mint" : "rose"}>
+            {snapshot.overall === "ok" ? "Hệ thống sẵn sàng" : "Hệ thống bị suy giảm"}
+          </Badge>
+        }
+      />
 
       <div className="grid gap-4 md:grid-cols-2">
         {snapshot.checks.map((check) => (

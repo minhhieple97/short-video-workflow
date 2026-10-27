@@ -16,6 +16,14 @@ const STATUS_LABELS: Record<RenderDto["status"], string> = {
   CANCELLED: "Đã huỷ",
 };
 
+const STATUS_VARIANT: Record<RenderDto["status"], "amber" | "violet" | "mint" | "rose" | "slate"> = {
+  QUEUED: "amber",
+  RENDERING: "violet",
+  COMPLETED: "mint",
+  FAILED: "rose",
+  CANCELLED: "slate",
+};
+
 export function RenderHistory({ renders }: Readonly<{ renders: readonly RenderDto[] }>) {
   if (renders.length === 0)
     return <EmptyState title="Chưa có bản render" description="Render nháp để kiểm tra, rồi render bản cuối." />;
@@ -43,14 +51,8 @@ export function RenderHistory({ renders }: Readonly<{ renders: readonly RenderDt
             </TableCell>
             <TableCell className="whitespace-normal">
               <div className="flex flex-wrap gap-1">
-                <Badge
-                  variant={
-                    render.status === "FAILED" ? "destructive" : render.status === "COMPLETED" ? "default" : "secondary"
-                  }
-                >
-                  {STATUS_LABELS[render.status]}
-                </Badge>
-                {render.outdated ? <Badge variant="outline">Lỗi thời</Badge> : null}
+                <Badge variant={STATUS_VARIANT[render.status]}>{STATUS_LABELS[render.status]}</Badge>
+                {render.outdated ? <Badge variant="amber">Lỗi thời</Badge> : null}
               </div>
               {render.errorMessage ? (
                 <p className="text-xs text-red-600 dark:text-red-400">{render.errorMessage}</p>

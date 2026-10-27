@@ -54,15 +54,20 @@ export function PhonePlayer({ props, initialMode, onModeChange }: Readonly<Phone
   }
 
   return (
-    <div className="flex flex-col items-center gap-3">
-      <div className="flex flex-wrap justify-center gap-1" role="radiogroup" aria-label="Nền tảng xem trước">
+    <div className="bg-tone-violet mx-auto flex w-fit max-w-full flex-col items-center gap-5 rounded-3xl p-6">
+      <div
+        className="bg-card flex flex-wrap justify-center gap-1 rounded-full p-1"
+        role="radiogroup"
+        aria-label="Nền tảng xem trước"
+      >
         {PLATFORM_PREVIEW_MODES.map((value) => (
           <Button
             key={value}
             size="sm"
             role="radio"
             aria-checked={mode === value}
-            variant={mode === value ? "default" : "outline"}
+            variant={mode === value ? "default" : "ghost"}
+            className="rounded-full"
             onClick={() => {
               setMode(value);
               onModeChange(value);
@@ -73,7 +78,7 @@ export function PhonePlayer({ props, initialMode, onModeChange }: Readonly<Phone
         ))}
       </div>
 
-      <div className="rounded-[2.2rem] border-[10px] border-neutral-900 bg-neutral-900 shadow-xl">
+      <div className="bg-ink rounded-[2.4rem] border-[10px] border-[#0f0c2b] shadow-[0_24px_48px_rgb(27_23_64/0.35)]">
         <div className="relative overflow-hidden rounded-[1.6rem]" style={PREVIEW_FRAME}>
           <Player
             ref={playerRef}

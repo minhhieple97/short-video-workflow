@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { estimateNarrationSeconds, HOOK_MAX_SECONDS } from "../domain/duration";
 import { SCENE_TYPE_LABELS, VISUAL_VARIANT_LABELS, VISUAL_VARIANTS, toVisualVariant } from "../domain/scene-types";
 import type { SceneDto } from "../schemas/video.dto";
+import { SCENE_TONE } from "./scene-tone";
 import { useScriptLocked } from "./script-lock-context";
 import { useVideoAction } from "./use-video-action";
 
@@ -53,12 +54,13 @@ export function SceneEditorCard({ videoId, scene, sceneIds }: Readonly<SceneEdit
   }
 
   return (
-    <Card className={cn(scene.hidden && "opacity-60")}>
+    <Card className={cn("relative pl-1.5", scene.hidden && "opacity-60")}>
+      <span className={cn("absolute inset-y-0 left-0 w-1.5", SCENE_TONE[scene.type].rail)} aria-hidden />
       <CardHeader className="flex flex-row flex-wrap items-center gap-2">
-        <span className="text-muted-foreground w-6 text-sm tabular-nums">{index + 1}</span>
-        <Badge variant={isHook ? "default" : "secondary"}>{SCENE_TYPE_LABELS[scene.type]}</Badge>
-        <Badge variant={isHook && seconds > HOOK_MAX_SECONDS ? "destructive" : "outline"}>~{seconds}s</Badge>
-        {scene.hidden ? <Badge variant="outline">Đang ẩn</Badge> : null}
+        <span className="text-muted-foreground w-6 text-sm font-bold tabular-nums">{index + 1}</span>
+        <Badge variant={SCENE_TONE[scene.type].badge}>{SCENE_TYPE_LABELS[scene.type]}</Badge>
+        <Badge variant={isHook && seconds > HOOK_MAX_SECONDS ? "rose" : "slate"}>~{seconds}s</Badge>
+        {scene.hidden ? <Badge variant="slate">Đang ẩn</Badge> : null}
         <span className="text-muted-foreground ml-auto text-xs">phiên bản {scene.version}</span>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">

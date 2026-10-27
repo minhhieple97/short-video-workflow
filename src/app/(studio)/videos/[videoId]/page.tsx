@@ -67,7 +67,7 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
             <Badge variant="outline">
               9:16 · {video.width}×{video.height} · {video.fps} FPS
             </Badge>
-            <Badge variant={video.extended ? "secondary" : "outline"}>
+            <Badge variant="orange">
               {video.extended ? "Extended Short 90s" : `Short ${video.targetDurationSec}s`}
             </Badge>
             <span>Kịch bản v{video.scriptVersion}</span>

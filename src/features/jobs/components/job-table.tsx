@@ -8,14 +8,14 @@ import { JOB_STATUS_LABELS, JOB_TYPE_LABELS, isJobType, type JobListItem, type J
 
 import { JobActions } from "./job-actions";
 
-const STATUS_VARIANT: Record<JobStatus, "default" | "secondary" | "destructive" | "outline"> = {
-  QUEUED: "secondary",
-  WAITING_FOR_CLI: "secondary",
-  RUNNING: "secondary",
-  COMPLETED: "default",
-  FAILED: "destructive",
-  CANCEL_REQUESTED: "outline",
-  CANCELLED: "outline",
+const STATUS_VARIANT: Record<JobStatus, "amber" | "blue" | "violet" | "mint" | "rose" | "slate"> = {
+  QUEUED: "amber",
+  WAITING_FOR_CLI: "blue",
+  RUNNING: "violet",
+  COMPLETED: "mint",
+  FAILED: "rose",
+  CANCEL_REQUESTED: "slate",
+  CANCELLED: "slate",
 };
 
 export function JobTable({ jobs }: Readonly<{ jobs: readonly JobListItem[] }>) {
@@ -61,8 +61,17 @@ export function JobTable({ jobs }: Readonly<{ jobs: readonly JobListItem[] }>) {
               ) : null}
               {job.cliCommand ? <p className="mt-1 font-mono text-xs">{job.cliCommand}</p> : null}
             </TableCell>
-            <TableCell className="text-right tabular-nums">
-              {job.status === "WAITING_FOR_CLI" ? "—" : `${job.progress}%`}
+            <TableCell className="min-w-28">
+              {job.status === "WAITING_FOR_CLI" ? (
+                <span className="text-muted-foreground block text-right">—</span>
+              ) : (
+                <div className="flex items-center justify-end gap-2">
+                  <div className="bg-tone-violet h-1.5 w-16 overflow-hidden rounded-full" aria-hidden>
+                    <div className="bg-primary h-full rounded-full" style={{ width: `${job.progress}%` }} />
+                  </div>
+                  <span className="w-9 text-right tabular-nums">{job.progress}%</span>
+                </div>
+              )}
             </TableCell>
             <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
               <div>{formatDateTime(job.createdAt)}</div>
