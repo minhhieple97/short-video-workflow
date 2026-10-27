@@ -39,11 +39,14 @@ export async function enqueueTrackedJob(request: TrackedJobRequest): Promise<{ j
     await enqueueJob(request.jobType, { ...request.payload, jobRecordId: record.id }, record.bullmqJobId);
   } catch (error) {
     await markJobFailed(record.id, "QUEUE_UNAVAILABLE", "Không thể đưa tác vụ vào hàng đợi Redis.");
+    if (error instanceof AppError) throw error;
     throw new AppError(
       "QUEUE_UNAVAILABLE",
       "Không thể kết nối Redis. Hãy chạy `docker compose up -d` rồi thử lại.",
       503,
-      { cause: error },
+      {
+        cause: error,
+      },
     );
   }
   return { job: toJobDto(record), reused: false };
