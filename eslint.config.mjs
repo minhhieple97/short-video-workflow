@@ -32,7 +32,7 @@ export default defineConfig([
     },
   },
   {
-    files: ["scripts/**/*.ts", "prisma/seed.ts"],
+    files: ["scripts/**/*.ts", "prisma/seed.ts", "src/shared/logger.ts"],
     rules: { "no-console": "off" },
   },
   {

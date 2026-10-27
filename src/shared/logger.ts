@@ -11,9 +11,9 @@ export interface Logger {
 function write(level: LogLevel, scope: string, message: string, fields?: LogFields): void {
   const line = JSON.stringify({ time: new Date().toISOString(), level, scope, message, ...fields });
   if (level === "error" || level === "warn") {
-    process.stderr.write(`${line}\n`);
+    console.error(line);
   } else {
-    process.stdout.write(`${line}\n`);
+    console.log(line);
   }
 }
 
