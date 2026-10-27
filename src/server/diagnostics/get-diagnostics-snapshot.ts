@@ -1,4 +1,5 @@
 import pkg from "../../../package.json";
+import { PREVIEW_FRAME } from "@/features/videos/domain/safe-zones";
 import { resolveDatabaseFile } from "@/server/db/client";
 import { redactRedisUrl } from "@/server/queue/redis-connection";
 import { getAppConfig } from "@/shared/config/env";
@@ -33,6 +34,10 @@ function buildConfigRows(): ConfigRow[] {
     { label: "Hồ sơ video", value: `${video.profile} (${video.aspectRatio})` },
     { label: "Render cuối (final)", value: `${video.final.width}×${video.final.height} @ ${video.final.fps} FPS` },
     { label: "Render nháp (draft)", value: `${video.draft.width}×${video.draft.height} @ ${video.draft.fps} FPS` },
+    {
+      label: "Xem trước",
+      value: `Trình duyệt, khung ${PREVIEW_FRAME.width}×${PREVIEW_FRAME.height} thu nhỏ từ bản cuối (không render tệp)`,
+    },
     { label: "Thời lượng mặc định / tối đa", value: `${video.defaultDurationSec}s / ${video.maxDurationSec}s` },
     { label: "Preset thời lượng", value: video.durationPresetsSec.map((seconds) => `${seconds}s`).join(" · ") },
     { label: "Worker concurrency", value: String(concurrency.worker) },

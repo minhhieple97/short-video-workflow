@@ -11,7 +11,12 @@ import { ShortVideo } from "@/remotion/compositions/short-video";
 
 import { totalFrames, type ShortVideoProps } from "../../domain/composition-props";
 import { HOOK_MAX_FRAMES, VIDEO_FPS } from "../../domain/duration";
-import { PLATFORM_LABELS, PLATFORM_PREVIEW_MODES, type PlatformPreviewMode } from "../../domain/safe-zones";
+import {
+  PLATFORM_LABELS,
+  PLATFORM_PREVIEW_MODES,
+  PREVIEW_FRAME,
+  type PlatformPreviewMode,
+} from "../../domain/safe-zones";
 import { SafeZoneOverlay } from "./safe-zone-overlay";
 
 interface PhonePlayerProps {
@@ -69,7 +74,7 @@ export function PhonePlayer({ props, initialMode, onModeChange }: Readonly<Phone
       </div>
 
       <div className="rounded-[2.2rem] border-[10px] border-neutral-900 bg-neutral-900 shadow-xl">
-        <div className="relative overflow-hidden rounded-[1.6rem]" style={{ width: 360, height: 640 }}>
+        <div className="relative overflow-hidden rounded-[1.6rem]" style={PREVIEW_FRAME}>
           <Player
             ref={playerRef}
             component={ShortVideo}
@@ -78,7 +83,7 @@ export function PhonePlayer({ props, initialMode, onModeChange }: Readonly<Phone
             compositionWidth={1080}
             compositionHeight={1920}
             fps={VIDEO_FPS}
-            style={{ width: 360, height: 640 }}
+            style={PREVIEW_FRAME}
             controls
           />
           {showGuide ? <SafeZoneOverlay mode={mode} /> : null}

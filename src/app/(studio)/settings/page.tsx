@@ -20,6 +20,14 @@ const STATUS_VARIANT: Record<CheckStatus, "default" | "secondary" | "destructive
   info: "outline",
 };
 
+const STARTUP_STEPS = [
+  { label: "Redis", command: "docker compose up -d" },
+  { label: "Worker", command: "pnpm worker:dev" },
+  { label: "Web (http://127.0.0.1:3000)", command: "pnpm dev" },
+  { label: "Tác vụ chờ Claude CLI", command: "pnpm ai:run --list" },
+  { label: "Chẩn đoán trong terminal", command: "pnpm diagnose" },
+];
+
 function CheckCard({ check }: Readonly<{ check: CheckResult }>) {
   return (
     <Card>
@@ -69,6 +77,27 @@ export default async function SettingsPage() {
           <CheckCard key={check.id} check={check} />
         ))}
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Khởi động trong WSL</CardTitle>
+          <CardDescription>
+            Mỗi lệnh một terminal WSL, chạy trong thư mục dự án trên filesystem Linux (không dùng /mnt/c).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-[auto_1fr]">
+            {STARTUP_STEPS.map((step) => (
+              <div key={step.command} className="contents">
+                <dt className="text-muted-foreground">{step.label}</dt>
+                <dd>
+                  <code className="bg-muted rounded px-1.5 py-0.5 text-xs">{step.command}</code>
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

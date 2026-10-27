@@ -7,6 +7,9 @@ export const PLATFORM_LABELS: Record<PlatformPreviewMode, string> = {
   FACEBOOK_REELS: "Facebook Reels",
 };
 
+// The editor previews the full-size composition scaled down in the browser; nothing is rendered to a file.
+export const PREVIEW_FRAME = { width: 360, height: 640 } as const;
+
 // Insets in % of the 9:16 frame covered by app UI. These are editable app defaults, not official platform specs:
 // platform layouts change by app version, device and caption length.
 export interface SafeZoneInsets {
