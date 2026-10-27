@@ -45,6 +45,22 @@ export async function readJson<TSchema extends z.ZodType>(
   return parseInput(schema, body);
 }
 
+// For endpoints whose body is optional: an empty body is validated as {}.
+export async function readOptionalJson<TSchema extends z.ZodType>(
+  request: Request,
+  schema: TSchema,
+): Promise<z.output<TSchema>> {
+  const raw = await request.text();
+  if (raw.trim().length === 0) return parseInput(schema, {});
+  let body: unknown;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    throw new AppError("INVALID_JSON", "Dữ liệu gửi lên không phải JSON hợp lệ.", 400);
+  }
+  return parseInput(schema, body);
+}
+
 const MULTIPART_OVERHEAD_BYTES = 1024 * 1024;
 
 export function assertContentLengthWithin(request: Request, maxBytes: number): void {
