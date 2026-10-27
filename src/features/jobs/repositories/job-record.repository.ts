@@ -40,6 +40,10 @@ export function listActiveJobRecords(): Promise<JobRecord[]> {
   });
 }
 
+export function countActiveJobRecords(): Promise<number> {
+  return prisma.jobRecord.count({ where: { status: { in: [...ACTIVE_JOB_STATUSES] } } });
+}
+
 export function listJobsWaitingForCli(): Promise<JobRecord[]> {
   return prisma.jobRecord.findMany({ where: { status: "WAITING_FOR_CLI" }, orderBy: { createdAt: "asc" } });
 }
