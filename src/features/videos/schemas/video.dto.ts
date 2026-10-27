@@ -68,3 +68,21 @@ export interface VideoDetail {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface RenderDto {
+  id: string;
+  quality: "DRAFT" | "FINAL";
+  status: "QUEUED" | "RENDERING" | "COMPLETED" | "FAILED" | "CANCELLED";
+  width: number;
+  height: number;
+  fps: number;
+  scriptVersion: number;
+  outdated: boolean;
+  durationMs: number | null;
+  sizeBytes: number | null;
+  errorMessage: string | null;
+  createdAt: string;
+  completedAt: string | null;
+  fileUrl: string | null;
+  downloadUrl: string | null;
+}
