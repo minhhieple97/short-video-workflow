@@ -165,6 +165,8 @@ model Video {
   scriptVersion         Int                  @default(1)
   approvedScriptVersion Int?
   platformPreviewMode   PlatformPreviewMode?
+  // 2–3 AI hook proposals ({ variant, narration, onScreenText, visualVariant }[]); the chosen one becomes the HOOK scene.
+  hookOptionsJson       Json?
   // Loose pointer to RenderRecord.id (no relation) to avoid a circular reference.
   latestRenderId        String?
   createdAt             DateTime             @default(now())
@@ -214,6 +216,8 @@ model VideoScene {
   audioAssetId     String?
   contentHash      String
   version          Int          @default(1)
+  // Hidden scenes stay in the script but are skipped in preview and render.
+  hidden           Boolean      @default(false)
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
