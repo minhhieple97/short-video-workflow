@@ -1,158 +1,175 @@
 # Book Video Studio
 
-Ứng dụng chạy cục bộ (Windows + WSL2, một người dùng) biến bài học rút ra từ sách `.txt` / `.md` thành **video ngắn dọc 9:16** (TikTok, YouTube Shorts, Facebook Reels) với kịch bản, giọng đọc và phụ đề **tiếng Việt**.
+Ứng dụng chạy cục bộ (Windows + WSL2, một người dùng) biến bài học rút ra từ sách `.txt` / `.md` thành **video ngắn dọc 9:16** cho TikTok, YouTube Shorts và Facebook Reels — kịch bản, giọng đọc và phụ đề **tiếng Việt**, render MP4 ngay trên máy.
 
 - Đặc tả sản phẩm: [`BOOK_VIDEO_STUDIO_REQUIREMENTS_VI_v1.1.md`](./BOOK_VIDEO_STUDIO_REQUIREMENTS_VI_v1.1.md)
-- Quy tắc cho AI agent / người đóng góp: [`AGENTS.md`](./AGENTS.md)
-- **Không dùng Claude API / API key.** AI chạy bằng `MockAiProvider` hoặc bằng Claude Code CLI của chính bạn (từ M5).
+- Kiến trúc: [`docs/architecture.md`](./docs/architecture.md) · Quy tắc cho AI agent / người đóng góp: [`AGENTS.md`](./AGENTS.md)
+- **Không dùng Claude API / API key.** AI chạy bằng dữ liệu mẫu (`mock`) hoặc bằng Claude Code CLI do chính bạn chạy trong terminal.
 
-## Trạng thái
+## Tính năng
 
-Đã hoàn thành **M0–M5**: nhập sách, bài học, tạo video & kịch bản, xem trước & render MP4, giọng đọc tiếng Việt, luồng Claude Code CLI thật và bảng tác vụ. **M6** (hoàn thiện, kiểm thử E2E, tài liệu) đang tiếp tục.
+| Phần      | Bạn làm được gì                                                                                                                                                         |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Thư viện  | Nhập `.md`/`.txt` (tải lên hoặc dán), tìm kiếm không phân biệt dấu, sửa thông tin sách, xoá mềm                                                                         |
+| Chương    | Nhận diện chương tự động (heading Markdown hoặc dòng "Chương 1 / CHƯƠNG IV / Chapter One / Phần 2"), bỏ mục lục/lời nói đầu, đổi tên, tách, gộp, sắp xếp trước khi nhập |
+| Bài học   | AI rút bài học từ từng chương kèm trích đoạn đã kiểm chứng; sửa, duyệt, lưu trữ, gộp, tạo thủ công                                                                      |
+| Video     | Tạo video từ 1–N bài học đã duyệt (khuyên 1), preset 30 / 45 / **60** giây hoặc Extended 90 giây, lưu snapshot bài học                                                  |
+| Kịch bản  | 2–3 phương án hook ≤ 3 giây; các cảnh tình huống → sai lầm → cách xử lý → điều cần nhớ → hành động; sửa, ẩn, thêm, xoá, sắp xếp, viết lại một cảnh, duyệt               |
+| Giọng đọc | edge-tts tiếng Việt hoặc tải lên MP3/WAV; thời lượng cảnh theo âm thanh thật                                                                                            |
+| Xem trước | Khung điện thoại 9:16, lớp vùng an toàn TikTok / Shorts / Reels, nút "Xem 3 giây đầu"                                                                                   |
+| Render    | Nháp 720×1280 và bản cuối 1080×1920, 30 FPS, H.264 + AAC; kiểm tra trước khi render; ffprobe xác nhận MP4; lịch sử và tải về                                            |
+| Tác vụ    | Theo dõi, thử lại, huỷ mọi tác vụ nền; lệnh `pnpm ai:run` cho tác vụ chờ Claude                                                                                         |
+| Chẩn đoán | Node, Redis, SQLite, worker, ffmpeg, Claude CLI, edge-tts, Chromium, tài nguyên WSL; chạy tác vụ thử và kiểm tra AI mẫu; hướng dẫn khởi động                            |
 
 ## Yêu cầu
 
-| Thành phần       | Ghi chú                                                                                   |
-| ---------------- | ----------------------------------------------------------------------------------------- |
-| WSL2 Ubuntu      | Clone repo vào filesystem Linux (ví dụ `~/code/...`), **không** dùng `/mnt/c` (I/O chậm). |
-| Node.js ≥ 24     | Đã kiểm thử với v24.18.                                                                   |
-| pnpm ≥ 9.7       | **Chỉ dùng pnpm.** `npm install` bị chặn bởi `preinstall`.                                |
-| Redis ≥ 6.2      | Khuyến nghị Docker (`docker compose up -d`). Xem mục "Redis không dùng Docker".           |
-| ffmpeg + ffprobe | `sudo apt install ffmpeg`                                                                 |
-| Claude Code CLI  | Tuỳ chọn, chỉ cần khi chạy AI thật (M5).                                                  |
+| Thành phần             | Ghi chú                                                                                                                    |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| WSL2 Ubuntu            | Đặt dự án trên filesystem Linux (ví dụ `~/code/...`), **không** dùng `/mnt/c`.                                             |
+| Node.js ≥ 24           | Đã kiểm thử với v24.18.                                                                                                    |
+| pnpm ≥ 9.7             | **Chỉ dùng pnpm** — `npm install` / `yarn` bị chặn.                                                                        |
+| Redis ≥ 6.2            | Khuyến nghị `docker compose up -d` (Redis 7, chỉ mở `127.0.0.1`). Xem [Redis không dùng Docker](#redis-không-dùng-docker). |
+| ffmpeg + ffprobe       | `sudo apt install ffmpeg`                                                                                                  |
+| Chromium cho Remotion  | Tự tải ở lần render đầu, hoặc `pnpm exec remotion browser ensure` (cần Internet một lần).                                  |
+| edge-tts (tuỳ chọn)    | `pip install -U edge-tts` — chỉ cần khi tạo giọng đọc tự động.                                                             |
+| Claude Code (tuỳ chọn) | Chỉ cần khi dùng AI thật (`AI_MODE=cli-task`).                                                                             |
 
 ## Cài đặt lần đầu
 
 ```bash
-cp .env.example .env          # chỉnh nếu cần; không commit .env
+cp .env.example .env          # đặt AI_MODE=mock để thử ngay mà không cần Claude
 pnpm install                  # tự chạy `prisma generate`
-docker compose up -d          # Redis (127.0.0.1:6379)
+docker compose up -d          # Redis tại 127.0.0.1:6379
 pnpm db:migrate               # tạo data/studio.db
-pnpm db:seed                  # nhập sách mẫu + bài học nháp bằng AI mẫu (chạy lại không tạo trùng)
+pnpm db:seed                  # sách mẫu + bài học nháp bằng AI mẫu (chạy lại không tạo trùng)
+pnpm diagnose                 # kiểm tra môi trường
 ```
 
-## Chạy ứng dụng
+## Chạy hằng ngày
 
-Mở 3 terminal trong thư mục dự án:
+Mỗi lệnh một terminal WSL trong thư mục dự án (trang **Cài đặt** cũng hiển thị hướng dẫn này):
 
 ```bash
-docker compose up -d          # 1) Redis (bỏ qua nếu đã chạy)
-pnpm worker:dev               # 2) worker (xử lý tác vụ nền)
+docker compose up -d          # 1) Redis (nếu chưa chạy)
+pnpm worker:dev               # 2) worker: phân tích, kịch bản, giọng đọc, render
 pnpm dev                      # 3) web tại http://127.0.0.1:3000
 ```
 
-Mở `http://127.0.0.1:3000` bằng trình duyệt trên Windows. Ứng dụng chỉ lắng nghe `127.0.0.1`.
+Mở `http://127.0.0.1:3000` trong trình duyệt trên Windows. Web chỉ lắng nghe `127.0.0.1` và vẫn mở được khi Redis hoặc worker tắt (trang Cài đặt báo "suy giảm").
 
-## Kiểm tra gate M0
+Bản production: `pnpm build && pnpm start`, kèm `pnpm worker:start` ở terminal khác.
 
-1. Mở **Cài đặt** (`/settings`): Node, Redis, SQLite, Worker, FFmpeg, Claude CLI đều hiển thị "Ổn"; khối cấu hình hiển thị `SHORT_VERTICAL (9:16)`, final `1080×1920`, draft `720×1280`, 30 FPS, thời lượng `60s / 90s`, worker/render concurrency = `1`.
-2. Bấm **Chạy tác vụ thử**: huy hiệu chuyển `QUEUED → COMPLETED · 100%` và có thông báo thành công. Tác vụ đi qua Next.js → Redis (BullMQ) → worker → SQLite và ghi `data/diagnostics/last-ping.json`.
-3. Dòng lệnh tương đương:
-   ```bash
-   curl http://127.0.0.1:3000/api/health      # JSON chẩn đoán
-   pnpm diagnose                               # bản chẩn đoán trong terminal
-   ```
-4. Chịu lỗi: tắt worker rồi bấm chạy thử → tác vụ giữ `QUEUED`, tự hoàn tất khi bật lại worker. Tắt Redis (`docker stop book-video-studio-redis`) → trang vẫn mở, hiển thị "suy giảm"; enqueue trả `503` kèm hướng dẫn.
+## Quy trình làm một video
 
-## Nhập sách (M1)
+1. **Sách → Nhập sách**: tải tệp lên hoặc dán văn bản, kiểm tra danh sách chương (bỏ chọn mục lục, đổi tên, **Tách**, **Gộp**, sắp xếp), **Xác nhận nhập**. Tệp gốc được lưu nguyên byte, chỉ đọc; nhập lại tệp trùng nội dung sẽ được cảnh báo.
+2. Tab **Chương** → **Phân tích tất cả chương** (worker chạy lần lượt). Bài học tạo ra ở trạng thái nháp.
+3. Tab **Bài học**: mở từng bài, đối chiếu trích đoạn nguồn, sửa rồi **Duyệt**. Tình huống do AI sáng tác luôn được ghi rõ là minh họa.
+4. Tab **Video** → **Tạo video**: chọn bài học đã duyệt và preset (mặc định 60 giây; 90 giây chỉ khi tích **Extended Short**).
+5. Trong video: **Tạo kịch bản** → tab **Hook** chọn phương án (HOOK luôn ở frame 0 và ≤ 3 giây) → tab **Kịch bản** chỉnh từng cảnh → **Duyệt kịch bản**. Sửa sau khi duyệt sẽ cần duyệt lại.
+6. Tab **Giọng đọc**: tạo bằng edge-tts hoặc tải âm thanh lên. Thanh thời lượng so tổng thời lượng với preset; nếu vượt, hãy rút gọn lời dẫn hoặc đổi preset — ứng dụng không tự cắt lời hay tăng tốc.
+7. Tab **Xem trước**: phát trong khung điện thoại, bật vùng an toàn, **Xem 3 giây đầu**.
+8. **Render**: render nháp để duyệt nhanh, rồi render bản cuối và tải MP4 trong lịch sử render.
 
-1. **Sách → Nhập sách**: tải tệp `.md`/`.txt` (UTF-8, tối đa `MAX_IMPORT_SIZE_MB`, mặc định 10 MB) hoặc dán văn bản.
-2. Studio nhận diện chương: Markdown theo heading (bỏ qua tiêu đề sách, mục lục, lời nói đầu); TXT theo dòng riêng như `Chương 1`, `CHƯƠNG IV`, `Chapter One`, `Phần 2`. Có thể thêm mẫu riêng qua `CHAPTER_HEADING_PATTERNS` (mảng JSON regex).
-3. Kiểm tra danh sách: bỏ chọn mục không phải chương, đổi tên, **Tách** tại một đoạn, **Gộp** với mục liền sau, sắp xếp lại, xem nội dung.
-4. **Xác nhận nhập**. Tệp gốc được lưu nguyên byte, chỉ đọc, tại `data/books/{bookId}/original.*`; mỗi chương là `data/books/{bookId}/chapters/{chapterId}.md`.
-5. Nhập lại cùng một tệp (trùng SHA-256) sẽ được cảnh báo; mặc định không tạo bản trùng.
+## AI: mock và Claude Code CLI
 
-Xoá sách là xoá mềm (ẩn khỏi thư viện, giữ nguyên tệp) và bị chặn khi sách đã có video.
+| `AI_MODE`  | Hoạt động                                                                                                               |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `mock`     | `MockAiProvider` trả bài học, hook và kịch bản mẫu tất định — không mạng, không tốn hạn mức. Dùng cho demo và kiểm thử. |
+| `cli-task` | AI thật qua **Claude Code CLI của bạn**. Studio chỉ tạo tác vụ; bạn tự chạy lệnh trong terminal.                        |
 
-## Bài học (M2)
+Luồng `cli-task`:
 
-1. Trong tab **Chương** của sách: bấm **Phân tích** từng chương hoặc **Phân tích tất cả chương**. Worker xử lý lần lượt (một tác vụ một lúc); trang tự cập nhật khi xong.
-2. Mỗi chương sinh bài học ở trạng thái **Bản nháp**, kèm trích đoạn nguồn đã được đối chiếu với nội dung chương (trích dẫn không có trong chương bị loại).
-3. Tab **Bài học**: lọc theo chương, trạng thái, đã/chưa dùng trong video; mở bài học để sửa, **Duyệt**, **Từ chối (lưu trữ)**, **Khôi phục**, hoặc **Gộp** bài học trùng ý. Có thể **Tạo bài học thủ công** (gắn với ít nhất một chương).
-4. **Phân tích lại** chương đã phân tích cần xác nhận: bản nháp AI cũ của chương được lưu trữ, bài học đã duyệt/thủ công giữ nguyên. Chương không đổi nội dung và phiên bản prompt sẽ không bị phân tích lại nếu không chọn.
+1. Bấm **Phân tích** / **Tạo kịch bản** / **Viết lại cảnh này** → worker tạo `data/ai-tasks/{jobId}/` (`prompt.md` có version, `input.json`, `schema.json`) và tác vụ chuyển sang **Chờ Claude CLI**.
+2. Trong terminal WSL đã đăng nhập Claude Code: `pnpm ai:run --list`, rồi `pnpm ai:run --job <jobId>` (thêm `--dry-run` để xem trước lệnh).
+3. Lệnh chạy `claude -p` **không bật tool nào**, không lưu phiên, kèm JSON Schema; prompt đi qua stdin; biến môi trường phiên Claude Code và mọi API key bị loại bỏ. Kết quả hợp lệ được lưu và tác vụ quay lại hàng đợi để worker ghi vào Studio.
+4. Hết hạn mức, chưa đăng nhập, quá `AI_TASK_TIMEOUT_SEC` hoặc sai schema → tác vụ **Lỗi** với mã rõ ràng (`AI_QUOTA_EXCEEDED`, `AI_CLI_AUTH`, `AI_CLI_TIMEOUT`…), không tự thử lại; đầu ra thô nằm ở `output.raw.txt`.
 
-## Video & kịch bản (M3)
+Nội dung sách luôn được bọc như **dữ liệu không đáng tin**: câu lệnh nằm trong sách (ví dụ "bỏ qua mọi hướng dẫn…") không điều khiển được AI. Trích dẫn không có thật trong chương bị loại tự động. Không nhập mật khẩu, token hay cookie Claude vào Studio.
 
-1. Duyệt ít nhất một bài học, mở tab **Video** của sách → **Tạo video**. Chọn 1 bài học (khuyên dùng) hoặc 2 bài học bổ trợ nhau, preset **30 / 45 / 60 giây** (mặc định 60) hoặc tích **Extended Short 90 giây**. Video luôn dọc 9:16, 1080×1920, 30 FPS.
-2. Mỗi video lưu **bản chụp (snapshot)** bài học tại thời điểm tạo — sửa bài học sau đó không làm đổi video.
-3. Trong trình biên tập video, bấm **Tạo kịch bản**: AI đề xuất 2–3 hook (câu hỏi / sai lầm / tương phản) và các cảnh tình huống → sai lầm → cách xử lý → điều cần nhớ → hành động.
-4. Tab **Hook**: chọn phương án, sửa lời và chữ trên màn hình. Hook luôn là cảnh đầu (frame 0) và phải đọc xong trong 3 giây.
-5. Tab **Kịch bản**: sửa, ẩn, sắp xếp, xoá, **Viết lại cảnh này** (chỉ cảnh đó thay đổi) hoặc thêm cảnh từ mẫu. Thanh **Thời lượng ước tính** so với preset (ước lượng ~4 âm tiết/giây; thời lượng thật đo từ audio ở M5).
-6. **Duyệt kịch bản**; mọi chỉnh sửa sau khi duyệt đưa kịch bản về trạng thái cần duyệt lại.
+## Giọng đọc
 
-## Xem trước & render (M4)
+- edge-tts (`TTS_MODE=edge-tts`, `TTS_VOICE`, `TTS_SPEED`): âm thanh được cắt khoảng lặng đầu/cuối để lời hook bắt đầu ngay, và được cache theo lời dẫn + giọng + tốc độ.
+- Tải lên MP3/WAV (≤ `MAX_AUDIO_UPLOAD_MB`): giữ nguyên tệp, chỉ đo khoảng lặng đầu (cảnh báo nếu > 0,5 giây). `TTS_MODE=upload` tắt hẳn TTS.
+- Độ dài cảnh = âm thanh thật + `SCENE_AUDIO_PADDING_MS`. Sửa chữ trên màn hình giữ nguyên audio; sửa lời dẫn gỡ audio cũ. Thay audio làm các bản render trước **lỗi thời** (tệp không bị xoá).
+- edge-tts là dịch vụ trực tuyến **không chính thức**: nếu báo 403 hoặc không tạo được tệp, chạy `pip install -U edge-tts` (hoặc trỏ `EDGE_TTS_COMMAND` tới bản mới), hoặc dùng tải lên.
 
-- Tab **Xem trước** của video phát đúng composition sẽ render, trong khung điện thoại 360×640. Chọn **TikTok / YouTube Shorts / Facebook Reels** để hiện lớp vùng an toàn ước lượng (chỉ là hướng dẫn trong editor, không có trong MP4; giá trị nằm ở `src/features/videos/domain/safe-zones.ts` và có thể chỉnh). **Xem 3 giây đầu** phát riêng phần HOOK.
-- Trang **Render** (`/videos/{id}/render`): kiểm tra trước khi render (HOOK ≤ 3 giây, không vượt preset, kịch bản đã duyệt, có chữ trên màn hình…), rồi **Render nháp 720×1280** (cho phép khi còn cảnh báo) hoặc **Render bản cuối 1080×1920** (chặn khi còn lỗi).
-- Worker render lần lượt (render concurrency = 1), H.264 + AAC, 30 FPS, BT.709; kết quả được ffprobe kiểm tra rồi lưu tại `data/videos/{videoId}/renders/`. Sửa kịch bản sau khi render sẽ đánh dấu bản cũ là **lỗi thời** (không xoá tệp).
-- Lần render đầu tiên bundle composition (vài chục giây). Remotion cần trình duyệt headless: nếu máy chưa có, chạy `pnpm exec remotion browser ensure` (cần Internet một lần).
-- Font Be Vietnam Pro (giấy phép OFL, `public/fonts`) được dùng cho cả preview và render để dấu tiếng Việt hiển thị giống nhau.
-- Kiểm tra tệp: `ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate:format=duration -of compact <file.mp4>`.
+## Xem trước và render
 
-## Giọng đọc (M5)
+- Preview và render dùng **cùng một composition** Remotion và cùng font Be Vietnam Pro (OFL, trong `public/fonts`), nên dấu tiếng Việt hiển thị giống nhau.
+- Vùng an toàn là **giá trị ước lượng có thể chỉnh** (`src/features/videos/domain/safe-zones.ts`), không phải thông số chính thức của nền tảng, và không bao giờ được render vào MP4.
+- Kiểm tra trước khi render: HOOK ở frame 0 và ≤ 90 frame, có chữ trên màn hình, không vượt preset và ≤ 90 giây, kịch bản đã duyệt (bắt buộc với bản cuối), cảnh báo cảnh chưa có giọng đọc / hook im lặng.
+- Worker render lần lượt (`WORKER_CONCURRENCY=1`, `RENDER_CONCURRENCY=1`), ghi tệp tạm rồi đổi tên; sau đó ffprobe xác nhận H.264 + AAC, kích thước, 30 FPS và thời lượng. Lần render đầu cần bundle composition (vài chục giây).
+- Tự kiểm tra một tệp: `ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate:format=duration -of compact <tệp.mp4>`
 
-- Tab **Giọng đọc** của video: **Tạo giọng đọc** từng cảnh hoặc **Tạo giọng cho các cảnh còn thiếu** bằng edge-tts (`TTS_MODE=edge-tts`, giọng `TTS_VOICE`, tốc độ `TTS_SPEED` %), hoặc **Tải lên MP3/WAV** (tối đa `MAX_AUDIO_UPLOAD_MB`). Nghe thử, thay, gỡ ngay trong tab.
-- Độ dài mỗi cảnh = thời lượng âm thanh thật (ffprobe) + `SCENE_AUDIO_PADDING_MS`. Âm thanh TTS được cắt khoảng lặng đầu/cuối để lời hook bắt đầu ngay; âm thanh tải lên được giữ nguyên và chỉ đo khoảng lặng đầu (cảnh báo nếu > 0,5 giây).
-- Giọng TTS được cache theo `hash(lời dẫn + giọng + tốc độ + phiên bản)`: sửa chữ trên màn hình không làm mất audio; sửa lời dẫn thì audio cũ bị gỡ. Thay audio làm các bản render trước **lỗi thời**.
-- edge-tts là dịch vụ trực tuyến không chính thức. Nếu báo lỗi 403/không tạo được tệp, nâng cấp: `pip install -U edge-tts` (hoặc trỏ `EDGE_TTS_COMMAND` tới bản mới), hoặc dùng tải lên. `TTS_MODE=upload` tắt hẳn TTS.
+## Tác vụ và chẩn đoán
 
-## Claude Code CLI (AI thật, không API key)
+- **Tác vụ** (`/jobs`): trạng thái, tiến độ, lỗi rút gọn; **Thử lại** (tạo tác vụ mới), **Huỷ** (đang chờ: ngay; đang chạy: yêu cầu dừng — render dừng giữa chừng và xoá tệp dở), **Chi tiết** kèm lệnh `pnpm ai:run`. Khi worker tắt, tác vụ vẫn nằm trong Redis và chạy tiếp khi worker bật lại; lúc khởi động, worker đối soát trạng thái với BullMQ.
+- **Cài đặt** (`/settings`), `GET /api/health` và `pnpm diagnose` dùng chung một bộ kiểm tra. Trang Cài đặt có nút **Chạy tác vụ thử** (web → Redis → worker → SQLite) và **Kiểm tra AI mẫu**.
 
-1. Đặt `AI_MODE=cli-task` trong `.env`, khởi động lại web và worker.
-2. Khi bạn bấm **Phân tích** / **Tạo kịch bản** / **Viết lại cảnh này**, worker tạo thư mục `data/ai-tasks/{jobId}/` (prompt có version, dữ liệu đầu vào, JSON Schema đầu ra) và tác vụ chuyển sang **Chờ Claude CLI**.
-3. Trong terminal WSL nơi Claude Code đã đăng nhập: `pnpm ai:run --list` để xem tác vụ chờ, rồi `pnpm ai:run --job <jobId>` (thêm `--dry-run` để xem trước lệnh). Lệnh gọi `claude -p` **không bật tool nào**, không lưu phiên, kèm JSON Schema; prompt đi qua stdin; biến môi trường phiên Claude Code và mọi API key bị loại bỏ.
-4. Kết quả hợp lệ được lưu `output.json` và tác vụ quay lại hàng đợi; worker kiểm tra lại schema rồi lưu vào Studio. Hết hạn mức, chưa đăng nhập, quá thời gian (`AI_TASK_TIMEOUT_SEC`) hoặc sai schema → tác vụ **Lỗi** với mã rõ ràng, không tự thử lại; kết quả thô lưu ở `output.raw.txt`.
-
-Studio không bao giờ tự gọi Claude từ web hay worker và không cần `ANTHROPIC_API_KEY`.
-
-## Bảng tác vụ (M5)
-
-Trang **Tác vụ** liệt kê phân tích, kịch bản, giọng đọc, render với trạng thái, tiến độ, lỗi rút gọn; **Thử lại** (tác vụ lỗi/đã huỷ), **Huỷ** (đang chờ: huỷ ngay; đang chạy: yêu cầu dừng — render dừng giữa chừng và xoá tệp dở), **Chi tiết** (kèm lệnh `pnpm ai:run` để sao chép). Có cảnh báo khi worker không chạy; tác vụ vẫn nằm trong Redis và chạy tiếp khi worker bật lại. Khi khởi động, worker đối soát trạng thái với BullMQ.
-
-## Chế độ AI
-
-| `AI_MODE`  | Ý nghĩa                                                                                                                                                               |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mock`     | `MockAiProvider`: dữ liệu mẫu, không gọi mạng, không tốn hạn mức. Dùng để kiểm thử/demo.                                                                              |
-| `cli-task` | Mặc định cho AI thật: Studio tạo tác vụ, trạng thái `WAITING_FOR_CLI`, **bạn** chạy `pnpm ai:run --job <jobId>` trong terminal WSL. _Chưa triển khai — dự kiến ở M5._ |
-
-Không có Anthropic SDK / API key trong dự án. Không nhập mật khẩu, token hay cookie Claude vào Studio.
+> `pnpm doctor` là lệnh có sẵn của pnpm, không phải script của dự án — hãy dùng `pnpm diagnose`.
 
 ## Scripts
 
-| Lệnh                                                | Tác dụng                                                                                    |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `pnpm dev` / `pnpm build` / `pnpm start`            | Next.js (bind `127.0.0.1`)                                                                  |
-| `pnpm worker:dev` / `pnpm worker:start`             | Worker nền (có / không watch)                                                               |
-| `pnpm db:migrate` / `db:generate` / `db:seed`       | Prisma migrate / generate client / seed                                                     |
-| `pnpm diagnose`                                     | Chẩn đoán môi trường trong terminal (Redis, SQLite, worker, ffmpeg, Claude CLI, tài nguyên) |
-| `pnpm ai:run --job <id>`                            | Chạy tác vụ AI qua Claude Code CLI (M5; hiện chỉ in thông báo)                              |
-| `pnpm remotion:studio`                              | Mở Remotion Studio để xem composition                                                       |
-| `pnpm lint` / `typecheck` / `test` / `format:check` | Kiểm tra chất lượng                                                                         |
+| Lệnh                                                | Tác dụng                                              |
+| --------------------------------------------------- | ----------------------------------------------------- |
+| `pnpm dev` / `pnpm build` / `pnpm start`            | Next.js (chỉ `127.0.0.1`)                             |
+| `pnpm worker:dev` / `pnpm worker:start`             | Worker nền (có / không watch)                         |
+| `pnpm db:migrate` / `db:generate` / `db:seed`       | Prisma migrate / sinh client / dữ liệu mẫu            |
+| `pnpm ai:run --list` · `pnpm ai:run --job <id>`     | Liệt kê / chạy tác vụ AI bằng Claude Code CLI         |
+| `pnpm diagnose`                                     | Chẩn đoán môi trường trong terminal                   |
+| `pnpm remotion:studio`                              | Mở Remotion Studio để xem composition với dữ liệu mẫu |
+| `pnpm lint` / `typecheck` / `test` / `format:check` | Kiểm tra chất lượng                                   |
+| `pnpm test:e2e`                                     | Build rồi chạy smoke test E2E bằng Playwright         |
 
-> `pnpm doctor` là lệnh có sẵn của pnpm, không phải script của dự án — dùng `pnpm diagnose`.
+## Cấu hình (`.env`)
 
-Trước khi báo hoàn thành một thay đổi: `pnpm lint && pnpm typecheck && pnpm test && pnpm build`.
+| Biến                                                             | Mặc định                                           | Ý nghĩa                                                                             |
+| ---------------------------------------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `DATABASE_URL` / `DATA_DIR`                                      | `file:./data/studio.db` / `./data`                 | SQLite và thư mục dữ liệu (tương đối với thư mục dự án; không được nằm dưới `/mnt`) |
+| `REDIS_URL`                                                      | `redis://127.0.0.1:6379`                           | Hàng đợi BullMQ                                                                     |
+| `MAX_IMPORT_SIZE_MB`, `CHAPTER_HEADING_PATTERNS`                 | `10`, `[]`                                         | Giới hạn tệp sách; mảng JSON regex nhận diện chương bổ sung                         |
+| `AI_MODE`, `CLAUDE_CLI_COMMAND`, `AI_TASK_TIMEOUT_SEC`           | `cli-task`, `claude`, `600`                        | Chế độ AI và lệnh Claude Code                                                       |
+| `TTS_MODE`, `TTS_VOICE`, `TTS_SPEED`, `EDGE_TTS_COMMAND`         | `edge-tts`, `vi-VN-NamMinhNeural`, `0`, `edge-tts` | Giọng đọc (`TTS_MODE=upload` chỉ dùng âm thanh tải lên)                             |
+| `SCENE_AUDIO_PADDING_MS`, `MAX_AUDIO_UPLOAD_MB`                  | `300`, `20`                                        | Khoảng nghỉ sau mỗi đoạn đọc; giới hạn tải lên                                      |
+| `DEFAULT_VIDEO_DURATION_SEC`, `MAX_VIDEO_DURATION_SEC`           | `60`, `90`                                         | Preset mặc định và giới hạn tuyệt đối                                               |
+| `RENDER_WIDTH/HEIGHT/FPS`, `DRAFT_RENDER_WIDTH/HEIGHT`           | `1080×1920@30`, `720×1280`                         | Kích thước 9:16 (được kiểm tra khi khởi động)                                       |
+| `WORKER_CONCURRENCY`, `RENDER_CONCURRENCY`, `MAX_AI_CONCURRENCY` | `1`, `1`, `1`                                      | Chỉ tăng sau khi đo trên máy thật                                                   |
 
-## Cấu trúc thư mục
+Dự án không có và không cần `ANTHROPIC_API_KEY`.
+
+## Dữ liệu, sao lưu và khôi phục
 
 ```
-src/app/            Trang và API route mỏng (Next.js App Router)
-src/components/     ui/ (shadcn) và layout/
-src/features/       Module theo tính năng: books, chapters, jobs (lessons/videos ở M2–M4)
-src/server/         Hạ tầng phía server: db, queue, storage, ai, diagnostics, http
-src/worker/         Tiến trình worker độc lập: main.ts, processors/, lifecycle/
-src/remotion/       Mã video (React thuần): root, compositions, theme
-src/shared/         Cấu hình env (Zod), logger, lỗi, kiểu dùng chung
-prisma/             schema.prisma, migrations/, seed.ts
-scripts/            run-claude-task.ts, diagnose.ts
-tests/              Vitest
-data/               Dữ liệu chạy thật (gitignored): studio.db, books/, ai-tasks/, videos/
+data/                         # không commit
+  studio.db                   # SQLite (chế độ WAL)
+  books/{bookId}/original.*   # tệp gốc, chỉ đọc
+  books/{bookId}/chapters/    # nội dung từng chương
+  ai-tasks/{jobId}/           # prompt, input, schema, output của tác vụ AI
+  videos/{videoId}/audio/     # giọng đọc
+  videos/{videoId}/renders/   # MP4
 ```
+
+- **Sao lưu:** dừng `pnpm dev` và worker, rồi sao chép toàn bộ `data/` (gồm `studio.db`, `studio.db-wal`, `studio.db-shm`), ví dụ `tar czf ~/backup-$(date +%F).tgz data`.
+- **Khôi phục:** dừng các tiến trình, giải nén đè `data/`, chạy `pnpm exec prisma migrate deploy` (chỉ áp migration còn thiếu, không bao giờ xoá dữ liệu), rồi khởi động lại.
+- Hàng đợi Redis nằm trong volume Docker `redis-data` (AOF). `docker compose down -v` xoá volume này; khi đó worker đánh dấu các tác vụ dở là lỗi ("Tác vụ không còn trong hàng đợi…") để bạn thử lại.
+
+## Kiểm thử
+
+```bash
+pnpm lint && pnpm typecheck && pnpm test && pnpm build   # cổng chất lượng
+pnpm test:e2e                                            # smoke E2E (Playwright, khoảng 3–5 phút)
+```
+
+- `pnpm test` — unit + integration với SQLite tạm và migration thật: parser chương, đường dẫn an toàn, pipeline bài học, kịch bản, preflight, audio và các tình huống lỗi (Redis tắt, TTS không khả dụng, JSON AI sai, trích dẫn bịa, prompt injection…).
+- `pnpm test:e2e` — build, rồi dựng một stack riêng (DB và dữ liệu trong `/tmp/book-video-studio-e2e`, Redis **DB số 14** — bị xoá sạch mỗi lần chạy, worker, web ở cổng 3100) và chạy kịch bản E2E-01: nhập sách → phân tích → duyệt → 2 video → hook → sửa một cảnh → snapshot → xem trước → tải âm thanh → render nháp và bản cuối → ffprobe → tải lại trang. Dùng Chromium của Remotion nên không cần `playwright install`; cần Redis đang chạy.
+
+## Tài nguyên WSL
+
+Máy 48 GB RAM không có nghĩa WSL được cấp 48 GB — kiểm tra bằng `free -h`, `nproc` (trang Cài đặt cũng hiển thị). Mặc định chỉ chạy một tác vụ và một luồng render tại một thời điểm. Nếu render chậm: render nháp trước, hoặc đo rồi mới tăng `RENDER_CONCURRENCY`. Muốn đổi RAM/CPU của WSL, **tự** chỉnh `%UserProfile%\.wslconfig` rồi chạy `wsl --shutdown`; ứng dụng không thay đổi cấu hình máy.
 
 ## Redis không dùng Docker
 
-Gói `redis-server` mặc định của Ubuntu (5.x) **quá cũ** cho BullMQ. Nếu không muốn dùng Docker, thêm kho APT chính thức của Redis:
+Gói `redis-server` mặc định của Ubuntu (5.x) quá cũ cho BullMQ. Dùng kho APT chính thức của Redis:
 
 ```bash
 sudo apt-get install -y lsb-release curl gpg
@@ -162,25 +179,52 @@ sudo apt-get update && sudo apt-get install -y redis
 sudo service redis-server start
 ```
 
-(Trong WSL thường dùng `sudo service ...` thay vì `systemctl` nếu chưa bật systemd.)
+(Trong WSL chưa bật systemd, dùng `sudo service ...` thay cho `systemctl`.)
 
 ## Xử lý sự cố
 
-| Triệu chứng                         | Cách xử lý                                                                                                                          |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Redis báo lỗi trong `/settings`     | `docker compose up -d` (hoặc khởi động `redis-server`). Web vẫn mở được khi Redis tắt.                                              |
-| "Worker chưa chạy"                  | Chạy `pnpm worker:dev`. Tác vụ đã enqueue vẫn nằm trong hàng đợi và tự chạy khi worker bật.                                         |
-| Worker thoát ngay khi khởi động     | Redis chưa chạy hoặc `REDIS_URL` sai (xem log, mã thoát 1).                                                                         |
-| `Invalid environment configuration` | Đối chiếu `.env` với `.env.example` (kích thước phải đúng tỉ lệ 9:16, preset ∈ 30/45/60/90, tối đa 90 s).                           |
-| `DATA_DIR resolves to /mnt/...`     | Đưa dự án và `DATA_DIR` về filesystem Linux.                                                                                        |
-| Không thấy `claude`                 | Cài Claude Code, hoặc đặt `AI_MODE=mock`. Chỉ cần khi chạy AI thật.                                                                 |
-| `pnpm install` bị chặn              | Dự án chỉ dùng pnpm; đừng chạy `npm install`/`yarn`.                                                                                |
-| Lỗi thư viện khi render (M4)        | Cài thư viện Chromium theo hướng dẫn của Remotion cho Linux; trên máy hiện tại Remotion tải được Chromium và render thử thành công. |
-| Cần chỉnh RAM/CPU của WSL           | Tự sửa `%UserProfile%\.wslconfig` sau khi đo (`free -h`, `nproc`, Task Manager); ứng dụng **không** tự thay đổi cấu hình máy.       |
+| Triệu chứng                                   | Cách xử lý                                                                                          |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| "Không thể kết nối Redis…" (HTTP 503)         | `docker compose up -d`, rồi thử lại.                                                                |
+| "Worker không chạy" trên trang Tác vụ         | `pnpm worker:dev`. Tác vụ đã xếp hàng sẽ tự chạy.                                                   |
+| Worker thoát ngay khi khởi động               | Redis chưa chạy hoặc `REDIS_URL` sai (mã thoát 1, xem log).                                         |
+| `Invalid environment configuration`           | Đối chiếu `.env` với `.env.example` (tỉ lệ 9:16, preset 30/45/60/90, tối đa 90 giây).               |
+| Tác vụ "Chờ Claude CLI" mãi                   | Chạy `pnpm ai:run --job <id>` (lệnh có trong Chi tiết tác vụ), hoặc đặt `AI_MODE=mock`.             |
+| `AI_CLI_AUTH` / `AI_QUOTA_EXCEEDED`           | Đăng nhập lại Claude Code (`claude`, rồi `/login`) / đợi hạn mức làm mới, sau đó **Thử lại**.       |
+| `AI_CLI_MISSING`                              | Cài Claude Code hoặc chỉnh `CLAUDE_CLI_COMMAND`.                                                    |
+| edge-tts lỗi 403 hoặc tệp rỗng                | `pip install -U edge-tts`, hoặc tải âm thanh lên.                                                   |
+| Render báo thiếu Chromium / thư viện hệ thống | `pnpm exec remotion browser ensure`; nếu vẫn thiếu thư viện, cài theo hướng dẫn Linux của Remotion. |
+| Chữ tiếng Việt lỗi dấu                        | Kiểm tra `public/fonts` còn đủ tệp Be Vietnam Pro.                                                  |
+| `DATA_DIR resolves to /mnt/...`               | Đưa dự án và dữ liệu về filesystem Linux.                                                           |
+| `pnpm install` bị chặn / dùng nhầm npm        | Dự án chỉ dùng pnpm.                                                                                |
 
-## Bản quyền & giới hạn
+## Cấu trúc mã
 
-- Chỉ nhập nội dung sách bạn có quyền xử lý; đầu ra hướng tới tóm lược, diễn giải và ví dụ mới.
-- Tài khoản Claude Max và Claude Code CLI không phải API để bán hoặc chia sẻ. Ở MVP chỉ dùng cá nhân, thao tác chủ động trong terminal; không tự động hoá web → CLI cho người khác.
-- `edge-tts` (M5) là thư viện không chính thức, phụ thuộc dịch vụ trực tuyến; luôn có phương án tải âm thanh lên.
-- Kiểm tra giấy phép Remotion cho trường hợp sử dụng của bạn.
+```
+src/app/         Trang và API route mỏng (Next.js App Router)
+src/features/    books, chapters, lessons, videos, jobs — mỗi phần có domain/, schemas/, services/, repositories/, components/
+src/server/      Hạ tầng phía server: db, queue, storage, ai, tts, media, render, diagnostics, http
+src/worker/      Tiến trình worker: main.ts, processors/, lifecycle/
+src/remotion/    Composition video (React thuần, chỉ nhận props)
+src/shared/      Cấu hình env (Zod), logger, lỗi, kiểu dùng chung
+prisma/          schema.prisma, migrations/, seed.ts
+scripts/         run-claude-task.ts (pnpm ai:run), diagnose.ts
+tests/           unit/, integration/ (Vitest), e2e/ (Playwright)
+```
+
+Chi tiết luồng dữ liệu và trách nhiệm từng tiến trình: [`docs/architecture.md`](./docs/architecture.md).
+
+## Giới hạn đã biết
+
+- Chỉ nhập `.md`/`.txt` UTF-8 (chưa hỗ trợ PDF/EPUB/OCR).
+- Phụ đề hiển thị theo cụm từ, căn theo số âm tiết — không đồng bộ chính xác từng từ.
+- Chưa có nhạc nền; chưa có `AutomatedCliProvider` — Studio không bao giờ tự gọi Claude.
+- Vùng an toàn là ước lượng; hãy kiểm tra lại trên ứng dụng thật trước khi đăng.
+- Không có đăng nhập/phân quyền: chỉ dùng trên `127.0.0.1`. Nếu mở ra mạng LAN/Internet phải bổ sung xác thực, CSRF và giới hạn tần suất trước.
+
+## Bản quyền và điều khoản
+
+- Chỉ nhập nội dung sách bạn có quyền xử lý; đầu ra hướng tới tóm lược, diễn giải và ví dụ mới thay vì sao chép.
+- Tài khoản Claude và Claude Code CLI không phải API để bán hay chia sẻ. Studio dành cho cá nhân; mọi lần gọi Claude đều do bạn chủ động chạy trong terminal. Hãy đọc điều khoản hiện hành của Anthropic trước khi tự động hoá thêm.
+- edge-tts phụ thuộc dịch vụ của Microsoft Edge, không đảm bảo hoạt động lâu dài hay quyền dùng thương mại; luôn có phương án tải âm thanh lên.
+- Kiểm tra giấy phép Remotion cho trường hợp sử dụng của bạn. Font Be Vietnam Pro theo giấy phép SIL OFL (`public/fonts/BeVietnamPro-OFL.txt`).
