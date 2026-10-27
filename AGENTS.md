@@ -39,6 +39,7 @@ Hard constraints (do not relax without an explicit user decision):
 | Remotion Studio (inspect compositions)         | `pnpm remotion:studio`                                         |
 | Lint / format check / typecheck                | `pnpm lint` · `pnpm format:check` · `pnpm typecheck`           |
 | Tests                                          | `pnpm test` (`pnpm test:watch` while developing)               |
+| E2E smoke test (builds first; needs Redis)     | `pnpm test:e2e`                                                |
 | Production build                               | `pnpm build`                                                   |
 
 First-time setup: `cp .env.example .env` → `pnpm install` → `docker compose up -d` → `pnpm db:migrate` → `pnpm db:seed`.
@@ -53,7 +54,8 @@ Toolchain notes (pinned on purpose — do not bump blindly):
 - Runtime path resolution (`process.cwd()` + data dir) carries `/* turbopackIgnore: true */` to stop Turbopack from tracing the whole project; keep it on new runtime-path code.
 - The block at the bottom of this file between `BEGIN:nextjs-agent-rules` / `END:nextjs-agent-rules` is maintained by `next dev`; leave it alone.
 
-**Quality gate before reporting any task done:** `pnpm lint && pnpm typecheck && pnpm test && pnpm build` must pass.
+**Quality gate before reporting any task done:** `pnpm lint && pnpm typecheck && pnpm test && pnpm build` must pass;
+also run `pnpm test:e2e` when a change touches a user flow, the worker, or rendering.
 Never claim something "works" unless it was actually executed; list what was not verified.
 
 ## 3. Architecture & process model
@@ -112,7 +114,8 @@ src/
   generated/           Prisma client output (gitignored)
 prisma/                schema.prisma, migrations/ (committed), seed.ts
 scripts/               CLI entrypoints: run-claude-task.ts, diagnose.ts
-tests/                 Vitest tests (unit/, integration/ …)
+tests/                 unit/ + integration/ (Vitest), e2e/ (Playwright smoke + isolated stack), helpers/
+docs/                  architecture.md (processes, data model, job lifecycle, pipelines, design decisions)
 data/                  Runtime data (gitignored): studio.db, books/, ai-tasks/, videos/, diagnostics/
 ```
 
@@ -217,7 +220,10 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 
 ## 12. Testing
 
-- Vitest for unit/integration (parsers, safe-path, schemas, services, processors). Playwright smoke test arrives in M6.
+- Vitest for unit/integration (parsers, safe-path, schemas, services, processors). `server-only` is aliased to a stub in `vitest.config.ts`.
+- Playwright E2E (`tests/e2e/smoke.spec.ts`) walks the E2E-01 flow on an isolated stack started by `tests/e2e/start-stack.ts`:
+  temp DB + `DATA_DIR`, Redis logical DB 14 (flushed on every run), worker, `next start` on port 3100, `AI_MODE=mock`, `TTS_MODE=upload`.
+  It reuses Remotion's headless Chromium (no `playwright install`). Keep it one end-to-end path; put edge cases in integration tests.
 - Tests must assert real behavior — no `expect(true)` placeholders. Prefer real SQLite (temp file) and real BullMQ/Redis over mocks for queue code.
 - Add tests with the code: parsers (Unicode, BOM, ambiguous headings), path guards, Zod schemas, duration/preflight rules.
 - Run the quality gate (§2) before declaring done; report what passed, what failed, and what was not run.
@@ -239,7 +245,7 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 | M3        | Video builder / script editor                                  | done (gate verified)                  |
 | M4        | Remotion preview + local render                                | done (gate verified)                  |
 | M5        | Voiceover, real CLI task flow, Jobs dashboard                  | done (gate verified)                  |
-| M6        | Hardening, E2E, docs                                           | not started                           |
+| M6        | Hardening, E2E, docs                                           | done (gate verified, E2E passing)     |
 
 ## 15. Do / Don't quick list
 
