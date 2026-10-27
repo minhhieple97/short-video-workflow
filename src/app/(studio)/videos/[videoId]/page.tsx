@@ -13,6 +13,7 @@ import { AddSceneControl } from "@/features/videos/components/add-scene-control"
 import { DurationBudgetBar } from "@/features/videos/components/duration-budget-bar";
 import { HookOptions } from "@/features/videos/components/hook-options";
 import { VideoPreview } from "@/features/videos/components/preview/video-preview";
+import { VoicePanel } from "@/features/videos/components/voice/voice-panel";
 import { SceneEditorCard } from "@/features/videos/components/scene-editor-card";
 import {
   ApproveScriptButton,
@@ -23,7 +24,9 @@ import { VideoSettingsDialog } from "@/features/videos/components/video-settings
 import { VideoStatusBadge } from "@/features/videos/components/video-status-badge";
 import { toCompositionProps } from "@/features/videos/domain/composition-props";
 import { toPlatformPreviewMode } from "@/features/videos/domain/safe-zones";
+import { mediaAssetUrl } from "@/features/videos/services/video-mapper";
 import { findActiveVideoJob, getVideo } from "@/features/videos/services/video.service";
+import { getAppConfig } from "@/shared/config/env";
 import { orNotFound } from "@/server/http/page-helpers";
 
 export const dynamic = "force-dynamic";
@@ -170,9 +173,14 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
             value: "voice",
             label: "Giọng đọc",
             content: (
-              <EmptyState
-                title="Giọng đọc tiếng Việt"
-                description="Tạo bằng edge-tts hoặc tải lên MP3/WAV cho từng cảnh (M5)."
+              <VoicePanel
+                videoId={video.id}
+                scenes={video.scenes}
+                tts={{
+                  mode: getAppConfig().tts.mode,
+                  voice: getAppConfig().tts.voice,
+                  speed: getAppConfig().tts.speed,
+                }}
               />
             ),
           },
@@ -182,7 +190,7 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
             content: (
               <VideoPreview
                 videoId={video.id}
-                props={video.scenes.some((scene) => !scene.hidden) ? toCompositionProps(video) : null}
+                props={video.scenes.some((scene) => !scene.hidden) ? toCompositionProps(video, mediaAssetUrl) : null}
                 initialMode={toPlatformPreviewMode(video.platformPreviewMode)}
               />
             ),
