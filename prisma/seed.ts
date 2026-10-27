@@ -5,6 +5,9 @@ import path from "node:path";
 
 import { confirmImport, previewImport } from "@/features/books/services/book-import.service";
 import { discardStagedImport } from "@/features/books/services/import-staging";
+import { runChapterAnalysis } from "@/features/chapters/services/chapter-analysis.service";
+import { listChapters } from "@/features/chapters/services/chapter.service";
+import { MockAiProvider } from "@/server/ai/mock-ai-provider";
 import { configureDatabase, prisma } from "@/server/db/client";
 import { ensureDataDirs } from "@/server/storage/paths";
 
@@ -38,10 +41,24 @@ async function seedSampleBook(): Promise<string> {
   return bookId;
 }
 
+// Always uses the mock provider so seeding never spends Claude quota; already-analysed chapters are skipped.
+async function seedDraftLessons(bookId: string): Promise<void> {
+  const provider = new MockAiProvider();
+  for (const chapter of await listChapters(bookId)) {
+    const result = await runChapterAnalysis({ chapterId: chapter.id, jobRecordId: null, force: false, provider });
+    console.log(
+      result.skipped
+        ? `Chương ${chapter.order}: đã có bài học mẫu.`
+        : `Chương ${chapter.order}: tạo ${result.lessonsCreated} bài học nháp (AI mẫu).`,
+    );
+  }
+}
+
 async function main(): Promise<void> {
   ensureDataDirs();
   await configureDatabase();
-  await seedSampleBook();
+  const bookId = await seedSampleBook();
+  await seedDraftLessons(bookId);
 }
 
 main()
