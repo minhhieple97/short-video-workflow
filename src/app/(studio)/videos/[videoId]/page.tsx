@@ -15,6 +15,7 @@ import { HookOptions } from "@/features/videos/components/hook-options";
 import { VideoPreview } from "@/features/videos/components/preview/video-preview";
 import { VoicePanel } from "@/features/videos/components/voice/voice-panel";
 import { SceneEditorCard } from "@/features/videos/components/scene-editor-card";
+import { ScriptLock } from "@/features/videos/components/script-lock";
 import {
   ApproveScriptButton,
   DeleteVideoButton,
@@ -32,6 +33,8 @@ import { orNotFound } from "@/server/http/page-helpers";
 export const dynamic = "force-dynamic";
 
 const TABS = ["hook", "story", "voice", "preview"] as const;
+const SCRIPT_LOCKED_NOTE =
+  "Trong lúc này cài đặt, hook, kịch bản, giọng đọc, render và xoá video tạm khoá, vì kịch bản sắp được thay mới.";
 
 interface VideoEditorPageProps {
   params: Promise<{ videoId: string }>;
@@ -42,6 +45,7 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
   const [{ videoId }, { tab }] = await Promise.all([params, searchParams]);
   const video = await orNotFound(getVideo(videoId));
   const activeJob = await findActiveVideoJob(videoId);
+  const locked = activeJob !== null;
   const hookScene = video.scenes.find((scene) => scene.type === "HOOK");
   const sceneIds = video.scenes.map((scene) => scene.id);
   const active = TABS.find((value) => value === tab) ?? "hook";
@@ -71,21 +75,30 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
         }
         actions={
           <>
-            <GenerateScriptButton video={video} busy={activeJob !== null} />
-            <ApproveScriptButton video={video} />
-            <VideoSettingsDialog video={video} />
-            <Button asChild variant="outline">
-              <Link href={`/videos/${video.id}/render`}>
+            <GenerateScriptButton video={video} busy={locked} />
+            <ApproveScriptButton video={video} locked={locked} />
+            <VideoSettingsDialog video={video} locked={locked} />
+            {locked ? (
+              <Button variant="outline" disabled>
                 <Clapperboard aria-hidden />
                 Render
-              </Link>
-            </Button>
-            <DeleteVideoButton videoId={video.id} bookId={video.book.id} />
+              </Button>
+            ) : (
+              <Button asChild variant="outline">
+                <Link href={`/videos/${video.id}/render`}>
+                  <Clapperboard aria-hidden />
+                  Render
+                </Link>
+              </Button>
+            )}
+            <DeleteVideoButton videoId={video.id} bookId={video.book.id} locked={locked} />
           </>
         }
       />
 
-      {activeJob ? <ActiveJobWatcher job={activeJob} runningLabel="Worker đang tạo kịch bản…" /> : null}
+      {activeJob ? (
+        <ActiveJobWatcher job={activeJob} runningLabel="Worker đang tạo kịch bản…" lockedNote={SCRIPT_LOCKED_NOTE} />
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">
         <DurationBudgetBar
@@ -139,17 +152,19 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
             value: "hook",
             label: "Hook",
             content: (
-              <div className="flex flex-col gap-4">
-                <HookOptions videoId={video.id} options={video.hookOptions} hookScene={hookScene} />
-                {hookScene ? (
-                  <SceneEditorCard
-                    key={`${hookScene.id}-${hookScene.version}`}
-                    videoId={video.id}
-                    scene={hookScene}
-                    sceneIds={sceneIds}
-                  />
-                ) : null}
-              </div>
+              <ScriptLock locked={locked}>
+                <div className="flex flex-col gap-4">
+                  <HookOptions videoId={video.id} options={video.hookOptions} hookScene={hookScene} />
+                  {hookScene ? (
+                    <SceneEditorCard
+                      key={`${hookScene.id}-${hookScene.version}`}
+                      videoId={video.id}
+                      scene={hookScene}
+                      sceneIds={sceneIds}
+                    />
+                  ) : null}
+                </div>
+              </ScriptLock>
             ),
           },
           {
@@ -159,32 +174,36 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
               video.scenes.length === 0 ? (
                 <EmptyState title="Chưa có kịch bản" description="Bấm “Tạo kịch bản” để AI đề xuất hook và các cảnh." />
               ) : (
-                <div className="flex flex-col gap-3">
-                  {video.scenes.map((scene) => (
-                    <SceneEditorCard
-                      key={`${scene.id}-${scene.version}-${scene.order}`}
-                      videoId={video.id}
-                      scene={scene}
-                      sceneIds={sceneIds}
-                    />
-                  ))}
-                  <AddSceneControl videoId={video.id} />
-                </div>
+                <ScriptLock locked={locked}>
+                  <div className="flex flex-col gap-3">
+                    {video.scenes.map((scene) => (
+                      <SceneEditorCard
+                        key={`${scene.id}-${scene.version}-${scene.order}`}
+                        videoId={video.id}
+                        scene={scene}
+                        sceneIds={sceneIds}
+                      />
+                    ))}
+                    <AddSceneControl videoId={video.id} />
+                  </div>
+                </ScriptLock>
               ),
           },
           {
             value: "voice",
             label: "Giọng đọc",
             content: (
-              <VoicePanel
-                videoId={video.id}
-                scenes={video.scenes}
-                tts={{
-                  mode: getAppConfig().tts.mode,
-                  voice: getAppConfig().tts.voice,
-                  speed: getAppConfig().tts.speed,
-                }}
-              />
+              <ScriptLock locked={locked}>
+                <VoicePanel
+                  videoId={video.id}
+                  scenes={video.scenes}
+                  tts={{
+                    mode: getAppConfig().tts.mode,
+                    voice: getAppConfig().tts.voice,
+                    speed: getAppConfig().tts.speed,
+                  }}
+                />
+              </ScriptLock>
             ),
           },
           {

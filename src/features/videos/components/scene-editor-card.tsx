@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { estimateNarrationSeconds, HOOK_MAX_SECONDS } from "../domain/duration";
 import { SCENE_TYPE_LABELS, VISUAL_VARIANT_LABELS, VISUAL_VARIANTS, toVisualVariant } from "../domain/scene-types";
 import type { SceneDto } from "../schemas/video.dto";
+import { useScriptLocked } from "./script-lock-context";
 import { useVideoAction } from "./use-video-action";
 
 interface SceneEditorCardProps {
@@ -26,6 +27,7 @@ interface SceneEditorCardProps {
 
 export function SceneEditorCard({ videoId, scene, sceneIds }: Readonly<SceneEditorCardProps>) {
   const { pending, run, runJob } = useVideoAction();
+  const locked = useScriptLocked();
   const [title, setTitle] = useState(scene.title ?? "");
   const [narration, setNarration] = useState(scene.narration);
   const [onScreenText, setOnScreenText] = useState(scene.onScreenText);
@@ -92,7 +94,11 @@ export function SceneEditorCard({ videoId, scene, sceneIds }: Readonly<SceneEdit
         </div>
         <div className="flex flex-col gap-1">
           <Label htmlFor={`${scene.id}-layout`}>Bố cục</Label>
-          <Select value={visualVariant} onValueChange={(value) => setVisualVariant(toVisualVariant(value))}>
+          <Select
+            value={visualVariant}
+            onValueChange={(value) => setVisualVariant(toVisualVariant(value))}
+            disabled={locked}
+          >
             <SelectTrigger id={`${scene.id}-layout`} className="w-72">
               <SelectValue />
             </SelectTrigger>

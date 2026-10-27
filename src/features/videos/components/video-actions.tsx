@@ -68,14 +68,15 @@ export function GenerateScriptButton({ video, busy }: Readonly<GenerateScriptBut
 
 export function ApproveScriptButton({
   video,
-}: Readonly<{ video: Pick<VideoDetail, "id" | "status" | "scenes" | "hookIssues"> }>) {
+  locked,
+}: Readonly<{ video: Pick<VideoDetail, "id" | "status" | "scenes" | "hookIssues">; locked: boolean }>) {
   const { pending, run } = useVideoAction();
   const blocked = video.scenes.length === 0 || video.hookIssues.length > 0;
   if (video.status === "APPROVED") return null;
 
   return (
     <Button
-      disabled={pending || blocked}
+      disabled={pending || blocked || locked}
       title={blocked ? "Cần HOOK hợp lệ trong 3 giây đầu" : undefined}
       onClick={() => void run(() => sendJson(`/api/videos/${video.id}/approve-script`, "POST"), "Đã duyệt kịch bản.")}
     >
@@ -85,7 +86,11 @@ export function ApproveScriptButton({
   );
 }
 
-export function DeleteVideoButton({ videoId, bookId }: Readonly<{ videoId: string; bookId: string }>) {
+export function DeleteVideoButton({
+  videoId,
+  bookId,
+  locked,
+}: Readonly<{ videoId: string; bookId: string; locked: boolean }>) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
 
@@ -104,7 +109,7 @@ export function DeleteVideoButton({ videoId, bookId }: Readonly<{ videoId: strin
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="outline" className="text-destructive" disabled={pending}>
+        <Button variant="outline" className="text-destructive" disabled={pending || locked}>
           <Trash2 aria-hidden />
           Xoá video
         </Button>

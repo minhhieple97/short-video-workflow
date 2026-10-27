@@ -2,11 +2,12 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { PageHeader } from "@/components/layout/page-header";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ActiveJobWatcher } from "@/features/videos/components/active-job-watcher";
 import { PreflightList } from "@/features/videos/components/render/preflight-list";
 import { RenderButtons } from "@/features/videos/components/render/render-buttons";
 import { RenderHistory } from "@/features/videos/components/render/render-history";
 import { dimensionsFor, listRenders, preflightFor } from "@/features/videos/services/render.service";
-import { getVideo } from "@/features/videos/services/video.service";
+import { findActiveVideoJob, getVideo } from "@/features/videos/services/video.service";
 import { orNotFound } from "@/server/http/page-helpers";
 import { getAppConfig } from "@/shared/config/env";
 
@@ -15,7 +16,8 @@ export const dynamic = "force-dynamic";
 export default async function VideoRenderPage({ params }: Readonly<{ params: Promise<{ videoId: string }> }>) {
   const { videoId } = await params;
   const video = await orNotFound(getVideo(videoId));
-  const renders = await listRenders(videoId);
+  const [renders, activeJob] = await Promise.all([listRenders(videoId), findActiveVideoJob(videoId)]);
+  const locked = activeJob !== null;
   const draft = preflightFor(video, "DRAFT");
   const final = preflightFor(video, "FINAL");
   const latest = renders.find((render) => render.status === "COMPLETED");
@@ -38,6 +40,14 @@ export default async function VideoRenderPage({ params }: Readonly<{ params: Pro
         description={`9:16 · 30 FPS · H.264 + AAC · preset ${video.targetDurationSec}s · render concurrency ${getAppConfig().concurrency.render}`}
       />
 
+      {activeJob ? (
+        <ActiveJobWatcher
+          job={activeJob}
+          runningLabel="Worker đang tạo kịch bản…"
+          lockedNote="Chưa thể render cho tới khi kịch bản mới được tạo xong (hoặc tác vụ bị huỷ)."
+        />
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Kiểm tra trước khi render</CardTitle>
@@ -49,7 +59,7 @@ export default async function VideoRenderPage({ params }: Readonly<{ params: Pro
           </div>
           <RenderButtons
             videoId={video.id}
-            blocked={{ DRAFT: draft.blocking.length > 0, FINAL: final.blocking.length > 0 }}
+            blocked={{ DRAFT: locked || draft.blocking.length > 0, FINAL: locked || final.blocking.length > 0 }}
             dims={{ DRAFT: label("DRAFT"), FINAL: label("FINAL") }}
           />
         </CardContent>

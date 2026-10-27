@@ -23,7 +23,7 @@ import { EXTENDED_PRESET_SEC, STANDARD_PRESETS_SEC } from "../domain/duration";
 import type { VideoDetail } from "../schemas/video.dto";
 import { useVideoAction } from "./use-video-action";
 
-export function VideoSettingsDialog({ video }: Readonly<{ video: VideoDetail }>) {
+export function VideoSettingsDialog({ video, locked }: Readonly<{ video: VideoDetail; locked: boolean }>) {
   const { pending, run } = useVideoAction();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState(video.title);
@@ -49,7 +49,7 @@ export function VideoSettingsDialog({ video }: Readonly<{ video: VideoDetail }>)
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline">
+        <Button variant="outline" disabled={locked}>
           <Settings2 aria-hidden />
           Cài đặt
         </Button>

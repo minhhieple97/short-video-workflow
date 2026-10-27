@@ -8,15 +8,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { sendJson } from "@/lib/api-client";
 
 import { BODY_SCENE_TYPES, SCENE_TYPE_LABELS } from "../domain/scene-types";
+import { useScriptLocked } from "./script-lock-context";
 import { useVideoAction } from "./use-video-action";
 
 export function AddSceneControl({ videoId }: Readonly<{ videoId: string }>) {
   const { pending, run } = useVideoAction();
+  const locked = useScriptLocked();
   const [type, setType] = useState<string>("SUMMARY");
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Select value={type} onValueChange={setType}>
+      <Select value={type} onValueChange={setType} disabled={locked}>
         <SelectTrigger className="w-56" aria-label="Loại cảnh mới">
           <SelectValue />
         </SelectTrigger>
