@@ -45,6 +45,7 @@ export function listVideoRecords(filter: { bookId?: string }) {
     include: {
       book: { select: { id: true, title: true } },
       _count: { select: { scenes: true, videoLessons: true } },
+      scenes: { where: { type: "HOOK", hidden: false }, select: { onScreenText: true }, take: 1 },
     },
   });
 }

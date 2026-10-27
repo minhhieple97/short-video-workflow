@@ -41,6 +41,7 @@ export async function listVideos(filter: { bookId?: string } = {}): Promise<Vide
     targetDurationSec: video.targetDurationSec,
     lessonCount: video._count.videoLessons,
     sceneCount: video._count.scenes,
+    hookText: video.scenes[0]?.onScreenText ?? null,
     updatedAt: video.updatedAt.toISOString(),
   }));
 }

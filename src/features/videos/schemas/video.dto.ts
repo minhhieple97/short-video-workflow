@@ -51,6 +51,8 @@ export interface VideoSummary {
   targetDurationSec: number;
   lessonCount: number;
   sceneCount: number;
+  // On-screen text of the HOOK scene (what viewers read at frame 0); null until a script exists.
+  hookText: string | null;
   updatedAt: string;
 }
 
