@@ -9,6 +9,7 @@ export const processAnalyzeChapter: JobProcessor = async ({ job, jobRecordId, re
     chapterId: payload.chapterId,
     jobRecordId,
     force: payload.force,
+    resume: { jobType: "ANALYZE_CHAPTER", payload: { chapterId: payload.chapterId, force: payload.force } },
     onProgress: reportProgress,
   });
 };

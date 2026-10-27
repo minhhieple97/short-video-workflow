@@ -10,11 +10,11 @@ interface CreateJobRecordInput {
   requestFingerprint?: string;
 }
 
+const ACTIVE_JOB_STATUSES = ["QUEUED", "WAITING_FOR_CLI", "RUNNING", "CANCEL_REQUESTED"] as const;
+
 export function createJobRecord(input: CreateJobRecordInput): Promise<JobRecord> {
   return prisma.jobRecord.create({ data: input });
 }
-
-const ACTIVE_JOB_STATUSES = ["QUEUED", "WAITING_FOR_CLI", "RUNNING"] as const;
 
 export function findActiveJobForEntity(
   jobType: JobType,
@@ -29,6 +29,18 @@ export function findActiveJobForEntity(
 
 export function findJobRecordById(id: string): Promise<JobRecord | null> {
   return prisma.jobRecord.findUnique({ where: { id } });
+}
+
+export function listJobRecords(limit: number): Promise<JobRecord[]> {
+  return prisma.jobRecord.findMany({ orderBy: { createdAt: "desc" }, take: limit });
+}
+
+export function listJobsWaitingForCli(): Promise<JobRecord[]> {
+  return prisma.jobRecord.findMany({ where: { status: "WAITING_FOR_CLI" }, orderBy: { createdAt: "asc" } });
+}
+
+export function listUnsettledJobRecords(): Promise<JobRecord[]> {
+  return prisma.jobRecord.findMany({ where: { status: { in: ["QUEUED", "RUNNING", "CANCEL_REQUESTED"] } } });
 }
 
 export function markJobRunning(id: string): Promise<JobRecord> {
@@ -49,9 +61,43 @@ export function markJobCompleted(id: string): Promise<JobRecord> {
   });
 }
 
+export function markJobWaitingForCli(id: string): Promise<JobRecord> {
+  return prisma.jobRecord.update({ where: { id }, data: { status: "WAITING_FOR_CLI" } });
+}
+
+export function markJobRetrying(id: string, errorCode: string, errorMessage: string): Promise<JobRecord> {
+  return prisma.jobRecord.update({
+    where: { id },
+    data: { status: "QUEUED", errorCode, errorMessage: `Sẽ thử lại: ${errorMessage}` },
+  });
+}
+
 export function markJobFailed(id: string, errorCode: string, errorMessage: string): Promise<JobRecord> {
   return prisma.jobRecord.update({
     where: { id },
     data: { status: "FAILED", errorCode, errorMessage, completedAt: new Date() },
+  });
+}
+
+export function markJobCancelRequested(id: string): Promise<JobRecord> {
+  return prisma.jobRecord.update({ where: { id }, data: { status: "CANCEL_REQUESTED" } });
+}
+
+export function markJobCancelled(id: string): Promise<JobRecord> {
+  return prisma.jobRecord.update({
+    where: { id },
+    data: {
+      status: "CANCELLED",
+      errorCode: "JOB_CANCELLED",
+      errorMessage: "Đã huỷ theo yêu cầu.",
+      completedAt: new Date(),
+    },
+  });
+}
+
+export function requeueJobRecord(id: string, bullmqJobId: string): Promise<JobRecord> {
+  return prisma.jobRecord.update({
+    where: { id },
+    data: { status: "QUEUED", bullmqJobId, progress: 0, errorCode: null, errorMessage: null },
   });
 }

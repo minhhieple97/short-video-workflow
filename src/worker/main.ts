@@ -1,6 +1,6 @@
 import "dotenv/config";
 
-import { Worker } from "bullmq";
+import { Queue, Worker } from "bullmq";
 
 import { configureDatabase, prisma } from "@/server/db/client";
 import { QUEUE_NAME } from "@/server/queue/constants";
@@ -10,6 +10,7 @@ import { getAppConfig } from "@/shared/config/env";
 import { createLogger, toSafeErrorMessage } from "@/shared/logger";
 
 import { startHeartbeat } from "./lifecycle/heartbeat";
+import { reconcileJobRecords } from "./lifecycle/reconcile";
 import { registerShutdown } from "./lifecycle/shutdown";
 import { processJob } from "./processors";
 
@@ -31,6 +32,8 @@ async function main(): Promise<void> {
   await configureDatabase();
 
   const connection = createWorkerConnection();
+  const queue = new Queue(QUEUE_NAME, { connection });
+  await reconcileJobRecords(queue);
   const worker = new Worker(QUEUE_NAME, processJob, { connection, concurrency: config.concurrency.worker });
   worker.on("error", (error) => logger.error("Worker error", { error: toSafeErrorMessage(error) }));
 
@@ -38,6 +41,7 @@ async function main(): Promise<void> {
   registerShutdown(async () => {
     stopHeartbeat();
     await worker.close();
+    await queue.close();
     await connection.quit();
     await prisma.$disconnect();
   });

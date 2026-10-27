@@ -1,0 +1,42 @@
+import { Job, type Queue } from "bullmq";
+
+import {
+  listUnsettledJobRecords,
+  markJobCancelled,
+  markJobCompleted,
+  markJobFailed,
+} from "@/features/jobs/repositories/job-record.repository";
+import { releaseJobEntity } from "@/features/jobs/services/job-effects";
+import { createLogger } from "@/shared/logger";
+
+const logger = createLogger("worker.reconcile");
+const LOST_MESSAGE = "Tác vụ không còn trong hàng đợi (Redis đã bị xoá hoặc dọn dẹp). Hãy thử lại.";
+
+// JobRecord is only a read model: on start-up it is re-aligned with what BullMQ actually holds.
+export async function reconcileJobRecords(queue: Queue): Promise<number> {
+  let fixed = 0;
+  for (const record of await listUnsettledJobRecords()) {
+    const job = await Job.fromId(queue, record.bullmqJobId);
+    const state = job ? await job.getState() : "missing";
+
+    if (state === "missing" || state === "unknown") {
+      if (record.status === "CANCEL_REQUESTED") {
+        await markJobCancelled(record.id);
+        await releaseJobEntity(record, "CANCELLED", "Đã huỷ.");
+      } else {
+        await markJobFailed(record.id, "JOB_LOST", LOST_MESSAGE);
+        await releaseJobEntity(record, "FAILED", LOST_MESSAGE);
+      }
+      fixed += 1;
+    } else if (state === "completed" && record.status !== "COMPLETED") {
+      await markJobCompleted(record.id);
+      fixed += 1;
+    } else if (state === "failed") {
+      await markJobFailed(record.id, "PROCESSOR_ERROR", job?.failedReason ?? "Tác vụ thất bại.");
+      await releaseJobEntity(record, "FAILED", job?.failedReason ?? "Tác vụ thất bại.");
+      fixed += 1;
+    }
+  }
+  if (fixed > 0) logger.info("Reconciled job records", { fixed });
+  return fixed;
+}

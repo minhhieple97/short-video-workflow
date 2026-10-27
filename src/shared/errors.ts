@@ -26,3 +26,10 @@ export class NotFoundError extends AppError {
     this.name = "NotFoundError";
   }
 }
+
+export class JobCancelledError extends AppError {
+  constructor() {
+    super("JOB_CANCELLED", "Tác vụ đã bị huỷ.", 409);
+    this.name = "JobCancelledError";
+  }
+}
