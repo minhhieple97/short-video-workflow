@@ -8,7 +8,7 @@
 
 ## Trạng thái
 
-Đã hoàn thành **M0 — Scaffold**, **M1 — Nhập sách & chương** và **M2 — Bài học & pipeline AI mẫu**. Các phần còn lại (video, render, giọng đọc, hoàn thiện) lần lượt ở M3–M6; màn hình chưa làm hiển thị rõ "Chưa triển khai".
+Đã hoàn thành **M0 — Scaffold**, **M1 — Nhập sách**, **M2 — Bài học** và **M3 — Tạo video & kịch bản**. Xem trước/render (M4), giọng đọc + Claude CLI + bảng tác vụ (M5) và hoàn thiện (M6) đang tiếp tục; màn hình chưa làm hiển thị rõ "Chưa triển khai".
 
 ## Yêu cầu
 
@@ -70,6 +70,15 @@ Xoá sách là xoá mềm (ẩn khỏi thư viện, giữ nguyên tệp) và b�
 2. Mỗi chương sinh bài học ở trạng thái **Bản nháp**, kèm trích đoạn nguồn đã được đối chiếu với nội dung chương (trích dẫn không có trong chương bị loại).
 3. Tab **Bài học**: lọc theo chương, trạng thái, đã/chưa dùng trong video; mở bài học để sửa, **Duyệt**, **Từ chối (lưu trữ)**, **Khôi phục**, hoặc **Gộp** bài học trùng ý. Có thể **Tạo bài học thủ công** (gắn với ít nhất một chương).
 4. **Phân tích lại** chương đã phân tích cần xác nhận: bản nháp AI cũ của chương được lưu trữ, bài học đã duyệt/thủ công giữ nguyên. Chương không đổi nội dung và phiên bản prompt sẽ không bị phân tích lại nếu không chọn.
+
+## Video & kịch bản (M3)
+
+1. Duyệt ít nhất một bài học, mở tab **Video** của sách → **Tạo video**. Chọn 1 bài học (khuyên dùng) hoặc 2 bài học bổ trợ nhau, preset **30 / 45 / 60 giây** (mặc định 60) hoặc tích **Extended Short 90 giây**. Video luôn dọc 9:16, 1080×1920, 30 FPS.
+2. Mỗi video lưu **bản chụp (snapshot)** bài học tại thời điểm tạo — sửa bài học sau đó không làm đổi video.
+3. Trong trình biên tập video, bấm **Tạo kịch bản**: AI đề xuất 2–3 hook (câu hỏi / sai lầm / tương phản) và các cảnh tình huống → sai lầm → cách xử lý → điều cần nhớ → hành động.
+4. Tab **Hook**: chọn phương án, sửa lời và chữ trên màn hình. Hook luôn là cảnh đầu (frame 0) và phải đọc xong trong 3 giây.
+5. Tab **Kịch bản**: sửa, ẩn, sắp xếp, xoá, **Viết lại cảnh này** (chỉ cảnh đó thay đổi) hoặc thêm cảnh từ mẫu. Thanh **Thời lượng ước tính** so với preset (ước lượng ~4 âm tiết/giây; thời lượng thật đo từ audio ở M5).
+6. **Duyệt kịch bản**; mọi chỉnh sửa sau khi duyệt đưa kịch bản về trạng thái cần duyệt lại.
 
 ## Chế độ AI
 

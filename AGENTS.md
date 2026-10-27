@@ -49,7 +49,7 @@ Toolchain notes (pinned on purpose — do not bump blindly):
 - `pnpm doctor` is a pnpm built-in and shadows scripts of that name; the project script is `pnpm diagnose`.
 - Prisma is pinned to **7.10.1** (npm `latest` for the CLI is an 8.0 release candidate). Config lives in `prisma.config.ts`; the SQLite URL is not in `schema.prisma`.
 - TypeScript is pinned to **6.0.3** and ESLint to **9.x** until `typescript-eslint` / `eslint-config-next` plugins support TS 7 / ESLint 10.
-- After editing `prisma/schema.prisma`: `pnpm db:migrate --name <short_description>`, commit the generated migration.
+- After editing `prisma/schema.prisma`: `pnpm db:migrate --name <short_description>` then `pnpm db:generate` (Prisma 7 no longer regenerates the client on migrate); commit the migration.
 - Runtime path resolution (`process.cwd()` + data dir) carries `/* turbopackIgnore: true */` to stop Turbopack from tracing the whole project; keep it on new runtime-path code.
 - The block at the bottom of this file between `BEGIN:nextjs-agent-rules` / `END:nextjs-agent-rules` is maintained by `next dev`; leave it alone.
 
@@ -91,7 +91,7 @@ src/
     books/             import parser (domain/), staging + immutable original/chapter files, import wizard, library/detail UI
     chapters/          chapter listing/reading/rename, analysis runner (worker) + analysis requests (web, server-only)
     lessons/           lesson domain (fields, excerpt verification), repository, review service, library/review UI
-    videos/            README only until M3
+    videos/            short-form domain (scene types, layouts, duration budget, snapshots), script generation/editing, editor UI
     jobs/              job payload schemas, JobRecord repository, job service (enqueue/get), "run test job" button
   lib/                 client-safe helpers: utils.ts (shadcn `cn()`), api-client.ts (typed fetch + ApiError), format.ts (vi-VN)
   server/              Server-side infrastructure (never imported by client components or Remotion)
@@ -231,7 +231,7 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 | M0        | Scaffold & toolchain, schema, Redis/BullMQ/worker, diagnostics | done (gate verified; see `README.md`) |
 | M1        | Book import, parser, chapter management                        | done (gate verified)                  |
 | M2        | Lessons + mock AI pipeline                                     | done (gate verified)                  |
-| M3        | Video builder / script editor                                  | not started                           |
+| M3        | Video builder / script editor                                  | done (gate verified)                  |
 | M4        | Remotion preview + local render                                | not started                           |
 | M5        | Voiceover, real CLI task flow, Jobs dashboard                  | not started                           |
 | M6        | Hardening, E2E, docs                                           | not started                           |
