@@ -1,5 +1,5 @@
 import type { JobRecord } from "@/generated/prisma/client";
-import { isJobType, type JobListItem } from "@/shared/types/job";
+import { aiRunCommand, isJobType, type JobListItem } from "@/shared/types/job";
 
 import { findJobEntities } from "../repositories/job-entity.repository";
 import { listActiveJobRecords, listJobRecords } from "../repositories/job-record.repository";
@@ -64,7 +64,7 @@ async function toJobListItems(records: readonly JobRecord[]): Promise<JobListIte
       entityLabel: ref?.label ?? (record.entityType === "SYSTEM" ? "Hệ thống" : "Đã xoá"),
       entityHref: ref?.href ?? null,
       attempts: record.attempts,
-      cliCommand: record.status === "WAITING_FOR_CLI" ? `pnpm ai:run --job ${record.id}` : null,
+      cliCommand: record.status === "WAITING_FOR_CLI" ? aiRunCommand(record.id) : null,
       canRetry:
         RETRYABLE.has(record.status) &&
         isJobType(record.jobType) &&

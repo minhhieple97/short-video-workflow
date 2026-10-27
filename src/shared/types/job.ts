@@ -29,6 +29,10 @@ export function isTerminalJobStatus(status: JobStatus): boolean {
   return TERMINAL_JOB_STATUSES.includes(status);
 }
 
+export function aiRunCommand(jobId: string): string {
+  return `pnpm ai:run --job ${jobId}`;
+}
+
 export function isActiveJobStatus(status: JobStatus): boolean {
   return ACTIVE_JOB_STATUSES.some((active) => active === status);
 }

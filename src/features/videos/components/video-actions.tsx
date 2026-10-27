@@ -22,8 +22,15 @@ import { errorMessage, sendJson } from "@/lib/api-client";
 import type { VideoDetail } from "../schemas/video.dto";
 import { useVideoAction } from "./use-video-action";
 
-export function GenerateScriptButton({ video }: Readonly<{ video: Pick<VideoDetail, "id" | "scenes"> }>) {
+interface GenerateScriptButtonProps {
+  video: Pick<VideoDetail, "id" | "scenes">;
+  // A script job for this video is still queued, running or waiting for Claude Code (known from the server).
+  busy: boolean;
+}
+
+export function GenerateScriptButton({ video, busy }: Readonly<GenerateScriptButtonProps>) {
   const { pending, runJob } = useVideoAction();
+  const working = pending || busy;
   const hasScript = video.scenes.length > 0;
   const generate = () =>
     void runJob(
@@ -32,9 +39,9 @@ export function GenerateScriptButton({ video }: Readonly<{ video: Pick<VideoDeta
     );
 
   const button = (
-    <Button variant={hasScript ? "outline" : "default"} disabled={pending} onClick={hasScript ? undefined : generate}>
-      {pending ? <Loader2 className="animate-spin" aria-hidden /> : <Sparkles aria-hidden />}
-      {pending ? "Đang tạo kịch bản…" : hasScript ? "Tạo lại kịch bản" : "Tạo kịch bản"}
+    <Button variant={hasScript ? "outline" : "default"} disabled={working} onClick={hasScript ? undefined : generate}>
+      {working ? <Loader2 className="animate-spin" aria-hidden /> : <Sparkles aria-hidden />}
+      {working ? "Đang tạo kịch bản…" : hasScript ? "Tạo lại kịch bản" : "Tạo kịch bản"}
     </Button>
   );
   if (!hasScript) return button;

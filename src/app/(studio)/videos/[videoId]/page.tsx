@@ -71,7 +71,7 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
         }
         actions={
           <>
-            <GenerateScriptButton video={video} />
+            <GenerateScriptButton video={video} busy={activeJob !== null} />
             <ApproveScriptButton video={video} />
             <VideoSettingsDialog video={video} />
             <Button asChild variant="outline">
@@ -85,7 +85,7 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
         }
       />
 
-      {activeJob ? <ActiveJobWatcher jobId={activeJob.id} label="Worker đang tạo kịch bản…" /> : null}
+      {activeJob ? <ActiveJobWatcher job={activeJob} runningLabel="Worker đang tạo kịch bản…" /> : null}
 
       <div className="grid gap-4 md:grid-cols-2">
         <DurationBudgetBar
