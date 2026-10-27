@@ -1,3 +1,4 @@
+import { Clapperboard } from "lucide-react";
 import Link from "next/link";
 
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
@@ -6,10 +7,12 @@ import { PageHeader } from "@/components/layout/page-header";
 import { UrlTabs } from "@/components/layout/url-tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ActiveJobWatcher } from "@/features/videos/components/active-job-watcher";
 import { AddSceneControl } from "@/features/videos/components/add-scene-control";
 import { DurationBudgetBar } from "@/features/videos/components/duration-budget-bar";
 import { HookOptions } from "@/features/videos/components/hook-options";
+import { VideoPreview } from "@/features/videos/components/preview/video-preview";
 import { SceneEditorCard } from "@/features/videos/components/scene-editor-card";
 import {
   ApproveScriptButton,
@@ -18,6 +21,8 @@ import {
 } from "@/features/videos/components/video-actions";
 import { VideoSettingsDialog } from "@/features/videos/components/video-settings-dialog";
 import { VideoStatusBadge } from "@/features/videos/components/video-status-badge";
+import { toCompositionProps } from "@/features/videos/domain/composition-props";
+import { toPlatformPreviewMode } from "@/features/videos/domain/safe-zones";
 import { findActiveVideoJob, getVideo } from "@/features/videos/services/video.service";
 import { orNotFound } from "@/server/http/page-helpers";
 
@@ -66,6 +71,12 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
             <GenerateScriptButton video={video} />
             <ApproveScriptButton video={video} />
             <VideoSettingsDialog video={video} />
+            <Button asChild variant="outline">
+              <Link href={`/videos/${video.id}/render`}>
+                <Clapperboard aria-hidden />
+                Render
+              </Link>
+            </Button>
             <DeleteVideoButton videoId={video.id} bookId={video.book.id} />
           </>
         }
@@ -169,9 +180,10 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
             value: "preview",
             label: "Xem trước",
             content: (
-              <EmptyState
-                title="Xem trước 9:16"
-                description="Trình xem dạng điện thoại với vùng an toàn TikTok/Shorts/Reels (M4)."
+              <VideoPreview
+                videoId={video.id}
+                props={video.scenes.some((scene) => !scene.hidden) ? toCompositionProps(video) : null}
+                initialMode={toPlatformPreviewMode(video.platformPreviewMode)}
               />
             ),
           },
