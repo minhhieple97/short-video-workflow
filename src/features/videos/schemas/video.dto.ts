@@ -24,6 +24,15 @@ export interface SceneDto {
   hidden: boolean;
   version: number;
   audioAssetId: string | null;
+  audio: SceneAudioDto | null;
+}
+
+export interface SceneAudioDto {
+  assetId: string;
+  provider: string;
+  durationMs: number;
+  leadingSilenceMs: number;
+  url: string;
 }
 
 export interface VideoLessonDto {

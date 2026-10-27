@@ -35,8 +35,15 @@ export async function selectHookOption(videoId: string, optionIndex: number): Pr
     hookVariant: option.variant,
   });
   const existing = video.scenes.find((scene) => scene.type === "HOOK");
-  if (existing) await updateSceneRecord(videoId, existing.id, { ...hookScene, hidden: false }, true);
-  else await insertSceneAfter(videoId, null, hookScene);
+  if (existing) {
+    const narrationChanged = existing.narration !== hookScene.narration;
+    await updateSceneRecord(
+      videoId,
+      existing.id,
+      { ...hookScene, hidden: false },
+      { contentChanged: true, narrationChanged },
+    );
+  } else await insertSceneAfter(videoId, null, hookScene);
   return getVideo(videoId);
 }
 
@@ -46,8 +53,21 @@ export async function updateScene(videoId: string, sceneId: string, input: Updat
   if (scene.type === "HOOK" && input.hidden) throw new AppError("HOOK_REQUIRED", "Không thể ẩn cảnh HOOK.", 409);
 
   const record = buildSceneRecord({ ...input, type: scene.type, hookVariant: scene.hookVariant });
-  const contentChanged = record.contentHash !== scene.contentHash;
-  await updateSceneRecord(videoId, sceneId, { ...record, hidden: input.hidden }, contentChanged);
+  const narrationChanged = record.narration !== scene.narration;
+  // Keep the audio-based length while the narration (and therefore its audio) is unchanged.
+  const timing =
+    !narrationChanged && scene.audioAssetId
+      ? {
+          durationFrames: scene.durationFrames ?? record.durationFrames,
+          estimatedSeconds: scene.estimatedSeconds ?? record.estimatedSeconds,
+        }
+      : {};
+  await updateSceneRecord(
+    videoId,
+    sceneId,
+    { ...record, ...timing, hidden: input.hidden },
+    { contentChanged: record.contentHash !== scene.contentHash, narrationChanged },
+  );
   return getVideo(videoId);
 }
 

@@ -23,6 +23,10 @@ export const renderVideoPayloadSchema = baseJobPayloadSchema.extend({
   renderId: z.string().min(1),
 });
 
+export const generateTtsPayloadSchema = baseJobPayloadSchema.extend({
+  sceneId: z.string().min(1),
+});
+
 export type BaseJobPayload = z.infer<typeof baseJobPayloadSchema>;
 export type DiagnosticPingPayload = z.infer<typeof diagnosticPingPayloadSchema>;
 export type AnalyzeChapterPayload = z.infer<typeof analyzeChapterPayloadSchema>;

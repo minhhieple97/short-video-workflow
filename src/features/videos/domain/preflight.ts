@@ -1,3 +1,4 @@
+import { LEADING_SILENCE_WARNING_MS } from "./audio";
 import { HOOK_MAX_FRAMES, VIDEO_FPS, effectiveSceneFrames } from "./duration";
 import type { SceneType } from "./scene-types";
 
@@ -24,6 +25,7 @@ export interface PreflightInput {
     durationFrames: number;
     hidden: boolean;
     audioAssetId: string | null;
+    audio?: { leadingSilenceMs: number } | null;
   }[];
 }
 
@@ -48,6 +50,14 @@ export function runPreflight(input: PreflightInput, quality: RenderQuality): Pre
     finalOnly({
       code: "HOOK_TOO_LONG",
       message: `HOOK kéo dài ${Math.round((effectiveSceneFrames(hook.durationFrames) / VIDEO_FPS) * 10) / 10}s; tối đa 3s (90 frame).`,
+    });
+  }
+
+  const hookSilence = hook?.type === "HOOK" ? (hook.audio?.leadingSilenceMs ?? 0) : 0;
+  if (hookSilence > LEADING_SILENCE_WARNING_MS) {
+    warnings.push({
+      code: "HOOK_SILENCE",
+      message: `Giọng đọc HOOK im lặng ${hookSilence} ms ở đầu — 3 giây đầu nên có tiếng ngay. Hãy tạo lại hoặc cắt âm thanh.`,
     });
   }
 

@@ -45,7 +45,10 @@ const envSchema = z
 
     TTS_MODE: z.enum(["upload", "edge-tts"]).default("edge-tts"),
     TTS_VOICE: z.string().min(1).default("vi-VN-NamMinhNeural"),
-    TTS_SPEED: z.coerce.number().int().default(0),
+    TTS_SPEED: z.coerce.number().int().min(-50).max(50).default(0),
+    EDGE_TTS_COMMAND: z.string().min(1).default("edge-tts"),
+    SCENE_AUDIO_PADDING_MS: z.coerce.number().int().min(0).max(2000).default(300),
+    MAX_AUDIO_UPLOAD_MB: z.coerce.number().positive().max(100).default(20),
 
     VIDEO_PROFILE: z.literal("SHORT_VERTICAL").default("SHORT_VERTICAL"),
     DEFAULT_VIDEO_DURATION_SEC: durationPreset.default(60),
@@ -81,7 +84,14 @@ export interface AppConfig {
   redisUrl: string;
   import: { maxSizeBytes: number; extraChapterPatterns: string[] };
   ai: { mode: "mock" | "cli-task"; maxConcurrency: number; claudeCliCommand: string; taskTimeoutMs: number };
-  tts: { mode: "upload" | "edge-tts"; voice: string; speed: number };
+  tts: {
+    mode: "upload" | "edge-tts";
+    voice: string;
+    speed: number;
+    edgeTtsCommand: string;
+    paddingMs: number;
+    maxUploadBytes: number;
+  };
   video: {
     profile: "SHORT_VERTICAL";
     aspectRatio: typeof VIDEO_ASPECT_RATIO;
@@ -120,7 +130,14 @@ export function parseAppConfig(source: Record<string, string | undefined>): AppC
       claudeCliCommand: env.CLAUDE_CLI_COMMAND,
       taskTimeoutMs: env.AI_TASK_TIMEOUT_SEC * 1000,
     },
-    tts: { mode: env.TTS_MODE, voice: env.TTS_VOICE, speed: env.TTS_SPEED },
+    tts: {
+      mode: env.TTS_MODE,
+      voice: env.TTS_VOICE,
+      speed: env.TTS_SPEED,
+      edgeTtsCommand: env.EDGE_TTS_COMMAND,
+      paddingMs: env.SCENE_AUDIO_PADDING_MS,
+      maxUploadBytes: Math.round(env.MAX_AUDIO_UPLOAD_MB * 1024 * 1024),
+    },
     video: {
       profile: env.VIDEO_PROFILE,
       aspectRatio: VIDEO_ASPECT_RATIO,

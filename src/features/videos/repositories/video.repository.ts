@@ -9,7 +9,15 @@ const DETAIL_INCLUDE = {
     orderBy: { position: "asc" as const },
     include: { lesson: { select: { id: true, title: true, status: true, contentHash: true } } },
   },
-  scenes: { orderBy: { order: "asc" as const } },
+  scenes: {
+    orderBy: { order: "asc" as const },
+    include: {
+      mediaAssets: {
+        where: { kind: "VOICEOVER" as const },
+        select: { id: true, provider: true, durationMs: true, generationSettingsJson: true },
+      },
+    },
+  },
 };
 
 export type VideoDetailRecord = NonNullable<Awaited<ReturnType<typeof findVideoDetail>>>;
@@ -93,6 +101,11 @@ export function markScriptApproved(id: string, scriptVersion: number): Promise<V
   return prisma.video.update({ where: { id }, data: { status: "APPROVED", approvedScriptVersion: scriptVersion } });
 }
 
+// Audio changes make earlier renders outdated without sending an approved script back to review.
+function bumpContentVersion(tx: Tx, videoId: string) {
+  return tx.video.update({ where: { id: videoId }, data: { scriptVersion: { increment: 1 } } });
+}
+
 // Any script edit creates a new script version and sends the script back to review.
 function bumpScript(tx: Tx, videoId: string, extra: Prisma.VideoUpdateInput = {}) {
   return tx.video.update({
@@ -128,12 +141,16 @@ export function updateSceneRecord(
   videoId: string,
   sceneId: string,
   data: Partial<NewSceneRecord> & { hidden?: boolean },
-  contentChanged: boolean,
+  change: { contentChanged: boolean; narrationChanged: boolean },
 ): Promise<VideoScene> {
   return prisma.$transaction(async (tx) => {
     const scene = await tx.videoScene.update({
       where: { id: sceneId, videoId },
-      data: { ...data, ...(contentChanged ? { version: { increment: 1 }, audioAssetId: null } : {}) },
+      data: {
+        ...data,
+        ...(change.contentChanged ? { version: { increment: 1 } } : {}),
+        ...(change.narrationChanged ? { audioAssetId: null } : {}),
+      },
     });
     await bumpScript(tx, videoId);
     return scene;
@@ -182,6 +199,18 @@ export function reorderSceneRecords(videoId: string, orderedIds: readonly string
   return prisma.$transaction(async (tx) => {
     await rewriteOrder(tx, orderedIds);
     await bumpScript(tx, videoId);
+  });
+}
+
+export function setSceneAudio(
+  videoId: string,
+  sceneId: string,
+  audio: { audioAssetId: string | null; durationFrames: number },
+): Promise<VideoScene> {
+  return prisma.$transaction(async (tx) => {
+    const scene = await tx.videoScene.update({ where: { id: sceneId, videoId }, data: audio });
+    await bumpContentVersion(tx, videoId);
+    return scene;
   });
 }
 

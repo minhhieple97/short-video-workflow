@@ -13,7 +13,7 @@ import { lessonSnapshotSchema } from "../domain/lesson-snapshot";
 import { toSceneType, toVisualVariant, HOOK_VARIANTS, type HookVariant } from "../domain/scene-types";
 import { toVideoStatus } from "../domain/video-status";
 import type { VideoDetailRecord } from "../repositories/video.repository";
-import type { SceneDto, VideoDetail } from "../schemas/video.dto";
+import type { SceneAudioDto, SceneDto, VideoDetail } from "../schemas/video.dto";
 
 const hookOptionsSchema = z.array(hookOptionSchema).catch([]);
 
@@ -36,8 +36,25 @@ function toSceneDto(scene: VideoDetailRecord["scenes"][number]): SceneDto {
     hidden: scene.hidden,
     version: scene.version,
     audioAssetId: scene.audioAssetId,
+    audio: toSceneAudio(scene),
   };
 }
+
+const audioSettingsSchema = z.object({ leadingSilenceMs: z.number().default(0) }).catch({ leadingSilenceMs: 0 });
+
+function toSceneAudio(scene: VideoDetailRecord["scenes"][number]): SceneAudioDto | null {
+  const asset = scene.mediaAssets.find((candidate) => candidate.id === scene.audioAssetId);
+  if (!asset) return null;
+  return {
+    assetId: asset.id,
+    provider: asset.provider ?? "upload",
+    durationMs: asset.durationMs ?? 0,
+    leadingSilenceMs: audioSettingsSchema.parse(asset.generationSettingsJson ?? {}).leadingSilenceMs,
+    url: mediaAssetUrl(asset.id),
+  };
+}
+
+export const mediaAssetUrl = (assetId: string) => `/api/media/assets/${assetId}`;
 
 export function hookIssues(scenes: readonly SceneDto[]): string[] {
   const hook = scenes[0];

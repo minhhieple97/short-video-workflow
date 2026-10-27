@@ -161,7 +161,10 @@ export async function runSceneRegeneration(
     const output = sceneRegenerationOutputSchema.parse(result.output);
     if (output.sceneId !== scene.id) throw new AppError("INVALID_AI_OUTPUT", "Kết quả AI không khớp cảnh.", 422);
     const record = buildSceneRecord({ ...toSceneContent(output.scene), type: scene.type });
-    await updateSceneRecord(video.id, scene.id, record, record.contentHash !== scene.contentHash);
+    await updateSceneRecord(video.id, scene.id, record, {
+      contentChanged: record.contentHash !== scene.contentHash,
+      narrationChanged: record.narration !== scene.narration,
+    });
     return { kind: "done", value: { sceneId: scene.id }, output };
   });
 }
