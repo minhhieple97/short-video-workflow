@@ -33,6 +33,7 @@ src/generated/
 coverage/
 test-results/
 playwright-report/
+blob-report/
 
 # OS / editor
 .DS_Store

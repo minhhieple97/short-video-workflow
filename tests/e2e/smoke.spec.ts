@@ -1,0 +1,193 @@
+import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+
+import { expect, test, type Page } from "@playwright/test";
+
+import { E2E_DATA_DIR } from "./stack";
+
+const SAMPLE_BOOK = path.join(process.cwd(), "prisma/seed-data/atomic-habits-sample.md");
+
+interface SceneJson {
+  id: string;
+  narration: string;
+  version: number;
+}
+
+interface RenderJson {
+  quality: "DRAFT" | "FINAL";
+  status: string;
+  fileUrl: string | null;
+}
+
+function probe(file: string) {
+  const output = execFileSync("ffprobe", [
+    "-v",
+    "error",
+    "-show_entries",
+    "stream=codec_name,width,height,r_frame_rate:format=duration",
+    "-of",
+    "json",
+    file,
+  ]).toString();
+  return JSON.parse(output) as {
+    streams: { codec_name: string; width?: number; height?: number; r_frame_rate: string }[];
+    format: { duration: string };
+  };
+}
+
+async function createVideo(page: Page, bookUrl: string, lessonIndexes: number[], extended: boolean): Promise<string> {
+  await page.goto(`${bookUrl}?tab=videos`);
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog");
+  for (const index of lessonIndexes) await dialog.getByRole("checkbox").nth(index).click();
+  if (extended) await dialog.getByText("Extended Short").click();
+  await dialog.getByRole("button", { name: "Tạo video" }).click();
+  await page.waitForURL(/\/videos\/[a-z0-9]+$/);
+  return page.url();
+}
+
+async function generateScript(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Tạo kịch bản" }).click();
+  await expect(page.getByRole("button", { name: "Dùng hook này" }).first()).toBeVisible({ timeout: 90_000 });
+}
+
+test("E2E-01: one book, several short videos, rendered as vertical MP4", async ({ page, request }) => {
+  await test.step("import the sample book with a renamed chapter", async () => {
+    await page.goto("/books/import");
+    await page.locator("#book-file").setInputFiles(SAMPLE_BOOK);
+    await page.getByRole("button", { name: "Phân tích cấu trúc chương" }).click();
+    await expect(page.getByText(/Danh sách chương/)).toBeVisible();
+    await page.getByLabel("Tên mục 4").fill("Chương 1: Thay đổi nhỏ (đã đổi tên)");
+    await page.locator("#import-author").fill("James Clear");
+    await page.getByRole("button", { name: /Xác nhận nhập 3 chương/ }).click();
+    await page.waitForURL(/\/books\/[0-9a-f-]{36}$/);
+    await expect(page.getByText("Chương 1: Thay đổi nhỏ (đã đổi tên)")).toBeVisible();
+  });
+  const bookUrl = page.url();
+
+  await test.step("analyse every chapter with the mock AI", async () => {
+    await page.getByRole("button", { name: "Phân tích tất cả chương" }).click();
+    await expect(page.locator("tbody tr").filter({ hasText: "Đã phân tích" })).toHaveCount(3, { timeout: 90_000 });
+  });
+
+  const lessonHrefs = await test.step("approve three lessons", async () => {
+    await page.goto(`${bookUrl}?tab=lessons`);
+    const hrefs = await page
+      .locator("tbody a")
+      .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
+    for (const href of [hrefs[0], hrefs[2], hrefs[4]]) {
+      await page.goto(href ?? "");
+      await page.getByRole("button", { name: "Duyệt", exact: true }).click();
+      await expect(page.getByText("Đã duyệt bài học.")).toBeVisible();
+    }
+    return hrefs;
+  });
+
+  const videoA = await test.step("create video A (one lesson, 60s) and pick a hook", async () => {
+    const url = await createVideo(page, bookUrl, [0], false);
+    await expect(page.getByText("Short 60s")).toBeVisible();
+    await generateScript(page);
+    await page.getByRole("button", { name: "Dùng hook này" }).first().click();
+    await expect(page.getByText("Đã chọn hook.")).toBeVisible();
+    await expect(page.getByText(/Đạt — HOOK bắt đầu tại frame 0/)).toBeVisible();
+    return url;
+  });
+
+  await test.step("create video B (two lessons, explicit Extended 90s) and edit one scene only", async () => {
+    const url = await createVideo(page, bookUrl, [1, 2], true);
+    await expect(page.getByText("Extended Short 90s")).toBeVisible();
+    await generateScript(page);
+    const videoId = url.split("/").at(-1) ?? "";
+    const before = (await (await request.get(`/api/videos/${videoId}`)).json()) as { scenes: SceneJson[] };
+
+    await page.goto(`${url}?tab=story`);
+    await page
+      .locator("textarea[id$='-narration']")
+      .nth(1)
+      .fill("Một người hứa tập thể dục mỗi tối nhưng bỏ cuộc sau ba ngày.");
+    await page.getByRole("button", { name: "Lưu cảnh" }).and(page.locator(":enabled")).first().click();
+    await expect(page.getByText("Đã lưu cảnh.")).toBeVisible();
+
+    const after = (await (await request.get(`/api/videos/${videoId}`)).json()) as { scenes: SceneJson[] };
+    expect(after.scenes[1]?.version).toBe((before.scenes[1]?.version ?? 0) + 1);
+    expect(after.scenes.filter((_, index) => index !== 1)).toEqual(before.scenes.filter((_, index) => index !== 1));
+  });
+
+  await test.step("editing a lesson later does not change video A's snapshot", async () => {
+    await page.goto(lessonHrefs[0] ?? "");
+    await page.locator("#lesson-title").fill("Tiêu đề bài học đã sửa sau khi tạo video");
+    await page.getByRole("button", { name: "Lưu thay đổi" }).click();
+    await expect(page.getByText("Đã lưu bài học.")).toBeVisible();
+    await page.goto(videoA);
+    await expect(page.getByText("(đã sửa sau khi tạo video)")).toBeVisible();
+  });
+
+  await test.step("preview in the phone frame and upload narration for the hook", async () => {
+    await page.goto(`${videoA}?tab=preview`);
+    await expect(page.getByRole("radiogroup", { name: "Nền tảng xem trước" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Xem 3 giây đầu" })).toBeVisible();
+
+    const wav = path.join(E2E_DATA_DIR, "hook.wav");
+    execFileSync("ffmpeg", [
+      "-loglevel",
+      "error",
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "sine=frequency=330:duration=2",
+      "-ar",
+      "24000",
+      wav,
+    ]);
+    await page.goto(`${videoA}?tab=voice`);
+    await page.locator("input[type=file]").first().setInputFiles(wav);
+    await expect(page.getByText("Đã tải âm thanh lên cho cảnh.")).toBeVisible();
+    await expect(page.locator("main audio")).toHaveCount(1);
+  });
+
+  await test.step("approve the script, then render draft and final MP4", async () => {
+    await page.goto(videoA);
+    await page.getByRole("button", { name: "Duyệt kịch bản" }).click();
+    await expect(page.getByText("Kịch bản đã duyệt").first()).toBeVisible();
+
+    await page.goto(`${videoA}/render`);
+    const videoId = videoA.split("/").at(-1) ?? "";
+    const completed = async () => {
+      const { renders } = (await (await request.get(`/api/videos/${videoId}/renders`)).json()) as {
+        renders: RenderJson[];
+      };
+      return renders.filter((render) => render.status === "COMPLETED");
+    };
+
+    await page.getByRole("button", { name: /Render nháp/ }).click();
+    await expect.poll(async () => (await completed()).length, { timeout: 6 * 60_000, intervals: [3_000] }).toBe(1);
+    await page.reload();
+    await page.getByRole("button", { name: /Render bản cuối/ }).click();
+    await expect.poll(async () => (await completed()).length, { timeout: 6 * 60_000, intervals: [3_000] }).toBe(2);
+
+    for (const render of await completed()) {
+      const file = path.join(E2E_DATA_DIR, `${render.quality}.mp4`);
+      fs.writeFileSync(file, await (await request.get(render.fileUrl ?? "")).body());
+      const info = probe(file);
+      const video = info.streams.find((stream) => stream.codec_name === "h264");
+      expect(info.streams.map((stream) => stream.codec_name).sort()).toEqual(["aac", "h264"]);
+      expect(video).toMatchObject(
+        render.quality === "FINAL"
+          ? { width: 1080, height: 1920, r_frame_rate: "30/1" }
+          : { width: 720, height: 1280, r_frame_rate: "30/1" },
+      );
+      expect(Number(info.format.duration)).toBeLessThanOrEqual(60);
+    }
+  });
+
+  await test.step("everything is still there after a reload", async () => {
+    await page.goto("/books");
+    await expect(page.getByText("Atomic Habits — bản tóm lược minh họa")).toBeVisible();
+    await page.goto(`${bookUrl}?tab=videos`);
+    await expect(page.locator("tbody tr")).toHaveCount(2);
+    await page.goto(`${bookUrl}?tab=lessons&status=APPROVED`);
+    await expect(page.locator("tbody tr")).toHaveCount(3);
+  });
+});
