@@ -80,11 +80,11 @@ Browser ──► Next.js (UI + thin route handlers/server actions)
 ```
 src/
   app/                 App Router: pages, layouts, thin API routes (runtime = 'nodejs' when touching fs/Redis)
-    (studio)/          Studio pages: books, videos, jobs, settings (+ shell layout); most are placeholders until M1+
-    api/               health, diagnostics/test-job, jobs/[jobId]  (more from M1+)
+    (studio)/          Studio pages: dashboard, books, videos, jobs, settings (+ shell layout, error, not-found)
+    api/               books, chapters, lessons, videos, scenes, renders, media, jobs, health, diagnostics
   components/
     ui/                shadcn/ui generated components (do not hand-edit beyond theming)
-    layout/            App shell, sidebar navigation, page placeholder
+    layout/            App shell, sidebar navigation, page header, breadcrumbs, URL tabs, empty state
   features/            Feature-first modules; layers created on first use:
                          domain/ (pure, framework-free rules — client-safe), schemas/ (Zod input + *.dto.ts types),
                          services/ (business logic), repositories/ (Prisma), components/ (React)
@@ -92,7 +92,7 @@ src/
     chapters/          chapter listing/reading/rename, analysis runner (worker) + analysis requests (web, server-only)
     lessons/           lesson domain (fields, excerpt verification), repository, review service, library/review UI
     videos/            short-form domain (scene types, layouts, duration budget, snapshots), script generation/editing, editor UI
-    jobs/              job payload schemas, JobRecord repository, job service (enqueue/get), "run test job" button
+    jobs/              job payload schemas, JobRecord/AiRun repositories, enqueue/retry/cancel services, jobs dashboard UI
   lib/                 client-safe helpers: utils.ts (shadcn `cn()`), api-client.ts (typed fetch + ApiError), format.ts (vi-VN)
   server/              Server-side infrastructure (never imported by client components or Remotion)
     db/                client.ts: Prisma + better-sqlite3 singleton, WAL setup (shared by Next, worker, scripts)
