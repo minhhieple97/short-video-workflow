@@ -100,9 +100,12 @@ src/
     storage/           DATA_DIR resolution (paths.ts), safe-path guard, atomic writes
     ai/                AiProvider interface, MockAiProvider, LocalCliTaskProvider (M5), contracts/ (Zod I/O), prompts/ (versioned)
     diagnostics/       health checks aggregated for /settings, /api/health and `pnpm diagnose`
+    render/            Remotion bundle + renderMedia wrapper (worker only), webpack "@/" alias shared with remotion.config.ts
+    media/             ffprobe wrapper
     http/              route-helpers.ts (AppError → JSON, readJson/parseInput with Zod), page-helpers.ts (orNotFound)
   worker/              Standalone process: main.ts, processors/ (dispatcher + one per job type), lifecycle/ (heartbeat, shutdown)
-  remotion/            Pure React video code: index.ts (registerRoot), root.tsx, compositions/, theme/ (scenes/ and components/ arrive in M4)
+  remotion/            Pure React video code: index.ts (registerRoot), root.tsx (ShortVideo + calculateMetadata), compositions/,
+                       scenes/ (5 layouts), components/ (frame, captions, badge, motion), theme/ (tokens, bundled font)
   shared/              Truly shared: config/env.ts (Zod-validated env), logger.ts, errors.ts, types/ (create schemas/ on first need)
   generated/           Prisma client output (gitignored)
 prisma/                schema.prisma, migrations/ (committed), seed.ts
@@ -232,7 +235,7 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 | M1        | Book import, parser, chapter management                        | done (gate verified)                  |
 | M2        | Lessons + mock AI pipeline                                     | done (gate verified)                  |
 | M3        | Video builder / script editor                                  | done (gate verified)                  |
-| M4        | Remotion preview + local render                                | not started                           |
+| M4        | Remotion preview + local render                                | done (gate verified)                  |
 | M5        | Voiceover, real CLI task flow, Jobs dashboard                  | not started                           |
 | M6        | Hardening, E2E, docs                                           | not started                           |
 
@@ -247,6 +250,8 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - DO keep UI copy in Vietnamese and identifiers in English; DON'T hardcode content in Remotion components.
 - DO export only components from `"use client"` files; DON'T import constants/functions from a client module into a Server Component (it receives a client reference, not the value — move shared values to a plain module).
 - DO import DTO types from `schemas/*.dto.ts` in client components; DON'T import from `services/` there.
+- DO keep `@remotion/bundler` / `@remotion/renderer` in worker-only modules (`server/render/*`, `*-runner.ts`); DON'T import them from anything a route or page imports.
+- DO build composition props only through `toCompositionProps()` so the Player and the render stay identical; DON'T render editor guides (safe zones) inside the composition.
 - DO state honestly what is unfinished or unverified; DON'T leave fake buttons or fake queue updates.
 
 <!-- BEGIN:nextjs-agent-rules -->

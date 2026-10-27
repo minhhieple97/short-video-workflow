@@ -8,7 +8,7 @@
 
 ## Trạng thái
 
-Đã hoàn thành **M0 — Scaffold**, **M1 — Nhập sách**, **M2 — Bài học** và **M3 — Tạo video & kịch bản**. Xem trước/render (M4), giọng đọc + Claude CLI + bảng tác vụ (M5) và hoàn thiện (M6) đang tiếp tục; màn hình chưa làm hiển thị rõ "Chưa triển khai".
+Đã hoàn thành **M0 — Scaffold**, **M1 — Nhập sách**, **M2 — Bài học**, **M3 — Tạo video & kịch bản** và **M4 — Xem trước & render MP4**. Giọng đọc + Claude CLI + bảng tác vụ (M5) và hoàn thiện (M6) đang tiếp tục; màn hình chưa làm hiển thị rõ "Chưa triển khai".
 
 ## Yêu cầu
 
@@ -79,6 +79,15 @@ Xoá sách là xoá mềm (ẩn khỏi thư viện, giữ nguyên tệp) và b�
 4. Tab **Hook**: chọn phương án, sửa lời và chữ trên màn hình. Hook luôn là cảnh đầu (frame 0) và phải đọc xong trong 3 giây.
 5. Tab **Kịch bản**: sửa, ẩn, sắp xếp, xoá, **Viết lại cảnh này** (chỉ cảnh đó thay đổi) hoặc thêm cảnh từ mẫu. Thanh **Thời lượng ước tính** so với preset (ước lượng ~4 âm tiết/giây; thời lượng thật đo từ audio ở M5).
 6. **Duyệt kịch bản**; mọi chỉnh sửa sau khi duyệt đưa kịch bản về trạng thái cần duyệt lại.
+
+## Xem trước & render (M4)
+
+- Tab **Xem trước** của video phát đúng composition sẽ render, trong khung điện thoại 360×640. Chọn **TikTok / YouTube Shorts / Facebook Reels** để hiện lớp vùng an toàn ước lượng (chỉ là hướng dẫn trong editor, không có trong MP4; giá trị nằm ở `src/features/videos/domain/safe-zones.ts` và có thể chỉnh). **Xem 3 giây đầu** phát riêng phần HOOK.
+- Trang **Render** (`/videos/{id}/render`): kiểm tra trước khi render (HOOK ≤ 3 giây, không vượt preset, kịch bản đã duyệt, có chữ trên màn hình…), rồi **Render nháp 720×1280** (cho phép khi còn cảnh báo) hoặc **Render bản cuối 1080×1920** (chặn khi còn lỗi).
+- Worker render lần lượt (render concurrency = 1), H.264 + AAC, 30 FPS, BT.709; kết quả được ffprobe kiểm tra rồi lưu tại `data/videos/{videoId}/renders/`. Sửa kịch bản sau khi render sẽ đánh dấu bản cũ là **lỗi thời** (không xoá tệp).
+- Lần render đầu tiên bundle composition (vài chục giây). Remotion cần trình duyệt headless: nếu máy chưa có, chạy `pnpm exec remotion browser ensure` (cần Internet một lần).
+- Font Be Vietnam Pro (giấy phép OFL, `public/fonts`) được dùng cho cả preview và render để dấu tiếng Việt hiển thị giống nhau.
+- Kiểm tra tệp: `ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate:format=duration -of compact <file.mp4>`.
 
 ## Chế độ AI
 
