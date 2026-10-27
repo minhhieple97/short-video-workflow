@@ -1,10 +1,10 @@
 import { getJob } from "@/features/jobs/services/job-service";
-import { errorResponse } from "@/server/http/route-helpers";
+import { errorResponse, type RouteContext } from "@/server/http/route-helpers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(_request: Request, context: { params: Promise<{ jobId: string }> }): Promise<Response> {
+export async function GET(_request: Request, context: RouteContext<{ jobId: string }>): Promise<Response> {
   try {
     const { jobId } = await context.params;
     return Response.json(await getJob(jobId));
