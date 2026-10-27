@@ -1,0 +1,314 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum LessonOrigin {
+  AI
+  MANUAL
+}
+
+enum LessonStatus {
+  DRAFT
+  APPROVED
+  ARCHIVED
+}
+
+enum PlatformPreviewMode {
+  TIKTOK
+  YOUTUBE_SHORTS
+  FACEBOOK_REELS
+}
+
+enum VideoProfile {
+  SHORT_VERTICAL
+}
+
+enum MediaAssetKind {
+  VOICEOVER
+  MUSIC
+  RENDER
+}
+
+enum RenderQualityPreset {
+  DRAFT
+  FINAL
+}
+
+enum JobStatus {
+  QUEUED
+  WAITING_FOR_CLI
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCEL_REQUESTED
+  CANCELLED
+}
+
+enum JobCreatedBy {
+  LOCAL_USER
+}
+
+model Book {
+  id              String    @id @default(cuid())
+  title           String
+  author          String?
+  description     String?
+  language        String    @default("vi")
+  slug            String?   @unique
+  sourceFilePath  String
+  sourceFileName  String
+  sourceHash      String
+  // String (not enum): the requirements name this field but do not fix its values; promote to an enum in M1.
+  sourceFormat    String
+  sourceSizeBytes Int
+  // String (not enum): value set is defined in M1.
+  status          String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  chapters Chapter[]
+  lessons  Lesson[]
+  videos   Video[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([sourceHash])
+}
+
+model Chapter {
+  id                    String    @id @default(cuid())
+  bookId                String
+  book                  Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  order                 Int
+  title                 String
+  // Prefer file storage (data/books/{bookId}/chapters/{chapterId}.md); `content` is the inline fallback.
+  contentPath           String?
+  content               String?
+  sourceStartOffset     Int?
+  sourceEndOffset       Int?
+  contentHash           String
+  // String (not enum): value set is defined in M2.
+  analysisStatus        String
+  analyzedAt            DateTime?
+  analysisPromptVersion String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  lessonSources LessonSource[]
+
+  @@unique([bookId, order])
+  @@index([bookId])
+}
+
+model Lesson {
+  id                    String       @id @default(cuid())
+  bookId                String
+  book                  Book         @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  title                 String
+  summary               String
+  principle             String
+  realLifeScenario      String
+  commonMistake         String
+  betterApproach        String
+  actionableStep        String
+  origin                LessonOrigin
+  status                LessonStatus @default(DRAFT)
+  contentHash           String?
+  analysisPromptVersion String?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  sources      LessonSource[]
+  videoLessons VideoLesson[]
+
+  @@index([bookId])
+  @@index([status])
+}
+
+model LessonSource {
+  id            String  @id @default(cuid())
+  lessonId      String
+  lesson        Lesson  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  chapterId     String
+  chapter       Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  sourceExcerpt String?
+  sourceLocator String?
+  confidence    Float?
+
+  // SQLite treats NULL locators as distinct, so uniqueness applies only when a locator is present.
+  @@unique([lessonId, chapterId, sourceLocator])
+  @@index([lessonId])
+  @@index([chapterId])
+}
+
+model Video {
+  id                    String               @id @default(cuid())
+  bookId                String
+  book                  Book                 @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  title                 String
+  description           String?
+  // String (not enum): value set (DRAFT, NEEDS_REVIEW, APPROVED, ...) is defined in M3.
+  status                String               @default("DRAFT")
+  aspectRatio           String               @default("9:16")
+  fps                   Int                  @default(30)
+  width                 Int                  @default(1080)
+  height                Int                  @default(1920)
+  videoProfile          VideoProfile         @default(SHORT_VERTICAL)
+  // Allowed values {30, 45, 60, 90} are enforced by Zod, not by the database.
+  targetDurationSec     Int                  @default(60)
+  scriptVersion         Int                  @default(1)
+  approvedScriptVersion Int?
+  platformPreviewMode   PlatformPreviewMode?
+  // Loose pointer to RenderRecord.id (no relation) to avoid a circular reference.
+  latestRenderId        String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  videoLessons VideoLesson[]
+  scenes       VideoScene[]
+  renders      RenderRecord[]
+  mediaAssets  MediaAsset[]
+
+  @@index([bookId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model VideoLesson {
+  id                 String   @id @default(cuid())
+  videoId            String
+  video              Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  lessonId           String
+  lesson             Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  position           Int
+  lessonSnapshotJson Json
+  createdAt          DateTime @default(now())
+
+  @@unique([videoId, lessonId])
+  @@unique([videoId, position])
+  @@index([lessonId])
+}
+
+model VideoScene {
+  id               String       @id @default(cuid())
+  videoId          String
+  video            Video        @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  order            Int
+  // String (not enum): scene types and visual variants are defined in M3/M4.
+  type             String
+  title            String?
+  narration        String
+  onScreenText     String
+  visualVariant    String
+  durationFrames   Int?
+  estimatedSeconds Float?
+  // Only meaningful when type = HOOK.
+  hookVariant      String?
+  // Loose pointer to MediaAsset.id (no relation), mirroring Video.latestRenderId.
+  audioAssetId     String?
+  contentHash      String
+  version          Int          @default(1)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  mediaAssets MediaAsset[]
+
+  @@unique([videoId, order])
+  @@index([videoId])
+}
+
+model MediaAsset {
+  id                     String         @id @default(cuid())
+  videoId                String?
+  video                  Video?         @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  sceneId                String?
+  scene                  VideoScene?    @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  kind                   MediaAssetKind
+  // Relative to DATA_DIR.
+  path                   String
+  mimeType               String
+  durationMs             Int?
+  fileSizeBytes          Int
+  contentHash            String?
+  provider               String?
+  generationSettingsJson Json?
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+
+  @@index([videoId])
+  @@index([sceneId])
+  @@index([kind])
+}
+
+model RenderRecord {
+  id            String              @id @default(cuid())
+  videoId       String
+  video         Video               @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  // Loose pointer to JobRecord.id (no relation).
+  jobRecordId   String?
+  scriptVersion Int
+  // Relative to DATA_DIR.
+  outputPath    String
+  // String (not enum): includes an "outdated" state beyond JobStatus; defined in M4.
+  status        String
+  durationMs    Int?
+  qualityPreset RenderQualityPreset
+  width         Int
+  height        Int
+  fps           Int
+  createdAt     DateTime            @default(now())
+  completedAt   DateTime?
+  errorMessage  String?
+
+  @@index([videoId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model JobRecord {
+  id                 String       @id @default(cuid())
+  bullmqJobId        String       @unique
+  jobType            String
+  // SYSTEM for the M0 diagnostic job; BOOK / CHAPTER / VIDEO / SCENE from M1 on.
+  entityType         String
+  entityId           String
+  status             JobStatus    @default(QUEUED)
+  progress           Int          @default(0)
+  attempts           Int          @default(0)
+  errorCode          String?
+  errorMessage       String?
+  createdAt          DateTime     @default(now())
+  startedAt          DateTime?
+  completedAt        DateTime?
+  updatedAt          DateTime     @updatedAt
+  requestFingerprint String?
+  createdBy          JobCreatedBy @default(LOCAL_USER)
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([entityType, entityId])
+}
+
+model AiRun {
+  id            String    @id @default(cuid())
+  // Loose pointer to JobRecord.id (no relation).
+  jobRecordId   String?
+  // "mock" | "cli-task" | later "automated-cli"; never store secrets or session tokens in this table.
+  mode          String
+  promptVersion String
+  inputHash     String
+  outputPath    String?
+  status        String
+  errorMessage  String?
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  @@index([jobRecordId])
+  @@index([status])
+}
