@@ -20,10 +20,16 @@ export function sceneContentHash(
     .digest("hex");
 }
 
+// Fields are copied explicitly so callers passing richer objects (DTOs, form state) never leak extra keys into Prisma.
 export function buildSceneRecord(scene: SceneContent): NewSceneRecord {
   const estimatedSeconds = estimateNarrationSeconds(scene.narration);
   return {
-    ...scene,
+    type: scene.type,
+    title: scene.title,
+    narration: scene.narration,
+    onScreenText: scene.onScreenText,
+    visualVariant: scene.visualVariant,
+    hookVariant: scene.hookVariant,
     estimatedSeconds,
     durationFrames: secondsToFrames(estimatedSeconds),
     contentHash: sceneContentHash(scene),
