@@ -12,3 +12,8 @@ export const CHAPTER_ANALYSIS_STATUS_LABELS: Record<ChapterAnalysisStatus, strin
 export function toChapterAnalysisStatus(value: string): ChapterAnalysisStatus {
   return CHAPTER_ANALYSIS_STATUSES.find((status) => status === value) ?? "NOT_ANALYZED";
 }
+
+// Avoids "Chương 1: Chương 1: …" when the stored title already carries its own marker.
+export function chapterLabel(order: number, title: string): string {
+  return /^(chương|chuong|chapter|phần|phan|part|hồi)\s/iu.test(title) ? title : `Chương ${order}: ${title}`;
+}

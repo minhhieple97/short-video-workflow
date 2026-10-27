@@ -90,3 +90,11 @@ describe("chapter content", () => {
     ).not.toThrow();
   });
 });
+
+describe("chapterLabel", () => {
+  it("prefixes the order only when the title has no marker of its own", async () => {
+    const { chapterLabel } = await import("@/features/chapters/domain/analysis-status");
+    expect(chapterLabel(1, "Chương 1: Ngủ đủ giấc")).toBe("Chương 1: Ngủ đủ giấc");
+    expect(chapterLabel(2, "Thiết kế môi trường")).toBe("Chương 2: Thiết kế môi trường");
+  });
+});

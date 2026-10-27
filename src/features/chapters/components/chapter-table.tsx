@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatNumber } from "@/lib/format";
 
 import type { ChapterSummary } from "../schemas/chapter.dto";
+import { AnalyzeChapterButton } from "./analyze-chapter-button";
 import { ChapterStatusBadge } from "./chapter-status-badge";
 
 export function ChapterTable({ chapters }: Readonly<{ chapters: readonly ChapterSummary[] }>) {
@@ -21,6 +22,7 @@ export function ChapterTable({ chapters }: Readonly<{ chapters: readonly Chapter
           <TableHead className="text-right">Độ dài</TableHead>
           <TableHead>Phân tích</TableHead>
           <TableHead className="text-right">Bài học</TableHead>
+          <TableHead className="w-40 text-right">Thao tác</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -37,6 +39,9 @@ export function ChapterTable({ chapters }: Readonly<{ chapters: readonly Chapter
               <ChapterStatusBadge status={chapter.analysisStatus} />
             </TableCell>
             <TableCell className="text-right tabular-nums">{chapter.lessonCount}</TableCell>
+            <TableCell className="text-right">
+              <AnalyzeChapterButton chapterId={chapter.id} status={chapter.analysisStatus} compact />
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>
