@@ -5,7 +5,7 @@ import { getAppConfig } from "@/shared/config/env";
 
 import { resolveWithinRoot } from "./safe-path";
 
-export const DATA_SUBDIRECTORIES = ["books", "ai-tasks", "videos", "diagnostics"] as const;
+export const DATA_SUBDIRECTORIES = ["books", "imports", "ai-tasks", "videos", "diagnostics"] as const;
 
 export class DataDirError extends Error {
   readonly code = "INVALID_DATA_DIR";

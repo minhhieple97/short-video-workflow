@@ -13,12 +13,30 @@ const durationPreset = z.coerce
 
 const isPortrait9x16 = (width: number, height: number) => width * 16 === height * 9;
 
+const regexList = z
+  .string()
+  .default("[]")
+  .transform((raw, ctx) => {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      const sources = z.array(z.string().min(1)).parse(parsed);
+      sources.forEach((source) => new RegExp(source, "iu"));
+      return sources;
+    } catch {
+      ctx.addIssue({ code: "custom", message: "must be a JSON array of valid regular expressions" });
+      return z.NEVER;
+    }
+  });
+
 const envSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     DATABASE_URL: z.string().startsWith("file:", "DATABASE_URL must be a SQLite file: URL"),
     DATA_DIR: z.string().min(1).default("./data"),
     REDIS_URL: z.string().regex(/^rediss?:\/\//, "REDIS_URL must start with redis:// or rediss://"),
+
+    MAX_IMPORT_SIZE_MB: z.coerce.number().positive().max(100).default(10),
+    CHAPTER_HEADING_PATTERNS: regexList,
 
     AI_MODE: z.enum(["mock", "cli-task"]).default("cli-task"),
     MAX_AI_CONCURRENCY: positiveInt(1),
@@ -60,6 +78,7 @@ export interface AppConfig {
   databaseUrl: string;
   dataDir: string;
   redisUrl: string;
+  import: { maxSizeBytes: number; extraChapterPatterns: string[] };
   ai: { mode: "mock" | "cli-task"; maxConcurrency: number; claudeCliCommand: string };
   tts: { mode: "upload" | "edge-tts"; voice: string; speed: number };
   video: {
@@ -90,6 +109,10 @@ export function parseAppConfig(source: Record<string, string | undefined>): AppC
     databaseUrl: env.DATABASE_URL,
     dataDir: env.DATA_DIR,
     redisUrl: env.REDIS_URL,
+    import: {
+      maxSizeBytes: Math.round(env.MAX_IMPORT_SIZE_MB * 1024 * 1024),
+      extraChapterPatterns: env.CHAPTER_HEADING_PATTERNS,
+    },
     ai: { mode: env.AI_MODE, maxConcurrency: env.MAX_AI_CONCURRENCY, claudeCliCommand: env.CLAUDE_CLI_COMMAND },
     tts: { mode: env.TTS_MODE, voice: env.TTS_VOICE, speed: env.TTS_SPEED },
     video: {

@@ -45,6 +45,22 @@ describe("parseAppConfig", () => {
     expect(() => parseAppConfig({ ...VALID_ENV, MAX_VIDEO_DURATION_SEC: "120" })).toThrow(ConfigError);
   });
 
+  it("reads import limits and extra chapter patterns", () => {
+    const config = parseAppConfig({
+      ...VALID_ENV,
+      MAX_IMPORT_SIZE_MB: "2",
+      CHAPTER_HEADING_PATTERNS: '["^bài\\\\s+\\\\d+$"]',
+    });
+    expect(config.import.maxSizeBytes).toBe(2 * 1024 * 1024);
+    expect(config.import.extraChapterPatterns).toEqual(["^bài\\s+\\d+$"]);
+    expect(parseAppConfig(VALID_ENV).import).toEqual({ maxSizeBytes: 10 * 1024 * 1024, extraChapterPatterns: [] });
+  });
+
+  it("rejects malformed chapter pattern configuration", () => {
+    expect(() => parseAppConfig({ ...VALID_ENV, CHAPTER_HEADING_PATTERNS: "not json" })).toThrow(ConfigError);
+    expect(() => parseAppConfig({ ...VALID_ENV, CHAPTER_HEADING_PATTERNS: '["(unclosed"]' })).toThrow(ConfigError);
+  });
+
   it("requires a SQLite file URL and a Redis URL", () => {
     expect(() => parseAppConfig({ ...VALID_ENV, DATABASE_URL: "postgres://localhost/db" })).toThrow(ConfigError);
     expect(() => parseAppConfig({ DATABASE_URL: VALID_ENV.DATABASE_URL })).toThrow(ConfigError);
