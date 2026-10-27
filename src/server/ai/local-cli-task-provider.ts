@@ -7,6 +7,8 @@ export class LocalCliTaskProvider implements AiProvider {
   readonly mode = "cli-task" as const;
 
   analyzeChapter(): Promise<AiTaskResult<ChapterAnalysisOutput>> {
-    return Promise.reject(new NotImplementedError("Tác vụ AI qua Claude Code CLI (WAITING_FOR_CLI)", "M5"));
+    return Promise.reject(
+      new NotImplementedError("Tác vụ AI qua Claude Code CLI (đặt AI_MODE=mock để dùng AI mẫu)", "M5"),
+    );
   }
 }
