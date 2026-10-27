@@ -18,7 +18,7 @@ export function UrlTabs({ tabs, active }: Readonly<{ tabs: readonly UrlTab[]; ac
 
   return (
     <Tabs value={active} onValueChange={(tab) => router.replace(`${pathname}?tab=${tab}`, { scroll: false })}>
-      <TabsList>
+      <TabsList variant="line">
         {tabs.map((tab) => (
           <TabsTrigger key={tab.value} value={tab.value}>
             {tab.label}

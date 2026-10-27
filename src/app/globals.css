@@ -4,9 +4,138 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@font-face {
+  font-family: "Be Vietnam Pro";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/be-vietnam-pro-vietnamese-400-normal.woff2") format("woff2");
+  unicode-range:
+    U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309,
+    U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+
+@font-face {
+  font-family: "Be Vietnam Pro";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/be-vietnam-pro-latin-400-normal.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Be Vietnam Pro";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/be-vietnam-pro-vietnamese-500-normal.woff2") format("woff2");
+  unicode-range:
+    U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309,
+    U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+
+@font-face {
+  font-family: "Be Vietnam Pro";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/be-vietnam-pro-latin-500-normal.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Be Vietnam Pro";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/be-vietnam-pro-vietnamese-600-normal.woff2") format("woff2");
+  unicode-range:
+    U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309,
+    U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+
+@font-face {
+  font-family: "Be Vietnam Pro";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/be-vietnam-pro-latin-600-normal.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Be Vietnam Pro";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/be-vietnam-pro-vietnamese-700-normal.woff2") format("woff2");
+  unicode-range:
+    U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309,
+    U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+
+@font-face {
+  font-family: "Be Vietnam Pro";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/be-vietnam-pro-latin-700-normal.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Be Vietnam Pro";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("/fonts/be-vietnam-pro-vietnamese-800-normal.woff2") format("woff2");
+  unicode-range:
+    U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309,
+    U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+
+@font-face {
+  font-family: "Be Vietnam Pro";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("/fonts/be-vietnam-pro-latin-800-normal.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 @theme inline {
   --font-heading: var(--font-sans);
-  --font-sans: ui-sans-serif, system-ui, "Segoe UI", "Noto Sans", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans:
+    "Be Vietnam Pro", ui-sans-serif, system-ui, "Segoe UI", "Noto Sans", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --color-tone-violet: var(--tone-violet);
+  --color-tone-violet-foreground: var(--tone-violet-foreground);
+  --color-tone-orange: var(--tone-orange);
+  --color-tone-orange-foreground: var(--tone-orange-foreground);
+  --color-tone-amber: var(--tone-amber);
+  --color-tone-amber-foreground: var(--tone-amber-foreground);
+  --color-tone-mint: var(--tone-mint);
+  --color-tone-mint-foreground: var(--tone-mint-foreground);
+  --color-tone-rose: var(--tone-rose);
+  --color-tone-rose-foreground: var(--tone-rose-foreground);
+  --color-tone-blue: var(--tone-blue);
+  --color-tone-blue-foreground: var(--tone-blue-foreground);
+  --color-tone-slate: var(--tone-slate);
+  --color-tone-slate-foreground: var(--tone-slate-foreground);
+  --color-ink: var(--ink);
+  --color-brand: var(--brand);
+  --shadow-card: 0 1px 2px rgb(27 23 64 / 0.05), 0 8px 24px rgb(27 23 64 / 0.05);
+  --shadow-raised: 0 6px 16px rgb(91 63 217 / 0.28);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -47,73 +176,94 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Studio Ink: deep indigo ink for the shell, violet for actions, tangerine for the vertical-video accent. */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --ink: #1b1740;
+  --brand: #ff7a45;
+  --background: #f6f5fb;
+  --foreground: #1b1740;
+  --card: #ffffff;
+  --card-foreground: #1b1740;
+  --popover: #ffffff;
+  --popover-foreground: #1b1740;
+  --primary: #5b3fd9;
+  --primary-foreground: #ffffff;
+  --secondary: #ece8ff;
+  --secondary-foreground: #4b32b8;
+  --muted: #efedf8;
+  --muted-foreground: #6b6890;
+  --accent: #ece8ff;
+  --accent-foreground: #4b32b8;
+  --destructive: #be1a45;
+  --border: #e7e4f4;
+  --input: #d9d5ee;
+  --ring: #8e78f0;
+  --chart-1: #5b3fd9;
+  --chart-2: #ff7a45;
+  --chart-3: #12a37a;
+  --chart-4: #f5a524;
+  --chart-5: #e5446d;
+  --radius: 0.875rem;
+  --sidebar: #1b1740;
+  --sidebar-foreground: #c9c5f0;
+  --sidebar-primary: #5b3fd9;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2a2560;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #2e2866;
+  --sidebar-ring: #8e78f0;
+  --tone-violet: #ece8ff;
+  --tone-violet-foreground: #4b32b8;
+  --tone-orange: #ffeadf;
+  --tone-orange-foreground: #b4440f;
+  --tone-amber: #fff0d1;
+  --tone-amber-foreground: #8a5200;
+  --tone-mint: #d8f3ec;
+  --tone-mint-foreground: #0b6b57;
+  --tone-rose: #ffe3ea;
+  --tone-rose-foreground: #a31844;
+  --tone-blue: #e4ebff;
+  --tone-blue-foreground: #2d43b3;
+  --tone-slate: #efedf8;
+  --tone-slate-foreground: #5a5683;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --ink: #0f0c2b;
+  --background: #120f2e;
+  --foreground: #f1efff;
+  --card: #1b1740;
+  --card-foreground: #f1efff;
+  --popover: #1b1740;
+  --popover-foreground: #f1efff;
+  --primary: #8e78f0;
+  --primary-foreground: #14102f;
+  --secondary: #2a2560;
+  --secondary-foreground: #e6e3ff;
+  --muted: #26215a;
+  --muted-foreground: #a9a4db;
+  --accent: #2a2560;
+  --accent-foreground: #e6e3ff;
+  --destructive: #ff6b8f;
+  --border: #2e2866;
+  --input: #3a3485;
+  --ring: #8e78f0;
+  --sidebar: #0f0c2b;
+  --sidebar-border: #26215a;
+  --tone-violet: #2f2878;
+  --tone-violet-foreground: #d6cfff;
+  --tone-orange: #4a2a1d;
+  --tone-orange-foreground: #ffc2a3;
+  --tone-amber: #473414;
+  --tone-amber-foreground: #ffd88a;
+  --tone-mint: #163d36;
+  --tone-mint-foreground: #8de3c8;
+  --tone-rose: #4a1d2c;
+  --tone-rose-foreground: #ffb3c6;
+  --tone-blue: #1f2a5c;
+  --tone-blue-foreground: #b9c7ff;
+  --tone-slate: #2a2658;
+  --tone-slate-foreground: #c0bce6;
 }
 
 @layer base {
@@ -121,9 +271,14 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
   }
   html {
     @apply font-sans;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply tracking-tight;
   }
 }
