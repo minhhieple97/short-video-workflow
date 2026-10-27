@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 
 import { probeMedia } from "@/server/media/ffprobe";
+import { startAssetServer, type AssetServer, type ServedAsset } from "@/server/render/asset-server";
 import { makeRenderCancelSignal, renderShortVideo } from "@/server/render/render-short-video";
 import { dataPath } from "@/server/storage/paths";
 import { getAppConfig } from "@/shared/config/env";
@@ -8,12 +9,14 @@ import { AppError, JobCancelledError, NotFoundError } from "@/shared/errors";
 import { createLogger, toSafeErrorMessage } from "@/shared/logger";
 
 import { shortVideoPropsSchema, toCompositionProps } from "../domain/composition-props";
+import { findMediaAssets } from "../repositories/audio.repository";
 import {
   completeRenderRecord,
   failRenderRecord,
   findRenderRecord,
   markRenderStarted,
 } from "../repositories/render.repository";
+import type { VideoDetail } from "../schemas/video.dto";
 import { dimensionsFor, preflightFor } from "./render.service";
 import { toVideoDetail } from "./video-mapper";
 import { requireVideo } from "./video.service";
@@ -38,6 +41,17 @@ function verifyOutput(
   return null;
 }
 
+async function serveNarration(video: VideoDetail): Promise<AssetServer> {
+  const ids = video.scenes
+    .filter((scene) => !scene.hidden && scene.audioAssetId)
+    .map((scene) => scene.audioAssetId ?? "");
+  const assets = await findMediaAssets(ids);
+  const served = new Map<string, ServedAsset>(
+    assets.map((asset) => [asset.id, { absolutePath: dataPath(asset.path), mimeType: asset.mimeType }]),
+  );
+  return startAssetServer(served);
+}
+
 interface RenderRun {
   renderId: string;
   signal?: AbortSignal;
@@ -59,24 +73,28 @@ export async function runRender(run: RenderRun): Promise<{ renderId: string; dur
     if (report.blocking.length > 0) {
       throw new AppError("PREFLIGHT_FAILED", report.blocking.map((issue) => issue.message).join(" "), 409);
     }
-    const props = shortVideoPropsSchema.parse(toCompositionProps(video));
     await markRenderStarted(render.id, video.scriptVersion);
+    const assetServer = await serveNarration(video);
 
     let lastReported = 0;
     const dims = dimensionsFor(quality);
-    await renderShortVideo({
-      props,
-      scale: dims.width / getAppConfig().video.final.width,
-      concurrency: getAppConfig().concurrency.render,
-      outputFile,
-      cancelSignal: makeRenderCancelSignal(run.signal),
-      onProgress: (progress) => {
-        const percent = Math.round(progress * 90) + 5;
-        if (percent - lastReported < 5) return;
-        lastReported = percent;
-        void run.onProgress(percent).catch(() => undefined);
-      },
-    });
+    try {
+      await renderShortVideo({
+        props: shortVideoPropsSchema.parse(toCompositionProps(video, assetServer.urlFor)),
+        scale: dims.width / getAppConfig().video.final.width,
+        concurrency: getAppConfig().concurrency.render,
+        outputFile,
+        cancelSignal: makeRenderCancelSignal(run.signal),
+        onProgress: (progress) => {
+          const percent = Math.round(progress * 90) + 5;
+          if (percent - lastReported < 5) return;
+          lastReported = percent;
+          void run.onProgress(percent).catch(() => undefined);
+        },
+      });
+    } finally {
+      await assetServer.close();
+    }
 
     const probe = await probeMedia(outputFile);
     const problem = verifyOutput(probe, {
