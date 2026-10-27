@@ -8,7 +8,7 @@
 
 ## Trạng thái
 
-Đã hoàn thành **M0 — Scaffold & toolchain** và **M1 — Nhập sách & quản lý chương**. Các phần còn lại (bài học, video, render, giọng đọc) lần lượt ở M2–M6; màn hình chưa làm hiển thị rõ "Chưa triển khai".
+Đã hoàn thành **M0 — Scaffold**, **M1 — Nhập sách & chương** và **M2 — Bài học & pipeline AI mẫu**. Các phần còn lại (video, render, giọng đọc, hoàn thiện) lần lượt ở M3–M6; màn hình chưa làm hiển thị rõ "Chưa triển khai".
 
 ## Yêu cầu
 
@@ -28,7 +28,7 @@ cp .env.example .env          # chỉnh nếu cần; không commit .env
 pnpm install                  # tự chạy `prisma generate`
 docker compose up -d          # Redis (127.0.0.1:6379)
 pnpm db:migrate               # tạo data/studio.db
-pnpm db:seed                  # nhập sách mẫu prisma/seed-data/atomic-habits-sample.md (chạy lại không tạo trùng)
+pnpm db:seed                  # nhập sách mẫu + bài học nháp bằng AI mẫu (chạy lại không tạo trùng)
 ```
 
 ## Chạy ứng dụng
@@ -63,6 +63,13 @@ Mở `http://127.0.0.1:3000` bằng trình duyệt trên Windows. Ứng dụng c
 5. Nhập lại cùng một tệp (trùng SHA-256) sẽ được cảnh báo; mặc định không tạo bản trùng.
 
 Xoá sách là xoá mềm (ẩn khỏi thư viện, giữ nguyên tệp) và bị chặn khi sách đã có video.
+
+## Bài học (M2)
+
+1. Trong tab **Chương** của sách: bấm **Phân tích** từng chương hoặc **Phân tích tất cả chương**. Worker xử lý lần lượt (một tác vụ một lúc); trang tự cập nhật khi xong.
+2. Mỗi chương sinh bài học ở trạng thái **Bản nháp**, kèm trích đoạn nguồn đã được đối chiếu với nội dung chương (trích dẫn không có trong chương bị loại).
+3. Tab **Bài học**: lọc theo chương, trạng thái, đã/chưa dùng trong video; mở bài học để sửa, **Duyệt**, **Từ chối (lưu trữ)**, **Khôi phục**, hoặc **Gộp** bài học trùng ý. Có thể **Tạo bài học thủ công** (gắn với ít nhất một chương).
+4. **Phân tích lại** chương đã phân tích cần xác nhận: bản nháp AI cũ của chương được lưu trữ, bài học đã duyệt/thủ công giữ nguyên. Chương không đổi nội dung và phiên bản prompt sẽ không bị phân tích lại nếu không chọn.
 
 ## Chế độ AI
 

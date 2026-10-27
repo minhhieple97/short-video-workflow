@@ -89,15 +89,16 @@ src/
                          domain/ (pure, framework-free rules — client-safe), schemas/ (Zod input + *.dto.ts types),
                          services/ (business logic), repositories/ (Prisma), components/ (React)
     books/             import parser (domain/), staging + immutable original/chapter files, import wizard, library/detail UI
-    chapters/          chapter listing, reading and rename; analysis status labels
-    lessons/ videos/   README only until M2–M4
+    chapters/          chapter listing/reading/rename, analysis runner (worker) + analysis requests (web, server-only)
+    lessons/           lesson domain (fields, excerpt verification), repository, review service, library/review UI
+    videos/            README only until M3
     jobs/              job payload schemas, JobRecord repository, job service (enqueue/get), "run test job" button
   lib/                 client-safe helpers: utils.ts (shadcn `cn()`), api-client.ts (typed fetch + ApiError), format.ts (vi-VN)
   server/              Server-side infrastructure (never imported by client components or Remotion)
     db/                client.ts: Prisma + better-sqlite3 singleton, WAL setup (shared by Next, worker, scripts)
     queue/             constants, redis-connection.ts (shared: connection factories, probe, redaction), queue.ts (Next-only producer)
     storage/           DATA_DIR resolution (paths.ts), safe-path guard, atomic writes
-    ai/                AiProvider interface, MockAiProvider, LocalCliTaskProvider (stub), contracts/ (Zod I/O schemas)
+    ai/                AiProvider interface, MockAiProvider, LocalCliTaskProvider (M5), contracts/ (Zod I/O), prompts/ (versioned)
     diagnostics/       health checks aggregated for /settings, /api/health and `pnpm diagnose`
     http/              route-helpers.ts (AppError → JSON, readJson/parseInput with Zod), page-helpers.ts (orNotFound)
   worker/              Standalone process: main.ts, processors/ (dispatcher + one per job type), lifecycle/ (heartbeat, shutdown)
@@ -229,7 +230,7 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 | --------- | -------------------------------------------------------------- | ------------------------------------- |
 | M0        | Scaffold & toolchain, schema, Redis/BullMQ/worker, diagnostics | done (gate verified; see `README.md`) |
 | M1        | Book import, parser, chapter management                        | done (gate verified)                  |
-| M2        | Lessons + mock AI pipeline                                     | not started                           |
+| M2        | Lessons + mock AI pipeline                                     | done (gate verified)                  |
 | M3        | Video builder / script editor                                  | not started                           |
 | M4        | Remotion preview + local render                                | not started                           |
 | M5        | Voiceover, real CLI task flow, Jobs dashboard                  | not started                           |
