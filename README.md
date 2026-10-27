@@ -208,6 +208,7 @@ sudo service redis-server start
 
 ```
 src/app/         Trang và API route mỏng (Next.js App Router)
+src/components/  ui/ (shadcn đã chỉnh theme "Studio Ink") và layout/ (khung, thanh bên, tiêu đề trang…)
 src/features/    books, chapters, lessons, videos, jobs — mỗi phần có domain/, schemas/, services/, repositories/, components/
 src/server/      Hạ tầng phía server: db, queue, storage, ai, tts, media, render, diagnostics, http
 src/worker/      Tiến trình worker: main.ts, processors/, lifecycle/

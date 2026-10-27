@@ -85,8 +85,8 @@ src/
     (studio)/          Studio pages: dashboard, books, videos, jobs, settings (+ shell layout, error, not-found)
     api/               books, chapters, lessons, videos, scenes, renders, media, jobs, health, diagnostics
   components/
-    ui/                shadcn/ui generated components (do not hand-edit beyond theming)
-    layout/            App shell, sidebar navigation, page header, breadcrumbs, URL tabs, empty state
+    ui/                shadcn/ui components, themed to the "Studio Ink" look (see §15); badge has tone variants for statuses
+    layout/            App shell + dark sidebar (polls /api/status), page header, breadcrumbs, URL tabs, empty state, stat tile
   features/            Feature-first modules; layers created on first use:
                          domain/ (pure, framework-free rules — client-safe), schemas/ (Zod input + *.dto.ts types),
                          services/ (business logic), repositories/ (Prisma), components/ (React)
@@ -250,7 +250,19 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 | M5        | Voiceover, real CLI task flow, Jobs dashboard                  | done (gate verified)                  |
 | M6        | Hardening, E2E, docs                                           | done (gate verified, E2E passing)     |
 
-## 15. Do / Don't quick list
+## 15. Visual language ("Studio Ink")
+
+- Design source: the Claude Design canvas "Book Video Studio — giao diện mới" (Tổng quan, Trình biên tập video, Màu sắc/chữ/thành phần). Tokens live
+  in `src/app/globals.css`; never hard-code a palette hex in a component when a token exists.
+- Shell is deep ink (`--sidebar`); actions are violet (`--primary`); tangerine (`--brand`) marks the vertical-video accent (hook, brand mark, job count).
+- **Status and scene colors are tones**, not ad-hoc Tailwind colors: use `Badge variant="mint|amber|violet|blue|rose|orange|slate"`
+  (mint = done/approved, amber = waiting/needs review, violet = running, blue = waiting for CLI or situation, rose = error, slate = neutral).
+  A status always carries its text label — color never stands alone. Scene types keep one color via `features/videos/components/scene-tone.ts`.
+- Font is Be Vietnam Pro (bundled in `public/fonts`, weights 400–800, latin + vietnamese subsets); no network font loading.
+- Cards are white with `shadow-card` on the lavender page background; primary buttons carry `shadow-raised`; radii come from `--radius`.
+- Videos are shown as 9:16 poster cards (`VideoCard`) wherever they are browsed visually; tables stay for dense lists.
+
+## 16. Do / Don't quick list
 
 - DO use `pnpm`; DON'T run `npm`/`yarn` or add other lockfiles.
 - DO validate with Zod at boundaries; DON'T trust AI output, uploads, or book text.
