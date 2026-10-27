@@ -1,0 +1,39 @@
+# dependencies
+node_modules/
+
+# build output
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# runtime data (SQLite, books, audio, renders, AI tasks)
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# generated code
+src/generated/
+
+# secrets / local env
+.env
+.env.local
+.env.*.local
+
+# media artifacts
+*.mp3
+*.mp4
+*.wav
+
+# tests / tooling output
+coverage/
+test-results/
+playwright-report/
+
+# OS / editor
+.DS_Store
+Thumbs.db
