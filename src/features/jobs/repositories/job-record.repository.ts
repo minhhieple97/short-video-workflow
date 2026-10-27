@@ -14,6 +14,19 @@ export function createJobRecord(input: CreateJobRecordInput): Promise<JobRecord>
   return prisma.jobRecord.create({ data: input });
 }
 
+const ACTIVE_JOB_STATUSES = ["QUEUED", "WAITING_FOR_CLI", "RUNNING"] as const;
+
+export function findActiveJobForEntity(
+  jobType: JobType,
+  entityType: string,
+  entityId: string,
+): Promise<JobRecord | null> {
+  return prisma.jobRecord.findFirst({
+    where: { jobType, entityType, entityId, status: { in: [...ACTIVE_JOB_STATUSES] } },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
 export function findJobRecordById(id: string): Promise<JobRecord | null> {
   return prisma.jobRecord.findUnique({ where: { id } });
 }

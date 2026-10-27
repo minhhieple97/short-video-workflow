@@ -3,22 +3,40 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 
 import { enqueueJob } from "@/server/queue/queue";
-import { AppError } from "@/shared/errors";
-import type { JobDto } from "@/shared/types/job";
+import { AppError, NotFoundError } from "@/shared/errors";
+import type { JobDto, JobType } from "@/shared/types/job";
 
-import { createJobRecord, findJobRecordById, markJobFailed } from "../repositories/job-record.repository";
+import {
+  createJobRecord,
+  findActiveJobForEntity,
+  findJobRecordById,
+  markJobFailed,
+} from "../repositories/job-record.repository";
 import { toJobDto } from "./job-dto";
 
-export async function enqueueDiagnosticPingJob(): Promise<JobDto> {
+interface TrackedJobRequest {
+  jobType: JobType;
+  entityType: string;
+  entityId: string;
+  payload: Record<string, unknown>;
+  requestFingerprint?: string;
+}
+
+// Creates the JobRecord read model first, then enqueues IDs only. An identical job still in flight is reused.
+export async function enqueueTrackedJob(request: TrackedJobRequest): Promise<{ job: JobDto; reused: boolean }> {
+  const active = await findActiveJobForEntity(request.jobType, request.entityType, request.entityId);
+  if (active) return { job: toJobDto(active), reused: true };
+
   const record = await createJobRecord({
     bullmqJobId: randomUUID(),
-    jobType: "DIAGNOSTIC_PING",
-    entityType: "SYSTEM",
-    entityId: "diagnostic",
+    jobType: request.jobType,
+    entityType: request.entityType,
+    entityId: request.entityId,
+    requestFingerprint: request.requestFingerprint,
   });
 
   try {
-    await enqueueJob("DIAGNOSTIC_PING", { jobRecordId: record.id, message: "ping" }, record.bullmqJobId);
+    await enqueueJob(request.jobType, { ...request.payload, jobRecordId: record.id }, record.bullmqJobId);
   } catch (error) {
     await markJobFailed(record.id, "QUEUE_UNAVAILABLE", "Không thể đưa tác vụ vào hàng đợi Redis.");
     throw new AppError(
@@ -28,14 +46,21 @@ export async function enqueueDiagnosticPingJob(): Promise<JobDto> {
       { cause: error },
     );
   }
+  return { job: toJobDto(record), reused: false };
+}
 
-  return toJobDto(record);
+export async function enqueueDiagnosticPingJob(): Promise<JobDto> {
+  const { job } = await enqueueTrackedJob({
+    jobType: "DIAGNOSTIC_PING",
+    entityType: "SYSTEM",
+    entityId: randomUUID(),
+    payload: { message: "ping" },
+  });
+  return job;
 }
 
 export async function getJob(id: string): Promise<JobDto> {
   const record = await findJobRecordById(id);
-  if (!record) {
-    throw new AppError("JOB_NOT_FOUND", "Không tìm thấy tác vụ.", 404);
-  }
+  if (!record) throw new NotFoundError("JOB_NOT_FOUND", "Không tìm thấy tác vụ.");
   return toJobDto(record);
 }
