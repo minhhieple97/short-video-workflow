@@ -1,5 +1,4 @@
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
-import { EmptyState } from "@/components/layout/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
 import { toBookTab } from "@/features/books/components/book-tab-values";
 import { BookTabs } from "@/features/books/components/book-tabs";
@@ -14,6 +13,9 @@ import { LessonFilters } from "@/features/lessons/components/lesson-filters";
 import { LessonTable } from "@/features/lessons/components/lesson-table";
 import { lessonFilterSchema } from "@/features/lessons/schemas/lesson.schema";
 import { listLessons } from "@/features/lessons/services/lesson.service";
+import { CreateVideoDialog } from "@/features/videos/components/create-video-dialog";
+import { VideoTable } from "@/features/videos/components/video-table";
+import { listVideos } from "@/features/videos/services/video.service";
 import { formatDateTime } from "@/lib/format";
 import { orNotFound } from "@/server/http/page-helpers";
 import { getAppConfig } from "@/shared/config/env";
@@ -29,9 +31,11 @@ export default async function BookDetailPage({ params, searchParams }: Readonly<
   const [{ bookId }, query] = await Promise.all([params, searchParams]);
   const book = await orNotFound(getBook(bookId));
   const filter = lessonFilterSchema.safeParse({ chapterId: query.chapter, status: query.status, usage: query.usage });
-  const [chapters, lessons] = await Promise.all([
+  const [chapters, lessons, approvedLessons, videos] = await Promise.all([
     listChapters(bookId),
     listLessons(bookId, filter.success ? filter.data : {}),
+    listLessons(bookId, { status: "APPROVED" }),
+    listVideos({ bookId }),
   ]);
   const chapterRefs = chapters.map(({ id, order, title }) => ({ id, order, title }));
 
@@ -85,7 +89,20 @@ export default async function BookDetailPage({ params, searchParams }: Readonly<
               />
             </div>
           ),
-          videos: <EmptyState title="Chưa có video" description="Tạo video từ bài học đã duyệt (có ở M3)." />,
+          videos: (
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-muted-foreground text-sm">
+                  {approvedLessons.length} bài học đã duyệt có thể dùng để tạo video ngắn 9:16.
+                </p>
+                <CreateVideoDialog
+                  bookId={book.id}
+                  lessons={approvedLessons.map(({ id, title, usedInVideoCount }) => ({ id, title, usedInVideoCount }))}
+                />
+              </div>
+              <VideoTable videos={videos} emptyHint="Duyệt ít nhất một bài học rồi bấm “Tạo video”." />
+            </div>
+          ),
         }}
       />
     </section>
