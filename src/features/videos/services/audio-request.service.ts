@@ -7,7 +7,7 @@ import type { JobDto } from "@/shared/types/job";
 
 import { listVisibleScenesWithoutAudio } from "../repositories/audio.repository";
 import { requireScene } from "./audio.service";
-import { requireVideo } from "./video.service";
+import { assertScriptNotGenerating, requireVideo } from "./video.service";
 
 function assertTtsEnabled(): void {
   if (getAppConfig().tts.mode !== "edge-tts") {
@@ -18,6 +18,7 @@ function assertTtsEnabled(): void {
 export async function requestSceneTts(sceneId: string): Promise<JobDto> {
   assertTtsEnabled();
   const scene = await requireScene(sceneId);
+  await assertScriptNotGenerating(scene.video.id);
   if (!scene.narration.trim()) throw new AppError("EMPTY_NARRATION", "Cảnh chưa có lời dẫn.", 409);
   const { job } = await enqueueTrackedJob({
     jobType: "GENERATE_SCENE_TTS",
@@ -31,6 +32,7 @@ export async function requestSceneTts(sceneId: string): Promise<JobDto> {
 export async function requestMissingTts(videoId: string): Promise<JobDto[]> {
   assertTtsEnabled();
   await requireVideo(videoId);
+  await assertScriptNotGenerating(videoId);
   const jobs: JobDto[] = [];
   for (const scene of await listVisibleScenesWithoutAudio(videoId)) jobs.push(await requestSceneTts(scene.id));
   return jobs;

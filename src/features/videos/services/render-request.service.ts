@@ -13,12 +13,13 @@ import {
   findActiveRender,
 } from "../repositories/render.repository";
 import { dimensionsFor, preflightFor } from "./render.service";
-import { getVideo } from "./video.service";
+import { assertScriptNotGenerating, getVideo } from "./video.service";
 
 export async function requestRender(
   videoId: string,
   quality: RenderQuality,
 ): Promise<{ renderId: string; jobId: string }> {
+  await assertScriptNotGenerating(videoId);
   const video = await getVideo(videoId);
   const report = preflightFor(video, quality);
   if (report.blocking.length > 0) {

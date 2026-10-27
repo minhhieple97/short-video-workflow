@@ -19,6 +19,7 @@ import {
 import { estimateNarrationSeconds, secondsToFrames } from "../domain/duration";
 import { createVoiceoverAsset, findSceneWithVideo, findVoiceoverByHash } from "../repositories/audio.repository";
 import { setSceneAudio } from "../repositories/video.repository";
+import { assertScriptNotGenerating } from "./video.service";
 
 const ACCEPTED_UPLOAD_MIME = new Set([
   "",
@@ -105,6 +106,7 @@ export async function uploadSceneAudio(
   file: { name: string; type: string; bytes: Uint8Array },
 ): Promise<void> {
   const scene = await requireScene(sceneId);
+  await assertScriptNotGenerating(scene.video.id);
   const { maxUploadBytes } = getAppConfig().tts;
   if (file.bytes.byteLength > maxUploadBytes) {
     throw new AppError("FILE_TOO_LARGE", `Tệp âm thanh vượt quá ${Math.round(maxUploadBytes / 1024 / 1024)} MB.`, 413);
@@ -130,6 +132,7 @@ export async function uploadSceneAudio(
 
 export async function detachSceneAudio(sceneId: string): Promise<void> {
   const scene = await requireScene(sceneId);
+  await assertScriptNotGenerating(scene.video.id);
   await setSceneAudio(scene.video.id, sceneId, {
     audioAssetId: null,
     durationFrames: secondsToFrames(estimateNarrationSeconds(scene.narration)),

@@ -13,7 +13,7 @@ import type { VideoDetail } from "../schemas/video.dto";
 import type { AddSceneInput, UpdateSceneInput } from "../schemas/video.schema";
 import { buildSceneRecord } from "./scene-records";
 import { lessonSnapshotsOf, toVideoDetail } from "./video-mapper";
-import { getVideo, requireVideo } from "./video.service";
+import { assertScriptNotGenerating, getVideo, requireVideo } from "./video.service";
 
 function requireScene(video: VideoDetailRecord, sceneId: string) {
   const scene = video.scenes.find((candidate) => candidate.id === sceneId);
@@ -23,6 +23,7 @@ function requireScene(video: VideoDetailRecord, sceneId: string) {
 
 export async function selectHookOption(videoId: string, optionIndex: number): Promise<VideoDetail> {
   const video = await requireVideo(videoId);
+  await assertScriptNotGenerating(videoId);
   const option = toVideoDetail(video).hookOptions[optionIndex];
   if (!option) throw new AppError("HOOK_OPTION_NOT_FOUND", "Không có phương án hook này.", 404);
 
@@ -49,6 +50,7 @@ export async function selectHookOption(videoId: string, optionIndex: number): Pr
 
 export async function updateScene(videoId: string, sceneId: string, input: UpdateSceneInput): Promise<VideoDetail> {
   const video = await requireVideo(videoId);
+  await assertScriptNotGenerating(videoId);
   const scene = requireScene(video, sceneId);
   if (scene.type === "HOOK" && input.hidden) throw new AppError("HOOK_REQUIRED", "Không thể ẩn cảnh HOOK.", 409);
 
@@ -83,6 +85,7 @@ const TEMPLATE_FIELD: Record<BodySceneType, keyof LessonSnapshot> = {
 // New scenes start from the matching field of the first lesson snapshot so they are never empty.
 export async function addScene(videoId: string, input: AddSceneInput): Promise<VideoDetail> {
   const video = await requireVideo(videoId);
+  await assertScriptNotGenerating(videoId);
   const type = toSceneType(input.type);
   if (type === "HOOK") throw new AppError("HOOK_REQUIRED", "HOOK được tạo bằng cách chọn phương án hook.", 400);
   const [lesson] = lessonSnapshotsOf(video);
@@ -108,6 +111,7 @@ export async function addScene(videoId: string, input: AddSceneInput): Promise<V
 
 export async function deleteScene(videoId: string, sceneId: string): Promise<VideoDetail> {
   const video = await requireVideo(videoId);
+  await assertScriptNotGenerating(videoId);
   if (requireScene(video, sceneId).type === "HOOK") {
     throw new AppError(
       "HOOK_REQUIRED",
@@ -121,6 +125,7 @@ export async function deleteScene(videoId: string, sceneId: string): Promise<Vid
 
 export async function reorderScenes(videoId: string, sceneIds: readonly string[]): Promise<VideoDetail> {
   const video = await requireVideo(videoId);
+  await assertScriptNotGenerating(videoId);
   const current = video.scenes.map((scene) => scene.id);
   if (
     sceneIds.length !== current.length ||

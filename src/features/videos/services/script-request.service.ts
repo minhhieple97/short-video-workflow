@@ -4,7 +4,7 @@ import { enqueueTrackedJob } from "@/features/jobs/services/job-service";
 import { AppError, NotFoundError } from "@/shared/errors";
 import type { JobDto } from "@/shared/types/job";
 
-import { requireVideo } from "./video.service";
+import { assertScriptNotGenerating, requireVideo } from "./video.service";
 
 export async function requestScriptGeneration(videoId: string): Promise<JobDto> {
   const video = await requireVideo(videoId);
@@ -20,6 +20,7 @@ export async function requestScriptGeneration(videoId: string): Promise<JobDto> 
 
 export async function requestSceneRegeneration(videoId: string, sceneId: string): Promise<JobDto> {
   const video = await requireVideo(videoId);
+  await assertScriptNotGenerating(videoId);
   const scene = video.scenes.find((candidate) => candidate.id === sceneId);
   if (!scene) throw new NotFoundError("SCENE_NOT_FOUND", "Không tìm thấy cảnh.");
   if (scene.type === "HOOK")

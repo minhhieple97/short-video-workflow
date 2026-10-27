@@ -92,6 +92,7 @@ export async function createVideo(input: CreateVideoInput): Promise<{ video: Vid
 
 export async function updateVideo(id: string, input: UpdateVideoInput): Promise<VideoDetail> {
   await requireVideo(id);
+  await assertScriptNotGenerating(id);
   await updateVideoMetadata(id, {
     title: input.title,
     description: input.description,
@@ -111,10 +112,12 @@ export async function updatePreviewMode(
 
 export async function deleteVideo(id: string): Promise<void> {
   await requireVideo(id);
+  await assertScriptNotGenerating(id);
   await deleteVideoRecord(id);
 }
 
 export async function approveScript(id: string): Promise<VideoDetail> {
+  await assertScriptNotGenerating(id);
   const video = await getVideo(id);
   if (video.scenes.length === 0) throw new AppError("SCRIPT_EMPTY", "Chưa có kịch bản để duyệt.", 409);
   if (video.hookIssues.length > 0) throw new AppError("HOOK_INVALID", video.hookIssues.join(" "), 409);
@@ -125,4 +128,17 @@ export async function approveScript(id: string): Promise<VideoDetail> {
 export async function findActiveVideoJob(videoId: string): Promise<JobDto | null> {
   const job = await findActiveJobForEntity("GENERATE_VIDEO_SCRIPT", "VIDEO", videoId);
   return job ? toJobDto(job) : null;
+}
+
+// While a script job is queued, running or waiting for Claude Code the whole script is about to be replaced: edits,
+// audio and renders made now would be lost, and new settings would no longer match what the AI returns.
+// Only user-facing services call this; the worker writes through repositories.
+export async function assertScriptNotGenerating(videoId: string): Promise<void> {
+  if (await findActiveVideoJob(videoId)) {
+    throw new AppError(
+      "SCRIPT_GENERATION_IN_PROGRESS",
+      "Kịch bản đang được tạo. Hãy đợi tác vụ xong hoặc huỷ nó trước khi thay đổi video.",
+      409,
+    );
+  }
 }
