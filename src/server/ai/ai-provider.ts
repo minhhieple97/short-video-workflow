@@ -1,3 +1,5 @@
+import type { JobType } from "@/shared/types/job";
+
 import type { ChapterAnalysisInput, ChapterAnalysisOutput } from "./contracts/chapter-analysis";
 import type {
   SceneRegenerationInput,
@@ -11,9 +13,11 @@ export type AiMode = "mock" | "cli-task";
 export type AiTaskResult<TOutput> =
   { status: "completed"; output: TOutput } | { status: "waiting_for_cli"; taskDir: string };
 
-// taskId names the data/ai-tasks/{taskId}/ folder: the job record id, or the AI run id when no job exists (seed).
+// taskId names data/ai-tasks/{taskId}/ (the job record id, or the AI run id when no job exists).
+// resume tells `pnpm ai:run` which job to re-queue once the CLI output is saved.
 export interface AiTaskContext {
   taskId: string;
+  resume?: { jobType: JobType; payload: Record<string, unknown> };
 }
 
 export interface AiProvider {

@@ -26,7 +26,7 @@ interface AnalyzeChapterButtonProps {
   compact?: boolean;
 }
 
-const IN_PROGRESS: readonly ChapterAnalysisStatus[] = ["QUEUED", "ANALYZING"];
+const IN_PROGRESS: readonly ChapterAnalysisStatus[] = ["QUEUED", "ANALYZING", "WAITING_FOR_CLI"];
 
 export function AnalyzeChapterButton({ chapterId, status, compact = false }: Readonly<AnalyzeChapterButtonProps>) {
   const { running, run } = useAnalysisRunner();

@@ -4,16 +4,17 @@ import { ZodError } from "zod";
 
 import {
   completeAiRun,
-  createAiRun,
   failAiRun,
   hasCompletedAiRun,
+  markAiRunWaiting,
+  startAiRun,
 } from "@/features/jobs/repositories/ai-run.repository";
 import { pickLessonText } from "@/features/lessons/domain/lesson-fields";
 import { verifyExcerpts } from "@/features/lessons/domain/source-excerpts";
 import { replaceChapterDraftLessons, type AnalysisDraft } from "@/features/lessons/repositories/lesson.repository";
 import { lessonContentHash } from "@/features/lessons/services/lesson-hash";
 import { createAiProvider } from "@/server/ai";
-import type { AiProvider } from "@/server/ai/ai-provider";
+import type { AiProvider, AiTaskContext } from "@/server/ai/ai-provider";
 import { chapterAnalysisOutputSchema } from "@/server/ai/contracts/chapter-analysis";
 import { CHAPTER_ANALYSIS_PROMPT_VERSION } from "@/server/ai/prompts/chapter-analysis-prompt";
 import { writeFileAtomic } from "@/server/storage/atomic-write";
@@ -30,6 +31,7 @@ export interface ChapterAnalysisRun {
   jobRecordId: string | null;
   force: boolean;
   provider?: AiProvider;
+  resume?: AiTaskContext["resume"];
   onProgress?: (progress: number) => Promise<void>;
 }
 
@@ -38,6 +40,11 @@ export interface ChapterAnalysisResult {
   lessonsCreated: number;
   lessonsArchived: number;
   excerptsRejected: number;
+}
+
+export interface AnalysisWaitingForCli {
+  waitingForCli: true;
+  taskDir: string;
 }
 
 export function analysisInputHash(parts: {
@@ -58,7 +65,9 @@ function toDrafts(lessons: readonly Parameters<typeof pickLessonText>[0][], exce
   });
 }
 
-export async function runChapterAnalysis(run: ChapterAnalysisRun): Promise<ChapterAnalysisResult> {
+export async function runChapterAnalysis(
+  run: ChapterAnalysisRun,
+): Promise<ChapterAnalysisResult | AnalysisWaitingForCli> {
   const chapter = await findChapterWithBook(run.chapterId);
   if (!chapter) throw new NotFoundError("CHAPTER_NOT_FOUND", "Không tìm thấy chương.");
 
@@ -79,7 +88,7 @@ export async function runChapterAnalysis(run: ChapterAnalysisRun): Promise<Chapt
   }
 
   await setChapterAnalysisStatus(chapter.id, "ANALYZING");
-  const aiRun = await createAiRun({
+  const aiRun = await startAiRun({
     jobRecordId: run.jobRecordId,
     mode: provider.mode,
     promptVersion: CHAPTER_ANALYSIS_PROMPT_VERSION,
@@ -100,10 +109,12 @@ export async function runChapterAnalysis(run: ChapterAnalysisRun): Promise<Chapt
         chapterContent: content,
         promptVersion: CHAPTER_ANALYSIS_PROMPT_VERSION,
       },
-      { taskId },
+      { taskId, resume: run.resume },
     );
-    if (result.status !== "completed") {
-      throw new AppError("WAITING_FOR_CLI", "Tác vụ đang chờ chạy qua Claude Code CLI.", 409);
+    if (result.status === "waiting_for_cli") {
+      await markAiRunWaiting(aiRun.id);
+      await setChapterAnalysisStatus(chapter.id, "WAITING_FOR_CLI");
+      return { waitingForCli: true, taskDir: result.taskDir };
     }
 
     const output = chapterAnalysisOutputSchema.parse(result.output);

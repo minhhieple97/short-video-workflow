@@ -167,7 +167,7 @@ describe("chapter analysis with the mock provider", () => {
     const [chapter] = await chapters.listChapters(otherBookId);
 
     const result = await analysis.runChapterAnalysis({ chapterId: chapter!.id, jobRecordId: null, force: false });
-    expect(result.lessonsCreated).toBe(2);
+    expect(result).toMatchObject({ lessonsCreated: 2 });
     const created = await lessons.listLessons(otherBookId);
     expect(created.map((lesson) => lesson.title)).toEqual(["Ý chính: Bẫy", "Áp dụng: Bẫy"]);
     expect(created.every((lesson) => lesson.status === "DRAFT")).toBe(true);

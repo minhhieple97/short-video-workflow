@@ -1,10 +1,18 @@
-export const CHAPTER_ANALYSIS_STATUSES = ["NOT_ANALYZED", "QUEUED", "ANALYZING", "ANALYZED", "FAILED"] as const;
+export const CHAPTER_ANALYSIS_STATUSES = [
+  "NOT_ANALYZED",
+  "QUEUED",
+  "ANALYZING",
+  "WAITING_FOR_CLI",
+  "ANALYZED",
+  "FAILED",
+] as const;
 export type ChapterAnalysisStatus = (typeof CHAPTER_ANALYSIS_STATUSES)[number];
 
 export const CHAPTER_ANALYSIS_STATUS_LABELS: Record<ChapterAnalysisStatus, string> = {
   NOT_ANALYZED: "Chưa phân tích",
   QUEUED: "Đang chờ",
   ANALYZING: "Đang phân tích",
+  WAITING_FOR_CLI: "Chờ chạy Claude CLI",
   ANALYZED: "Đã phân tích",
   FAILED: "Lỗi phân tích",
 };

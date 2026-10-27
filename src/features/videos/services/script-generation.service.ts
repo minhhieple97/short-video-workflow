@@ -2,9 +2,9 @@ import { createHash } from "node:crypto";
 
 import { ZodError } from "zod";
 
-import { completeAiRun, createAiRun, failAiRun } from "@/features/jobs/repositories/ai-run.repository";
+import { completeAiRun, failAiRun, markAiRunWaiting, startAiRun } from "@/features/jobs/repositories/ai-run.repository";
 import { createAiProvider } from "@/server/ai";
-import type { AiProvider, AiTaskResult } from "@/server/ai/ai-provider";
+import type { AiProvider, AiTaskContext } from "@/server/ai/ai-provider";
 import {
   sceneRegenerationInputSchema,
   sceneRegenerationOutputSchema,
@@ -29,7 +29,15 @@ interface ScriptRun {
   videoId: string;
   jobRecordId: string | null;
   provider?: AiProvider;
+  resume?: AiTaskContext["resume"];
 }
+
+export interface ScriptWaitingForCli {
+  waitingForCli: true;
+  taskDir: string;
+}
+
+type WorkResult<T> = { kind: "waiting"; taskDir: string } | { kind: "done"; value: T; output: unknown };
 
 const inputHash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
@@ -41,17 +49,11 @@ function asAiFailure(error: unknown): unknown {
     : error;
 }
 
-function completed<T>(result: AiTaskResult<T>): T {
-  if (result.status !== "completed")
-    throw new AppError("WAITING_FOR_CLI", "Tác vụ đang chờ chạy qua Claude Code CLI.", 409);
-  return result.output;
-}
-
 async function withAiRun<T>(
-  meta: { jobRecordId: string | null; mode: string; hash: string },
-  work: (taskId: string) => Promise<{ value: T; output: unknown }>,
-): Promise<T> {
-  const aiRun = await createAiRun({
+  meta: { jobRecordId: string | null; mode: string; hash: string; resume?: AiTaskContext["resume"] },
+  work: (context: AiTaskContext) => Promise<WorkResult<T>>,
+): Promise<T | ScriptWaitingForCli> {
+  const aiRun = await startAiRun({
     jobRecordId: meta.jobRecordId,
     mode: meta.mode,
     promptVersion: VIDEO_SCRIPT_PROMPT_VERSION,
@@ -59,7 +61,12 @@ async function withAiRun<T>(
   });
   const taskId = meta.jobRecordId ?? aiRun.id;
   try {
-    const { value, output } = await work(taskId);
+    const result = await work({ taskId, resume: meta.resume });
+    if (result.kind === "waiting") {
+      await markAiRunWaiting(aiRun.id);
+      return { waitingForCli: true, taskDir: result.taskDir };
+    }
+    const { value, output } = result;
     const outputPath = `ai-tasks/${taskId}/output.json`;
     await writeFileAtomic(dataPath(outputPath), `${JSON.stringify(output, null, 2)}\n`);
     await completeAiRun(aiRun.id, outputPath);
@@ -81,7 +88,9 @@ const toSceneContent = (scene: StoryboardScene) => ({
 });
 
 // Builds hook proposals plus the storyboard; the first hook proposal becomes the HOOK scene until the user picks another.
-export async function runScriptGeneration(run: ScriptRun): Promise<{ scenes: number; hookOptions: number }> {
+export async function runScriptGeneration(
+  run: ScriptRun,
+): Promise<{ scenes: number; hookOptions: number } | ScriptWaitingForCli> {
   const video = await requireVideo(run.videoId);
   const provider = run.provider ?? createAiProvider(getAppConfig().ai.mode);
   const input = videoScriptInputSchema.parse({
@@ -93,8 +102,11 @@ export async function runScriptGeneration(run: ScriptRun): Promise<{ scenes: num
     promptVersion: VIDEO_SCRIPT_PROMPT_VERSION,
   });
 
-  return withAiRun({ jobRecordId: run.jobRecordId, mode: provider.mode, hash: inputHash(input) }, async (taskId) => {
-    const output = videoScriptOutputSchema.parse(completed(await provider.generateVideoScript(input, { taskId })));
+  const meta = { jobRecordId: run.jobRecordId, mode: provider.mode, hash: inputHash(input), resume: run.resume };
+  return withAiRun(meta, async (context) => {
+    const result = await provider.generateVideoScript(input, context);
+    if (result.status === "waiting_for_cli") return { kind: "waiting", taskDir: result.taskDir };
+    const output = videoScriptOutputSchema.parse(result.output);
     if (output.videoId !== video.id) throw new AppError("INVALID_AI_OUTPUT", "Kết quả AI không khớp video.", 422);
     const [hook] = output.hookOptions;
     if (!hook) throw new AppError("INVALID_AI_OUTPUT", "Kết quả AI thiếu phương án hook.", 422);
@@ -111,12 +123,14 @@ export async function runScriptGeneration(run: ScriptRun): Promise<{ scenes: num
       ...output.scenes.map((scene) => buildSceneRecord(toSceneContent(scene))),
     ];
     await replaceScript(video.id, { hookOptions: output.hookOptions, scenes });
-    return { value: { scenes: scenes.length, hookOptions: output.hookOptions.length }, output };
+    return { kind: "done", value: { scenes: scenes.length, hookOptions: output.hookOptions.length }, output };
   });
 }
 
 // Rewrites one scene only; every other scene is left exactly as it was.
-export async function runSceneRegeneration(run: ScriptRun & { sceneId: string }): Promise<{ sceneId: string }> {
+export async function runSceneRegeneration(
+  run: ScriptRun & { sceneId: string },
+): Promise<{ sceneId: string } | ScriptWaitingForCli> {
   const video = await requireVideo(run.videoId);
   const scene = video.scenes.find((candidate) => candidate.id === run.sceneId);
   if (!scene) throw new NotFoundError("SCENE_NOT_FOUND", "Không tìm thấy cảnh.");
@@ -140,11 +154,14 @@ export async function runSceneRegeneration(run: ScriptRun & { sceneId: string })
     promptVersion: VIDEO_SCRIPT_PROMPT_VERSION,
   });
 
-  return withAiRun({ jobRecordId: run.jobRecordId, mode: provider.mode, hash: inputHash(input) }, async (taskId) => {
-    const output = sceneRegenerationOutputSchema.parse(completed(await provider.regenerateScene(input, { taskId })));
+  const meta = { jobRecordId: run.jobRecordId, mode: provider.mode, hash: inputHash(input), resume: run.resume };
+  return withAiRun(meta, async (context) => {
+    const result = await provider.regenerateScene(input, context);
+    if (result.status === "waiting_for_cli") return { kind: "waiting", taskDir: result.taskDir };
+    const output = sceneRegenerationOutputSchema.parse(result.output);
     if (output.sceneId !== scene.id) throw new AppError("INVALID_AI_OUTPUT", "Kết quả AI không khớp cảnh.", 422);
     const record = buildSceneRecord({ ...toSceneContent(output.scene), type: scene.type });
     await updateSceneRecord(video.id, scene.id, record, record.contentHash !== scene.contentHash);
-    return { value: { sceneId: scene.id }, output };
+    return { kind: "done", value: { sceneId: scene.id }, output };
   });
 }

@@ -41,6 +41,7 @@ const envSchema = z
     AI_MODE: z.enum(["mock", "cli-task"]).default("cli-task"),
     MAX_AI_CONCURRENCY: positiveInt(1),
     CLAUDE_CLI_COMMAND: z.string().min(1).default("claude"),
+    AI_TASK_TIMEOUT_SEC: positiveInt(600),
 
     TTS_MODE: z.enum(["upload", "edge-tts"]).default("edge-tts"),
     TTS_VOICE: z.string().min(1).default("vi-VN-NamMinhNeural"),
@@ -79,7 +80,7 @@ export interface AppConfig {
   dataDir: string;
   redisUrl: string;
   import: { maxSizeBytes: number; extraChapterPatterns: string[] };
-  ai: { mode: "mock" | "cli-task"; maxConcurrency: number; claudeCliCommand: string };
+  ai: { mode: "mock" | "cli-task"; maxConcurrency: number; claudeCliCommand: string; taskTimeoutMs: number };
   tts: { mode: "upload" | "edge-tts"; voice: string; speed: number };
   video: {
     profile: "SHORT_VERTICAL";
@@ -113,7 +114,12 @@ export function parseAppConfig(source: Record<string, string | undefined>): AppC
       maxSizeBytes: Math.round(env.MAX_IMPORT_SIZE_MB * 1024 * 1024),
       extraChapterPatterns: env.CHAPTER_HEADING_PATTERNS,
     },
-    ai: { mode: env.AI_MODE, maxConcurrency: env.MAX_AI_CONCURRENCY, claudeCliCommand: env.CLAUDE_CLI_COMMAND },
+    ai: {
+      mode: env.AI_MODE,
+      maxConcurrency: env.MAX_AI_CONCURRENCY,
+      claudeCliCommand: env.CLAUDE_CLI_COMMAND,
+      taskTimeoutMs: env.AI_TASK_TIMEOUT_SEC * 1000,
+    },
     tts: { mode: env.TTS_MODE, voice: env.TTS_VOICE, speed: env.TTS_SPEED },
     video: {
       profile: env.VIDEO_PROFILE,

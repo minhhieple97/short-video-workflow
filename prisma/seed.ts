@@ -46,6 +46,7 @@ async function seedDraftLessons(bookId: string): Promise<void> {
   const provider = new MockAiProvider();
   for (const chapter of await listChapters(bookId)) {
     const result = await runChapterAnalysis({ chapterId: chapter.id, jobRecordId: null, force: false, provider });
+    if ("waitingForCli" in result) continue;
     console.log(
       result.skipped
         ? `Chương ${chapter.order}: đã có bài học mẫu.`

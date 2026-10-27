@@ -6,6 +6,7 @@ const VARIANTS: Record<ChapterAnalysisStatus, "default" | "secondary" | "destruc
   NOT_ANALYZED: "outline",
   QUEUED: "secondary",
   ANALYZING: "secondary",
+  WAITING_FOR_CLI: "secondary",
   ANALYZED: "default",
   FAILED: "destructive",
 };
