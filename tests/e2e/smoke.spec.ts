@@ -36,8 +36,15 @@ function probe(file: string) {
   };
 }
 
+// Inputs changed before React hydrates are lost (the button below would stay disabled), so wait until the
+// page's scripts have settled; this matters when the machine is busy.
+async function open(page: Page, url: string): Promise<void> {
+  await page.goto(url);
+  await page.waitForLoadState("networkidle");
+}
+
 async function createVideo(page: Page, bookUrl: string, lessonIndexes: number[], extended: boolean): Promise<string> {
-  await page.goto(`${bookUrl}?tab=videos`);
+  await open(page, `${bookUrl}?tab=videos`);
   await page.getByRole("button", { name: "Tạo video" }).click();
   const dialog = page.getByRole("dialog");
   for (const index of lessonIndexes) await dialog.getByRole("checkbox").nth(index).click();
@@ -54,9 +61,13 @@ async function generateScript(page: Page): Promise<void> {
 
 test("E2E-01: one book, several short videos, rendered as vertical MP4", async ({ page, request }) => {
   await test.step("import the sample book with a renamed chapter", async () => {
-    await page.goto("/books/import");
-    await page.locator("#book-file").setInputFiles(SAMPLE_BOOK);
-    await page.getByRole("button", { name: "Phân tích cấu trúc chương" }).click();
+    await open(page, "/books/import");
+    const analyse = page.getByRole("button", { name: "Phân tích cấu trúc chương" });
+    await expect(async () => {
+      await page.locator("#book-file").setInputFiles(SAMPLE_BOOK);
+      await expect(analyse).toBeEnabled({ timeout: 2_000 });
+    }).toPass({ timeout: 60_000 });
+    await analyse.click();
     await expect(page.getByText(/Danh sách chương/)).toBeVisible();
     await page.getByLabel("Tên mục 4").fill("Chương 1: Thay đổi nhỏ (đã đổi tên)");
     await page.locator("#import-author").fill("James Clear");
@@ -72,12 +83,12 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
   });
 
   const lessonHrefs = await test.step("approve three lessons", async () => {
-    await page.goto(`${bookUrl}?tab=lessons`);
+    await open(page, `${bookUrl}?tab=lessons`);
     const hrefs = await page
       .locator("tbody a")
       .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
     for (const href of [hrefs[0], hrefs[2], hrefs[4]]) {
-      await page.goto(href ?? "");
+      await open(page, href ?? "");
       await page.getByRole("button", { name: "Duyệt", exact: true }).click();
       await expect(page.getByText("Đã duyệt bài học.")).toBeVisible();
     }
@@ -101,7 +112,7 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
     const videoId = url.split("/").at(-1) ?? "";
     const before = (await (await request.get(`/api/videos/${videoId}`)).json()) as { scenes: SceneJson[] };
 
-    await page.goto(`${url}?tab=story`);
+    await open(page, `${url}?tab=story`);
     await page
       .locator("textarea[id$='-narration']")
       .nth(1)
@@ -115,16 +126,16 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
   });
 
   await test.step("editing a lesson later does not change video A's snapshot", async () => {
-    await page.goto(lessonHrefs[0] ?? "");
+    await open(page, lessonHrefs[0] ?? "");
     await page.locator("#lesson-title").fill("Tiêu đề bài học đã sửa sau khi tạo video");
     await page.getByRole("button", { name: "Lưu thay đổi" }).click();
     await expect(page.getByText("Đã lưu bài học.")).toBeVisible();
-    await page.goto(videoA);
+    await open(page, videoA);
     await expect(page.getByText("(đã sửa sau khi tạo video)")).toBeVisible();
   });
 
   await test.step("preview in the phone frame and upload narration for the hook", async () => {
-    await page.goto(`${videoA}?tab=preview`);
+    await open(page, `${videoA}?tab=preview`);
     await expect(page.getByRole("radiogroup", { name: "Nền tảng xem trước" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Xem 3 giây đầu" })).toBeVisible();
 
@@ -141,18 +152,18 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
       "24000",
       wav,
     ]);
-    await page.goto(`${videoA}?tab=voice`);
+    await open(page, `${videoA}?tab=voice`);
     await page.locator("input[type=file]").first().setInputFiles(wav);
     await expect(page.getByText("Đã tải âm thanh lên cho cảnh.")).toBeVisible();
     await expect(page.locator("main audio")).toHaveCount(1);
   });
 
   await test.step("approve the script, then render draft and final MP4", async () => {
-    await page.goto(videoA);
+    await open(page, videoA);
     await page.getByRole("button", { name: "Duyệt kịch bản" }).click();
     await expect(page.getByText("Kịch bản đã duyệt").first()).toBeVisible();
 
-    await page.goto(`${videoA}/render`);
+    await open(page, `${videoA}/render`);
     const videoId = videoA.split("/").at(-1) ?? "";
     const completed = async () => {
       const { renders } = (await (await request.get(`/api/videos/${videoId}/renders`)).json()) as {
@@ -183,11 +194,11 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
   });
 
   await test.step("everything is still there after a reload", async () => {
-    await page.goto("/books");
+    await open(page, "/books");
     await expect(page.getByText("Atomic Habits — bản tóm lược minh họa")).toBeVisible();
-    await page.goto(`${bookUrl}?tab=videos`);
+    await open(page, `${bookUrl}?tab=videos`);
     await expect(page.locator("tbody tr")).toHaveCount(2);
-    await page.goto(`${bookUrl}?tab=lessons&status=APPROVED`);
+    await open(page, `${bookUrl}?tab=lessons&status=APPROVED`);
     await expect(page.locator("tbody tr")).toHaveCount(3);
   });
 });
