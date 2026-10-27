@@ -4,14 +4,13 @@ import { JobTable } from "@/features/jobs/components/job-table";
 import { JobsAutoRefresh } from "@/features/jobs/components/jobs-auto-refresh";
 import { listJobsForDashboard } from "@/features/jobs/services/job-dashboard.service";
 import { checkWorkerHeartbeat } from "@/server/diagnostics/checks/worker-heartbeat";
+import { isActiveJobStatus } from "@/shared/types/job";
 
 export const dynamic = "force-dynamic";
 
-const ACTIVE = new Set(["QUEUED", "RUNNING", "CANCEL_REQUESTED", "WAITING_FOR_CLI"]);
-
 export default async function JobsPage() {
   const [jobs, worker] = await Promise.all([listJobsForDashboard(), checkWorkerHeartbeat()]);
-  const hasActive = jobs.some((job) => ACTIVE.has(job.status));
+  const hasActive = jobs.some((job) => isActiveJobStatus(job.status));
 
   return (
     <section className="flex flex-col gap-6">

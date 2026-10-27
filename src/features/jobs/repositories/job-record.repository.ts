@@ -1,6 +1,6 @@
 import type { JobRecord } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
-import type { JobType } from "@/shared/types/job";
+import { ACTIVE_JOB_STATUSES, type JobType } from "@/shared/types/job";
 
 interface CreateJobRecordInput {
   bullmqJobId: string;
@@ -9,8 +9,6 @@ interface CreateJobRecordInput {
   entityId: string;
   requestFingerprint?: string;
 }
-
-const ACTIVE_JOB_STATUSES = ["QUEUED", "WAITING_FOR_CLI", "RUNNING", "CANCEL_REQUESTED"] as const;
 
 export function createJobRecord(input: CreateJobRecordInput): Promise<JobRecord> {
   return prisma.jobRecord.create({ data: input });
@@ -33,6 +31,13 @@ export function findJobRecordById(id: string): Promise<JobRecord | null> {
 
 export function listJobRecords(limit: number): Promise<JobRecord[]> {
   return prisma.jobRecord.findMany({ orderBy: { createdAt: "desc" }, take: limit });
+}
+
+export function listActiveJobRecords(): Promise<JobRecord[]> {
+  return prisma.jobRecord.findMany({
+    where: { status: { in: [...ACTIVE_JOB_STATUSES] } },
+    orderBy: { createdAt: "asc" },
+  });
 }
 
 export function listJobsWaitingForCli(): Promise<JobRecord[]> {

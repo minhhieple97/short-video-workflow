@@ -10,6 +10,7 @@
 
 | Phần      | Bạn làm được gì                                                                                                                                                         |
 | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tổng quan | Tác vụ đang chờ/đang chạy (tự cập nhật), video và sách gần đây                                                                                                          |
 | Thư viện  | Nhập `.md`/`.txt` (tải lên hoặc dán), tìm kiếm không phân biệt dấu, sửa thông tin sách, xoá mềm                                                                         |
 | Chương    | Nhận diện chương tự động (heading Markdown hoặc dòng "Chương 1 / CHƯƠNG IV / Chapter One / Phần 2"), bỏ mục lục/lời nói đầu, đổi tên, tách, gộp, sắp xếp trước khi nhập |
 | Bài học   | AI rút bài học từ từng chương kèm trích đoạn đã kiểm chứng; sửa, duyệt, lưu trữ, gộp, tạo thủ công                                                                      |

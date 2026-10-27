@@ -19,6 +19,7 @@ export const JOB_STATUSES = [
 export type JobStatus = (typeof JOB_STATUSES)[number];
 
 const TERMINAL_JOB_STATUSES: readonly JobStatus[] = ["COMPLETED", "FAILED", "CANCELLED"];
+export const ACTIVE_JOB_STATUSES = ["QUEUED", "WAITING_FOR_CLI", "RUNNING", "CANCEL_REQUESTED"] as const;
 
 export function isJobType(value: string): value is JobType {
   return JOB_TYPES.some((type) => type === value);
@@ -26,6 +27,10 @@ export function isJobType(value: string): value is JobType {
 
 export function isTerminalJobStatus(status: JobStatus): boolean {
   return TERMINAL_JOB_STATUSES.includes(status);
+}
+
+export function isActiveJobStatus(status: JobStatus): boolean {
+  return ACTIVE_JOB_STATUSES.some((active) => active === status);
 }
 
 export interface JobDto {
