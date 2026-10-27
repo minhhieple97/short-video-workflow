@@ -6,9 +6,11 @@ import { toSafeErrorMessage } from "@/shared/logger";
 
 import { checkClaudeCli } from "./checks/claude-cli";
 import { checkDatabase } from "./checks/database";
+import { checkEdgeTts } from "./checks/edge-tts";
 import { checkFfmpeg } from "./checks/ffmpeg";
 import { checkNodeRuntime } from "./checks/node-runtime";
 import { checkRedis } from "./checks/redis";
+import { checkRemotionBrowser } from "./checks/remotion-browser";
 import { checkWorkerHeartbeat } from "./checks/worker-heartbeat";
 import { checkWslResources } from "./checks/wsl-resources";
 import type { CheckResult, ConfigRow, DiagnosticsSnapshot } from "./types";
@@ -51,6 +53,8 @@ export async function getDiagnosticsSnapshot(): Promise<DiagnosticsSnapshot> {
     runCheck("worker", "Worker", checkWorkerHeartbeat),
     runCheck("ffmpeg", "FFmpeg / ffprobe", checkFfmpeg),
     runCheck("claude-cli", "Claude Code CLI", checkClaudeCli),
+    runCheck("edge-tts", "edge-tts", checkEdgeTts),
+    runCheck("chromium", "Chromium (Remotion)", checkRemotionBrowser),
     runCheck("resources", "Tài nguyên máy", checkWslResources),
   ]);
 

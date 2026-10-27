@@ -7,6 +7,11 @@ export const baseJobPayloadSchema = z.object({
 
 export const diagnosticPingPayloadSchema = baseJobPayloadSchema.extend({
   message: z.string().max(200).default("ping"),
+  kind: z.enum(["ping", "mock-ai"]).default("ping"),
+});
+
+export const diagnosticRequestSchema = z.object({
+  kind: z.enum(["ping", "mock-ai"]).default("ping"),
 });
 
 export const analyzeChapterPayloadSchema = baseJobPayloadSchema.extend({

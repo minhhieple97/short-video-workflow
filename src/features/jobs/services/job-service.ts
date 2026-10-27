@@ -52,12 +52,12 @@ export async function enqueueTrackedJob(request: TrackedJobRequest): Promise<{ j
   return { job: toJobDto(record), reused: false };
 }
 
-export async function enqueueDiagnosticPingJob(): Promise<JobDto> {
+export async function enqueueDiagnosticPingJob(kind: "ping" | "mock-ai" = "ping"): Promise<JobDto> {
   const { job } = await enqueueTrackedJob({
     jobType: "DIAGNOSTIC_PING",
     entityType: "SYSTEM",
     entityId: randomUUID(),
-    payload: { message: "ping" },
+    payload: { message: "ping", kind },
   });
   return job;
 }

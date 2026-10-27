@@ -94,8 +94,13 @@ export default async function SettingsPage() {
             Đưa một tác vụ thử vào Redis để xác nhận worker xử lý được (Next.js → Redis → worker → SQLite).
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-3">
           <RunTestJobButton />
+          <RunTestJobButton
+            kind="mock-ai"
+            label="Kiểm tra AI mẫu"
+            successMessage="Mock AI tạo bài học và kịch bản đúng schema (không cần tài khoản Claude)."
+          />
         </CardContent>
       </Card>
     </section>

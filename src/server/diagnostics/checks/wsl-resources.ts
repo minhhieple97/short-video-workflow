@@ -27,7 +27,6 @@ export function checkWslResources(): CheckResult {
     "Số CPU": os.cpus().length,
     "RAM tổng (GB)": toGb(os.totalmem()),
     "RAM khả dụng (GB)": toGb(readAvailableMemoryBytes()),
-    "Thư viện Chromium": "Chưa kiểm tra (cần ở M4, khi render bằng Remotion)",
   };
 
   try {
