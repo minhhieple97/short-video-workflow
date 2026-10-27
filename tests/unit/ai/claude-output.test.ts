@@ -37,13 +37,14 @@ describe("Claude CLI output handling", () => {
 
   it("drops Claude Code session variables and API keys from the child environment", () => {
     const env = sanitizeClaudeEnv({
+      NODE_ENV: "test",
       PATH: "/usr/bin",
       CLAUDECODE: "1",
       CLAUDE_CODE_ENTRYPOINT: "cli",
       ANTHROPIC_API_KEY: "secret",
       ANTHROPIC_AUTH_TOKEN: "secret",
       HOME: "/home/me",
-    } as NodeJS.ProcessEnv);
-    expect(Object.keys(env).sort()).toEqual(["HOME", "PATH"]);
+    });
+    expect(Object.keys(env).sort()).toEqual(["HOME", "NODE_ENV", "PATH"]);
   });
 });
