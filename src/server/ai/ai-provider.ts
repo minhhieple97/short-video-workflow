@@ -8,16 +8,18 @@ import type {
   VideoScriptOutput,
 } from "./contracts/video-script";
 
-export type AiMode = "mock" | "cli-task";
+// cli-auto is the opt-in AutomatedCliProvider (requirements §9.2C): the worker runs the user's own Claude Code CLI.
+export type AiMode = "mock" | "cli-task" | "cli-auto";
 
 export type AiTaskResult<TOutput> =
   { status: "completed"; output: TOutput } | { status: "waiting_for_cli"; taskDir: string };
 
 // taskId names data/ai-tasks/{taskId}/ (the job record id, or the AI run id when no job exists).
-// resume tells `pnpm ai:run` which job to re-queue once the CLI output is saved.
+// resume tells `pnpm ai:run` which job to re-queue once the CLI output is saved; signal cancels a running CLI call.
 export interface AiTaskContext {
   taskId: string;
   resume?: { jobType: JobType; payload: Record<string, unknown> };
+  signal?: AbortSignal;
 }
 
 export interface AiProvider {

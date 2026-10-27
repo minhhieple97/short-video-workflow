@@ -38,7 +38,7 @@ const envSchema = z
     MAX_IMPORT_SIZE_MB: z.coerce.number().positive().max(100).default(10),
     CHAPTER_HEADING_PATTERNS: regexList,
 
-    AI_MODE: z.enum(["mock", "cli-task"]).default("cli-task"),
+    AI_MODE: z.enum(["mock", "cli-task", "cli-auto"]).default("cli-task"),
     MAX_AI_CONCURRENCY: positiveInt(1),
     CLAUDE_CLI_COMMAND: z.string().min(1).default("claude"),
     AI_TASK_TIMEOUT_SEC: positiveInt(600),
@@ -83,7 +83,12 @@ export interface AppConfig {
   dataDir: string;
   redisUrl: string;
   import: { maxSizeBytes: number; extraChapterPatterns: string[] };
-  ai: { mode: "mock" | "cli-task"; maxConcurrency: number; claudeCliCommand: string; taskTimeoutMs: number };
+  ai: {
+    mode: "mock" | "cli-task" | "cli-auto";
+    maxConcurrency: number;
+    claudeCliCommand: string;
+    taskTimeoutMs: number;
+  };
   tts: {
     mode: "upload" | "edge-tts";
     voice: string;

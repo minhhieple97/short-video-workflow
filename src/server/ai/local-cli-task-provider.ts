@@ -1,6 +1,6 @@
 import type { z } from "zod";
 
-import type { AiProvider, AiTaskContext, AiTaskResult } from "./ai-provider";
+import type { AiMode, AiProvider, AiTaskContext, AiTaskResult } from "./ai-provider";
 import { TASK_OUTPUT_SCHEMAS, readTaskOutput, writeTaskFiles, type TaskKind } from "./cli-task/task-files";
 import type { ChapterAnalysisInput, ChapterAnalysisOutput } from "./contracts/chapter-analysis";
 import type {
@@ -14,7 +14,7 @@ import { buildSceneRegenerationPrompt, buildVideoScriptPrompt } from "./prompts/
 
 // The Studio never calls Claude itself: it writes a task, waits, and the user runs `pnpm ai:run --job <id>` in their terminal.
 export class LocalCliTaskProvider implements AiProvider {
-  readonly mode = "cli-task" as const;
+  readonly mode: AiMode = "cli-task";
 
   analyzeChapter(input: ChapterAnalysisInput, context: AiTaskContext): Promise<AiTaskResult<ChapterAnalysisOutput>> {
     const schema = TASK_OUTPUT_SCHEMAS["chapter-analysis"];
@@ -62,6 +62,16 @@ export class LocalCliTaskProvider implements AiProvider {
       input,
       prompt,
     );
-    return { status: "waiting_for_cli", taskDir };
+    return this.afterTaskWritten(kind, schema, taskDir, context);
+  }
+
+  // The task now waits for the user to run `pnpm ai:run --job <id>`; AutomatedCliProvider runs it right away instead.
+  protected afterTaskWritten<T>(
+    _kind: TaskKind,
+    _schema: z.ZodType<T>,
+    taskDir: string,
+    _context: AiTaskContext,
+  ): Promise<AiTaskResult<T>> {
+    return Promise.resolve({ status: "waiting_for_cli", taskDir });
   }
 }

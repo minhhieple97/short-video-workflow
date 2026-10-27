@@ -30,6 +30,7 @@ interface ScriptRun {
   jobRecordId: string | null;
   provider?: AiProvider;
   resume?: AiTaskContext["resume"];
+  signal?: AbortSignal;
 }
 
 export interface ScriptWaitingForCli {
@@ -50,7 +51,13 @@ function asAiFailure(error: unknown): unknown {
 }
 
 async function withAiRun<T>(
-  meta: { jobRecordId: string | null; mode: string; hash: string; resume?: AiTaskContext["resume"] },
+  meta: {
+    jobRecordId: string | null;
+    mode: string;
+    hash: string;
+    resume?: AiTaskContext["resume"];
+    signal?: AbortSignal;
+  },
   work: (context: AiTaskContext) => Promise<WorkResult<T>>,
 ): Promise<T | ScriptWaitingForCli> {
   const aiRun = await startAiRun({
@@ -61,7 +68,7 @@ async function withAiRun<T>(
   });
   const taskId = meta.jobRecordId ?? aiRun.id;
   try {
-    const result = await work({ taskId, resume: meta.resume });
+    const result = await work({ taskId, resume: meta.resume, signal: meta.signal });
     if (result.kind === "waiting") {
       await markAiRunWaiting(aiRun.id);
       return { waitingForCli: true, taskDir: result.taskDir };
@@ -102,7 +109,13 @@ export async function runScriptGeneration(
     promptVersion: VIDEO_SCRIPT_PROMPT_VERSION,
   });
 
-  const meta = { jobRecordId: run.jobRecordId, mode: provider.mode, hash: inputHash(input), resume: run.resume };
+  const meta = {
+    jobRecordId: run.jobRecordId,
+    mode: provider.mode,
+    hash: inputHash(input),
+    resume: run.resume,
+    signal: run.signal,
+  };
   return withAiRun(meta, async (context) => {
     const result = await provider.generateVideoScript(input, context);
     if (result.status === "waiting_for_cli") return { kind: "waiting", taskDir: result.taskDir };
@@ -154,7 +167,13 @@ export async function runSceneRegeneration(
     promptVersion: VIDEO_SCRIPT_PROMPT_VERSION,
   });
 
-  const meta = { jobRecordId: run.jobRecordId, mode: provider.mode, hash: inputHash(input), resume: run.resume };
+  const meta = {
+    jobRecordId: run.jobRecordId,
+    mode: provider.mode,
+    hash: inputHash(input),
+    resume: run.resume,
+    signal: run.signal,
+  };
   return withAiRun(meta, async (context) => {
     const result = await provider.regenerateScene(input, context);
     if (result.status === "waiting_for_cli") return { kind: "waiting", taskDir: result.taskDir };

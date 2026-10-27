@@ -30,6 +30,7 @@ export function runClaudePrint(options: {
   prompt: string;
   jsonSchema: string;
   timeoutMs: number;
+  signal?: AbortSignal;
 }): Promise<ClaudeRunResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(
@@ -44,15 +45,19 @@ export function runClaudePrint(options: {
       timedOut = true;
       child.kill("SIGTERM");
     }, options.timeoutMs);
+    const abort = () => child.kill("SIGTERM");
+    options.signal?.addEventListener("abort", abort, { once: true });
 
     child.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString("utf8")));
     child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString("utf8")));
     child.on("error", (error) => {
       clearTimeout(timer);
+      options.signal?.removeEventListener("abort", abort);
       reject(error);
     });
     child.on("close", (exitCode) => {
       clearTimeout(timer);
+      options.signal?.removeEventListener("abort", abort);
       resolve({ stdout, stderr, exitCode, timedOut });
     });
     child.stdin.end(options.prompt);

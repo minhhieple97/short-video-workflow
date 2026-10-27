@@ -13,17 +13,26 @@ export async function checkClaudeCli(): Promise<CheckResult> {
       label: "Claude Code CLI",
       status: "ok",
       summary: version || "Đã cài đặt",
-      details: { Lệnh: claudeCliCommand },
+      details: {
+        Lệnh: claudeCliCommand,
+        "Cách chạy":
+          mode === "cli-auto"
+            ? "Worker tự chạy (cli-auto)"
+            : mode === "cli-task"
+              ? "Bạn chạy pnpm ai:run"
+              : "Không dùng (mock)",
+      },
     };
   } catch {
-    const required = mode === "cli-task";
+    if (mode === "mock") {
+      return { id: "claude-cli", label: "Claude Code CLI", status: "info", summary: "Không dùng ở chế độ AI mock." };
+    }
     return {
       id: "claude-cli",
       label: "Claude Code CLI",
-      status: required ? "warn" : "info",
-      summary: required
-        ? `Không tìm thấy lệnh \`${claudeCliCommand}\`. Cần cài Claude Code để chạy AI thật (có thể dùng AI_MODE=mock).`
-        : "Không dùng ở chế độ AI mock.",
+      // In cli-auto every AI job runs the CLI from the worker, so a missing binary fails all of them.
+      status: mode === "cli-auto" ? "error" : "warn",
+      summary: `Không tìm thấy lệnh \`${claudeCliCommand}\`. Cần cài Claude Code để chạy AI thật (có thể dùng AI_MODE=mock).`,
       details: { Lệnh: claudeCliCommand },
     };
   }

@@ -32,6 +32,7 @@ export interface ChapterAnalysisRun {
   force: boolean;
   provider?: AiProvider;
   resume?: AiTaskContext["resume"];
+  signal?: AbortSignal;
   onProgress?: (progress: number) => Promise<void>;
 }
 
@@ -109,7 +110,7 @@ export async function runChapterAnalysis(
         chapterContent: content,
         promptVersion: CHAPTER_ANALYSIS_PROMPT_VERSION,
       },
-      { taskId, resume: run.resume },
+      { taskId, resume: run.resume, signal: run.signal },
     );
     if (result.status === "waiting_for_cli") {
       await markAiRunWaiting(aiRun.id);

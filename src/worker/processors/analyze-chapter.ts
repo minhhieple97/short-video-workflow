@@ -3,13 +3,14 @@ import { analyzeChapterPayloadSchema } from "@/features/jobs/schemas/job-payload
 
 import type { JobProcessor } from "./types";
 
-export const processAnalyzeChapter: JobProcessor = async ({ job, jobRecordId, reportProgress }) => {
+export const processAnalyzeChapter: JobProcessor = async ({ job, jobRecordId, signal, reportProgress }) => {
   const payload = analyzeChapterPayloadSchema.parse(job.data);
   return runChapterAnalysis({
     chapterId: payload.chapterId,
     jobRecordId,
     force: payload.force,
     resume: { jobType: "ANALYZE_CHAPTER", payload: { chapterId: payload.chapterId, force: payload.force } },
+    signal,
     onProgress: reportProgress,
   });
 };
