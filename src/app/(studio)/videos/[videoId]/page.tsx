@@ -88,7 +88,10 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
       {activeJob ? <ActiveJobWatcher jobId={activeJob.id} label="Worker đang tạo kịch bản…" /> : null}
 
       <div className="grid gap-4 md:grid-cols-2">
-        <DurationBudgetBar budget={video.budget} />
+        <DurationBudgetBar
+          budget={video.budget}
+          withAudio={video.scenes.filter((scene) => !scene.hidden).every((scene) => scene.audio !== null)}
+        />
         <div className="flex flex-col gap-1 text-sm">
           <span className="font-medium">Hook 3 giây đầu</span>
           {video.scenes.length === 0 ? (

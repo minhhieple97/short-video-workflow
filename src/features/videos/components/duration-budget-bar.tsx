@@ -10,7 +10,7 @@ const BAR_COLOR: Record<DurationBudget["level"], string> = {
   over: "bg-red-500",
 };
 
-export function DurationBudgetBar({ budget }: Readonly<{ budget: DurationBudget }>) {
+export function DurationBudgetBar({ budget, withAudio }: Readonly<{ budget: DurationBudget; withAudio: boolean }>) {
   const percent = Math.min(100, Math.round(budget.ratio * 100));
   return (
     <div className="flex flex-col gap-1" aria-label="Ngân sách thời lượng">
@@ -26,7 +26,10 @@ export function DurationBudgetBar({ budget }: Readonly<{ budget: DurationBudget 
           style={{ width: `${percent}%` }}
         />
       </div>
-      <p className="text-muted-foreground text-xs">{budget.message} Thời lượng thật sẽ đo từ audio (M5).</p>
+      <p className="text-muted-foreground text-xs">
+        {budget.message}{" "}
+        {withAudio ? "Tính theo âm thanh thật của từng cảnh." : "Cảnh chưa có giọng đọc dùng thời lượng ước tính."}
+      </p>
     </div>
   );
 }

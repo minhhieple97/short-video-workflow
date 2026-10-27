@@ -62,8 +62,12 @@ export function hookIssues(scenes: readonly SceneDto[]): string[] {
   const issues: string[] = [];
   if (hook.hidden) issues.push("Không được ẩn cảnh HOOK.");
   if (hook.onScreenText.trim().length === 0) issues.push("HOOK cần chữ trên màn hình ngay từ frame 0.");
-  if (hook.estimatedSeconds > HOOK_MAX_SECONDS) {
-    issues.push(`Lời hook dài khoảng ${hook.estimatedSeconds} giây; tối đa ${HOOK_MAX_SECONDS} giây — hãy rút gọn.`);
+  // With narration attached the real clip length decides; otherwise the text estimate does.
+  const hookSeconds = hook.audio ? hook.durationFrames / VIDEO_FPS : hook.estimatedSeconds;
+  if (hookSeconds > HOOK_MAX_SECONDS) {
+    issues.push(
+      `HOOK dài khoảng ${Math.round(hookSeconds * 10) / 10} giây${hook.audio ? " (theo âm thanh)" : ""}; tối đa ${HOOK_MAX_SECONDS} giây — hãy rút gọn.`,
+    );
   }
   if (scenes.slice(1).some((scene) => scene.type === "HOOK")) issues.push("Chỉ được có một cảnh HOOK, ở vị trí đầu.");
   return issues;
