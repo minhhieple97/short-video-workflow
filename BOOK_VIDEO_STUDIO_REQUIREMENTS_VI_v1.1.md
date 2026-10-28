@@ -1296,7 +1296,8 @@ Phần hook 4 giây và bỏ bước duyệt lesson/script chỉ áp dụng cho 
 | Năng lực                                         | Trạng thái           | Task trong `plan.md` |
 | ------------------------------------------------ | -------------------- | -------------------- |
 | Nhập `.txt`/`.md`, chương, lesson, video, render | Đã triển khai (v1.1) | —                    |
-| Port OCR/Script/Scene/Archive và outbox/deferred | Chưa triển khai      | A04–A06              |
+| Bốn port, DTO và contract test (chỉ có fake)     | Một phần: chưa có adapter thật | A04        |
+| Outbox bền vững và job trì hoãn                  | Chưa triển khai      | A05–A06              |
 | Nhập PDF, trích text, OCR Mistral Batch          | Chưa triển khai      | B01–B13              |
 | NotebookLM MCP, catalogue, bản thảo              | Chưa triển khai      | C01–C09              |
 | Chọn lesson, production batch, Claude compiler   | Chưa triển khai      | D01–D12              |

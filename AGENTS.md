@@ -112,6 +112,10 @@ src/
     diagnostics/       health checks aggregated for /settings, /api/health and `pnpm diagnose`
     render/            Remotion bundle + renderMedia wrapper and localhost asset server (worker only), webpack "@/" alias
     media/             ffprobe wrapper, silence trim/measure (ffmpeg)
+    integrations/      IntegrationError (kind AUTH/QUOTA/TRANSIENT/REJECTED/UNKNOWN_OUTCOME) + CallOptions shared by the v1.2 ports
+    ocr/ script-studio/ scene-plan/ archive/   v1.2 ports + vendor-free DTOs only (OcrProvider, ScriptStudioProvider, ScenePlanCompiler,
+                       VideoArchiveProvider); real adapters land with the B/C/D/E tasks of `plan.md`. Fakes + contract suites live in
+                       tests/helpers/{fakes,contracts}; every adapter must pass its port's contract suite
     http/              route-helpers.ts (AppError → JSON, readJson/parseInput with Zod), page-helpers.ts (orNotFound)
   worker/              Standalone process: main.ts, processors/ (dispatcher + one per job type), lifecycle/ (heartbeat, shutdown)
   remotion/            Pure React video code: index.ts (registerRoot), root.tsx (ShortVideo + calculateMetadata), compositions/,
