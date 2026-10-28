@@ -1,7 +1,3 @@
-import { randomBytes } from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
-
 import type { Job } from "bullmq";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,17 +5,13 @@ import type * as ArchiveRequest from "@/features/archive/services/archive-reques
 import type * as ProviderFactory from "@/features/archive/services/drive-archive-provider.factory";
 import type * as JobDashboard from "@/features/jobs/services/job-dashboard.service";
 import type * as JobEffects from "@/features/jobs/services/job-effects";
-import {
-  currentSnapshotIdentity,
-  fingerprintRenderSnapshot,
-  type RenderSnapshot,
-} from "@/features/videos/domain/render-snapshot";
 import type * as CredentialStore from "@/server/archive/google-drive/drive-credential-store";
 import type { GoogleEndpoints } from "@/server/archive/google-drive/google-http";
 import type * as DbClient from "@/server/db/client";
 import type * as ArchiveProcessor from "@/worker/processors/archive-render";
 import type { ProcessorContext } from "@/worker/processors/types";
 
+import { CONNECTED_CREDENTIAL, seedArchivableRender, seedArchiveVideo } from "../helpers/archive-fixture";
 import { FakeGoogleServer } from "../helpers/fake-google-server";
 import { setupTestEnvironment, type TestEnvironment } from "../helpers/test-environment";
 
@@ -27,17 +19,12 @@ const fake = vi.hoisted(() => ({ endpoints: null as GoogleEndpoints | null }));
 
 vi.mock("@/features/archive/services/drive-archive-provider.factory", async (importOriginal) => {
   const actual = await importOriginal<typeof ProviderFactory>();
+  const { TEST_DRIVE_CONFIG } = await import("../helpers/archive-fixture");
   return {
     createDriveArchiveProvider: (destinationKey: string) =>
       actual.createDriveArchiveProvider(destinationKey, {
         endpoints: fake.endpoints ?? undefined,
-        drive: {
-          clientId: "client-1.apps.googleusercontent.com",
-          clientSecret: "secret",
-          minRequestIntervalMs: 0,
-          maxRequestsPerDay: 5000,
-          maxUploadBytesPerDay: 10 * 1024 ** 3,
-        },
+        drive: TEST_DRIVE_CONFIG,
       }),
   };
 });
@@ -54,63 +41,9 @@ let google: FakeGoogleServer;
 let videoId: string;
 let renderId: string;
 
-const CREDENTIAL: CredentialStore.DriveCredential = {
-  status: "CONNECTED",
-  refreshToken: "1//live",
-  scope: "https://www.googleapis.com/auth/drive.file",
-  accessToken: "ya29.stored",
-  accessTokenExpiresAt: "2999-01-01T00:00:00.000Z",
-  accountId: "permission-1",
-  accountEmail: "ban@example.com",
-  connectedAt: "2026-10-28T09:00:00.000Z",
-};
-
-function snapshotFor(id: string): RenderSnapshot {
-  return {
-    ...currentSnapshotIdentity(),
-    capturedAt: "2026-10-28T08:00:00.000Z",
-    video: {
-      id,
-      title: "Video",
-      bookTitle: "Sách",
-      targetDurationSec: 60,
-      scriptVersion: 2,
-      status: "NEEDS_REVIEW",
-      autoReady: true,
-    },
-    render: { quality: "FINAL", width: 1080, height: 1920, fps: 30 },
-    scenes: [],
-    audio: [],
-    lessons: [],
-  };
-}
-
-async function seedRender(overrides: { qualityPreset?: "DRAFT" | "FINAL"; archiveIntentAt?: Date | null } = {}) {
-  const snapshot = snapshotFor(videoId);
-  const render = await db.prisma.renderRecord.create({
-    data: {
-      videoId,
-      scriptVersion: 2,
-      outputPath: "pending",
-      status: "COMPLETED",
-      qualityPreset: overrides.qualityPreset ?? "FINAL",
-      width: 1080,
-      height: 1920,
-      fps: 30,
-      durationMs: 5000,
-      completedAt: new Date("2026-10-28T08:05:00.000Z"),
-      archiveIntentAt:
-        overrides.archiveIntentAt === undefined ? new Date("2026-10-28T08:05:00.000Z") : overrides.archiveIntentAt,
-      snapshotJson: snapshot,
-      snapshotHash: fingerprintRenderSnapshot(snapshot),
-    },
-  });
-  const outputPath = `videos/${videoId}/renders/${render.id}-final.mp4`;
-  await db.prisma.renderRecord.update({ where: { id: render.id }, data: { outputPath } });
-  fs.mkdirSync(path.dirname(path.join(env.dataDir, outputPath)), { recursive: true });
-  fs.writeFileSync(path.join(env.dataDir, outputPath), randomBytes(4000));
-  return render.id;
-}
+const CREDENTIAL = CONNECTED_CREDENTIAL;
+const seedRender = (overrides: { qualityPreset?: "DRAFT" | "FINAL"; archiveIntentAt?: Date | null } = {}) =>
+  seedArchivableRender(db, env.dataDir, videoId, overrides);
 
 const archiveJobs = () =>
   db.prisma.jobRecord.findMany({ where: { jobType: "ARCHIVE_RENDER" }, include: { dispatch: true } });
@@ -147,21 +80,7 @@ beforeEach(async () => {
   await db.prisma.archiveFolder.deleteMany();
   await db.prisma.driveUsageHour.deleteMany();
   await db.prisma.driveCapacity.deleteMany();
-  await db.prisma.book.deleteMany();
-  const book = await db.prisma.book.create({
-    data: {
-      title: "Sách",
-      sourceFilePath: "books/x/original.md",
-      sourceFileName: "x.md",
-      sourceHash: `hash-${Math.random()}`,
-      sourceFormat: "md",
-      sourceSizeBytes: 1,
-      status: "ACTIVE",
-    },
-  });
-  videoId = (
-    await db.prisma.video.create({ data: { bookId: book.id, title: "Video", targetDurationSec: 60, status: "DRAFT" } })
-  ).id;
+  videoId = await seedArchiveVideo(db);
   renderId = await seedRender();
   await store.writeDriveCredential(CREDENTIAL);
 });

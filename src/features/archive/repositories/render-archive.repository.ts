@@ -281,3 +281,49 @@ export async function cancelArchive(archiveId: string): Promise<void> {
     data: { status: "FAILED", errorCode: "ARCHIVE_CANCELLED", errorMessage: "Đã huỷ việc lưu lên Google Drive." },
   });
 }
+
+export function listRenderArchives(renderId: string): Promise<RenderArchiveRecord[]> {
+  return prisma.renderArchive.findMany({ where: { renderId }, include: WITH_FILES, orderBy: { createdAt: "desc" } });
+}
+
+export type ArchiveRetryMode =
+  // Carry on from the stored checkpoints and remote IDs.
+  | "RESUME"
+  // A remote copy did not match; a Drive file ID cannot be created twice, so the unverified files get new IDs.
+  | "NEW_FILE_IDS"
+  // The render's folder is gone from Drive, and with it every file in it: start the archive's remote side again.
+  | "NEW_DESTINATION";
+
+// Puts a failed archive back in the queue, with its job, in one transaction. The status change is the first write, so
+// two retries at once cannot both start a job.
+export function resetArchiveForRetry(
+  archiveId: string,
+  mode: ArchiveRetryMode,
+): Promise<{ jobRecordId: string } | null> {
+  return prisma.$transaction(async (tx) => {
+    const { count } = await tx.renderArchive.updateMany({
+      where: { id: archiveId, status: "FAILED" },
+      data: {
+        status: "PENDING",
+        retries: 0,
+        errorCode: null,
+        errorMessage: null,
+        ...(mode === "NEW_DESTINATION" ? { remoteFolderId: null } : {}),
+      },
+    });
+    if (count === 0) return null;
+    const restart = {
+      status: "PENDING",
+      remoteFileId: null,
+      checkpointToken: null,
+      checkpointBytes: 0,
+      verifiedAt: null,
+    };
+    if (mode === "NEW_DESTINATION") await tx.renderArchiveFile.updateMany({ where: { archiveId }, data: restart });
+    if (mode === "NEW_FILE_IDS") {
+      await tx.renderArchiveFile.updateMany({ where: { archiveId, status: { not: "VERIFIED" } }, data: restart });
+    }
+    const intent = await startArchiveJobWithin(tx, archiveId);
+    return { jobRecordId: intent.jobRecordId };
+  });
+}

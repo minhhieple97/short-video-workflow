@@ -1,5 +1,7 @@
 import "server-only";
 
+import { archiveRenderNow } from "@/features/archive/services/archive-control.service";
+import { findRenderArchive } from "@/features/archive/repositories/render-archive.repository";
 import { requestChapterAnalysis } from "@/features/chapters/services/analysis-request.service";
 import { retryProductionItem } from "@/features/productions/services/production-retry.service";
 import { findSceneWithVideo } from "@/features/videos/repositories/audio.repository";
@@ -13,7 +15,12 @@ import type { JobDto } from "@/shared/types/job";
 
 import { failWaitingAiRuns } from "../repositories/ai-run.repository";
 import { deleteUndeliveredIntent } from "../repositories/job-dispatch.repository";
-import { findJobRecordById, markJobCancelled, markJobCancelRequested } from "../repositories/job-record.repository";
+import {
+  findActiveJobForEntity,
+  findJobRecordById,
+  markJobCancelled,
+  markJobCancelRequested,
+} from "../repositories/job-record.repository";
 import { releaseJobEntity } from "./job-effects";
 import { enqueueDiagnosticPingJob, getJob } from "./job-service";
 
@@ -71,6 +78,14 @@ export async function retryJob(id: string): Promise<JobDto> {
     }
     case "RUN_PRODUCTION_ITEM":
       return retryProductionItem(record.entityId);
+    case "ARCHIVE_RENDER": {
+      const archive = await findRenderArchive(record.entityId);
+      if (!archive) throw new NotFoundError("ARCHIVE_NOT_FOUND", "Bản lưu trữ không còn tồn tại.");
+      await archiveRenderNow(archive.renderId);
+      const active = await findActiveJobForEntity("ARCHIVE_RENDER", "ARCHIVE", archive.id);
+      if (!active) throw new AppError("JOB_NOT_RETRYABLE", "Bản lưu trữ này không cần thử lại.", 409);
+      return getJob(active.id);
+    }
     default:
       throw new AppError("JOB_NOT_RETRYABLE", "Loại tác vụ này không hỗ trợ thử lại.", 409);
   }
