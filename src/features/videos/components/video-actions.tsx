@@ -28,9 +28,11 @@ interface GenerateScriptButtonProps {
   // Set while a script job for this video is still queued, running or waiting for Claude Code (known from the server):
   // the text says which one, because rewriting a single scene also locks the video.
   busyLabel: string | null;
+  // Another process (an automatic production) owns the script for now.
+  locked?: boolean;
 }
 
-export function GenerateScriptButton({ video, busyLabel }: Readonly<GenerateScriptButtonProps>) {
+export function GenerateScriptButton({ video, busyLabel, locked = false }: Readonly<GenerateScriptButtonProps>) {
   const { pending, runJob } = useVideoAction();
   const working = pending || busyLabel !== null;
   const hasScript = video.scenes.length > 0;
@@ -41,7 +43,11 @@ export function GenerateScriptButton({ video, busyLabel }: Readonly<GenerateScri
     );
 
   const button = (
-    <Button variant={hasScript ? "outline" : "default"} disabled={working} onClick={hasScript ? undefined : generate}>
+    <Button
+      variant={hasScript ? "outline" : "default"}
+      disabled={working || locked}
+      onClick={hasScript ? undefined : generate}
+    >
       {working ? <Loader2 className="animate-spin" aria-hidden /> : <Sparkles aria-hidden />}
       {working ? (busyLabel ?? "Đang tạo kịch bản…") : hasScript ? "Tạo lại kịch bản" : "Tạo kịch bản"}
     </Button>

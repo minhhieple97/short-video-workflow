@@ -68,7 +68,7 @@ Bản production: `pnpm build && pnpm start`, kèm `pnpm worker:start` ở termi
 4. Tab **Video** → **Tạo video**: chọn bài học đã duyệt và preset (mặc định 60 giây; 90 giây chỉ khi tích **Extended Short**).
 5. Trong video: **Tạo kịch bản** → tab **Hook** chọn phương án (HOOK luôn ở frame 0 và ≤ 4 giây) → tab **Kịch bản** chỉnh từng cảnh → **Duyệt kịch bản**. Sửa sau khi duyệt sẽ cần duyệt lại.
 6. Tab **Giọng đọc**: tạo bằng edge-tts hoặc tải âm thanh lên. Thanh thời lượng so tổng thời lượng với preset; nếu vượt, hãy rút gọn lời dẫn hoặc đổi preset — ứng dụng không tự cắt lời hay tăng tốc.
-7. **Xem trước**: trên màn hình rộng (từ 1280 px) khung điện thoại luôn nằm bên phải trình biên tập và đứng yên khi cuộn, nên sửa cảnh nào xem được ngay cảnh đó; màn hình hẹp hơn có thêm tab **Xem trước**. Phát trong khung, bật vùng an toàn, **Xem 3 giây đầu**.
+7. **Xem trước**: trên màn hình rộng (từ 1280 px) khung điện thoại luôn nằm bên phải trình biên tập và đứng yên khi cuộn, nên sửa cảnh nào xem được ngay cảnh đó; màn hình hẹp hơn có thêm tab **Xem trước**. Phát trong khung, bật vùng an toàn, **Xem 4 giây đầu**.
 8. **Render**: render nháp để duyệt nhanh, rồi render bản cuối và tải MP4 trong lịch sử render.
 
 ## AI: mock và Claude Code CLI

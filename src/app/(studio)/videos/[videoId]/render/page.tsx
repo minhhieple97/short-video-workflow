@@ -2,6 +2,10 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { PageHeader } from "@/components/layout/page-header";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getVideoArchives } from "@/features/archive/services/archive-control.service";
+import { getDriveConnectionStatus } from "@/features/drive/services/drive-connection.service";
+import { JobsAutoRefresh } from "@/features/jobs/components/jobs-auto-refresh";
+import { getVideoProduction } from "@/features/productions/services/video-production.service";
 import { ActiveJobWatcher } from "@/features/videos/components/active-job-watcher";
 import { PreflightList } from "@/features/videos/components/render/preflight-list";
 import { RenderButtons } from "@/features/videos/components/render/render-buttons";
@@ -16,8 +20,18 @@ export const dynamic = "force-dynamic";
 export default async function VideoRenderPage({ params }: Readonly<{ params: Promise<{ videoId: string }> }>) {
   const { videoId } = await params;
   const video = await orNotFound(getVideo(videoId));
-  const [renders, activeJob] = await Promise.all([listRenders(videoId), findActiveVideoJob(videoId)]);
-  const locked = activeJob !== null;
+  const [renders, activeJob, production, archives, drive] = await Promise.all([
+    listRenders(videoId),
+    findActiveVideoJob(videoId),
+    getVideoProduction(videoId),
+    getVideoArchives(videoId),
+    getDriveConnectionStatus(),
+  ]);
+  const archiving = Object.values(archives).some(
+    (archive) => archive.status !== "COMPLETED" && archive.status !== "FAILED",
+  );
+  // A video in an automatic production gets its FINAL render from the production itself.
+  const locked = activeJob !== null || production?.inProgress === true;
   const draft = preflightFor(video, "DRAFT");
   const final = preflightFor(video, "FINAL");
   const latest = renders.find((render) => render.status === "COMPLETED");
@@ -28,6 +42,7 @@ export default async function VideoRenderPage({ params }: Readonly<{ params: Pro
 
   return (
     <section className="flex flex-col gap-6">
+      <JobsAutoRefresh active={archiving} />
       <Breadcrumbs
         items={[
           { label: "Video", href: "/videos" },
@@ -84,7 +99,7 @@ export default async function VideoRenderPage({ params }: Readonly<{ params: Pro
         />
       ) : null}
 
-      <RenderHistory renders={renders} />
+      <RenderHistory renders={renders} archives={archives} driveConnected={drive.connected} />
     </section>
   );
 }

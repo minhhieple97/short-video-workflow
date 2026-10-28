@@ -4,6 +4,8 @@ import { EmptyState } from "@/components/layout/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ArchiveCell } from "@/features/archive/components/archive-cell";
+import type { ArchiveDto } from "@/features/archive/schemas/archive.dto";
 import { formatBytes, formatDateTime } from "@/lib/format";
 
 import type { RenderDto } from "../../schemas/video.dto";
@@ -24,7 +26,13 @@ const STATUS_VARIANT: Record<RenderDto["status"], "amber" | "violet" | "mint" | 
   CANCELLED: "slate",
 };
 
-export function RenderHistory({ renders }: Readonly<{ renders: readonly RenderDto[] }>) {
+interface RenderHistoryProps {
+  renders: readonly RenderDto[];
+  archives: Readonly<Record<string, ArchiveDto>>;
+  driveConnected: boolean;
+}
+
+export function RenderHistory({ renders, archives, driveConnected }: Readonly<RenderHistoryProps>) {
   if (renders.length === 0)
     return <EmptyState title="Chưa có bản render" description="Render nháp để kiểm tra, rồi render bản cuối." />;
 
@@ -37,6 +45,7 @@ export function RenderHistory({ renders }: Readonly<{ renders: readonly RenderDt
           <TableHead className="text-right">Thời lượng</TableHead>
           <TableHead className="text-right">Dung lượng</TableHead>
           <TableHead>Tạo lúc</TableHead>
+          <TableHead>Google Drive</TableHead>
           <TableHead className="text-right">Tải về</TableHead>
         </TableRow>
       </TableHeader>
@@ -65,6 +74,14 @@ export function RenderHistory({ renders }: Readonly<{ renders: readonly RenderDt
               {render.sizeBytes ? formatBytes(render.sizeBytes) : "—"}
             </TableCell>
             <TableCell className="text-muted-foreground text-xs">{formatDateTime(render.createdAt)}</TableCell>
+            <TableCell className="whitespace-normal">
+              <ArchiveCell
+                renderId={render.id}
+                archive={archives[render.id] ?? null}
+                archivable={render.quality === "FINAL" && render.status === "COMPLETED"}
+                driveConnected={driveConnected}
+              />
+            </TableCell>
             <TableCell className="text-right">
               {render.downloadUrl ? (
                 <Button asChild size="sm" variant="outline">

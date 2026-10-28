@@ -3,6 +3,15 @@
 export const NARRATIVE_BEATS = ["HOOK", "SITUATION", "MISTAKE", "LESSON", "RESOLUTION", "ACTION"] as const;
 export type NarrativeBeat = (typeof NARRATIVE_BEATS)[number];
 
+export const NARRATIVE_BEAT_LABELS: Record<NarrativeBeat, string> = {
+  HOOK: "Hook",
+  SITUATION: "Tình huống",
+  MISTAKE: "Sai lầm",
+  LESSON: "Bài học",
+  RESOLUTION: "Cách giải quyết",
+  ACTION: "Hành động",
+};
+
 // The same story as scene types, after the HOOK. KEY_TAKEAWAY carries the lesson and BETTER_APPROACH the resolution,
 // so (unlike the manual flow, which puts the better approach first) the lesson comes before the resolution.
 export const STORY_SCENE_ORDER = [

@@ -43,6 +43,21 @@ export async function findProductionView(id: string) {
   return { batch, renders, archives };
 }
 
+// The production a video was made in, if any (a video belongs to at most one item).
+export function findProductionItemForVideo(videoId: string) {
+  return prisma.productionItem.findUnique({
+    where: { videoId },
+    select: {
+      batchId: true,
+      status: true,
+      checkpoint: true,
+      aiCorrectionTarget: true,
+      draftArtifactJson: true,
+      scenePlanArtifactJson: true,
+    },
+  });
+}
+
 export function listProductionBatches(limit = 50) {
   return prisma.productionBatch.findMany({
     orderBy: { createdAt: "desc" },

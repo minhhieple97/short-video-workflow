@@ -161,6 +161,27 @@ describe("GET /api/renders/:renderId/archive", () => {
   });
 });
 
+describe("getVideoArchives", () => {
+  it("gives the newest archive of each render of the video, and nothing for a render never archived", async () => {
+    const outcome = await requests.requestRenderArchive(renderId);
+    if (outcome.status !== "REQUESTED") throw new Error("not requested");
+    await db.prisma.renderArchive.update({
+      where: { id: outcome.archiveId },
+      data: { createdAt: new Date("2026-01-01") },
+    });
+    const newer = await db.prisma.renderArchive.create({
+      data: { renderId, provider: "google-drive", destinationKey: "permission-2", status: "WAITING" },
+    });
+    const unarchived = await seedArchivableRender(db, env.dataDir, videoId);
+
+    const archives = await control.getVideoArchives(videoId);
+
+    expect(Object.keys(archives)).toEqual([renderId]);
+    expect(archives[renderId]).toMatchObject({ id: newer.id, status: "WAITING" });
+    expect(archives[unarchived]).toBeUndefined();
+  });
+});
+
 describe("POST /api/renders/:renderId/archive", () => {
   it("starts the archive of a finished FINAL render and answers 202", async () => {
     const { POST } = await import("@/app/api/renders/[renderId]/archive/route");

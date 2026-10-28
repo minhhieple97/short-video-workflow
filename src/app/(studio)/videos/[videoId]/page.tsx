@@ -1,4 +1,4 @@
-import { Clapperboard } from "lucide-react";
+import { Clapperboard, Factory } from "lucide-react";
 import Link from "next/link";
 
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
@@ -7,6 +7,9 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ScriptSourcePanel } from "@/features/productions/components/script-source-panel";
+import { ITEM_STATUS_LABELS, productionStep } from "@/features/productions/domain/production-labels";
+import { getVideoProduction } from "@/features/productions/services/video-production.service";
 import { ActiveJobWatcher } from "@/features/videos/components/active-job-watcher";
 import { AddSceneControl } from "@/features/videos/components/add-scene-control";
 import { DurationBudgetBar } from "@/features/videos/components/duration-budget-bar";
@@ -33,7 +36,7 @@ import { orNotFound } from "@/server/http/page-helpers";
 
 export const dynamic = "force-dynamic";
 
-const TABS = ["hook", "story", "voice", "preview"] as const;
+const TABS = ["hook", "story", "voice", "sources", "preview"] as const;
 const SCRIPT_LOCKED_NOTE =
   "Trong lúc này cài đặt, hook, kịch bản, giọng đọc, render và xoá video tạm khoá, vì nội dung kịch bản sắp được thay mới.";
 
@@ -45,8 +48,9 @@ interface VideoEditorPageProps {
 export default async function VideoEditorPage({ params, searchParams }: Readonly<VideoEditorPageProps>) {
   const [{ videoId }, { tab }] = await Promise.all([params, searchParams]);
   const video = await orNotFound(getVideo(videoId));
-  const activeJob = await findActiveVideoJob(videoId);
-  const locked = activeJob !== null;
+  const [activeJob, production] = await Promise.all([findActiveVideoJob(videoId), getVideoProduction(videoId)]);
+  const inProduction = production?.inProgress === true;
+  const locked = activeJob !== null || inProduction;
   const busyLabel = activeJob
     ? activeJob.sceneNumber === null
       ? "Đang tạo kịch bản…"
@@ -81,7 +85,7 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
         }
         actions={
           <>
-            <GenerateScriptButton video={video} busyLabel={busyLabel} />
+            <GenerateScriptButton video={video} busyLabel={busyLabel} locked={inProduction} />
             <ApproveScriptButton video={video} locked={locked} />
             <VideoSettingsDialog video={video} locked={locked} />
             {locked ? (
@@ -104,6 +108,26 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
 
       {activeJob ? (
         <ActiveJobWatcher job={activeJob.job} sceneNumber={activeJob.sceneNumber} lockedNote={SCRIPT_LOCKED_NOTE} />
+      ) : null}
+
+      {production ? (
+        <Alert>
+          <Factory aria-hidden />
+          <AlertTitle>
+            {inProduction
+              ? `Đang sản xuất tự động · ${ITEM_STATUS_LABELS[production.status].label} · tiếp theo: ${productionStep(production.checkpoint).label}`
+              : `Video của một đợt sản xuất · ${ITEM_STATUS_LABELS[production.status].label}`}
+          </AlertTitle>
+          <AlertDescription>
+            {inProduction
+              ? "Kịch bản, giọng đọc, render và xoá video tạm khoá cho tới khi đợt sản xuất xong hoặc bị huỷ."
+              : "Kịch bản được viết theo bản thảo ở tab Nguồn kịch bản và được máy kiểm tra sau khi lồng tiếng."}{" "}
+            {production.correction ? `${production.correction}. ` : null}
+            <Link href={`/productions/${production.productionId}`} className="font-medium underline underline-offset-4">
+              Xem tiến độ sản xuất
+            </Link>
+          </AlertDescription>
+        </Alert>
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -202,6 +226,9 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
                 </ScriptLock>
               ),
           },
+          ...(production
+            ? [{ value: "sources", label: "Nguồn kịch bản", content: <ScriptSourcePanel production={production} /> }]
+            : []),
           {
             value: "voice",
             label: "Giọng đọc",

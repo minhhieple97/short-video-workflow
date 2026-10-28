@@ -282,6 +282,14 @@ export async function cancelArchive(archiveId: string): Promise<void> {
   });
 }
 
+export function listVideoArchives(videoId: string): Promise<RenderArchiveRecord[]> {
+  return prisma.renderArchive.findMany({
+    where: { render: { videoId } },
+    include: WITH_FILES,
+    orderBy: { createdAt: "desc" },
+  });
+}
+
 export function listRenderArchives(renderId: string): Promise<RenderArchiveRecord[]> {
   return prisma.renderArchive.findMany({ where: { renderId }, include: WITH_FILES, orderBy: { createdAt: "desc" } });
 }

@@ -10,6 +10,7 @@ import {
   findRenderArchive,
   findRenderForArchive,
   listRenderArchives,
+  listVideoArchives,
   resetArchiveForRetry,
   type ArchiveRetryMode,
   type RenderArchiveRecord,
@@ -45,6 +46,13 @@ async function requireRender(renderId: string) {
   const render = await findRenderForArchive(renderId);
   if (!render) throw new NotFoundError("RENDER_NOT_FOUND", "Không tìm thấy bản render.");
   return render;
+}
+
+// The newest archive of each render of the video, for the render history.
+export async function getVideoArchives(videoId: string): Promise<Record<string, ArchiveDto>> {
+  const latest: Record<string, ArchiveDto> = {};
+  for (const archive of await listVideoArchives(videoId)) latest[archive.renderId] ??= toArchiveDto(archive);
+  return latest;
 }
 
 export async function getRenderArchives(renderId: string): Promise<RenderArchivesDto> {
