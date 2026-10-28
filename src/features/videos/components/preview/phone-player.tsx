@@ -19,6 +19,9 @@ import {
 } from "../../domain/safe-zones";
 import { SafeZoneOverlay } from "./safe-zone-overlay";
 
+// Up to the nominal preview size, shrinking with the viewport (main + frame padding and the bezel take 4.75rem).
+const PHONE_SCREEN = { width: `min(${PREVIEW_FRAME.width}px, calc(100vw - 4.75rem))`, aspectRatio: "9 / 16" } as const;
+
 interface PhonePlayerProps {
   props: ShortVideoProps;
   initialMode: PlatformPreviewMode;
@@ -54,7 +57,7 @@ export function PhonePlayer({ props, initialMode, onModeChange }: Readonly<Phone
   }
 
   return (
-    <div className="bg-tone-violet mx-auto flex w-fit max-w-full flex-col items-center gap-5 rounded-3xl p-6">
+    <div className="bg-tone-violet mx-auto flex w-fit max-w-full flex-col items-center gap-5 rounded-3xl p-3 sm:p-6">
       <div
         className="bg-card flex flex-wrap justify-center gap-1 rounded-full p-1"
         role="radiogroup"
@@ -79,7 +82,7 @@ export function PhonePlayer({ props, initialMode, onModeChange }: Readonly<Phone
       </div>
 
       <div className="bg-ink rounded-[2.4rem] border-[10px] border-[#0f0c2b] shadow-[0_24px_48px_rgb(27_23_64/0.35)]">
-        <div className="relative overflow-hidden rounded-[1.6rem]" style={PREVIEW_FRAME}>
+        <div className="relative overflow-hidden rounded-[1.6rem]" style={PHONE_SCREEN}>
           <Player
             ref={playerRef}
             component={ShortVideo}
@@ -88,7 +91,7 @@ export function PhonePlayer({ props, initialMode, onModeChange }: Readonly<Phone
             compositionWidth={1080}
             compositionHeight={1920}
             fps={VIDEO_FPS}
-            style={PREVIEW_FRAME}
+            style={{ width: "100%" }}
             controls
           />
           {showGuide ? <SafeZoneOverlay mode={mode} /> : null}

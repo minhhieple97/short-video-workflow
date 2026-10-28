@@ -134,10 +134,12 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
     await expect(page.getByText("(đã sửa sau khi tạo video)")).toBeVisible();
   });
 
-  await test.step("preview in the phone frame and upload narration for the hook", async () => {
-    await open(page, `${videoA}?tab=preview`);
-    await expect(page.getByRole("radiogroup", { name: "Nền tảng xem trước" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Xem 3 giây đầu" })).toBeVisible();
+  await test.step("the phone preview stays docked beside the editor; upload narration for the hook", async () => {
+    await open(page, videoA);
+    const dock = page.getByRole("complementary", { name: "Xem trước video" });
+    await expect(dock.getByRole("radiogroup", { name: "Nền tảng xem trước" })).toBeVisible();
+    await expect(dock.getByRole("button", { name: "Xem 3 giây đầu" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Xem trước" })).toHaveCount(0);
 
     const wav = path.join(E2E_DATA_DIR, "hook.wav");
     execFileSync("ffmpeg", [
@@ -155,7 +157,8 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
     await open(page, `${videoA}?tab=voice`);
     await page.locator("input[type=file]").first().setInputFiles(wav);
     await expect(page.getByText("Đã tải âm thanh lên cho cảnh.")).toBeVisible();
-    await expect(page.locator("main audio")).toHaveCount(1);
+    // Remotion's docked Player keeps its own pool of <audio> tags, so look only inside the voice tab.
+    await expect(page.getByRole("tabpanel").locator("audio")).toHaveCount(1);
   });
 
   await test.step("approve the script, then render draft and final MP4", async () => {

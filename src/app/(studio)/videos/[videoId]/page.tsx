@@ -4,13 +4,13 @@ import Link from "next/link";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { EmptyState } from "@/components/layout/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
-import { UrlTabs } from "@/components/layout/url-tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ActiveJobWatcher } from "@/features/videos/components/active-job-watcher";
 import { AddSceneControl } from "@/features/videos/components/add-scene-control";
 import { DurationBudgetBar } from "@/features/videos/components/duration-budget-bar";
+import { EditorWorkspace } from "@/features/videos/components/editor-workspace";
 import { HookOptions } from "@/features/videos/components/hook-options";
 import { VideoPreview } from "@/features/videos/components/preview/video-preview";
 import { VoicePanel } from "@/features/videos/components/voice/voice-panel";
@@ -150,8 +150,15 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
         </Alert>
       ) : null}
 
-      <UrlTabs
+      <EditorWorkspace
         active={active}
+        preview={
+          <VideoPreview
+            videoId={video.id}
+            props={video.scenes.some((scene) => !scene.hidden) ? toCompositionProps(video, mediaAssetUrl) : null}
+            initialMode={toPlatformPreviewMode(video.platformPreviewMode)}
+          />
+        }
         tabs={[
           {
             value: "hook",
@@ -209,17 +216,6 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
                   }}
                 />
               </ScriptLock>
-            ),
-          },
-          {
-            value: "preview",
-            label: "Xem trước",
-            content: (
-              <VideoPreview
-                videoId={video.id}
-                props={video.scenes.some((scene) => !scene.hidden) ? toCompositionProps(video, mediaAssetUrl) : null}
-                initialMode={toPlatformPreviewMode(video.platformPreviewMode)}
-              />
             ),
           },
         ]}

@@ -26,7 +26,7 @@ export function HookOptions({ videoId, options, hookScene }: Readonly<HookOption
   }
 
   return (
-    <div className="grid gap-3 md:grid-cols-3">
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(14rem,1fr))] gap-3">
       {options.map((option, index) => {
         const chosen = hookScene?.narration === option.narration && hookScene.onScreenText === option.onScreenText;
         return (
@@ -41,7 +41,9 @@ export function HookOptions({ videoId, options, hookScene }: Readonly<HookOption
                 <Badge variant={option.estimatedSeconds > HOOK_MAX_SECONDS ? "destructive" : "outline"}>
                   ~{option.estimatedSeconds}s
                 </Badge>
-                <Badge variant="outline">{VISUAL_VARIANT_LABELS[option.visualVariant]}</Badge>
+                <Badge variant="outline" className="h-auto max-w-full py-0.5 whitespace-normal">
+                  {VISUAL_VARIANT_LABELS[option.visualVariant]}
+                </Badge>
               </div>
               <Button
                 size="sm"
