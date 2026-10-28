@@ -59,11 +59,18 @@ export function markRenderStarted(id: string, scriptVersion: number): Promise<Re
 export function completeRenderRecord(
   render: Pick<RenderRecord, "id" | "videoId" | "outputPath">,
   result: { durationMs: number; sizeBytes: number },
+  options: { archive: boolean },
 ): Promise<void> {
   return prisma.$transaction(async (tx) => {
+    const completedAt = new Date();
     await tx.renderRecord.update({
       where: { id: render.id },
-      data: { status: "COMPLETED", durationMs: result.durationMs, completedAt: new Date() },
+      data: {
+        status: "COMPLETED",
+        durationMs: result.durationMs,
+        completedAt,
+        archiveIntentAt: options.archive ? completedAt : null,
+      },
     });
     await tx.mediaAsset.create({
       data: {

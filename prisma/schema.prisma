@@ -258,27 +258,30 @@ model MediaAsset {
 }
 
 model RenderRecord {
-  id            String              @id @default(cuid())
-  videoId       String
-  video         Video               @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  id              String              @id @default(cuid())
+  videoId         String
+  video           Video               @relation(fields: [videoId], references: [id], onDelete: Cascade)
   // Loose pointer to JobRecord.id (no relation).
-  jobRecordId   String?
-  scriptVersion Int
+  jobRecordId     String?
+  scriptVersion   Int
   // Relative to DATA_DIR.
-  outputPath    String
+  outputPath      String
   // QUEUED | RENDERING | COMPLETED | FAILED | CANCELLED. "Outdated" is derived (scriptVersion < Video.scriptVersion), not stored.
-  status        String
-  durationMs    Int?
-  qualityPreset RenderQualityPreset
-  width         Int
-  height        Int
-  fps           Int
-  createdAt     DateTime            @default(now())
-  completedAt   DateTime?
-  errorMessage  String?
+  status          String
+  durationMs      Int?
+  qualityPreset   RenderQualityPreset
+  width           Int
+  height          Int
+  fps             Int
+  createdAt       DateTime            @default(now())
+  completedAt     DateTime?
+  errorMessage    String?
   // What this render was made from, captured when it was requested and never changed afterwards (a RenderSnapshot).
-  snapshotJson  Json?
-  snapshotHash  String?
+  snapshotJson    Json?
+  snapshotHash    String?
+  // Set in the same update that completes a FINAL render, so "this MP4 should be archived" survives any crash or queue outage
+  // after the render; the archive step reads it and never needs the render to be run again.
+  archiveIntentAt DateTime?
 
   @@index([videoId])
   @@index([status])

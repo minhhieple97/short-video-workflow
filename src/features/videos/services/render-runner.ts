@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 
+import type { RenderRecord } from "@/generated/prisma/client";
 import { probeMedia } from "@/server/media/ffprobe";
 import { startAssetServer, type AssetServer, type ServedAsset } from "@/server/render/asset-server";
 import { makeRenderCancelSignal, renderShortVideo } from "@/server/render/render-short-video";
@@ -62,55 +63,82 @@ interface RenderRun {
   onProgress: (progress: number) => Promise<void>;
 }
 
-// A failed or cancelled render never leaves a half-written MP4 marked as a successful render.
-export async function runRender(run: RenderRun): Promise<{ renderId: string; durationMs: number }> {
+// The heavy collaborators, replaceable so the behaviour around them can be tested without a browser or ffprobe.
+export interface RenderDeps {
+  renderVideo: typeof renderShortVideo;
+  probe: typeof probeMedia;
+}
+
+const DEFAULT_DEPS: RenderDeps = { renderVideo: renderShortVideo, probe: probeMedia };
+
+// Renders from the snapshot, verifies the MP4 and records it as COMPLETED, all or nothing: until that last write succeeds a
+// failure or a cancel removes the half-made file and marks the render failed.
+async function produceRender(
+  render: RenderRecord,
+  outputFile: string,
+  run: RenderRun,
+  deps: RenderDeps,
+): Promise<{ durationMs: number }> {
+  // The render is made from what was captured when it was requested, never from the video as it is now.
+  const snapshot = await resolveRenderSnapshot(render);
+  const quality = snapshot.render.quality;
+  const report = runPreflight(toPreflightInput(snapshot), quality);
+  if (report.blocking.length > 0) {
+    throw new AppError("PREFLIGHT_FAILED", report.blocking.map((issue) => issue.message).join(" "), 409);
+  }
+  await markRenderStarted(render.id, snapshot.video.scriptVersion);
+  const assetServer = await serveNarration(snapshot);
+
+  let lastReported = 0;
+  const dims = snapshot.render;
+  try {
+    await deps.renderVideo({
+      props: shortVideoPropsSchema.parse(toCompositionProps(toCompositionSource(snapshot), assetServer.urlFor)),
+      scale: dims.width / getAppConfig().video.final.width,
+      concurrency: getAppConfig().concurrency.render,
+      outputFile,
+      cancelSignal: makeRenderCancelSignal(run.signal),
+      onProgress: (progress) => {
+        const percent = Math.round(progress * 90) + 5;
+        if (percent - lastReported < 5) return;
+        lastReported = percent;
+        void run.onProgress(percent).catch(() => undefined);
+      },
+    });
+  } finally {
+    await assetServer.close();
+  }
+
+  const probe = await deps.probe(outputFile);
+  const problem = verifyOutput(probe, {
+    ...dims,
+    maxDurationMs: quality === "FINAL" ? snapshot.video.targetDurationSec * 1000 : null,
+  });
+  if (problem) throw new AppError("RENDER_VERIFICATION_FAILED", `Kiểm tra MP4 thất bại: ${problem}`, 500);
+
+  // Only a FINAL render is archived. The intent is part of this write, so it is saved with the MP4 or not at all.
+  await completeRenderRecord(
+    render,
+    { durationMs: probe.durationMs, sizeBytes: probe.sizeBytes },
+    { archive: quality === "FINAL" },
+  );
+  return { durationMs: probe.durationMs };
+}
+
+// A failed or cancelled render never leaves a half-written MP4 marked as a successful render, and a completed one is
+// never undone by anything that happens afterwards.
+export async function runRender(
+  run: RenderRun,
+  deps: RenderDeps = DEFAULT_DEPS,
+): Promise<{ renderId: string; durationMs: number }> {
   const render = await findRenderRecord(run.renderId);
   if (!render) throw new NotFoundError("RENDER_NOT_FOUND", "Không tìm thấy bản render.");
   if (render.status === "COMPLETED") return { renderId: render.id, durationMs: render.durationMs ?? 0 };
 
   const outputFile = dataPath(render.outputPath);
-
+  let result: { durationMs: number };
   try {
-    // The render is made from what was captured when it was requested, never from the video as it is now.
-    const snapshot = await resolveRenderSnapshot(render);
-    const quality = snapshot.render.quality;
-    const report = runPreflight(toPreflightInput(snapshot), quality);
-    if (report.blocking.length > 0) {
-      throw new AppError("PREFLIGHT_FAILED", report.blocking.map((issue) => issue.message).join(" "), 409);
-    }
-    await markRenderStarted(render.id, snapshot.video.scriptVersion);
-    const assetServer = await serveNarration(snapshot);
-
-    let lastReported = 0;
-    const dims = snapshot.render;
-    try {
-      await renderShortVideo({
-        props: shortVideoPropsSchema.parse(toCompositionProps(toCompositionSource(snapshot), assetServer.urlFor)),
-        scale: dims.width / getAppConfig().video.final.width,
-        concurrency: getAppConfig().concurrency.render,
-        outputFile,
-        cancelSignal: makeRenderCancelSignal(run.signal),
-        onProgress: (progress) => {
-          const percent = Math.round(progress * 90) + 5;
-          if (percent - lastReported < 5) return;
-          lastReported = percent;
-          void run.onProgress(percent).catch(() => undefined);
-        },
-      });
-    } finally {
-      await assetServer.close();
-    }
-
-    const probe = await probeMedia(outputFile);
-    const problem = verifyOutput(probe, {
-      ...dims,
-      maxDurationMs: quality === "FINAL" ? snapshot.video.targetDurationSec * 1000 : null,
-    });
-    if (problem) throw new AppError("RENDER_VERIFICATION_FAILED", `Kiểm tra MP4 thất bại: ${problem}`, 500);
-
-    await completeRenderRecord(render, { durationMs: probe.durationMs, sizeBytes: probe.sizeBytes });
-    await run.onProgress(100);
-    return { renderId: render.id, durationMs: probe.durationMs };
+    result = await produceRender(render, outputFile, run, deps);
   } catch (error) {
     await fs.rm(outputFile, { force: true });
     if (run.signal?.aborted) {
@@ -121,4 +149,13 @@ export async function runRender(run: RenderRun): Promise<{ renderId: string; dur
     logger.error("Render failed", { renderId: render.id, error: toSafeErrorMessage(error) });
     throw error;
   }
+
+  // The MP4 is verified and recorded. From here on only reporting is left, and a failure to report must not touch it.
+  await run.onProgress(100).catch((error: unknown) => {
+    logger.warn("Could not report the final render progress; the render itself is complete", {
+      renderId: render.id,
+      error: toSafeErrorMessage(error),
+    });
+  });
+  return { renderId: render.id, durationMs: result.durationMs };
 }
