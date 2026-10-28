@@ -25,6 +25,8 @@ export interface GoogleRequest<TResult> {
   mutating: boolean;
   timeoutMs: number;
   signal?: AbortSignal;
+  // Non-2xx statuses that are answers rather than failures, such as 308 "Resume Incomplete" during an upload.
+  acceptStatuses?: readonly number[];
   parse: (response: Response) => Promise<TResult>;
 }
 
@@ -94,6 +96,8 @@ export async function sendGoogleRequest<TResult>(request: GoogleRequest<TResult>
       method: request.method,
       headers: request.headers,
       body: request.body,
+      // A 308 from the upload endpoint is "keep sending", never a redirect to follow.
+      redirect: "manual",
       signal,
     });
   } catch (error) {
@@ -103,7 +107,7 @@ export async function sendGoogleRequest<TResult>(request: GoogleRequest<TResult>
     throw new IntegrationError("GOOGLE_TRANSPORT", MESSAGES[kind], kind, { cause: error });
   }
 
-  if (!response.ok) {
+  if (!response.ok && !request.acceptStatuses?.includes(response.status)) {
     const reason = await readErrorReason(response);
     const kind = classifyGoogleFailure(response.status, reason, request.mutating);
     throw new IntegrationError(
