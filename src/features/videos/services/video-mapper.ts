@@ -94,6 +94,7 @@ export function toVideoDetail(video: VideoDetailRecord): VideoDetail {
     platformPreviewMode: video.platformPreviewMode,
     scriptVersion: video.scriptVersion,
     approvedScriptVersion: video.approvedScriptVersion,
+    autoReady: video.autoReadyScriptVersion !== null && video.autoReadyScriptVersion === video.scriptVersion,
     hookOptions: hookOptionsSchema
       .parse(video.hookOptionsJson ?? [])
       .map((option) => ({ ...option, estimatedSeconds: estimateNarrationSeconds(option.narration) })),

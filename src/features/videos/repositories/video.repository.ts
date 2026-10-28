@@ -107,6 +107,16 @@ export function deleteVideoRecord(id: string): Promise<Video> {
   return prisma.video.delete({ where: { id } });
 }
 
+// Records that the automated checks passed for this script version. False when the script changed in the meantime, in
+// which case nothing is recorded and the checks must run again.
+export async function markAutoReady(id: string, scriptVersion: number): Promise<boolean> {
+  const { count } = await prisma.video.updateMany({
+    where: { id, scriptVersion },
+    data: { autoReadyScriptVersion: scriptVersion },
+  });
+  return count > 0;
+}
+
 export function markScriptApproved(id: string, scriptVersion: number): Promise<Video> {
   return prisma.video.update({ where: { id }, data: { status: "APPROVED", approvedScriptVersion: scriptVersion } });
 }

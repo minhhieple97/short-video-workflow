@@ -151,29 +151,32 @@ model LessonSource {
 }
 
 model Video {
-  id                    String               @id @default(cuid())
-  bookId                String
-  book                  Book                 @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  title                 String
-  description           String?
+  id                     String               @id @default(cuid())
+  bookId                 String
+  book                   Book                 @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  title                  String
+  description            String?
   // VIDEO_STATUSES in features/videos/domain/video-status.ts (DRAFT | NEEDS_REVIEW | APPROVED).
-  status                String               @default("DRAFT")
-  aspectRatio           String               @default("9:16")
-  fps                   Int                  @default(30)
-  width                 Int                  @default(1080)
-  height                Int                  @default(1920)
-  videoProfile          VideoProfile         @default(SHORT_VERTICAL)
+  status                 String               @default("DRAFT")
+  aspectRatio            String               @default("9:16")
+  fps                    Int                  @default(30)
+  width                  Int                  @default(1080)
+  height                 Int                  @default(1920)
+  videoProfile           VideoProfile         @default(SHORT_VERTICAL)
   // Allowed values {30, 45, 60, 90} are enforced by Zod, not by the database.
-  targetDurationSec     Int                  @default(60)
-  scriptVersion         Int                  @default(1)
-  approvedScriptVersion Int?
-  platformPreviewMode   PlatformPreviewMode?
+  targetDurationSec      Int                  @default(60)
+  scriptVersion          Int                  @default(1)
+  approvedScriptVersion  Int?
+  // The scriptVersion at which the automated checks last passed. It is not an approval by a person: it only lets a FINAL
+  // render proceed, and any later change bumps scriptVersion so it stops matching.
+  autoReadyScriptVersion Int?
+  platformPreviewMode    PlatformPreviewMode?
   // 2–3 AI hook proposals ({ variant, narration, onScreenText, visualVariant }[]); the chosen one becomes the HOOK scene.
-  hookOptionsJson       Json?
+  hookOptionsJson        Json?
   // Loose pointer to RenderRecord.id (no relation) to avoid a circular reference.
-  latestRenderId        String?
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
+  latestRenderId         String?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
 
   videoLessons   VideoLesson[]
   scenes         VideoScene[]

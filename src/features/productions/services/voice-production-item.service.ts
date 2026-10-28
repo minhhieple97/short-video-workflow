@@ -1,7 +1,8 @@
-import { AppError, NotFoundError } from "@/shared/errors";
+import { AppError } from "@/shared/errors";
 
 import { hasReachedCheckpoint } from "../domain/production-status";
-import { advanceProductionCheckpoint, findProductionItemState } from "../repositories/production-step.repository";
+import { advanceProductionCheckpoint } from "../repositories/production-step.repository";
+import { outOfOrder, requireHeldProductionItem } from "./production-step";
 import { voiceVideoScenes, type SynthesizeScene, type VoiceSummary } from "./voice-video-scenes.service";
 
 export type VoiceItemOutcome = ({ status: "VOICED" } & VoiceSummary) | { status: "ALREADY_VOICED" };
@@ -16,17 +17,10 @@ export async function voiceProductionItem(input: {
   synthesize?: SynthesizeScene;
   onProgress?: (done: number, pending: number) => Promise<void> | void;
 }): Promise<VoiceItemOutcome> {
-  const item = await findProductionItemState(input.itemId);
-  if (!item) throw new NotFoundError("PRODUCTION_ITEM_NOT_FOUND", "Không tìm thấy mục sản xuất.");
-  if (item.claimToken !== input.claimToken) {
-    throw new AppError("PRODUCTION_CLAIM_LOST", "Mục sản xuất này không còn được bạn giữ; dừng bước này.", 409);
-  }
-  if (!item.videoId) throw new AppError("PRODUCTION_ITEM_HAS_NO_VIDEO", "Mục sản xuất chưa có video.", 409);
+  const item = await requireHeldProductionItem(input.itemId, input.claimToken);
   if (hasReachedCheckpoint(item.checkpoint, "VOICED")) return { status: "ALREADY_VOICED" };
   if (item.checkpoint !== "APPLIED") {
-    throw new AppError("PRODUCTION_STEP_OUT_OF_ORDER", "Phải áp dụng kế hoạch cảnh trước khi tạo giọng đọc.", 409, {
-      details: { checkpoint: item.checkpoint },
-    });
+    throw outOfOrder(item.checkpoint, "Phải áp dụng kế hoạch cảnh trước khi tạo giọng đọc.");
   }
 
   const summary = await voiceVideoScenes({

@@ -71,6 +71,8 @@ export interface VideoDetail {
   platformPreviewMode: "TIKTOK" | "YOUTUBE_SHORTS" | "FACEBOOK_REELS" | null;
   scriptVersion: number;
   approvedScriptVersion: number | null;
+  // The automated readiness checks passed for exactly the current script version (not a human approval).
+  autoReady: boolean;
   hookOptions: HookOptionDto[];
   lessons: VideoLessonDto[];
   scenes: SceneDto[];

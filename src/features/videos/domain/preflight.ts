@@ -17,6 +17,8 @@ export interface PreflightReport {
 
 export interface PreflightInput {
   status: string;
+  // True when the automated readiness checks passed for exactly this version of the script.
+  autoReady?: boolean;
   targetDurationSec: number;
   scenes: readonly {
     type: SceneType;
@@ -70,8 +72,11 @@ export function runPreflight(input: PreflightInput, quality: RenderQuality): Pre
     });
   }
 
-  if (input.status !== "APPROVED") {
-    finalOnly({ code: "SCRIPT_NOT_APPROVED", message: "Kịch bản chưa được duyệt (hoặc đã sửa sau khi duyệt)." });
+  if (input.status !== "APPROVED" && !input.autoReady) {
+    finalOnly({
+      code: "SCRIPT_NOT_APPROVED",
+      message: "Kịch bản chưa được duyệt hoặc kiểm tra tự động chưa đạt (hoặc đã sửa sau đó).",
+    });
   }
 
   visible.forEach((scene, index) => {
