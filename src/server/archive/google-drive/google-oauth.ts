@@ -3,7 +3,6 @@ import { createHash, randomBytes } from "node:crypto";
 import { AppError } from "@/shared/errors";
 
 export const GOOGLE_AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
-export const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 // The only permission asked for: files this app creates (or the user opens with it), nothing else in their Drive.
 export const DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 

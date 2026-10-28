@@ -1,11 +1,13 @@
 import { BookOpen, Clapperboard, Clock, ListChecks, Plus } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { EmptyState } from "@/components/layout/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
 import { StatTile } from "@/components/layout/stat-tile";
 import { Button } from "@/components/ui/button";
 import { BookCard } from "@/features/books/components/book-card";
+import { oauthCallbackLocation } from "@/features/drive/domain/oauth-callback";
 import { listBooks } from "@/features/books/services/book.service";
 import { JobTable } from "@/features/jobs/components/job-table";
 import { JobsAutoRefresh } from "@/features/jobs/components/jobs-auto-refresh";
@@ -18,7 +20,14 @@ export const dynamic = "force-dynamic";
 const RECENT_BOOK_COUNT = 4;
 const RECENT_VIDEO_COUNT = 4;
 
-export default async function DashboardPage() {
+interface DashboardPageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function DashboardPage({ searchParams }: Readonly<DashboardPageProps>) {
+  const callback = oauthCallbackLocation(await searchParams);
+  if (callback) redirect(callback);
+
   const [allBooks, allVideos, activeJobs] = await Promise.all([listBooks(), listVideos(), listActiveJobs()]);
   const books = allBooks.slice(0, RECENT_BOOK_COUNT);
   const videos = allVideos.slice(0, RECENT_VIDEO_COUNT);
