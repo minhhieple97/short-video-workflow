@@ -8,6 +8,8 @@ import { dataPath } from "@/server/storage/paths";
 import { AppError } from "@/shared/errors";
 
 const driveCredentialSchema = z.object({
+  // NEEDS_RECONNECT: Google refused the refresh token (revoked, expired, password change); only a new sign-in helps.
+  status: z.enum(["CONNECTED", "NEEDS_RECONNECT"]).default("CONNECTED"),
   refreshToken: z.string().min(1),
   scope: z.string(),
   accessToken: z.string().min(1).nullable(),
@@ -17,7 +19,7 @@ const driveCredentialSchema = z.object({
   connectedAt: z.iso.datetime(),
 });
 
-export type DriveCredential = z.infer<typeof driveCredentialSchema>;
+export type DriveCredential = z.output<typeof driveCredentialSchema>;
 
 // Kept out of SQLite on purpose: database copies, exports and diagnostics never contain the tokens. Only this process's
 // user can read the file or list its directory.
@@ -53,6 +55,19 @@ export async function readDriveCredential(): Promise<DriveCredential | null> {
     );
   }
   return parsed.data;
+}
+
+// Changes the stored connection only if it is still the one the caller read (same sign-in). A refresh that finishes after
+// the user disconnected or signed in again therefore cannot bring back the old connection.
+export async function updateDriveCredential(
+  connectedAt: string,
+  change: (credential: DriveCredential) => DriveCredential,
+): Promise<DriveCredential | null> {
+  const current = await readDriveCredential();
+  if (!current || current.connectedAt !== connectedAt) return null;
+  const next = change(current);
+  await writeDriveCredential(next);
+  return next;
 }
 
 export async function writeDriveCredential(credential: DriveCredential): Promise<void> {

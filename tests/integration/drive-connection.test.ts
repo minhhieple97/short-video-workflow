@@ -20,6 +20,7 @@ const DRIVE = { clientId: "client-1.apps.googleusercontent.com", clientSecret: "
 const REQUEST_URL = "http://127.0.0.1:3000/api/integrations/drive/connect";
 const NOW = new Date("2026-10-28T10:00:00.000Z");
 const CREDENTIAL: CredentialStore.DriveCredential = {
+  status: "CONNECTED",
   refreshToken: "1//refresh-token-value",
   scope: "https://www.googleapis.com/auth/drive.file",
   accessToken: "ya29.access-token-value",
@@ -113,6 +114,7 @@ describe("getDriveConnectionStatus", () => {
     expect(await connection.getDriveConnectionStatus({ clientId: undefined, clientSecret: undefined })).toEqual({
       configured: false,
       connected: false,
+      needsReconnect: false,
       accountEmail: null,
       connectedAt: null,
     });
@@ -123,6 +125,7 @@ describe("getDriveConnectionStatus", () => {
     expect(status).toEqual({
       configured: true,
       connected: true,
+      needsReconnect: false,
       accountEmail: "ban@example.com",
       connectedAt: "2026-10-28T10:00:00.000Z",
     });
@@ -160,6 +163,29 @@ describe("drive credential store", () => {
     await store.writeDriveCredential(CREDENTIAL);
     await store.deleteDriveCredential();
 
+    expect(await store.readDriveCredential()).toBeNull();
+  });
+
+  it("reads a file written before connections had a status as connected", async () => {
+    const { status: _status, ...older } = CREDENTIAL;
+    fs.mkdirSync(path.dirname(store.driveCredentialPath()), { recursive: true });
+    fs.writeFileSync(store.driveCredentialPath(), JSON.stringify(older));
+
+    expect((await store.readDriveCredential())?.status).toBe("CONNECTED");
+  });
+
+  it("changes the connection only while it is still the one that was read", async () => {
+    await store.writeDriveCredential(CREDENTIAL);
+
+    const changed = await store.updateDriveCredential(CREDENTIAL.connectedAt, (current) => ({
+      ...current,
+      accessToken: "ya29.new",
+    }));
+    expect(changed?.accessToken).toBe("ya29.new");
+
+    expect(await store.updateDriveCredential("2020-01-01T00:00:00.000Z", (current) => current)).toBeNull();
+    await store.deleteDriveCredential();
+    expect(await store.updateDriveCredential(CREDENTIAL.connectedAt, (current) => current)).toBeNull();
     expect(await store.readDriveCredential()).toBeNull();
   });
 

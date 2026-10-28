@@ -1,6 +1,10 @@
 import "server-only";
 
-import { readDriveCredential, writeDriveCredential } from "@/server/archive/google-drive/drive-credential-store";
+import {
+  deleteDriveCredential,
+  readDriveCredential,
+  writeDriveCredential,
+} from "@/server/archive/google-drive/drive-credential-store";
 import { GoogleDriveClient } from "@/server/archive/google-drive/google-drive-client";
 import { GOOGLE_ENDPOINTS, type GoogleEndpoints } from "@/server/archive/google-drive/google-http";
 import { GoogleOAuthClient } from "@/server/archive/google-drive/google-oauth-client";
@@ -14,14 +18,14 @@ import {
 } from "@/server/archive/google-drive/google-oauth";
 import { getAppConfig, type AppConfig } from "@/shared/config/env";
 import { AppError } from "@/shared/errors";
-import { createLogger } from "@/shared/logger";
+import { createLogger, toSafeErrorMessage } from "@/shared/logger";
 
 import {
   consumeOAuthAuthorization,
   createOAuthAuthorization,
   purgeSpentOAuthAuthorizations,
 } from "../repositories/oauth-authorization.repository";
-import type { DriveAuthorizationDto, DriveConnectionDto } from "../schemas/drive-connection.dto";
+import type { DriveAuthorizationDto, DriveConnectionDto, DriveDisconnectDto } from "../schemas/drive-connection.dto";
 
 const logger = createLogger("drive.connection");
 export const DRIVE_PROVIDER = "google-drive";
@@ -70,7 +74,8 @@ export async function getDriveConnectionStatus(
   const credential = await readDriveCredential();
   return {
     configured: Boolean(drive.clientId),
-    connected: credential !== null,
+    connected: credential?.status === "CONNECTED",
+    needsReconnect: credential?.status === "NEEDS_RECONNECT",
     accountEmail: credential?.accountEmail ?? null,
     connectedAt: credential?.connectedAt ?? null,
   };
@@ -141,6 +146,7 @@ export async function completeDriveConnection(
     endpoints,
   }).getAccount();
   await writeDriveCredential({
+    status: "CONNECTED",
     refreshToken: tokens.refreshToken,
     scope: tokens.scopes.join(" "),
     accessToken: tokens.accessToken,
@@ -151,4 +157,30 @@ export async function completeDriveConnection(
   });
   logger.info("Drive connected");
   return getDriveConnectionStatus(drive);
+}
+
+// Forgets the connection and asks Google to revoke it. Files already archived stay in the user's Drive: disconnecting
+// never deletes anything remote, and archive records keep their remote IDs for a later reconnect.
+export async function disconnectDrive(
+  options: { drive?: AppConfig["drive"]; endpoints?: GoogleEndpoints } = {},
+): Promise<DriveDisconnectDto> {
+  const drive = options.drive ?? getAppConfig().drive;
+  const credential = await readDriveCredential();
+  let revokedAtGoogle = credential === null;
+  if (credential && drive.clientId) {
+    const oauth = new GoogleOAuthClient({
+      clientId: drive.clientId,
+      clientSecret: drive.clientSecret,
+      endpoints: options.endpoints ?? GOOGLE_ENDPOINTS,
+    });
+    try {
+      await oauth.revoke(credential.refreshToken);
+      revokedAtGoogle = true;
+    } catch (error) {
+      logger.warn("Drive permission could not be revoked at Google", { error: toSafeErrorMessage(error) });
+    }
+  }
+  await deleteDriveCredential();
+  logger.info("Drive disconnected", { revokedAtGoogle });
+  return { ...(await getDriveConnectionStatus(drive)), revokedAtGoogle };
 }

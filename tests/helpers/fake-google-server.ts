@@ -23,6 +23,7 @@ export interface FakeGoogleAccount {
 }
 
 const TOKEN = "POST /token";
+const REVOKE = "POST /revoke";
 const ABOUT = "GET /drive/v3/about";
 
 // A local stand-in for Google's token endpoint and Drive API: it answers like Google, records every request and can be
@@ -46,8 +47,11 @@ export class FakeGoogleServer {
     };
   }
 
-  failNext(route: "token" | "about", fault: GoogleFault): void {
-    const key = route === "token" ? TOKEN : ABOUT;
+  // Refresh tokens Google still honours; revoking one (or its access token) removes it.
+  readonly liveRefreshTokens = new Set<string>();
+
+  failNext(route: "token" | "revoke" | "about", fault: GoogleFault): void {
+    const key = { token: TOKEN, revoke: REVOKE, about: ABOUT }[route];
     this.faults.set(key, [...(this.faults.get(key) ?? []), fault]);
   }
 
@@ -94,21 +98,50 @@ export class FakeGoogleServer {
     }
     if (fault?.kind === "json") return this.json(response, fault.body);
 
-    if (key === TOKEN) return this.json(response, this.token());
+    if (key === TOKEN) return this.tokenGrant(new URLSearchParams(body), response);
+    if (key === REVOKE) return this.revoke(new URLSearchParams(body), response);
     if (key === ABOUT) return this.json(response, { user: this.account });
     response.writeHead(404, { "content-type": "application/json" });
     response.end(JSON.stringify({ error: { code: 404, message: "Not Found", errors: [{ reason: "notFound" }] } }));
   }
 
-  private token(): Record<string, unknown> {
+  private tokenGrant(form: URLSearchParams, response: http.ServerResponse): void {
     this.issued += 1;
-    return {
-      access_token: `ya29.access-${this.issued}`,
+    const accessToken = `ya29.access-${this.issued}`;
+    if (form.get("grant_type") === "refresh_token") {
+      if (!this.liveRefreshTokens.has(form.get("refresh_token") ?? "")) {
+        response.writeHead(400, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({ error: "invalid_grant", error_description: "Token has been expired or revoked." }),
+        );
+        return;
+      }
+      return this.json(response, {
+        access_token: accessToken,
+        expires_in: 3599,
+        scope: this.grantedScope,
+        token_type: "Bearer",
+      });
+    }
+    const refreshToken = `1//refresh-${this.issued}`;
+    if (this.issueRefreshToken) this.liveRefreshTokens.add(refreshToken);
+    return this.json(response, {
+      access_token: accessToken,
       expires_in: 3599,
-      ...(this.issueRefreshToken ? { refresh_token: `1//refresh-${this.issued}` } : {}),
+      ...(this.issueRefreshToken ? { refresh_token: refreshToken } : {}),
       scope: this.grantedScope,
       token_type: "Bearer",
-    };
+    });
+  }
+
+  private revoke(form: URLSearchParams, response: http.ServerResponse): void {
+    const token = form.get("token") ?? "";
+    if (!this.liveRefreshTokens.delete(token)) {
+      response.writeHead(400, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: "invalid_token", error_description: "Token expired or revoked" }));
+      return;
+    }
+    this.json(response, {});
   }
 
   private json(response: http.ServerResponse, body: unknown): void {

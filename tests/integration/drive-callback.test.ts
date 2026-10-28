@@ -62,6 +62,7 @@ describe("completeDriveConnection", () => {
     expect(status).toEqual({
       configured: true,
       connected: true,
+      needsReconnect: false,
       accountEmail: "ban@example.com",
       connectedAt: AFTER.toISOString(),
     });
@@ -78,6 +79,7 @@ describe("completeDriveConnection", () => {
     expect(about?.headers.authorization).toBe("Bearer ya29.access-1");
     expect(about?.query.get("fields")).toBe("user(permissionId,emailAddress)");
     expect(await store.readDriveCredential()).toEqual({
+      status: "CONNECTED",
       refreshToken: "1//refresh-1",
       scope: "https://www.googleapis.com/auth/drive.file",
       accessToken: "ya29.access-1",

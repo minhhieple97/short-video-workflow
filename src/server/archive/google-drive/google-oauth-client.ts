@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { IntegrationError } from "@/server/integrations/integration-error";
+
 import { GOOGLE_ENDPOINTS, GOOGLE_READ_TIMEOUT_MS, sendGoogleRequest, type GoogleEndpoints } from "./google-http";
 
 const tokenResponseSchema = z.object({
@@ -51,6 +53,30 @@ export class GoogleOAuthClient {
       signal,
       now,
     );
+  }
+
+  refresh(refreshToken: string, signal?: AbortSignal, now: Date = new Date()): Promise<GoogleTokenSet> {
+    return this.requestTokens({ grant_type: "refresh_token", refresh_token: refreshToken }, signal, now);
+  }
+
+  // Revoking either token removes every permission the user gave this client. The token goes in the form body (as in
+  // Google's own Node example), never in the URL. A token Google no longer knows counts as revoked.
+  async revoke(token: string, signal?: AbortSignal): Promise<void> {
+    try {
+      await sendGoogleRequest({
+        url: this.endpoints.revokeUrl,
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ token }).toString(),
+        mutating: false,
+        timeoutMs: GOOGLE_READ_TIMEOUT_MS,
+        signal,
+        parse: async () => undefined,
+      });
+    } catch (error) {
+      if (error instanceof IntegrationError && error.code === "GOOGLE_INVALID_TOKEN") return;
+      throw error;
+    }
   }
 
   private async requestTokens(
