@@ -21,6 +21,15 @@ export interface FakeBatchJob {
   succeeded_requests: number;
   failed_requests: number;
   createdOrder: number;
+  cancelObserved: boolean;
+}
+
+export interface CompleteJobOptions {
+  failChunks?: string[];
+  omitChunks?: string[];
+  oneBasedPages?: boolean;
+  // null leaves the page confidence out of the response, as Mistral does when none is requested.
+  confidence?: number | null;
 }
 
 export interface RecordedRequest {
@@ -104,6 +113,75 @@ export class FakeMistralServer {
     await new Promise<void>((resolve) => this.server.close(() => resolve()));
   }
 
+  // Finishes a queued job the way Mistral would: one output line per chunk, one error line per failed chunk.
+  completeJob(jobId: string, options: CompleteJobOptions = {}): void {
+    const job = this.jobs.get(jobId);
+    if (!job || (job.status !== "QUEUED" && job.status !== "RUNNING")) return;
+
+    const requestText = job.input_files.map((id) => this.files.get(id)?.bytes.toString("utf8") ?? "").join("\n");
+    const outputLines: string[] = [];
+    const errorLines: string[] = [];
+    for (const raw of requestText.split("\n").filter(Boolean)) {
+      const request = JSON.parse(raw) as { custom_id: string; body: { document: { file_id: string } } };
+      const customId = request.custom_id;
+      if (options.omitChunks?.includes(customId)) continue;
+      if (options.failChunks?.includes(customId)) {
+        errorLines.push(
+          JSON.stringify({
+            id: `batch_err_${customId}`,
+            custom_id: customId,
+            response: null,
+            error: { message: "ocr failed" },
+          }),
+        );
+        continue;
+      }
+
+      const document = this.files.get(request.body.document.file_id)?.bytes.toString("latin1") ?? "";
+      const pageCount = Number(/pages=(\d+)/.exec(document)?.[1] ?? "1");
+      const base = options.oneBasedPages ? 1 : 0;
+      const confidence = options.confidence === undefined ? 0.97 : options.confidence;
+      const pages = Array.from({ length: pageCount }, (_, position) => ({
+        index: base + position,
+        markdown: `Trang ${position + 1} của ${customId}`,
+        ...(confidence === null ? {} : { confidence_scores: { average_page_confidence_score: confidence } }),
+      }));
+      outputLines.push(
+        JSON.stringify({
+          id: `batch_req_${customId}`,
+          custom_id: customId,
+          response: {
+            status_code: 200,
+            body: { pages, model: "fake-ocr", usage_info: { pages_processed: pageCount } },
+          },
+          error: null,
+        }),
+      );
+    }
+
+    const store = (lines: string[]): string | null => {
+      if (lines.length === 0) return null;
+      const id = this.nextFileId();
+      this.files.set(id, {
+        id,
+        filename: `${jobId}.jsonl`,
+        purpose: "batch",
+        bytes: Buffer.from(`${lines.join("\n")}\n`),
+      });
+      return id;
+    };
+    job.output_file = store(outputLines);
+    job.error_file = store(errorLines);
+    job.succeeded_requests = outputLines.length;
+    job.failed_requests = errorLines.length;
+    job.status = "SUCCESS";
+  }
+
+  setJobStatus(jobId: string, status: string): void {
+    const job = this.jobs.get(jobId);
+    if (job) job.status = status;
+  }
+
   private installFileRoutes(): void {
     this.addRoute("POST", /^\/v1\/files$/, async (request) => {
       const contentType = request.headers["content-type"];
@@ -150,7 +228,7 @@ export class FakeMistralServer {
   }
 
   private installBatchRoutes(): void {
-    const publicJob = ({ createdOrder: _order, ...job }: FakeBatchJob) => job;
+    const publicJob = ({ createdOrder: _order, cancelObserved: _observed, ...job }: FakeBatchJob) => job;
 
     this.addRoute("POST", /^\/v1\/batch\/jobs$/, (request) => {
       const body = JSON.parse(request.body.toString("utf8")) as {
@@ -179,6 +257,7 @@ export class FakeMistralServer {
         succeeded_requests: 0,
         failed_requests: 0,
         createdOrder: this.jobCounter,
+        cancelObserved: false,
       };
       this.jobs.set(job.id, job);
       return publicJob(job);
@@ -197,7 +276,20 @@ export class FakeMistralServer {
 
     this.addRoute("GET", /^\/v1\/batch\/jobs\/([^/]+)$/, (request) => {
       const job = this.jobs.get(decodeURIComponent(request.path.split("/")[4] ?? ""));
-      return job ? publicJob(job) : { status: 404, body: { message: "Job not found" } };
+      if (!job) return { status: 404, body: { message: "Job not found" } };
+      // Cancellation is asynchronous, as with the real API: it is requested first and takes effect a poll later.
+      if (job.status === "CANCELLATION_REQUESTED") {
+        if (job.cancelObserved) job.status = "CANCELLED";
+        job.cancelObserved = true;
+      }
+      return publicJob(job);
+    });
+
+    this.addRoute("POST", /^\/v1\/batch\/jobs\/([^/]+)\/cancel$/, (request) => {
+      const job = this.jobs.get(decodeURIComponent(request.path.split("/")[4] ?? ""));
+      if (!job) return { status: 404, body: { message: "Job not found" } };
+      if (job.status === "QUEUED" || job.status === "RUNNING") job.status = "CANCELLATION_REQUESTED";
+      return publicJob(job);
     });
   }
 

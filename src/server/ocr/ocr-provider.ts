@@ -34,7 +34,8 @@ export type OcrChunkResult =
 export type OcrStartResult =
   { status: "completed"; chunks: OcrChunkResult[] } | { status: "submitted"; operationRef: string };
 
-// "completed" means the provider finished processing; individual chunks inside it may still have failed.
+// "completed" means the provider finished processing; individual chunks inside it may still have failed, and a chunk
+// the provider returned nothing for is simply absent: the caller compares against what it submitted.
 export type OcrOperationStatus =
   | { status: "pending"; retryAfterMs: number }
   | { status: "completed"; chunks: OcrChunkResult[] }

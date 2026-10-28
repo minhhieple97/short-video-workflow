@@ -40,6 +40,24 @@ export const mistralBatchJobSchema = z.object({
 
 export const mistralBatchJobListSchema = z.object({ data: z.array(mistralBatchJobSchema) });
 
+// One line of the batch output or error file. The request is matched back by custom_id (the chunk id).
+export const mistralOutputLineSchema = z.object({
+  custom_id: z.string().min(1),
+  response: z.object({ status_code: z.number().int(), body: z.unknown() }).nullish(),
+  error: z.unknown().nullish(),
+});
+
+export const mistralOcrBodySchema = z.object({
+  pages: z.array(
+    z.object({
+      index: z.number().int().nonnegative(),
+      markdown: z.string(),
+      confidence_scores: z.object({ average_page_confidence_score: z.number().min(0).max(1).nullish() }).nullish(),
+    }),
+  ),
+});
+
+export type MistralOcrPage = z.infer<typeof mistralOcrBodySchema>["pages"][number];
 export type MistralFile = z.infer<typeof mistralFileSchema>;
 export type MistralDeletedFile = z.infer<typeof mistralDeletedFileSchema>;
 export type MistralBatchStatus = (typeof MISTRAL_BATCH_STATUSES)[number];

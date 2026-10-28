@@ -114,7 +114,7 @@ src/
     render/            Remotion bundle + renderMedia wrapper and localhost asset server (worker only), webpack "@/" alias
     media/             ffprobe wrapper, silence trim/measure (ffmpeg)
     integrations/      IntegrationError (kind AUTH/QUOTA/TRANSIENT/REJECTED/UNKNOWN_OUTCOME) + CallOptions shared by the v1.2 ports
-    ocr/mistral/       typed REST client for Mistral Files/Batch (`mistral-client.ts`); the OcrProvider adapter is built on it (B08-B09)
+    ocr/mistral/       typed REST client for Mistral Files/Batch (`mistral-client.ts`) and the OcrProvider adapter on it (submit, collect, cleanup); `createOcrProvider()` in `ocr/index.ts`
     ocr/ script-studio/ scene-plan/ archive/   v1.2 ports + vendor-free DTOs only (OcrProvider, ScriptStudioProvider, ScenePlanCompiler,
                        VideoArchiveProvider); real adapters land with the B/C/D/E tasks of `plan.md`. Fakes + contract suites live in
                        tests/helpers/{fakes,contracts}; every adapter must pass its port's contract suite

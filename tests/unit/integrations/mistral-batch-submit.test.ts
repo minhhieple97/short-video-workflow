@@ -191,6 +191,7 @@ describe("findBatchJobByRequestKey", () => {
         succeeded_requests: 1,
         failed_requests: 0,
         createdOrder: index,
+        cancelObserved: false,
       });
     }
   };

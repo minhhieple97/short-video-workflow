@@ -133,6 +133,18 @@ export class MistralClient {
     });
   }
 
+  cancelBatchJob(jobId: string, signal?: AbortSignal): Promise<MistralBatchJob> {
+    return this.send({
+      method: "POST",
+      path: `/v1/batch/jobs/${encodeURIComponent(jobId)}/cancel`,
+      // Cancelling twice is harmless, so a lost answer can simply be retried.
+      mutating: false,
+      timeoutMs: READ_TIMEOUT_MS,
+      signal,
+      parse: parseJson(mistralBatchJobSchema),
+    });
+  }
+
   // Newest first. The server-side metadata filter is not used because its query encoding is not documented.
   async listBatchJobs(input: { page: number; pageSize: number }, signal?: AbortSignal): Promise<MistralBatchJob[]> {
     const query = new URLSearchParams({

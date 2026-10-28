@@ -65,4 +65,29 @@ describe("parseAppConfig", () => {
     expect(() => parseAppConfig({ ...VALID_ENV, DATABASE_URL: "postgres://localhost/db" })).toThrow(ConfigError);
     expect(() => parseAppConfig({ DATABASE_URL: VALID_ENV.DATABASE_URL })).toThrow(ConfigError);
   });
+
+  it("sets the PDF, OCR ceiling and Mistral defaults, and treats an empty API key as unset", () => {
+    const config = parseAppConfig({ ...VALID_ENV, MISTRAL_API_KEY: "" });
+
+    expect(config.pdf.maxSizeBytes).toBe(500 * 1024 * 1024);
+    expect(config.ocr.costCeilingMicroUsd).toBe(3_000_000);
+    expect(config.mistral).toEqual({
+      apiKey: undefined,
+      baseUrl: "https://api.mistral.ai",
+      ocrModel: "mistral-ocr-4-1",
+      usdPer1000Pages: 2,
+    });
+  });
+
+  it("takes the Mistral key and a base URL without a trailing slash from the environment", () => {
+    const config = parseAppConfig({
+      ...VALID_ENV,
+      MISTRAL_API_KEY: "sk-live",
+      MISTRAL_API_BASE_URL: "https://proxy.example.com/",
+      OCR_COST_CEILING_USD: "1.5",
+    });
+
+    expect(config.mistral).toMatchObject({ apiKey: "sk-live", baseUrl: "https://proxy.example.com" });
+    expect(config.ocr.costCeilingMicroUsd).toBe(1_500_000);
+  });
 });
