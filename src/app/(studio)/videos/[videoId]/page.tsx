@@ -24,6 +24,7 @@ import {
 import { VideoSettingsDialog } from "@/features/videos/components/video-settings-dialog";
 import { VideoStatusBadge } from "@/features/videos/components/video-status-badge";
 import { toCompositionProps } from "@/features/videos/domain/composition-props";
+import { HOOK_MAX_SECONDS } from "@/features/videos/domain/duration";
 import { toPlatformPreviewMode } from "@/features/videos/domain/safe-zones";
 import { mediaAssetUrl } from "@/features/videos/services/video-mapper";
 import { findActiveVideoJob, getVideo } from "@/features/videos/services/video.service";
@@ -111,12 +112,12 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
           withAudio={video.scenes.filter((scene) => !scene.hidden).every((scene) => scene.audio !== null)}
         />
         <div className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">Hook 3 giây đầu</span>
+          <span className="font-medium">Hook {HOOK_MAX_SECONDS} giây đầu</span>
           {video.scenes.length === 0 ? (
             <span className="text-muted-foreground">Chưa có kịch bản.</span>
           ) : video.hookIssues.length === 0 ? (
             <span className="text-emerald-700 dark:text-emerald-400">
-              Đạt — HOOK bắt đầu tại frame 0, đọc xong trong 3 giây.
+              Đạt — HOOK bắt đầu tại frame 0, đọc xong trong {HOOK_MAX_SECONDS} giây.
             </span>
           ) : (
             <ul className="text-red-600 dark:text-red-400">

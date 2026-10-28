@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { ShortVideo } from "@/remotion/compositions/short-video";
 
 import { totalFrames, type ShortVideoProps } from "../../domain/composition-props";
-import { HOOK_MAX_FRAMES, VIDEO_FPS } from "../../domain/duration";
+import { HOOK_MAX_FRAMES, HOOK_MAX_SECONDS, VIDEO_FPS } from "../../domain/duration";
 import {
   PLATFORM_LABELS,
   PLATFORM_PREVIEW_MODES,
@@ -101,7 +101,7 @@ export function PhonePlayer({ props, initialMode, onModeChange }: Readonly<Phone
       <div className="flex flex-wrap items-center justify-center gap-3 text-sm">
         <Button size="sm" variant="outline" onClick={playHook}>
           <Play aria-hidden />
-          Xem 3 giây đầu
+          Xem {HOOK_MAX_SECONDS} giây đầu
         </Button>
         <label className="flex items-center gap-2">
           <Checkbox checked={showGuide} onCheckedChange={(checked) => setShowGuide(checked === true)} />

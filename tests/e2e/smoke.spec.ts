@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { expect, test, type Page } from "@playwright/test";
 
+import { HOOK_MAX_SECONDS } from "../../src/features/videos/domain/duration";
 import { E2E_DATA_DIR } from "./stack";
 
 const SAMPLE_BOOK = path.join(process.cwd(), "prisma/seed-data/atomic-habits-sample.md");
@@ -138,7 +139,7 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
     await open(page, videoA);
     const dock = page.getByRole("complementary", { name: "Xem trước video" });
     await expect(dock.getByRole("radiogroup", { name: "Nền tảng xem trước" })).toBeVisible();
-    await expect(dock.getByRole("button", { name: "Xem 3 giây đầu" })).toBeVisible();
+    await expect(dock.getByRole("button", { name: `Xem ${HOOK_MAX_SECONDS} giây đầu` })).toBeVisible();
     await expect(page.getByRole("tab", { name: "Xem trước" })).toHaveCount(0);
 
     const wav = path.join(E2E_DATA_DIR, "hook.wav");

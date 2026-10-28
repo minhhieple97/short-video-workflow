@@ -230,7 +230,7 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 
 - Profile `SHORT_VERTICAL`: 9:16; final 1080×1920, draft 720×1280; 30 FPS; MP4 H.264 + AAC.
 - Duration presets `SHORT_30`, `SHORT_45`, `SHORT_60` (default), `EXTENDED_90` (explicit user choice only). Final render must not exceed the chosen preset; never auto-raise it.
-- First scene is `HOOK`: starts at frame 0, ≤ 90 frames, text visible and narration audible immediately; no logo/intro/silence before it.
+- First scene is `HOOK`: starts at frame 0, ≤ 120 frames (`HOOK_MAX_FRAMES`, 4 s), text visible and narration audible immediately; no logo/intro/silence before it.
 - Real audio duration (ffprobe) + padding determines timing. Never cut narration or speed it up unnaturally to fit.
 - Preview and render share the same composition and the same Zod-validated input props. No hardcoded book titles, lesson counts or narration inside Remotion components.
 - Safe-zone overlays are editor-only guides (configurable per platform), never rendered into the MP4.
@@ -268,8 +268,8 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 | M7        | PDF/OCR → NotebookLM → Claude → Remotion → Drive (`plan.md`)   | in progress — see `plan.md` §5 log    |
 
 M7 is delivered task by task on branch `feat/book-ocr-notebooklm-drive`; `plan.md` §5 is the source of truth for which tasks are done, and the
-requirements §23.7 table lists which capabilities are real. The v1.1 behavior described elsewhere in this file (hook ≤ 90 frames, approved-lesson
-gate) stays in force until the matching M7 task (D03, D02/D08) lands and updates this file.
+requirements §23.7 table lists which capabilities are real. The v1.1 behavior described elsewhere in this file (the approved-lesson gate) stays in force until the matching
+M7 task (D02/D08) lands and updates this file; the hook limit is already 4 s / 120 frames for every flow (D03).
 
 ## 15. Visual language ("Studio Ink")
 

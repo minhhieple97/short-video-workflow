@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { errorMessage, sendJson } from "@/lib/api-client";
 
+import { HOOK_MAX_SECONDS } from "../domain/duration";
 import type { VideoDetail } from "../schemas/video.dto";
 import { useVideoAction } from "./use-video-action";
 
@@ -78,7 +79,7 @@ export function ApproveScriptButton({
   return (
     <Button
       disabled={pending || blocked || locked}
-      title={blocked ? "Cần HOOK hợp lệ trong 3 giây đầu" : undefined}
+      title={blocked ? `Cần HOOK hợp lệ trong ${HOOK_MAX_SECONDS} giây đầu` : undefined}
       onClick={() => void run(() => sendJson(`/api/videos/${video.id}/approve-script`, "POST"), "Đã duyệt kịch bản.")}
     >
       <CheckCircle2 aria-hidden />

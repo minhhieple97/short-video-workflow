@@ -1,5 +1,5 @@
 export const VIDEO_FPS = 30;
-export const HOOK_MAX_SECONDS = 3;
+export const HOOK_MAX_SECONDS = 4;
 export const HOOK_MAX_FRAMES = HOOK_MAX_SECONDS * VIDEO_FPS;
 
 export const STANDARD_PRESETS_SEC = [30, 45, 60] as const;
@@ -8,7 +8,7 @@ export const DEFAULT_TARGET_SEC = 60;
 export type TargetDurationSec = 30 | 45 | 60 | 90;
 
 // Natural Vietnamese narration is roughly four syllables a second; real audio length replaces this estimate later.
-const SYLLABLES_PER_SECOND = 4;
+export const SYLLABLES_PER_SECOND = 4;
 const SCENE_PAUSE_SECONDS = 0.4;
 
 export function countSyllables(text: string): number {

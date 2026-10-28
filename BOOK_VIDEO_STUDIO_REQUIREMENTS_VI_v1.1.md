@@ -25,10 +25,10 @@ Bạn là **Senior Full-stack Engineer / Software Architect**, có trách nhiệ
 8. Phải có **demo/seed data và mock AI mode** để kiểm thử toàn bộ luồng ngay cả khi CLI chưa cấu hình.
 9. Không công bố “đã hoạt động” nếu chưa thực thi kiểm thử thật. Cuối cùng báo cáo: phần hoàn thành, lệnh chạy, kết quả test, phần còn hạn chế.
 10. Giữ tài liệu `README.md`, `.env.example`, scripts và hướng dẫn WSL chính xác theo code thực tế.
-11. **Ràng buộc sản phẩm bắt buộc:** Đây là **Short-form Video Studio**, KHÔNG phải trình tạo video dài. Thiết kế **9:16**, xuất **1080×1920/30 FPS**, giới hạn **30–60 giây mặc định, tối đa 90 giây khi chọn riêng**, kịch bản/giọng đọc/phụ đề **tiếng Việt**; 0–3 giây đầu phải có **hook** thực chất, nhìn thấy và nghe được. Không để những yêu cầu cũ về 16:9 hoặc video 4–7 phút lấn át đặc tả này.
+11. **Ràng buộc sản phẩm bắt buộc:** Đây là **Short-form Video Studio**, KHÔNG phải trình tạo video dài. Thiết kế **9:16**, xuất **1080×1920/30 FPS**, giới hạn **30–60 giây mặc định, tối đa 90 giây khi chọn riêng**, kịch bản/giọng đọc/phụ đề **tiếng Việt**; 0–4 giây đầu phải có **hook** thực chất, nhìn thấy và nghe được. Không để những yêu cầu cũ về 16:9 hoặc video 4–7 phút lấn át đặc tả này.
 12. Tối ưu cho **máy Windows chạy WSL2 với RAM host 48 GB nhưng CPU/GPU chưa xác định**: worker 1 job/lần, render concurrency khởi điểm 1, preview nhẹ, draft 720×1280 và final 1080×1920. Đo trên máy thật trước khi tăng tài nguyên.
 
-**Định nghĩa hoàn thành (Definition of Done):** Người dùng có thể import sách `.txt`/`.md`, kiểm tra chương, duyệt bài học, chọn một hoặc hai bài học để dựng **video ngắn 9:16** (nhiều hơn chỉ khi thời lượng cho phép), chỉnh **hook 3 giây đầu**, sửa kịch bản tiếng Việt, tạo/tải giọng đọc tiếng Việt, xem preview dạng điện thoại có safe-zone overlay, kiểm soát thời lượng 30–60 giây (hoặc chủ động chọn 90 giây) và render MP4 dọc; đồng thời theo dõi job trên UI và chạy ổn định trên WSL2.
+**Định nghĩa hoàn thành (Definition of Done):** Người dùng có thể import sách `.txt`/`.md`, kiểm tra chương, duyệt bài học, chọn một hoặc hai bài học để dựng **video ngắn 9:16** (nhiều hơn chỉ khi thời lượng cho phép), chỉnh **hook 4 giây đầu**, sửa kịch bản tiếng Việt, tạo/tải giọng đọc tiếng Việt, xem preview dạng điện thoại có safe-zone overlay, kiểm soát thời lượng 30–60 giây (hoặc chủ động chọn 90 giây) và render MP4 dọc; đồng thời theo dõi job trên UI và chạy ổn định trên WSL2.
 
 ---
 
@@ -43,7 +43,7 @@ Ví dụ với *Atomic Habits*:
 - Video B: hai bài học — “Thiết kế môi trường” + “Làm cho thói quen dễ thực hiện”.
 - Video C: ba bài học có chung chủ đề — “Duy trì thói quen lâu dài”.
 
-Các video phải dùng cùng một phong cách hình ảnh, có tình huống thực tế, lỗi thường gặp, giải pháp, bài học và hành động cụ thể. **Mỗi video là một nội dung độc lập dành cho mobile feed**: ưu tiên **một bài học chính**, có thể kết hợp hai bài học liên quan nếu truyền đạt rõ trong 30–60 giây; tùy chọn 90 giây khi nội dung thực sự cần. Video phải thu hút từ **0–3 giây đầu**, không mở bằng logo dài, mục lục sách hay lời chào lan man.
+Các video phải dùng cùng một phong cách hình ảnh, có tình huống thực tế, lỗi thường gặp, giải pháp, bài học và hành động cụ thể. **Mỗi video là một nội dung độc lập dành cho mobile feed**: ưu tiên **một bài học chính**, có thể kết hợp hai bài học liên quan nếu truyền đạt rõ trong 30–60 giây; tùy chọn 90 giây khi nội dung thực sự cần. Video phải thu hút từ **0–4 giây đầu**, không mở bằng logo dài, mục lục sách hay lời chào lan man.
 
 ### 1.2. Mục tiêu kinh doanh
 
@@ -57,7 +57,7 @@ Các video phải dùng cùng một phong cách hình ảnh, có tình huống t
 | BG-06 | MVP chạy local trong WSL, **không yêu cầu Claude API key** hoặc cloud hosting. |
 | BG-07 | Sản xuất MP4 **dọc 9:16**, tối ưu mobile cho **TikTok, YouTube Shorts, Facebook Reels** (không phải video ngang YouTube dài). |
 | BG-08 | Độ dài **30–60 giây mặc định**, `target=60`; chỉ cho phép đến **90 giây** khi người dùng chọn rõ ràng; không cho render dài hơn giới hạn đã chọn. |
-| BG-09 | **0–3 giây đầu phải có hook** bằng thông tin/visual có giá trị, đủ nổi bật để tạo hứng thú; ưu tiên độ rõ ràng, không dùng clickbait sai lệch. |
+| BG-09 | **0–4 giây đầu phải có hook** bằng thông tin/visual có giá trị, đủ nổi bật để tạo hứng thú; ưu tiên độ rõ ràng, không dùng clickbait sai lệch. |
 | BG-10 | 100% narration, on-screen text, captions và UI tiếng Việt có dấu; thiết kế phù hợp màn hình điện thoại và máy WSL có CPU/GPU hạn chế. |
 
 ### 1.3. Đối tượng sử dụng
@@ -94,7 +94,7 @@ Không triển khai trong MVP:
 9. **Giới hạn chi phí:** Không tự động reanalyze nếu nội dung và prompt version không đổi; giới hạn AI concurrency = 1.
 10. **Ít hiệu ứng, nhiều giá trị:** Ưu tiên truyền đạt bài học, không lạm dụng transition.
 11. **Mobile-first short-form:** Video mặc định 9:16; text/nhân vật/phụ đề luôn nằm trong vùng an toàn trước overlay của nền tảng.
-12. **Hook-first:** Cảnh đầu luôn bắt đầu tại frame 0, tạo sự chú ý trong 3 giây đầu; không intro/logo trước hook.
+12. **Hook-first:** Cảnh đầu luôn bắt đầu tại frame 0, tạo sự chú ý trong 4 giây đầu; không intro/logo trước hook.
 13. **Thời lượng có kiểm soát:** Nội dung được lập kế hoạch theo budget (30/45/60/90 giây), cuối cùng xác nhận bằng thời lượng audio thực tế; không cắt ngang lời đọc để ép thời lượng.
 14. **CPU-friendly:** Ưu tiên React/CSS/SVG, cache asset/audio, giới hạn render concurrency, có draft-render nhẹ; không mặc định cần GPU rời.
 
@@ -152,7 +152,7 @@ Render via BullMQ Worker -> Download / Re-render
 - **BR-12:** Tránh tái hiện một phần lớn nội dung gốc có bản quyền; sản phẩm hướng tới tổng hợp, giải thích và ví dụ mới. Người dùng chịu trách nhiệm về quyền sử dụng tài liệu nguồn.
 - **BR-13:** Video mới có profile `SHORT_VERTICAL` mặc định: **9:16, 1080×1920, 30 FPS, MP4 H.264 + AAC**; không triển khai 16:9 trong MVP.
 - **BR-14:** Target duration mặc định **60 giây**; preset 30/45/60 giây, mở rộng **90 giây** bằng lựa chọn tường minh. Không để thời lượng thực tế vượt quá preset đã chọn khi final render.
-- **BR-15:** Trong **0–3 giây** đầu phải hiện và/hoặc đọc một câu hook đủ ý nghĩa; không có logo animation, silence, fade-in quá dài hoặc chèn intro trước hook.
+- **BR-15:** Trong **0–4 giây** đầu phải hiện và/hoặc đọc một câu hook đủ ý nghĩa; không có logo animation, silence, fade-in quá dài hoặc chèn intro trước hook.
 - **BR-16:** Script phải tối ưu cho **một ý chính/video**; 2 bài học chỉ khi chúng bổ trợ nhau và còn chỗ cho tình huống + hành động cụ thể. Nếu quá tải thời lượng, gợi ý tách thành nhiều video thay vì tăng tốc đọc vô lý.
 - **BR-17:** UI có trình xem trước theo màn hình điện thoại kèm safe-zone overlay tùy TikTok/Shorts/Reels; text/phụ đề tránh vùng nút tương tác, thanh mô tả và mép màn hình.
 - **BR-18:** Kịch bản, lời đọc, on-screen text và captions phải là tiếng Việt tự nhiên, đúng dấu, không lỗi font hoặc cắt chữ.
@@ -313,7 +313,7 @@ Tính năng:
 ### 6.6. FR-06 — Storyboard / Script Editor
 
 - AI đề xuất **2–3 hook ngắn bằng tiếng Việt**, mỗi hook khớp một visual nổi bật. Người dùng chọn/chỉnh hook trước khi duyệt script; `MockAiProvider` cũng phải có hook mẫu.
-- Scene `HOOK` là cảnh bắt buộc đầu tiên, **bắt đầu frame 0, kéo dài tối đa 3 giây**. Không chèn lời chào, logo, trang bìa sách hoặc intro dài trước hook.
+- Scene `HOOK` là cảnh bắt buộc đầu tiên, **bắt đầu frame 0, kéo dài tối đa 4 giây**. Không chèn lời chào, logo, trang bìa sách hoặc intro dài trước hook.
 - Sau HOOK, AI dùng **ít scene hơn và nhịp nhanh hơn** video dài: `SITUATION` → `COMMON_MISTAKE` → `BETTER_APPROACH` → `KEY_TAKEAWAY` → `ACTION_STEP`. Có thể gộp hai bước trên cùng scene để đúng budget; không ép mọi video phải có tất cả các cảnh riêng biệt.
 - Kịch bản phải thể hiện **một insight rõ ràng, một tình huống cụ thể, một cách xử lý và một hành động khán giả có thể làm ngay**. Bài học thứ hai chỉ thêm khi còn đủ thời lượng.
 - Dữ liệu mỗi scene gồm `id`, `type`, `order`, `title`, `narration`, `onScreenText`, `visualVariant`, `estimatedSeconds`, `audioAssetId?`; toàn bộ nội dung hiển thị và lời đọc là tiếng Việt.
@@ -332,7 +332,7 @@ Tính năng:
 - Đo thời lượng thực tế qua `ffprobe`; duration của scene = audio duration + padding hợp lý (configurable).
 - Chỉ tạo lại audio khi narration đổi; cache theo `hash(text + voice + speed + ttsVersion)`.
 - Phụ đề **tiếng Việt có dấu** phải rõ trên màn hình điện thoại và không bị che bởi UI nền tảng. MVP tối thiểu caption theo phrase/scene; nếu edge-tts trả SRT thì có thể import, nhưng không tuyên bố đồng bộ từng từ chính xác nếu chưa kiểm chứng.
-- Lời đọc bắt đầu ngay trong đoạn **0–3 giây HOOK** hoặc hook text xuất hiện rõ ngay tại frame 0; tránh 1–2 giây im lặng đầu video.
+- Lời đọc bắt đầu ngay trong đoạn **0–4 giây HOOK** hoặc hook text xuất hiện rõ ngay tại frame 0; tránh 1–2 giây im lặng đầu video.
 - Tốc độ đọc tiếng Việt cần tự nhiên; không tăng tốc quá mức chỉ để nhét 2–3 lesson. Nếu audio dài hơn budget, yêu cầu rút gọn script hoặc chọn preset 90 giây.
 - Kiểm tra font/Unicode, dấu tiếng Việt, xuống dòng, độ tương phản và safe zone trong cả preview lẫn video đã render.
 - Có thể thêm một file background music được người dùng cấp quyền; default không có nhạc.
@@ -351,7 +351,7 @@ Tính năng:
 - Render output lưu vào folder video dưới `data/videos/{videoId}/renders/`.
 - Mỗi render có record version/output path/createdAt; download đúng file đã render.
 - Thay nội dung hoặc audio thì mark bản render trước là stale, cho render mới.
-- **Pre-render validation:** video có HOOK 0–3 giây; tổng thời lượng tính từ audio + scene padding **không vượt preset đã chọn** (max 90 giây); các scene có caption/safe zone phù hợp; không xuất final nếu lỗi blocking chưa sửa.
+- **Pre-render validation:** video có HOOK 0–4 giây; tổng thời lượng tính từ audio + scene padding **không vượt preset đã chọn** (max 90 giây); các scene có caption/safe zone phù hợp; không xuất final nếu lỗi blocking chưa sửa.
 - Không lưu video MP4 lớn trong SQLite hay Redis.
 
 ### 6.9. FR-09 — Jobs Dashboard
@@ -376,13 +376,13 @@ Tính năng:
 ### 6.11. FR-11 — Short-form Creative Studio / Hook-first (BẮT BUỘC)
 
 - Có **3 chế độ hook** cho Claude chọn đề xuất: (a) câu hỏi đánh trúng vấn đề, (b) sai lầm thường gặp, (c) tương phản trước/sau. Không bắt buộc mỗi video phải đủ 3 loại, nhưng **tạo 2–3 phương án để người dùng duyệt**.
-- Hook xuất hiện từ frame 0, tối đa 3 giây; phải dễ hiểu ngay cả khi xem không bật âm thanh (có on-screen text), đồng thời được voiceover hỗ trợ khi có audio.
+- Hook xuất hiện từ frame 0, tối đa 4 giây; phải dễ hiểu ngay cả khi xem không bật âm thanh (có on-screen text), đồng thời được voiceover hỗ trợ khi có audio.
 - **Không dùng clickbait sai lệch**, hứa hẹn không có căn cứ, trích dẫn sách bịa đặt hoặc đưa tiêu đề quá đà so với phần giải thích.
 - Không sử dụng intro/logo kéo dài trước nội dung; có thể đặt tên sách nhỏ gọn ở góc giữa video hoặc cuối video.
 - Tự động ước lượng script length theo preset và phản hồi khi quá tải; **ưu tiên một bài học/video** trong 30–60 giây. Với hai bài học, yêu cầu mạch logic chung và không làm mất ví dụ thực tế.
 - Chọn layout preset dọc: `HOOK_QUESTION`, `SPLIT_MISTAKE_SOLUTION`, `SCENARIO_CARD`, `BIG_TAKEAWAY`, `ACTION_CHECKLIST`.
 - Chuyển động giữ sự chú ý (highlight keyword, chuyển đổi bố cục, nhấn số liệu có căn cứ) nhưng **không cần đổi cảnh đúng mỗi X giây**, không lạm dụng hiệu ứng chớp, zoom nhanh hoặc animation tốn GPU.
-- Phải có **màn hình xem trước 0–3 giây đầu** (quick preview / scrub tới hook); người dùng sửa text/visual hook trước khi render.
+- Phải có **màn hình xem trước 0–4 giây đầu** (quick preview / scrub tới hook); người dùng sửa text/visual hook trước khi render.
 
 ### 6.12. FR-12 — Video Length, Platform Presets & Performance (BẮT BUỘC)
 
@@ -423,7 +423,7 @@ Tính năng:
 - Form có validation message tiếng Việt và xác nhận khi thao tác phá hủy.
 - **Video Editor có khung preview dọc 9:16** kiểu màn hình điện thoại, nhãn thời lượng 0–60/90 giây, tab Hook/Story/Voice/Preview, toggle safe-zone overlay TikTok/Shorts/Reels.
 - Có lựa chọn preset 30/45/60/90; **90 giây phải là tùy chọn explicit**, không được âm thầm mặc định.
-- Hiển thị trạng thái `Hook first 3s` và `Duration budget`: tổng audio đo được, phần over-limit; nếu vượt giới hạn, cung cấp nút sửa/rút gọn script (không tự cắt lời).
+- Hiển thị trạng thái `Hook first 4s` và `Duration budget`: tổng audio đo được, phần over-limit; nếu vượt giới hạn, cung cấp nút sửa/rút gọn script (không tự cắt lời).
 - Có breadcrumbs và liên kết ngược từ video → sách → bài học nguồn.
 
 ---
@@ -469,7 +469,7 @@ Tính năng:
 - `id`, `videoId`, `order`, `type`, `title?`, `narration`, `onScreenText`
 - `visualVariant`, `durationFrames?`, `estimatedSeconds?`, `hookVariant?` (chỉ có ý nghĩa với `HOOK`)
 - `audioAssetId?`, `contentHash`, `version`, timestamps
-- Ràng buộc logic: có HOOK đầu tiên tại frame 0, thời lượng HOOK không quá 90 frames ở 30 FPS
+- Ràng buộc logic: có HOOK đầu tiên tại frame 0, thời lượng HOOK không quá 120 frames ở 30 FPS
 
 **MediaAsset**
 - `id`, `videoId?`, `sceneId?`, `kind` (`VOICEOVER`/`MUSIC`/`RENDER`)
@@ -602,7 +602,7 @@ Thiết kế `AiProvider` interface với hai implementation:
 
 Đầu ra: **2–3 hook options** + một storyboard đã chọn hook (sau bước duyệt) + narration tiếng Việt + `onScreenText` + ước tính duration. Yêu cầu AI:
 - Viết narration **tiếng Việt tự nhiên, ngắn, rõ, dễ nghe**; mọi chữ hiện trên video đều bằng tiếng Việt.
-- **0–3 giây đầu bắt buộc có HOOK** khơi gợi một vấn đề, một sai lầm hoặc kết quả đối lập; không dùng intro/logo trước hook.
+- **0–4 giây đầu bắt buộc có HOOK** khơi gợi một vấn đề, một sai lầm hoặc kết quả đối lập; không dùng intro/logo trước hook.
 - Ưu tiên **một bài học/video**; với 2 bài học phải có mối liên hệ rõ và không làm video quá tải.
 - Tình huống → sai lầm → cách xử lý → takeaway → hành động; có thể gộp scene để đáp ứng giới hạn 30–60 giây.
 - Mở đầu hấp dẫn nhưng **không clickbait**, không bịa nghiên cứu/số liệu/trích dẫn.
@@ -733,7 +733,7 @@ Không phải mọi job có `WAITING_FOR_CLI`; TTS/render đi `QUEUED -> RUNNING
 ```
 
 - Dữ liệu ví dụ chỉ minh họa hai cảnh đầu của một video ngắn; scene count/duration còn lại phải do tổng audio và preset quyết định.
-- HOOK đầu tiên bắt đầu tại frame 0, mục tiêu tối đa 3 giây; nội dung HOOK trên cả hình và audio phải khớp.
+- HOOK đầu tiên bắt đầu tại frame 0, mục tiêu tối đa 4 giây; nội dung HOOK trên cả hình và audio phải khớp.
 - Không hardcode scene length theo số chữ; nếu có audio, ưu tiên đo từ audio + padding, tổng kết không quá `targetDurationSec`.
 - Bắt buộc validate props bằng Zod trước render.
 - Preview và render phải dùng **cùng một data mapping/scene components**.
@@ -756,14 +756,14 @@ Không phải mọi job có `WAITING_FOR_CLI`; TTS/render đi `QUEUED -> RUNNING
 
 | Timeline | Nội dung | Yêu cầu sáng tạo |
 |---|---|---|
-| **00–03s** | **HOOK** | Câu hỏi bất ngờ / sai lầm quen thuộc / tương phản; visual rõ từ frame 0 |
-| **03–12s** | Tình huống | Nhân vật/vấn đề gần gũi, không kể dài |
+| **00–04s** | **HOOK** | Câu hỏi bất ngờ / sai lầm quen thuộc / tương phản; visual rõ từ frame 0 |
+| **04–12s** | Tình huống | Nhân vật/vấn đề gần gũi, không kể dài |
 | **12–23s** | Sai lầm phổ biến | Gọi tên hành động chưa hiệu quả, 1 thông điệp |
 | **23–45s** | Cách xử lý | Cụ thể, trực quan, gắn với bài học trong sách |
 | **45–55s** | Takeaway | Một điều cần nhớ, chữ lớn, dễ đọc |
 | **55–60s** | Action step | Một hành động khán giả thử ngay; không CTA quảng cáo bắt buộc |
 
-**Lưu ý:** Bảng là khung minh họa cho **một bài học**. Với 30/45 giây, rút gọn hoặc gộp scene; với 90 giây có thể đào sâu thêm tình huống hoặc ghép hai bài học. **Thời lượng audio thực tế mới quyết định frame**. Nếu voiceover kéo dài quá target, cần sửa lời dẫn hoặc đổi preset trước khi final render.
+**Lưu ý:** Bảng là khung của luồng thủ công v1.1; luồng sản xuất v1.2 (§23.3) đổi thứ tự: bài học (Takeaway) đến trước phần quay lại xử lý tình huống. Bảng là khung minh họa cho **một bài học**. Với 30/45 giây, rút gọn hoặc gộp scene; với 90 giây có thể đào sâu thêm tình huống hoặc ghép hai bài học. **Thời lượng audio thực tế mới quyết định frame**. Nếu voiceover kéo dài quá target, cần sửa lời dẫn hoặc đổi preset trước khi final render.
 
 ### 12.4. Platform safe zones và preview dọc
 
@@ -960,7 +960,7 @@ book-video-studio/
 | NFR-10 | Testing | Unit + integration + một smoke test end-to-end |
 | NFR-11 | Short-form | Default target 60s; presets 30/45/60, tùy chọn 90; không final-render quá preset |
 | NFR-12 | Mobile-first output | Portrait 9:16, final 1080×1920/30fps, H.264 MP4 + AAC; draft 720×1280 |
-| NFR-13 | First 3 seconds | HOOK frame 0–90 (30fps); không intro trước hook; xem trước hook độc lập |
+| NFR-13 | First 4 seconds | HOOK frame 0–120 (30fps); không intro trước hook; xem trước hook độc lập |
 | NFR-14 | Vietnamese localization | Voice, on-screen text, captions có dấu và đọc rõ trên điện thoại |
 | NFR-15 | Resource usage | Worker concurrency=1, Remotion concurrency=1 mặc định, không yêu cầu GPU rời |
 
@@ -1001,7 +1001,7 @@ Không đặt cam kết thời lượng render hoặc thời lượng AI cụ th
 - [ ] Chọn duration preset 30/45/60 (mặc định 60), extended 90; kiểm soát estimated duration.
 - [ ] Regenerate/edit scene không làm thay đổi phần khác.
 
-**Gate:** Tạo 2 video khác nhau từ cùng sách; hook 0–3 giây có thể chỉnh, video có target duration đúng.
+**Gate:** Tạo 2 video khác nhau từ cùng sách; hook 0–4 giây có thể chỉnh, video có target duration đúng.
 
 ### M4 — Remotion preview & local render
 - [ ] Scene components **9:16 mobile-first**; dynamic durations; hook từ frame 0, safe-zone guides.
@@ -1023,7 +1023,7 @@ Không đặt cam kết thời lượng render hoặc thời lượng AI cụ th
 ### M6 — Hardening & documentation
 - [ ] E2E smoke test, negative tests, migration/test script.
 - [ ] Worker restart, Redis unavailable, malformed AI JSON, TTS unavailable.
-- [ ] Test video 30s/60s/90s, HOOK 3 giây, safe-zone preview, audio vượt limit, draft/final render và WSL resource defaults.
+- [ ] Test video 30s/60s/90s, HOOK 4 giây, safe-zone preview, audio vượt limit, draft/final render và WSL resource defaults.
 - [ ] Verify `.env.example`, README, docs architecture, code cleanup.
 - [ ] Không còn placeholder controls hoặc unhandled promises trên các đường đi chính.
 
@@ -1044,7 +1044,7 @@ Không đặt cam kết thời lượng render hoặc thời lượng AI cụ th
 6. Sửa Lesson 1 trong Library → **Video A không tự đổi snapshot**.
 7. Sửa scene trong Video B → scene khác không đổi; audio đã tạo cho scene này marked stale.
 8. Chọn preset 60s cho Video A, 90s (explicit) cho Video B; chọn HOOK, generate/upload narration tiếng Việt.
-9. Preview tỷ lệ 9:16, bật safe-zone overlay, xem riêng 0–3 giây đầu; bảo đảm có text HOOK ngay frame 0.
+9. Preview tỷ lệ 9:16, bật safe-zone overlay, xem riêng 0–4 giây đầu; bảo đảm có text HOOK ngay frame 0.
 10. Render draft 720×1280 và final 1080×1920, 30fps; kiểm tra độ dài không vượt preset, audio tiếng Việt rõ và caption không bị che.
 11. Refresh browser, restart Next.js → book/video/job records vẫn còn.
 
@@ -1064,7 +1064,7 @@ Không đặt cam kết thời lượng render hoặc thời lượng AI cụ th
 - TTS fail → upload audio fallback vẫn hoạt động.
 - Audio duration thay đổi → scene length cập nhật, render cũ stale.
 - Audio/kịch bản dài 65s khi target 60s → chặn final render, hiển thị cảnh quá dài; không tự tăng preset lên 90.
-- Không có HOOK hoặc HOOK dài >3s → báo lỗi preflight, yêu cầu sửa trước render.
+- Không có HOOK hoặc HOOK dài >4s → báo lỗi preflight, yêu cầu sửa trước render.
 - Text/subtitle nằm ngoài safe zone → hiển thị cảnh báo xem trước và/hoặc preflight theo mức độ xác định được; kiểm tra bằng visual QA.
 - WSL render concurrency=1 vẫn render được khi tài nguyên hạn chế; benchmark thực tế, không khởi chạy quá nhiều Chromium.
 - Render fail giữa chừng → không ghi file MP4 hỏng thành bản thành công.
@@ -1080,7 +1080,7 @@ Không đặt cam kết thời lượng render hoặc thời lượng AI cụ th
 - Prisma migrations apply/seed đúng.
 - Worker chạy được thực sự, không phải fake queue update bằng setTimeout.
 - Render local được kiểm chứng trên một sample **9:16, 1080×1920, 30fps, <=60s** có audio/caption tiếng Việt.
-- FFprobe xác nhận kích thước, fps, duration và audio codec của output; kiểm tra HOOK trong 3 giây đầu ở preview và output.
+- FFprobe xác nhận kích thước, fps, duration và audio codec của output; kiểm tra HOOK trong 4 giây đầu ở preview và output.
 - README thể hiện lệnh chính xác để khởi chạy mới từ WSL.
 - Repo không chứa API key/token, SQLite data hay MP4 được commit.
 
@@ -1152,7 +1152,7 @@ Lưu ý: `DATABASE_URL` relative path semantics phụ thuộc Prisma adapter/con
 - Cách dùng Mock AI và cách chạy task thật qua terminal Claude Code.
 - Cách tạo video MP4 mẫu; thư mục output.
 - Troubleshooting: Redis down, worker not running, Claude CLI missing, Chromium deps trong WSL, font tiếng Việt, TTS failure.
-- Cách kiểm tra hook 0–3 giây, preset 30/45/60/90, safe-zone overlay, tiếng Việt có dấu, draft/final render, kiểm tra metadata file bằng `ffprobe`.
+- Cách kiểm tra hook 0–4 giây, preset 30/45/60/90, safe-zone overlay, tiếng Việt có dấu, draft/final render, kiểm tra metadata file bằng `ffprobe`.
 - Cách xem và tối ưu tài nguyên WSL (`free -h`, `nproc`, Windows Task Manager); tùy chọn `.wslconfig` phải do người dùng tự chỉnh sau khi benchmark.
 - Phạm vi bản quyền tài liệu sách và giới hạn Claude subscription/CLI automation.
 
@@ -1162,7 +1162,7 @@ Lưu ý: `DATABASE_URL` relative path semantics phụ thuộc Prisma adapter/con
 
 1. **Tính đúng đắn của dữ liệu Book–Chapter–Lesson–Video.**
 2. Pipeline **video dọc ngắn (30–60s mặc định, max 90s)** end-to-end từ import đến MP4.
-3. **HOOK 0–3 giây**, narration và caption tiếng Việt, safe-zone readability trên điện thoại.
+3. **HOOK 0–4 giây**, narration và caption tiếng Việt, safe-zone readability trên điện thoại.
 4. Job processing đáng tin cậy, không mất dữ liệu; render nhẹ trên WSL.
 5. UI đơn giản, thao tác rõ ràng; preview portrait và duration validation.
 6. Animation/visual polish nâng cao, hiệu ứng phức tạp và các tùy chọn ngoài MVP.
@@ -1233,12 +1233,12 @@ Nếu thời gian thực thi hạn chế, hoàn thành vertical slice bằng **M
 | --------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
 | Định dạng nhập              | `.txt`, `.md`                                                | Thêm `.pdf`; luồng `.txt`/`.md` giữ nguyên                                                              |
 | Chọn nguồn video            | Chỉ lesson `APPROVED` (BR-08), người dùng duyệt lesson/script | Người dùng **chọn** lesson; readiness tự động từ kiểm tra nguồn. Chọn lesson không được ghi là "đã duyệt" |
-| Hook                        | 0–3 giây, tối đa 90 frame (BR-15, FR-11, NFR-13)             | Tối đa **4 giây / 120 frame** ở 30 FPS, bắt đầu frame 0                                                 |
+| Hook                        | 0–3 giây, tối đa 90 frame (bản v1.1 gốc)                     | Tối đa **4 giây / 120 frame** ở 30 FPS, bắt đầu frame 0, **cho mọi luồng** (BR-15, FR-11, NFR-13 đã cập nhật) |
 | Số bài học mỗi chương       | 1–3                                                          | Không giới hạn cứng; gộp bài trùng khi xác định được                                                    |
 | Lưu trữ video               | Chỉ local `data/videos/`                                     | Local vẫn là bản gốc; Drive là bản lưu trữ độc lập                                                      |
 | Luồng thủ công `cli-task`   | Có                                                           | **Giữ nguyên** (mock, `cli-task`, `cli-auto` không bị thay thế)                                         |
 
-Phần hook 4 giây và bỏ bước duyệt lesson/script chỉ áp dụng cho luồng sản xuất mới; luồng thủ công v1.1 giữ hành vi cũ cho tới khi có quyết định riêng.
+Hook 4 giây áp dụng cho **mọi luồng** vì Player, preflight và render dùng chung một composition và một bộ kiểm tra; các dòng hook ở §1–§22 đã được cập nhật theo (D03). Chỉ việc bỏ bước duyệt lesson/script là riêng của luồng sản xuất mới; luồng thủ công giữ hành vi cũ.
 
 ### 23.3. Mẫu kể chuyện bắt buộc
 
@@ -1302,7 +1302,8 @@ Phần hook 4 giây và bỏ bước duyệt lesson/script chỉ áp dụng cho 
 | Nhập PDF, trích text, OCR Mistral Batch          | Một phần: có bảng dữ liệu (B01), API tải PDF (B02) dự trù chi phí/pacing OCR (B06) và adapter `OcrProvider` cho Mistral Batch (B07–B09, mới thử với fake server, chưa chạy với tài khoản thật) đối chiếu kết quả OCR theo bản đồ trang (B10) ghép Markdown chuẩn kèm bản đồ offset (B12) và vòng đời/đối soát lô OCR (B11); chưa trích text/OCR nên lần chạy vẫn `QUEUED` | B01–B13 |
 | NotebookLM MCP, catalogue, bản thảo              | Chưa triển khai      | C01–C09              |
 | Chọn lesson, production batch, Claude compiler   | Chưa triển khai      | D01–D12              |
-| Hook 4 giây / 120 frame                          | Chưa triển khai      | D03, F04             |
+| Hook 4 giây / 120 frame (mọi luồng)              | Đã triển khai        | D03                  |
+| Mạch kể bắt buộc (kiểm tra thứ tự beat và cảnh)  | Đã triển khai trong contract, chưa có bộ biên dịch thật | D03, D05 |
 | Google Drive archive                             | Chưa triển khai      | E01–E11              |
 | Giao diện luồng mới                              | Chưa triển khai      | F01–F07              |
 | Nghiệm thu với OCR, NotebookLM, Drive thật       | Chưa thực hiện       | G07, G08             |

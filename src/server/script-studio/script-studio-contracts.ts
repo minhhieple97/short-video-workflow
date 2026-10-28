@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-import { NARRATIVE_BEATS } from "@/features/videos/domain/narrative-beats";
+import {
+  describeStoryOrderProblem,
+  findNarrativeOrderProblem,
+  NARRATIVE_BEATS,
+} from "@/features/videos/domain/narrative-beats";
 import { lessonDraftSchema } from "@/server/ai/contracts/chapter-analysis";
 
 const page = z.number().int().min(1);
@@ -36,10 +40,15 @@ export const scriptDraftBeatSchema = z.object({
   illustrative: z.boolean(),
 });
 
-export const scriptDraftSchema = z.object({
-  lessonId: z.string().min(1),
-  beats: z.array(scriptDraftBeatSchema).min(1).max(12),
-});
+export const scriptDraftSchema = z
+  .object({
+    lessonId: z.string().min(1),
+    beats: z.array(scriptDraftBeatSchema).min(1).max(12),
+  })
+  .superRefine((draft, context) => {
+    const problem = findNarrativeOrderProblem(draft.beats.map((beat) => beat.beat));
+    if (problem) context.addIssue({ code: "custom", path: ["beats"], message: describeStoryOrderProblem(problem) });
+  });
 
 export type SourceExcerpt = z.infer<typeof sourceExcerptSchema>;
 export type DetectedChapter = z.infer<typeof detectedChapterSchema>;

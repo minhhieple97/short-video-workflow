@@ -1,3 +1,5 @@
+import { HOOK_MAX_SECONDS } from "./duration";
+
 export const SCENE_TYPES = [
   "HOOK",
   "SITUATION",
@@ -13,7 +15,7 @@ export const BODY_SCENE_TYPES = SCENE_TYPES.filter((type) => type !== "HOOK") as
 export type BodySceneType = Exclude<SceneType, "HOOK">;
 
 export const SCENE_TYPE_LABELS: Record<SceneType, string> = {
-  HOOK: "Hook (0–3 giây)",
+  HOOK: `Hook (0–${HOOK_MAX_SECONDS} giây)`,
   SITUATION: "Tình huống",
   COMMON_MISTAKE: "Sai lầm thường gặp",
   BETTER_APPROACH: "Cách xử lý",

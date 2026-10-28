@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildCaptionCues, splitCaptionPhrases } from "@/features/videos/domain/captions";
 import { shortVideoPropsSchema, toCompositionProps, totalFrames } from "@/features/videos/domain/composition-props";
-import { MIN_SCENE_FRAMES } from "@/features/videos/domain/duration";
+import { HOOK_MAX_FRAMES, HOOK_MAX_SECONDS, MIN_SCENE_FRAMES } from "@/features/videos/domain/duration";
 import { runPreflight, type PreflightInput } from "@/features/videos/domain/preflight";
 import { CONTENT_SAFE_AREA, SAFE_ZONE_DEFAULTS } from "@/features/videos/domain/safe-zones";
 
@@ -102,7 +102,7 @@ describe("preflight", () => {
     const risky = input({
       status: "NEEDS_REVIEW",
       targetDurationSec: 30,
-      scenes: [scene({ type: "HOOK", durationFrames: 120 }), scene({ durationFrames: 900 })],
+      scenes: [scene({ type: "HOOK", durationFrames: HOOK_MAX_FRAMES + 1 }), scene({ durationFrames: 900 })],
     });
     expect(
       runPreflight(risky, "FINAL")
@@ -110,6 +110,28 @@ describe("preflight", () => {
         .sort(),
     ).toEqual(["HOOK_TOO_LONG", "OVER_TARGET", "SCRIPT_NOT_APPROVED"].sort());
     expect(runPreflight(risky, "DRAFT").blocking).toEqual([]);
+  });
+
+  it("allows a hook of exactly the limit (4 seconds, 120 frames) and blocks one frame more", () => {
+    expect(HOOK_MAX_SECONDS).toBe(4);
+    expect(HOOK_MAX_FRAMES).toBe(120);
+    const codes = (frames: number) =>
+      runPreflight(
+        input({ scenes: [scene({ type: "HOOK", durationFrames: frames }), scene({ durationFrames: 600 })] }),
+        "FINAL",
+      ).blocking.map((issue) => issue.code);
+
+    expect(codes(HOOK_MAX_FRAMES)).not.toContain("HOOK_TOO_LONG");
+    expect(codes(HOOK_MAX_FRAMES + 1)).toContain("HOOK_TOO_LONG");
+  });
+
+  it("states the limit from the shared constant in its messages", () => {
+    const report = runPreflight(
+      input({ scenes: [scene({ type: "HOOK", durationFrames: HOOK_MAX_FRAMES + 1 }), scene({ durationFrames: 600 })] }),
+      "FINAL",
+    );
+
+    expect(report.blocking.find((issue) => issue.code === "HOOK_TOO_LONG")?.message).toContain("tối đa 4s (120 frame)");
   });
 
   it("always blocks a missing hook, empty text or anything longer than 90 seconds", () => {
