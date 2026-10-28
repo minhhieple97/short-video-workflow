@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Clapperboard, LayoutDashboard, ListChecks, Settings, type LucideIcon } from "lucide-react";
+import { BookOpen, Clapperboard, Factory, LayoutDashboard, ListChecks, Settings, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -20,6 +20,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   { href: "/", label: "Tổng quan", icon: LayoutDashboard },
   { href: "/books", label: "Sách", icon: BookOpen },
   { href: "/videos", label: "Video", icon: Clapperboard },
+  { href: "/productions", label: "Sản xuất", icon: Factory },
   { href: "/jobs", label: "Tác vụ", icon: ListChecks },
   { href: "/settings", label: "Cài đặt", icon: Settings },
 ];

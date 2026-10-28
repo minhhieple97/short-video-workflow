@@ -17,6 +17,52 @@ export function findProductionByKey(idempotencyKey: string): Promise<ProductionR
   return prisma.productionBatch.findUnique({ where: { idempotencyKey }, include: WITH_ITEMS });
 }
 
+// Everything the progress page shows for one batch, in three queries: the batch with its items, their renders, and the
+// renders' archives.
+export async function findProductionView(id: string) {
+  const batch = await prisma.productionBatch.findUnique({
+    where: { id },
+    include: {
+      book: { select: { id: true, title: true } },
+      items: {
+        orderBy: { position: "asc" },
+        include: { lesson: { select: { title: true } }, video: { select: { id: true, title: true } } },
+      },
+    },
+  });
+  if (!batch) return null;
+  const renderIds = batch.items.flatMap((item) => (item.renderId ? [item.renderId] : []));
+  const [renders, archives] = await Promise.all([
+    prisma.renderRecord.findMany({ where: { id: { in: renderIds } }, select: { id: true, status: true } }),
+    prisma.renderArchive.findMany({
+      where: { renderId: { in: renderIds } },
+      orderBy: { createdAt: "desc" },
+      select: { renderId: true, status: true, remoteFolderId: true },
+    }),
+  ]);
+  return { batch, renders, archives };
+}
+
+export function listProductionBatches(limit = 50) {
+  return prisma.productionBatch.findMany({
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    include: { book: { select: { id: true, title: true } }, items: { select: { status: true } } },
+  });
+}
+
+// The lessons a book offers for production, with the source excerpts that back them. Archived lessons are not offered.
+export function findCatalogueLessons(bookId: string) {
+  return prisma.lesson.findMany({
+    where: { bookId, status: { not: "ARCHIVED" } },
+    orderBy: { createdAt: "asc" },
+    include: {
+      sources: { include: { chapter: { select: { title: true, order: true } } } },
+      _count: { select: { videoLessons: true } },
+    },
+  });
+}
+
 export function findLessonsForProduction(bookId: string, lessonIds: readonly string[]) {
   return prisma.lesson.findMany({
     where: { id: { in: [...lessonIds] }, bookId },

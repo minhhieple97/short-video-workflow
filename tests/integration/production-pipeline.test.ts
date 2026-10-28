@@ -134,11 +134,11 @@ describe("runProductionPipeline", () => {
     });
 
     expect(await run(deps)).toEqual({ kind: "DEFER", retryAfterMs: 3_600_000 });
-    expect((await item()).transientRetries).toBe(1);
+    expect(await item()).toMatchObject({ transientRetries: 1, errorCode: "QUOTA", errorMessage: "hết hạn mức" });
 
     await run(deps);
 
-    expect((await item()).transientRetries).toBe(0);
+    expect(await item()).toMatchObject({ transientRetries: 0, errorCode: null, errorMessage: null });
   });
 
   it("fails at once for a rejected request or a login problem, which waiting cannot cure", async () => {

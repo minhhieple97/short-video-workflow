@@ -4,6 +4,7 @@ import { archiveFolderChain } from "@/server/archive/google-drive/drive-folder-t
 import { AppError, NotFoundError } from "@/shared/errors";
 import { createLogger } from "@/shared/logger";
 
+import { archiveFolderUrl } from "../domain/archive-labels";
 import { archiveFolderStore } from "../repositories/archive-folder.repository";
 import {
   findRenderArchive,
@@ -28,10 +29,7 @@ export function toArchiveDto(archive: RenderArchiveRecord): ArchiveDto {
     retries: archive.retries,
     createdAt: archive.createdAt.toISOString(),
     completedAt: archive.completedAt?.toISOString() ?? null,
-    folderUrl:
-      archive.status === "COMPLETED" && archive.remoteFolderId
-        ? `https://drive.google.com/drive/folders/${encodeURIComponent(archive.remoteFolderId)}`
-        : null,
+    folderUrl: archiveFolderUrl(archive.status, archive.remoteFolderId),
     files: archive.files.map((file) => ({
       kind: file.kind,
       remoteName: file.remoteName,

@@ -240,7 +240,7 @@ async function executeStep(
 async function classifyFailure(itemId: string, claimToken: string, error: unknown): Promise<StepOutcome> {
   if (error instanceof JobCancelledError) throw error;
   if (error instanceof IntegrationError && error.kind !== "REJECTED" && error.kind !== "AUTH") {
-    const retries = await recordTransientFailure(itemId, claimToken);
+    const retries = await recordTransientFailure(itemId, claimToken, { code: error.code, message: error.message });
     if (retries > MAX_TRANSIENT_RETRIES) {
       return failed(error.code, `${error.message} (đã thử lại ${MAX_TRANSIENT_RETRIES} lần)`);
     }

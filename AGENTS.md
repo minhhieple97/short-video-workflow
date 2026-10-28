@@ -104,8 +104,9 @@ src/
     notebooklm/        v1.2 NotebookLM bindings: one notebook per book and account, one source per part and revision (title marker)
     drive/             v1.2 Google Drive connection: OAuth start/callback state (hashed, one-time), connection status DTO
     archive/           v1.2 render archives (one per render and destination, one entry per uploaded file, resumable checkpoints)
-    productions/       v1.2 production batches: lesson selection (`production-request`), the item pipeline (`production-pipeline`,
-                       one resumable `RUN_PRODUCTION_ITEM` job per item), correction, readiness, cancel/retry and start-up reconcile
+    productions/       v1.2 production batches: lesson selection (`production-request`, catalogue page `/books/:id/produce`), the
+                       item pipeline (`production-pipeline`, one resumable `RUN_PRODUCTION_ITEM` job per item), correction,
+                       readiness, cancel/retry, start-up reconcile, and the progress pages (`/productions`, `production-view`)
   lib/                 client-safe helpers: utils.ts (shadcn `cn()`), api-client.ts (typed fetch + ApiError), format.ts (vi-VN)
   server/              Server-side infrastructure (never imported by client components or Remotion)
     db/                client.ts: Prisma + better-sqlite3 singleton, WAL setup (shared by Next, worker, scripts)

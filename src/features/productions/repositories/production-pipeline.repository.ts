@@ -39,17 +39,26 @@ export const saveDraftArtifact = (itemId: string, claimToken: string, artifact: 
 export const saveScenePlanArtifact = (itemId: string, claimToken: string, artifact: Prisma.InputJsonObject) =>
   saveArtifact(itemId, claimToken, "DRAFTED", "COMPILED", { scenePlanArtifactJson: artifact });
 
-export async function recordTransientFailure(itemId: string, claimToken: string): Promise<number> {
+// Counts a temporary failure and keeps its reason, so the progress page can say why the item is waiting.
+export async function recordTransientFailure(
+  itemId: string,
+  claimToken: string,
+  failure: { code: string; message: string },
+): Promise<number> {
   await prisma.productionItem.updateMany({
     where: { id: itemId, claimToken },
-    data: { transientRetries: { increment: 1 } },
+    data: { transientRetries: { increment: 1 }, errorCode: failure.code, errorMessage: failure.message },
   });
   const item = await prisma.productionItem.findUnique({ where: { id: itemId }, select: { transientRetries: true } });
   return item?.transientRetries ?? 0;
 }
 
+// The item moved on, so the last temporary failure no longer explains anything.
 export async function clearTransientRetries(itemId: string, claimToken: string): Promise<void> {
-  await prisma.productionItem.updateMany({ where: { id: itemId, claimToken }, data: { transientRetries: 0 } });
+  await prisma.productionItem.updateMany({
+    where: { id: itemId, claimToken, transientRetries: { gt: 0 } },
+    data: { transientRetries: 0, errorCode: null, errorMessage: null },
+  });
 }
 
 export async function setItemRender(itemId: string, claimToken: string, renderId: string | null): Promise<boolean> {

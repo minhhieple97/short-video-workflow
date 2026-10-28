@@ -1,5 +1,9 @@
+import { Clapperboard } from "lucide-react";
+import Link from "next/link";
+
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { PageHeader } from "@/components/layout/page-header";
+import { Button } from "@/components/ui/button";
 import { toBookTab } from "@/features/books/components/book-tab-values";
 import { BookTabs } from "@/features/books/components/book-tabs";
 import { DeleteBookButton } from "@/features/books/components/delete-book-button";
@@ -54,6 +58,12 @@ export default async function BookDetailPage({ params, searchParams }: Readonly<
         }
         actions={
           <>
+            <Button asChild>
+              <Link href={`/books/${book.id}/produce`}>
+                <Clapperboard aria-hidden />
+                Sản xuất video
+              </Link>
+            </Button>
             <EditBookDialog book={book} />
             <DeleteBookButton book={book} />
           </>
