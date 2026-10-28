@@ -34,6 +34,7 @@ export function useVideoAction() {
     try {
       const { jobId } = await enqueue();
       toast.info("Đã đưa vào hàng đợi. Worker đang xử lý…");
+      router.refresh();
       const job = await waitForJob(jobId);
       if (!job) {
         toast.info("Tác vụ vẫn đang chạy nền. Trang sẽ cập nhật khi xong.");

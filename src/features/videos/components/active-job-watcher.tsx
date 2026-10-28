@@ -15,14 +15,16 @@ const MAX_POLLS = 1_200;
 
 interface ActiveJobWatcherProps {
   job: JobDto;
-  runningLabel: string;
+  sceneNumber: number | null;
   lockedNote: string;
 }
 
-// Shown while a job queued earlier (possibly from another tab) is unfinished. It follows the job through
-// WAITING_FOR_CLI (the user runs the command) until it really settles, then refreshes the page.
-export function ActiveJobWatcher({ job: initial, runningLabel, lockedNote }: Readonly<ActiveJobWatcherProps>) {
+// Shown while a script job queued earlier (possibly from another tab) is unfinished: the whole script, or one scene when
+// `sceneNumber` is set. It follows the job through WAITING_FOR_CLI (the user runs the command) until it really settles,
+// then refreshes the page.
+export function ActiveJobWatcher({ job: initial, sceneNumber, lockedNote }: Readonly<ActiveJobWatcherProps>) {
   const router = useRouter();
+  const rewriting = sceneNumber !== null;
   const [job, setJob] = useState(initial);
   const [cancelling, setCancelling] = useState(false);
 
@@ -48,7 +50,7 @@ export function ActiveJobWatcher({ job: initial, runningLabel, lockedNote }: Rea
     setCancelling(true);
     try {
       setJob(await sendJson<JobDto>(`/api/jobs/${job.id}/cancel`, "POST"));
-      toast.success("Đã huỷ tạo kịch bản.");
+      toast.success(rewriting ? "Đã huỷ viết lại cảnh." : "Đã huỷ tạo kịch bản.");
       router.refresh();
     } catch (error) {
       toast.error(errorMessage(error));
@@ -59,6 +61,7 @@ export function ActiveJobWatcher({ job: initial, runningLabel, lockedNote }: Rea
 
   const waiting = job.status === "WAITING_FOR_CLI";
   const stopping = job.status === "CANCEL_REQUESTED";
+  const runningLabel = rewriting ? `Worker đang viết lại cảnh ${sceneNumber}…` : "Worker đang tạo kịch bản…";
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border p-3 text-sm" role="status">
@@ -74,7 +77,7 @@ export function ActiveJobWatcher({ job: initial, runningLabel, lockedNote }: Rea
         {stopping ? null : (
           <Button size="sm" variant="outline" disabled={cancelling} onClick={() => void cancel()}>
             <X aria-hidden />
-            Huỷ tạo kịch bản
+            {rewriting ? "Huỷ viết lại cảnh" : "Huỷ tạo kịch bản"}
           </Button>
         )}
       </div>

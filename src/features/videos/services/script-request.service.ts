@@ -9,6 +9,7 @@ import { assertScriptNotGenerating, requireVideo } from "./video.service";
 export async function requestScriptGeneration(videoId: string): Promise<JobDto> {
   const video = await requireVideo(videoId);
   if (video.videoLessons.length === 0) throw new AppError("VIDEO_WITHOUT_LESSONS", "Video chưa có bài học nguồn.", 409);
+  await assertScriptNotGenerating(videoId, { sceneId: null });
   const { job } = await enqueueTrackedJob({
     jobType: "GENERATE_VIDEO_SCRIPT",
     entityType: "VIDEO",
@@ -20,7 +21,7 @@ export async function requestScriptGeneration(videoId: string): Promise<JobDto> 
 
 export async function requestSceneRegeneration(videoId: string, sceneId: string): Promise<JobDto> {
   const video = await requireVideo(videoId);
-  await assertScriptNotGenerating(videoId);
+  await assertScriptNotGenerating(videoId, { sceneId });
   const scene = video.scenes.find((candidate) => candidate.id === sceneId);
   if (!scene) throw new NotFoundError("SCENE_NOT_FOUND", "Không tìm thấy cảnh.");
   if (scene.type === "HOOK")

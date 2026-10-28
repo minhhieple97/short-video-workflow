@@ -25,6 +25,17 @@ export function findActiveJobForEntity(
   });
 }
 
+export function findActiveJobForEntities(
+  jobType: JobType,
+  entityType: string,
+  entityIds: readonly string[],
+): Promise<JobRecord | null> {
+  return prisma.jobRecord.findFirst({
+    where: { jobType, entityType, entityId: { in: [...entityIds] }, status: { in: [...ACTIVE_JOB_STATUSES] } },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
 export function findJobRecordById(id: string): Promise<JobRecord | null> {
   return prisma.jobRecord.findUnique({ where: { id } });
 }

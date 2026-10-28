@@ -38,6 +38,15 @@ export function findVideoDetail(id: string) {
   return prisma.video.findFirst({ where: { id, book: { deletedAt: null } }, include: DETAIL_INCLUDE });
 }
 
+export async function listSceneIds(videoId: string): Promise<string[]> {
+  const scenes = await prisma.videoScene.findMany({
+    where: { videoId },
+    orderBy: { order: "asc" },
+    select: { id: true },
+  });
+  return scenes.map((scene) => scene.id);
+}
+
 export function listVideoRecords(filter: { bookId?: string }) {
   return prisma.video.findMany({
     where: { bookId: filter.bookId, book: { deletedAt: null } },

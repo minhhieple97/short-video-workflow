@@ -90,53 +90,67 @@ afterAll(async () => {
   env.cleanup();
 });
 
+// Every user-facing change a locked video must refuse. `rewriteSceneId` is the scene the "rewrite" request targets.
+function lockedChanges(current: VideoDetail, rewriteSceneId: string): Record<string, () => Promise<unknown>> {
+  const [hook, body] = current.scenes;
+  const sceneInput = {
+    title: null,
+    narration: "Lời dẫn mới.",
+    onScreenText: "CHỮ MỚI",
+    visualVariant: body!.visualVariant,
+    hidden: false,
+  };
+  return {
+    "settings (title, duration, Extended)": () =>
+      videos.updateVideo(current.id, {
+        title: "Tiêu đề mới",
+        description: null,
+        platformPreviewMode: null,
+        targetDurationSec: 90,
+        extended: true,
+      }),
+    "delete video": () => videos.deleteVideo(current.id),
+    "approve script": () => videos.approveScript(current.id),
+    "render draft": () => renderRequest.requestRender(current.id, "DRAFT"),
+    "choose hook": () => editing.selectHookOption(current.id, 1),
+    "edit scene": () => editing.updateScene(current.id, body!.id, sceneInput),
+    "add scene": () => editing.addScene(current.id, { type: "SUMMARY", afterSceneId: null }),
+    "delete scene": () => editing.deleteScene(current.id, body!.id),
+    "reorder scenes": () =>
+      editing.reorderScenes(
+        current.id,
+        current.scenes.map((scene) => scene.id),
+      ),
+    "rewrite one scene": () => scriptRequest.requestSceneRegeneration(current.id, rewriteSceneId),
+    "scene voiceover": () => audioRequest.requestSceneTts(hook!.id),
+    "missing voiceovers": () => audioRequest.requestMissingTts(current.id),
+    "upload audio": () =>
+      audio.uploadSceneAudio(hook!.id, { name: "a.wav", type: "audio/wav", bytes: new Uint8Array(16) }),
+    "remove audio": () => audio.detachSceneAudio(hook!.id),
+  };
+}
+
+async function expectRefusedAndUnchanged(
+  changes: Record<string, () => Promise<unknown>>,
+  before: VideoDetail,
+): Promise<void> {
+  for (const [action, attempt] of Object.entries(changes)) {
+    await expect(attempt(), action).rejects.toMatchObject({ code: "SCRIPT_GENERATION_IN_PROGRESS", httpStatus: 409 });
+  }
+
+  const after = await videos.getVideo(before.id);
+  expect(after).toMatchObject({
+    title: before.title,
+    targetDurationSec: before.targetDurationSec,
+    scriptVersion: before.scriptVersion,
+  });
+  expect(after.scenes).toEqual(before.scenes);
+  expect(await db.prisma.renderRecord.count()).toBe(0);
+}
+
 describe("while a script is being generated", () => {
   it("rejects every change to the video with SCRIPT_GENERATION_IN_PROGRESS", async () => {
-    const [hook, body] = video.scenes;
-    const sceneInput = {
-      title: null,
-      narration: "Lời dẫn mới.",
-      onScreenText: "CHỮ MỚI",
-      visualVariant: body!.visualVariant,
-      hidden: false,
-    };
-    const attempts: Record<string, () => Promise<unknown>> = {
-      "settings (title, duration, Extended)": () =>
-        videos.updateVideo(video.id, {
-          title: "Tiêu đề mới",
-          description: null,
-          platformPreviewMode: null,
-          targetDurationSec: 90,
-          extended: true,
-        }),
-      "delete video": () => videos.deleteVideo(video.id),
-      "approve script": () => videos.approveScript(video.id),
-      "render draft": () => renderRequest.requestRender(video.id, "DRAFT"),
-      "choose hook": () => editing.selectHookOption(video.id, 1),
-      "edit scene": () => editing.updateScene(video.id, body!.id, sceneInput),
-      "add scene": () => editing.addScene(video.id, { type: "SUMMARY", afterSceneId: null }),
-      "delete scene": () => editing.deleteScene(video.id, body!.id),
-      "reorder scenes": () =>
-        editing.reorderScenes(
-          video.id,
-          video.scenes.map((scene) => scene.id),
-        ),
-      "rewrite one scene": () => scriptRequest.requestSceneRegeneration(video.id, body!.id),
-      "scene voiceover": () => audioRequest.requestSceneTts(hook!.id),
-      "missing voiceovers": () => audioRequest.requestMissingTts(video.id),
-      "upload audio": () =>
-        audio.uploadSceneAudio(hook!.id, { name: "a.wav", type: "audio/wav", bytes: new Uint8Array(16) }),
-      "remove audio": () => audio.detachSceneAudio(hook!.id),
-    };
-
-    for (const [action, attempt] of Object.entries(attempts)) {
-      await expect(attempt(), action).rejects.toMatchObject({ code: "SCRIPT_GENERATION_IN_PROGRESS", httpStatus: 409 });
-    }
-
-    const after = await videos.getVideo(video.id);
-    expect(after).toMatchObject({ title: video.title, targetDurationSec: 60, scriptVersion: video.scriptVersion });
-    expect(after.scenes).toEqual(video.scenes);
-    expect(await db.prisma.renderRecord.count()).toBe(0);
+    await expectRefusedAndUnchanged(lockedChanges(video, video.scenes[1]!.id), video);
   });
 
   it("still lets the worker write the script of that same job", async () => {
@@ -157,5 +171,66 @@ describe("while a script is being generated", () => {
         extended: false,
       }),
     ).resolves.toMatchObject({ title: "Tiêu đề mới", targetDurationSec: 45 });
+  });
+});
+
+describe("while one scene is being rewritten", () => {
+  let current: VideoDetail;
+  let rewritten: VideoDetail["scenes"][number];
+  let rewriteJobId: string;
+
+  beforeAll(async () => {
+    current = await videos.getVideo(video.id);
+    rewritten = current.scenes[1]!;
+    const job = await db.prisma.jobRecord.create({
+      data: {
+        bullmqJobId: "scene-lock-job",
+        jobType: "GENERATE_VIDEO_SCRIPT",
+        entityType: "SCENE",
+        entityId: rewritten.id,
+        status: "RUNNING",
+      },
+    });
+    rewriteJobId = job.id;
+  });
+
+  it("reports which scene is being rewritten", async () => {
+    await expect(videos.findActiveVideoJob(current.id)).resolves.toMatchObject({
+      sceneId: rewritten.id,
+      sceneNumber: 2,
+      job: { id: rewriteJobId, status: "RUNNING" },
+    });
+  });
+
+  it("rejects every change to the rest of the video, including a whole-script request", async () => {
+    const changes = lockedChanges(current, current.scenes[2]!.id);
+    changes["generate the whole script"] = () => scriptRequest.requestScriptGeneration(current.id);
+    await expectRefusedAndUnchanged(changes, current);
+  });
+
+  it("answers a repeated rewrite of the same scene with the job already running", async () => {
+    await expect(scriptRequest.requestSceneRegeneration(current.id, rewritten.id)).resolves.toMatchObject({
+      id: rewriteJobId,
+    });
+  });
+
+  it("still lets the worker rewrite that scene", async () => {
+    await expect(
+      generation.runSceneRegeneration({ videoId: current.id, sceneId: rewritten.id, jobRecordId: rewriteJobId }),
+    ).resolves.toEqual({ sceneId: rewritten.id });
+  });
+
+  it("unlocks the video once the job settles", async () => {
+    await db.prisma.jobRecord.update({ where: { id: rewriteJobId }, data: { status: "COMPLETED" } });
+    await expect(videos.findActiveVideoJob(current.id)).resolves.toBeNull();
+    await expect(
+      videos.updateVideo(current.id, {
+        title: "Tiêu đề sau khi viết lại",
+        description: null,
+        platformPreviewMode: null,
+        targetDurationSec: 45,
+        extended: false,
+      }),
+    ).resolves.toMatchObject({ title: "Tiêu đề sau khi viết lại" });
   });
 });

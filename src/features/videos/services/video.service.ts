@@ -1,5 +1,5 @@
 import { getBook } from "@/features/books/services/book.service";
-import { findActiveJobForEntity } from "@/features/jobs/repositories/job-record.repository";
+import { findActiveJobForEntities, findActiveJobForEntity } from "@/features/jobs/repositories/job-record.repository";
 import { toJobDto } from "@/features/jobs/services/job-dto";
 import { AppError, NotFoundError } from "@/shared/errors";
 import type { JobDto } from "@/shared/types/job";
@@ -12,6 +12,7 @@ import {
   deleteVideoRecord,
   findApprovedLessonsForVideo,
   findVideoDetail,
+  listSceneIds,
   listVideoRecords,
   markScriptApproved,
   setPreviewMode,
@@ -126,20 +127,33 @@ export async function approveScript(id: string): Promise<VideoDetail> {
   return getVideo(id);
 }
 
-export async function findActiveVideoJob(videoId: string): Promise<JobDto | null> {
-  const job = await findActiveJobForEntity("GENERATE_VIDEO_SCRIPT", "VIDEO", videoId);
-  return job ? toJobDto(job) : null;
+export interface ActiveVideoJob {
+  job: JobDto;
+  sceneId: string | null;
+  sceneNumber: number | null;
 }
 
-// While a script job is queued, running or waiting for Claude Code the whole script is about to be replaced: edits,
-// audio and renders made now would be lost, and new settings would no longer match what the AI returns.
-// Only user-facing services call this; the worker writes through repositories.
-export async function assertScriptNotGenerating(videoId: string): Promise<void> {
-  if (await findActiveVideoJob(videoId)) {
-    throw new AppError(
-      "SCRIPT_GENERATION_IN_PROGRESS",
-      "Kịch bản đang được tạo. Hãy đợi tác vụ xong hoặc huỷ nó trước khi thay đổi video.",
-      409,
-    );
-  }
+export async function findActiveVideoJob(videoId: string): Promise<ActiveVideoJob | null> {
+  const script = await findActiveJobForEntity("GENERATE_VIDEO_SCRIPT", "VIDEO", videoId);
+  if (script) return { job: toJobDto(script), sceneId: null, sceneNumber: null };
+  const sceneIds = await listSceneIds(videoId);
+  const rewrite = await findActiveJobForEntities("GENERATE_VIDEO_SCRIPT", "SCENE", sceneIds);
+  if (!rewrite) return null;
+  return { job: toJobDto(rewrite), sceneId: rewrite.entityId, sceneNumber: sceneIds.indexOf(rewrite.entityId) + 1 };
+}
+
+// While a script job (the whole script or one scene rewrite) is queued, running or waiting for Claude Code the script
+// is about to change: edits, audio and renders made now would be lost, and new settings would no longer match what the
+// AI returns. `target` names the job the caller is about to enqueue; one already active for that same target is fine
+// because enqueueing dedupes it. Only user-facing services call this; the worker writes through repositories.
+export async function assertScriptNotGenerating(videoId: string, target?: { sceneId: string | null }): Promise<void> {
+  const active = await findActiveVideoJob(videoId);
+  if (!active || (target && active.sceneId === target.sceneId)) return;
+  throw new AppError(
+    "SCRIPT_GENERATION_IN_PROGRESS",
+    active.sceneId === null
+      ? "Kịch bản đang được tạo. Hãy đợi tác vụ xong hoặc huỷ nó trước khi thay đổi video."
+      : "Một cảnh đang được viết lại. Hãy đợi tác vụ xong hoặc huỷ nó trước khi thay đổi video.",
+    409,
+  );
 }

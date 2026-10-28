@@ -34,7 +34,7 @@ export const dynamic = "force-dynamic";
 
 const TABS = ["hook", "story", "voice", "preview"] as const;
 const SCRIPT_LOCKED_NOTE =
-  "Trong lúc này cài đặt, hook, kịch bản, giọng đọc, render và xoá video tạm khoá, vì kịch bản sắp được thay mới.";
+  "Trong lúc này cài đặt, hook, kịch bản, giọng đọc, render và xoá video tạm khoá, vì nội dung kịch bản sắp được thay mới.";
 
 interface VideoEditorPageProps {
   params: Promise<{ videoId: string }>;
@@ -46,6 +46,11 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
   const video = await orNotFound(getVideo(videoId));
   const activeJob = await findActiveVideoJob(videoId);
   const locked = activeJob !== null;
+  const busyLabel = activeJob
+    ? activeJob.sceneNumber === null
+      ? "Đang tạo kịch bản…"
+      : `Đang viết lại cảnh ${activeJob.sceneNumber}…`
+    : null;
   const hookScene = video.scenes.find((scene) => scene.type === "HOOK");
   const sceneIds = video.scenes.map((scene) => scene.id);
   const active = TABS.find((value) => value === tab) ?? "hook";
@@ -75,7 +80,7 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
         }
         actions={
           <>
-            <GenerateScriptButton video={video} busy={locked} />
+            <GenerateScriptButton video={video} busyLabel={busyLabel} />
             <ApproveScriptButton video={video} locked={locked} />
             <VideoSettingsDialog video={video} locked={locked} />
             {locked ? (
@@ -97,7 +102,7 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
       />
 
       {activeJob ? (
-        <ActiveJobWatcher job={activeJob} runningLabel="Worker đang tạo kịch bản…" lockedNote={SCRIPT_LOCKED_NOTE} />
+        <ActiveJobWatcher job={activeJob.job} sceneNumber={activeJob.sceneNumber} lockedNote={SCRIPT_LOCKED_NOTE} />
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">

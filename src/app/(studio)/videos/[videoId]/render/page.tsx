@@ -42,9 +42,9 @@ export default async function VideoRenderPage({ params }: Readonly<{ params: Pro
 
       {activeJob ? (
         <ActiveJobWatcher
-          job={activeJob}
-          runningLabel="Worker đang tạo kịch bản…"
-          lockedNote="Chưa thể render cho tới khi kịch bản mới được tạo xong (hoặc tác vụ bị huỷ)."
+          job={activeJob.job}
+          sceneNumber={activeJob.sceneNumber}
+          lockedNote="Chưa thể render cho tới khi kịch bản được cập nhật xong (hoặc tác vụ bị huỷ)."
         />
       ) : null}
 

@@ -24,13 +24,14 @@ import { useVideoAction } from "./use-video-action";
 
 interface GenerateScriptButtonProps {
   video: Pick<VideoDetail, "id" | "scenes">;
-  // A script job for this video is still queued, running or waiting for Claude Code (known from the server).
-  busy: boolean;
+  // Set while a script job for this video is still queued, running or waiting for Claude Code (known from the server):
+  // the text says which one, because rewriting a single scene also locks the video.
+  busyLabel: string | null;
 }
 
-export function GenerateScriptButton({ video, busy }: Readonly<GenerateScriptButtonProps>) {
+export function GenerateScriptButton({ video, busyLabel }: Readonly<GenerateScriptButtonProps>) {
   const { pending, runJob } = useVideoAction();
-  const working = pending || busy;
+  const working = pending || busyLabel !== null;
   const hasScript = video.scenes.length > 0;
   const generate = () =>
     void runJob(
@@ -41,7 +42,7 @@ export function GenerateScriptButton({ video, busy }: Readonly<GenerateScriptBut
   const button = (
     <Button variant={hasScript ? "outline" : "default"} disabled={working} onClick={hasScript ? undefined : generate}>
       {working ? <Loader2 className="animate-spin" aria-hidden /> : <Sparkles aria-hidden />}
-      {working ? "Đang tạo kịch bản…" : hasScript ? "Tạo lại kịch bản" : "Tạo kịch bản"}
+      {working ? (busyLabel ?? "Đang tạo kịch bản…") : hasScript ? "Tạo lại kịch bản" : "Tạo kịch bản"}
     </Button>
   );
   if (!hasScript) return button;
