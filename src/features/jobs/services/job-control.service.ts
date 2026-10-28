@@ -1,6 +1,7 @@
 import "server-only";
 
 import { requestChapterAnalysis } from "@/features/chapters/services/analysis-request.service";
+import { retryProductionItem } from "@/features/productions/services/production-retry.service";
 import { findSceneWithVideo } from "@/features/videos/repositories/audio.repository";
 import { findRenderRecord } from "@/features/videos/repositories/render.repository";
 import { requestSceneTts } from "@/features/videos/services/audio-request.service";
@@ -68,6 +69,8 @@ export async function retryJob(id: string): Promise<JobDto> {
       const { jobId } = await requestRender(render.videoId, render.qualityPreset);
       return getJob(jobId);
     }
+    case "RUN_PRODUCTION_ITEM":
+      return retryProductionItem(record.entityId);
     default:
       throw new AppError("JOB_NOT_RETRYABLE", "Loại tác vụ này không hỗ trợ thử lại.", 409);
   }

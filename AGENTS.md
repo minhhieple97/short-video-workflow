@@ -101,6 +101,8 @@ src/
     lessons/           lesson domain (fields, excerpt verification), repository, review service, library/review UI
     videos/            short-form domain (scene types, layouts, duration budget, snapshots), script generation/editing, editor UI
     jobs/              job payload schemas, JobRecord/AiRun repositories, enqueue/retry/cancel services, jobs dashboard UI
+    productions/       v1.2 production batches: lesson selection (`production-request`), the item pipeline (`production-pipeline`,
+                       one resumable `RUN_PRODUCTION_ITEM` job per item), correction, readiness, cancel/retry and start-up reconcile
   lib/                 client-safe helpers: utils.ts (shadcn `cn()`), api-client.ts (typed fetch + ApiError), format.ts (vi-VN)
   server/              Server-side infrastructure (never imported by client components or Remotion)
     db/                client.ts: Prisma + better-sqlite3 singleton, WAL setup (shared by Next, worker, scripts)
@@ -190,7 +192,9 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 
 ## 8. Jobs & queue
 
-- One queue `studio-jobs`; job types: `ANALYZE_CHAPTER`, `GENERATE_VIDEO_SCRIPT`, `GENERATE_SCENE_TTS`, `RENDER_VIDEO` (plus `DIAGNOSTIC_PING` for health checks).
+- One queue `studio-jobs`; job types: `ANALYZE_CHAPTER`, `GENERATE_VIDEO_SCRIPT`, `GENERATE_SCENE_TTS`, `RENDER_VIDEO`, `RUN_PRODUCTION_ITEM` (plus `DIAGNOSTIC_PING` for health checks).
+- A production item's job is written in the same transaction that makes the item runnable (creation, retry); never start one any other way.
+  Its processor claims the item, steps from the checkpoint and defers instead of waiting; cancelling the job cancels the item.
 - Worker `concurrency = WORKER_CONCURRENCY` (default 1); global AI concurrency = 1; Remotion `concurrency = RENDER_CONCURRENCY` (default 1).
 - Job payloads carry **IDs and small metadata only** — never book text, audio, or secrets.
 - **Tracked jobs go through the outbox:** `recordJobIntent` writes the `JobRecord` and its `JobDispatch` row in one transaction, then

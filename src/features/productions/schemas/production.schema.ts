@@ -19,3 +19,6 @@ export const createProductionSchema = z
   .superRefine(enforceExtended);
 
 export type CreateProductionInput = z.infer<typeof createProductionSchema>;
+
+// Cancel and retry act on one video of the batch when itemId is given, otherwise on every video they apply to.
+export const productionItemTargetSchema = z.object({ itemId: z.string().min(1).optional() });

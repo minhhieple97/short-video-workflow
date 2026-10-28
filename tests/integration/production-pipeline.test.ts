@@ -5,20 +5,14 @@ import type * as Pipeline from "@/features/productions/services/production-pipel
 import type * as ProductionRender from "@/features/productions/services/production-render.service";
 import type * as ProductionRequest from "@/features/productions/services/production-request.service";
 import type * as DbClient from "@/server/db/client";
-import type * as RunProductionItem from "@/worker/processors/run-production-item";
 import { IntegrationError } from "@/server/integrations/integration-error";
-import { MockScenePlanCompiler } from "@/server/scene-plan/mock-scene-plan-compiler";
-import type { ScenePlan, ScenePlanCompiler, ScenePlanRequest } from "@/server/scene-plan/scene-plan-compiler";
-import { MockScriptStudioProvider } from "@/server/script-studio/mock-script-studio-provider";
-import type { ScriptStudioProvider, WriteDraftRequest } from "@/server/script-studio/script-studio-provider";
 import { JobCancelledError } from "@/shared/errors";
-import type { ProcessorContext } from "@/worker/processors/types";
 
+import { createCountingDeps, SHORT_NARRATION, type CountingDepsOptions } from "../helpers/counting-pipeline-deps";
 import { seedProduction } from "../helpers/production-fixture";
 import { setupTestEnvironment, type TestEnvironment } from "../helpers/test-environment";
 
 const TOKEN = "worker-a";
-const SHORT = "Ngắn.";
 
 let env: TestEnvironment;
 let db: typeof DbClient;
@@ -26,83 +20,11 @@ let claim: typeof Claim;
 let pipeline: typeof Pipeline;
 let productionRender: typeof ProductionRender;
 let productions: typeof ProductionRequest;
-let processor: typeof RunProductionItem;
 
 let itemId: string;
 let videoId: string;
 
-interface Calls {
-  drafts: WriteDraftRequest[];
-  compiles: ScenePlanRequest[];
-}
-
-// Providers that count what they are asked and can be told to misbehave.
-function makeDeps(
-  options: {
-    compileFails?: (attempt: number) => Error | null;
-    draftFails?: (attempt: number) => Error | null;
-    shortenWhenRevised?: boolean;
-    afterCompile?: () => Promise<void>;
-    bodyFrames?: number;
-  } = {},
-) {
-  const calls: Calls = { drafts: [], compiles: [] };
-  const studio = new MockScriptStudioProvider();
-  const mock = new MockScenePlanCompiler();
-  const scriptStudio: ScriptStudioProvider = {
-    id: "counting-studio",
-    ensureSource: (request, callOptions) => studio.ensureSource(request, callOptions),
-    detectChapters: (request, callOptions) => studio.detectChapters(request, callOptions),
-    extractLessons: (request, callOptions) => studio.extractLessons(request, callOptions),
-    writeDraft: async (request, callOptions) => {
-      calls.drafts.push(request);
-      const failure = options.draftFails?.(calls.drafts.length);
-      if (failure) throw failure;
-      return studio.writeDraft(request, callOptions);
-    },
-  };
-  const compiler: ScenePlanCompiler = {
-    id: "counting-compiler",
-    compile: async (request, callOptions): Promise<ScenePlan> => {
-      calls.compiles.push(request);
-      const failure = options.compileFails?.(calls.compiles.length);
-      if (failure) throw failure;
-      const plan = await mock.compile(request, callOptions);
-      await options.afterCompile?.();
-      if (!options.shortenWhenRevised || !request.revisionNote) return plan;
-      return {
-        hook: { ...plan.hook, narration: SHORT },
-        scenes: plan.scenes.map((scene) => ({ ...scene, narration: SHORT })),
-      };
-    },
-  };
-  const deps: Pipeline.PipelineDeps = {
-    scriptStudio,
-    compiler,
-    resolveSources: async () => [],
-    synthesize: async ({ sceneId }) => {
-      const scene = await db.prisma.videoScene.findUniqueOrThrow({ where: { id: sceneId } });
-      const asset = await db.prisma.mediaAsset.create({
-        data: {
-          videoId,
-          sceneId,
-          kind: "VOICEOVER",
-          path: `a-${sceneId}.mp3`,
-          mimeType: "audio/mpeg",
-          fileSizeBytes: 1,
-          durationMs: 1000,
-        },
-      });
-      const frames = scene.type === "HOOK" ? 90 : scene.narration === SHORT ? 60 : (options.bodyFrames ?? 150);
-      await db.prisma.videoScene.update({
-        where: { id: sceneId },
-        data: { audioAssetId: asset.id, durationFrames: frames },
-      });
-      return { sceneId, cached: false };
-    },
-  };
-  return { deps, calls };
-}
+const makeDeps = (options: CountingDepsOptions = {}) => createCountingDeps(db, () => videoId, options);
 
 const item = () => db.prisma.productionItem.findUniqueOrThrow({ where: { id: itemId } });
 const run = (deps: Pipeline.PipelineDeps, token = TOKEN, signal?: AbortSignal) =>
@@ -117,7 +39,6 @@ beforeAll(async () => {
   pipeline = await import("@/features/productions/services/production-pipeline.service");
   productionRender = await import("@/features/productions/services/production-render.service");
   productions = await import("@/features/productions/services/production-request.service");
-  processor = await import("@/worker/processors/run-production-item");
 }, 60_000);
 
 beforeEach(async () => {
@@ -283,7 +204,7 @@ describe("runProductionPipeline", () => {
     expect(await item()).toMatchObject({ aiCorrectionTarget: "SCENE_COMPILER", checkpoint: "READY" });
     expect((await db.prisma.video.findUniqueOrThrow({ where: { id: videoId } })).targetDurationSec).toBe(60);
     const scenes = await db.prisma.videoScene.findMany({ where: { videoId } });
-    expect(scenes.every((scene) => scene.narration === SHORT)).toBe(true);
+    expect(scenes.every((scene) => scene.narration === SHORT_NARRATION)).toBe(true);
   });
 
   it("fails when the video still does not fit after its one correction", async () => {
@@ -386,58 +307,5 @@ describe("queueFinalRender", () => {
 
     await finishRender("COMPLETED");
     expect(await productionRender.queueFinalRender(videoId)).toEqual({ renderId: first, reused: true });
-  });
-});
-
-describe("processRunProductionItem", () => {
-  const runJob = (signal = new AbortController().signal) =>
-    processor.processRunProductionItem({
-      job: { data: { jobRecordId: "job-1", itemId } },
-      jobRecordId: "job-1",
-      signal,
-      reportProgress: async () => {},
-    } as unknown as ProcessorContext);
-
-  // Brings the item to READY with a queued render, then lets go of it the way a deferred run does.
-  async function parkAtRender() {
-    await run(makeDeps().deps);
-    await pipeline.settleProductionRun({ itemId, claimToken: TOKEN, outcome: { kind: "DEFER", retryAfterMs: 1 } });
-  }
-
-  it("skips an item another run holds", async () => {
-    expect(await runJob()).toEqual({ itemId, skipped: true });
-    expect((await item()).claimToken).toBe(TOKEN);
-  });
-
-  it("ends the job as deferred while the render is pending, leaving the item WAITING", async () => {
-    await parkAtRender();
-
-    expect(await runJob()).toEqual({ deferred: true, retryAfterMs: pipeline.RENDER_POLL_MS });
-    expect(await item()).toMatchObject({ status: "WAITING", claimToken: null });
-  });
-
-  it("completes the item once its render is done", async () => {
-    await parkAtRender();
-    await finishRender("COMPLETED");
-
-    expect(await runJob()).toEqual({ itemId, outcome: "COMPLETED" });
-    expect(await item()).toMatchObject({ status: "COMPLETED", checkpoint: "RENDERED", claimToken: null });
-  });
-
-  it("fails the job and the item with the same reason", async () => {
-    await parkAtRender();
-    await finishRender("FAILED", "chromium crashed");
-
-    await expect(runJob()).rejects.toMatchObject({ code: "RENDER_FAILED", message: "chromium crashed" });
-    expect(await item()).toMatchObject({ status: "FAILED", errorCode: "RENDER_FAILED", claimToken: null });
-  });
-
-  it("hands a cancelled job's item back as PENDING so it can resume", async () => {
-    await parkAtRender();
-    const controller = new AbortController();
-    controller.abort();
-
-    await expect(runJob(controller.signal)).rejects.toBeInstanceOf(JobCancelledError);
-    expect(await item()).toMatchObject({ status: "PENDING", claimToken: null, checkpoint: "READY" });
   });
 });

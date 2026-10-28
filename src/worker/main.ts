@@ -3,6 +3,7 @@ import "dotenv/config";
 import { Queue, Worker } from "bullmq";
 
 import { sweepDueJobIntents, type EnqueueJob } from "@/features/jobs/services/job-dispatch.service";
+import { reconcileProductionItems } from "@/features/productions/services/production-reconcile.service";
 import { configureDatabase, prisma } from "@/server/db/client";
 import { QUEUE_NAME } from "@/server/queue/constants";
 import { addJobToQueue } from "@/server/queue/producer";
@@ -40,6 +41,8 @@ async function main(): Promise<void> {
   // Deliver stranded outbox rows first so reconcile only judges jobs that really are (or should be) in Redis.
   await sweepDueJobIntents(enqueue);
   await reconcileJobRecords(queue);
+  // After the records match Redis: an item whose job was lost gets a new one, delivered by the sweeper below.
+  await reconcileProductionItems();
   const worker = new Worker(QUEUE_NAME, processJob, { connection, concurrency: config.concurrency.worker });
   worker.on("error", (error) => logger.error("Worker error", { error: toSafeErrorMessage(error) }));
 

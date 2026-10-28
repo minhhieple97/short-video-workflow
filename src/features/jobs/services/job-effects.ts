@@ -1,5 +1,6 @@
 import type { JobRecord } from "@/generated/prisma/client";
 import { findChapterWithBook, setChapterAnalysisStatus } from "@/features/chapters/repositories/chapter.repository";
+import { cancelItem, refreshBatchStatus } from "@/features/productions/repositories/production-jobs.repository";
 import { failRenderRecord, findRenderRecord } from "@/features/videos/repositories/render.repository";
 
 const CHAPTER_IN_FLIGHT = ["QUEUED", "ANALYZING", "WAITING_FOR_CLI"];
@@ -20,5 +21,10 @@ export async function releaseJobEntity(
   if (record.jobType === "RENDER_VIDEO") {
     const render = await findRenderRecord(record.entityId);
     if (render && RENDER_IN_FLIGHT.includes(render.status)) await failRenderRecord(render.id, outcome, message);
+  }
+  // A lost item job is replaced at worker start-up (the item resumes from its checkpoint), so only a cancel changes it.
+  if (record.jobType === "RUN_PRODUCTION_ITEM" && outcome === "CANCELLED") {
+    const batchId = await cancelItem(record.entityId);
+    if (batchId) await refreshBatchStatus(batchId);
   }
 }

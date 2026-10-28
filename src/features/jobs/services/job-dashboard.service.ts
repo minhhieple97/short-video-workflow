@@ -13,15 +13,16 @@ interface EntityRef {
 const RETRYABLE = new Set(["FAILED", "CANCELLED"]);
 const CANCELLABLE = new Set(["QUEUED", "RUNNING", "WAITING_FOR_CLI"]);
 
-// Resolves entity names in four batched queries instead of one query per job row.
+// Resolves entity names in five batched queries instead of one query per job row.
 async function resolveEntities(records: readonly JobRecord[]): Promise<Map<string, EntityRef>> {
   const idsOf = (type: string) =>
     records.filter((record) => record.entityType === type).map((record) => record.entityId);
-  const { chapters, videos, scenes, renders } = await findJobEntities({
+  const { chapters, videos, scenes, renders, productionItems } = await findJobEntities({
     chapterIds: idsOf("CHAPTER"),
     videoIds: idsOf("VIDEO"),
     sceneIds: idsOf("SCENE"),
     renderIds: idsOf("RENDER"),
+    productionItemIds: idsOf("PRODUCTION_ITEM"),
   });
 
   const refs = new Map<string, EntityRef>();
@@ -42,6 +43,12 @@ async function resolveEntities(records: readonly JobRecord[]): Promise<Map<strin
     refs.set(`RENDER:${render.id}`, {
       label: `${render.qualityPreset === "FINAL" ? "Bản cuối" : "Nháp"} · ${render.video.title}`,
       href: `/videos/${render.videoId}/render`,
+    });
+  }
+  for (const item of productionItems) {
+    refs.set(`PRODUCTION_ITEM:${item.id}`, {
+      label: `Sản xuất · ${item.lesson.title}`,
+      href: item.videoId ? `/videos/${item.videoId}` : null,
     });
   }
   return refs;

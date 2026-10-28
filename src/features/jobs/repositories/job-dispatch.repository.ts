@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { JobDispatch, JobRecord } from "@/generated/prisma/client";
+import type { JobDispatch, JobRecord, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import type { JobType } from "@/shared/types/job";
 
@@ -42,8 +42,13 @@ export function rescheduleRunningJob(
 }
 
 export function createJobIntent(input: CreateJobIntentInput): Promise<JobIntent> {
+  return createJobIntentWithin(prisma, input);
+}
+
+// Lets a caller start a job in the same transaction as the change that makes the job necessary.
+export function createJobIntentWithin(tx: Prisma.TransactionClient, input: CreateJobIntentInput): Promise<JobIntent> {
   const { payload, availableAt, ...record } = input;
-  return prisma.jobDispatch.create({
+  return tx.jobDispatch.create({
     data: { payloadJson: JSON.stringify(payload), availableAt, jobRecord: { create: record } },
     include: { jobRecord: true },
   });
