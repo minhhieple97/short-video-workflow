@@ -81,6 +81,7 @@ model Book {
   @@index([status])
   @@index([createdAt])
   @@index([sourceHash])
+  notebooks         NotebookBinding[]
 }
 
 model Chapter {
@@ -605,4 +606,44 @@ model DriveCapacity {
   limitBytes     BigInt?
   usageBytes     BigInt
   fetchedAt      DateTime
+}
+
+// The NotebookLM notebook this app made for one book in one NotebookLM account (profile); every later step of that book
+// reuses it. The remote ID is written once.
+model NotebookBinding {
+  id         String                  @id @default(cuid())
+  bookId     String
+  book       Book                    @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  profile    String
+  // PENDING | CREATING | UNKNOWN_OUTCOME | READY. UNKNOWN_OUTCOME: the create was sent but its answer was lost.
+  status     String                  @default("PENDING")
+  notebookId String?
+  createdAt  DateTime                @default(now())
+  updatedAt  DateTime                @updatedAt
+  sources    NotebookSourceBinding[]
+
+  @@unique([bookId, profile])
+}
+
+// One part of the book's text, at one revision (its content hash), uploaded as a NotebookLM source. Changed text is a new
+// row; the older revision is marked superseded but kept, with its remote ID, so what earlier lessons were drawn from
+// stays traceable.
+model NotebookSourceBinding {
+  id                String          @id @default(cuid())
+  notebookBindingId String
+  notebook          NotebookBinding @relation(fields: [notebookBindingId], references: [id], onDelete: Cascade)
+  // Which part of the book this is, e.g. "chapter:<chapterId>".
+  sourceKey         String
+  contentHash       String
+  // The title sent to NotebookLM; it carries this row's ID so the source can be recognised after a lost answer.
+  title             String
+  // PENDING | SUBMITTING | UNKNOWN_OUTCOME | READY | FAILED.
+  status            String          @default("PENDING")
+  remoteSourceId    String?
+  supersededAt      DateTime?
+  createdAt         DateTime        @default(now())
+  readyAt           DateTime?
+
+  @@unique([notebookBindingId, sourceKey, contentHash])
+  @@index([notebookBindingId, sourceKey])
 }
