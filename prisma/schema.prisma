@@ -472,6 +472,9 @@ model ProductionItem {
   checkpoint             String          @default("NONE")
   // Fingerprint of the scene plan whose scenes are currently on the video, so applying the same plan again changes nothing.
   appliedPlanFingerprint String?
+  // The single AI correction a video gets: where it went (SCRIPT_STUDIO | SCENE_COMPILER) and what it was told. Null while unused.
+  aiCorrectionTarget     String?
+  aiCorrectionNote       String?
   // Lease so that only one worker advances an item at a time; an expired lease can be taken over.
   claimToken             String?
   claimExpiresAt         DateTime?

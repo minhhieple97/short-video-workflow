@@ -1,6 +1,12 @@
 import { prisma } from "@/server/db/client";
 
-import { nextCheckpoint, toItemCheckpoint, type ItemCheckpoint } from "../domain/production-status";
+import {
+  hasReachedCheckpoint,
+  ITEM_CHECKPOINTS,
+  nextCheckpoint,
+  toItemCheckpoint,
+  type ItemCheckpoint,
+} from "../domain/production-status";
 
 export interface ProductionItemState {
   videoId: string | null;
@@ -32,4 +38,37 @@ export async function advanceProductionCheckpoint(
     data: { checkpoint: to },
   });
   return count > 0;
+}
+
+export type SpendCorrectionResult =
+  { status: "SPENT" } | { status: "ALREADY_SPENT" } | { status: "LOST_CLAIM" } | { status: "WOULD_MOVE_FORWARD" };
+
+// Uses the item's one AI correction and sends it back to the step that will redo the work. A single conditional UPDATE
+// decides it: only the holder, only while the correction is unused, and only moving the checkpoint backwards or leaving it
+// where it is. Of any number of simultaneous callers exactly one gets SPENT.
+export async function spendAiCorrection(input: {
+  itemId: string;
+  claimToken: string;
+  target: string;
+  note: string;
+  rewindTo: ItemCheckpoint;
+}): Promise<SpendCorrectionResult> {
+  const reachable = ITEM_CHECKPOINTS.filter((checkpoint) => hasReachedCheckpoint(checkpoint, input.rewindTo));
+  const { count } = await prisma.productionItem.updateMany({
+    where: {
+      id: input.itemId,
+      claimToken: input.claimToken,
+      aiCorrectionTarget: null,
+      checkpoint: { in: [...reachable] },
+    },
+    data: { aiCorrectionTarget: input.target, aiCorrectionNote: input.note, checkpoint: input.rewindTo },
+  });
+  if (count > 0) return { status: "SPENT" };
+
+  const item = await prisma.productionItem.findUnique({
+    where: { id: input.itemId },
+    select: { claimToken: true, aiCorrectionTarget: true },
+  });
+  if (!item || item.claimToken !== input.claimToken) return { status: "LOST_CLAIM" };
+  return item.aiCorrectionTarget !== null ? { status: "ALREADY_SPENT" } : { status: "WOULD_MOVE_FORWARD" };
 }
