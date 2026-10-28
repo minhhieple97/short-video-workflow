@@ -1291,6 +1291,15 @@ Hook 4 giây áp dụng cho **mọi luồng** vì Player, preflight và render d
 | Drive           | 1 upload cùng lúc, 1 request/giây, 5.000 request và 10 GiB gửi/24 giờ                                |
 | Credential      | OAuth loopback, scope `drive.file`, token chỉ ở server; API key Mistral đọc qua `src/shared/config/env.ts` |
 
+### 23.6b. Điều chỉnh của chủ dự án (28/10/2026)
+
+Thay thế các quy định tương ứng ở §1–§23:
+
+- **Ngôn ngữ:** sách nguồn có thể bằng tiếng Anh hoặc tiếng Việt (OCR trả đúng ngôn ngữ của sách). Bài học, bản thảo NotebookLM, lời dẫn và chữ trên màn hình **luôn bằng tiếng Việt**; trích đoạn nguồn giữ **nguyên văn ngôn ngữ gốc** để còn đối chiếu được với sách.
+- **Khung kể giữ nguyên:** hook (giật tít) khoảng 4 giây, tối đa 120 frame → tình huống đời thường → sai lầm/hành động sai/lỗi → liên hệ bài học trong sách → điều rút ra → hành động cụ thể khi gặp vấn đề thật (quay lại xử lý tình huống mở đầu).
+- **Thời lượng:** tối đa **5 phút** (300 giây). Preset 30/45/60 giây cho video ngắn (mặc định 60); preset dài 90, 120, 180, 240, 300 giây chỉ dùng khi người dùng chọn rõ ràng. Vẫn 9:16, 30 FPS, H.264 + AAC; vẫn **một bài học mỗi video**. Video quá 60 giây có thể không còn là "Shorts/Reels" theo quy định của từng nền tảng — người dùng tự cân nhắc khi đăng.
+- **Hoạt cảnh:** các cảnh có minh hoạ kiểu hoạt hình phẳng vẽ bằng SVG (nhân vật, bối cảnh như nhà, văn phòng, phố, công viên, quán cà phê, lớp học) chuyển động theo frame (thở, chớp mắt, cử chỉ, đi bộ, mây trôi). Claude chọn bối cảnh và hành động cho từng cảnh từ danh sách cố định; người dùng đổi được trong trình biên tập. Không 3D, không GPU, không tải tài sản từ mạng; giữ chi phí render vừa phải.
+
 ### 23.7. Hiện trạng triển khai
 
 | Năng lực                                         | Trạng thái           | Task trong `plan.md` |

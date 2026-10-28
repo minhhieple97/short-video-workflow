@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { SCENE_PLAN_PROMPT_VERSION } from "@/server/ai/prompts/scene-plan-prompt";
 import { IntegrationError } from "@/server/integrations/integration-error";
 import { createScenePlanCompiler } from "@/server/scene-plan";
 import { MockScenePlanCompiler } from "@/server/scene-plan/mock-scene-plan-compiler";
@@ -120,7 +121,11 @@ describe("ClaudeScenePlanCompiler", () => {
     const [taskId] = fs.readdirSync(path.join(env.dataDir, "ai-tasks"));
     const directory = path.join(env.dataDir, "ai-tasks", taskId ?? "");
     const input = JSON.parse(fs.readFileSync(path.join(directory, "input.json"), "utf8")) as Record<string, unknown>;
-    expect(input).toMatchObject({ targetDurationSec: 60, revisionNote: null, promptVersion: "scene-plan-v1" });
+    expect(input).toMatchObject({
+      targetDurationSec: 60,
+      revisionNote: null,
+      promptVersion: SCENE_PLAN_PROMPT_VERSION,
+    });
     expect(fs.readFileSync(path.join(directory, "prompt.md"), "utf8")).toContain("<<<BEGIN_UNTRUSTED_SOURCE_TEXT>>>");
   });
 

@@ -23,6 +23,13 @@ const input = (overrides: Partial<ScenePlanTaskInput> = {}): ScenePlanTaskInput 
 });
 
 describe("buildScenePlanPrompt", () => {
+  it("keeps narration and on-screen text in Vietnamese even when the book's excerpts are in English", () => {
+    const prompt = buildScenePlanPrompt(input());
+
+    expect(prompt).toContain("LUÔN bằng tiếng Việt");
+    expect(prompt).toContain("kể cả khi trích đoạn nguồn bằng tiếng Anh");
+  });
+
   it("names its version and the length and syllable budgets", () => {
     const prompt = buildScenePlanPrompt(input());
 

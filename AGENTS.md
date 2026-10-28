@@ -236,8 +236,8 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - Never add `@anthropic-ai/sdk`, never create `ANTHROPIC_API_KEY`, never read/copy/log Claude tokens, cookies or credentials.
 - Run subprocesses with `spawn`/`execFile` and an argument array — **never** build shell strings from input, never use `exec` with interpolation.
 - Never use `--dangerously-skip-permissions`. When the model only needs to emit JSON, do not grant file-write/shell tools.
-- Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v2`, `scene-plan-v1`, and for NotebookLM `notebooklm-chapter-detection-v1`,
-  `notebooklm-lesson-extraction-v1`, `notebooklm-script-draft-v1`); changing a prompt's text means bumping its version (the draft version also keys the
+- Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v2`, `scene-plan-v2`, and for NotebookLM `notebooklm-chapter-detection-v1`,
+  `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v2`); changing a prompt's text means bumping its version (the draft version also keys the
   draft cache). Book content is passed as quoted untrusted data.
 - Validate model output with Zod; on schema failure mark the job `FAILED` and store nothing. No unbounded retries (respect quota errors). Timeouts + best-effort cancel.
 
