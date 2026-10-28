@@ -140,7 +140,8 @@ src/
     http/              route-helpers.ts (AppError → JSON, readJson/parseInput with Zod), page-helpers.ts (orNotFound)
   worker/              Standalone process: main.ts, processors/ (dispatcher + one per job type), lifecycle/ (heartbeat, shutdown)
   remotion/            Pure React video code: index.ts (registerRoot), root.tsx (ShortVideo + calculateMetadata), compositions/,
-                       scenes/ (5 layouts), components/ (frame, captions, badge, motion), theme/ (tokens, bundled font)
+                       scenes/ (5 layouts), components/ (frame, captions, badge, motion), theme/ (tokens, bundled font),
+                       illustration/ (flat SVG cartoon: 7 settings, a character with 8 actions, one look per video; frame-driven only)
   shared/              Truly shared: config/env.ts (Zod-validated env), logger.ts, errors.ts, types/ (create schemas/ on first need)
   generated/           Prisma client output (gitignored)
 prisma/                schema.prisma, migrations/ (committed), seed.ts
@@ -262,7 +263,9 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - Real audio duration (ffprobe) + padding determines timing. Never cut narration or speed it up unnaturally to fit.
 - Preview and render share the same composition and the same Zod-validated input props. No hardcoded book titles, lesson counts or narration inside Remotion components.
 - Safe-zone overlays are editor-only guides (configurable per platform), never rendered into the MP4.
-- Prefer CSS/SVG/text animation; no 3D, no GPU requirement, no network fetches at render time; local assets only.
+- Prefer CSS/SVG/text animation; no 3D, no GPU requirement, no network fetches at render time; local assets only. Scene illustrations
+  (`src/remotion/illustration/`) are plain SVG driven by the frame: no `filter`/blur (slow in headless Chromium), no images, no randomness
+  (a test enforces it). Settings and actions come from the fixed lists in `features/videos/domain/illustration.ts`.
 - Vietnamese diacritics must render correctly (font fallback checked in Chromium on WSL).
 
 ## 12. Testing

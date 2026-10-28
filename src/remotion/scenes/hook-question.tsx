@@ -12,8 +12,8 @@ export function HookQuestionScene({ scene }: Readonly<{ scene: CompositionScene 
   const underline = interpolate(frame, [0, 24], [0, 100], { extrapolateRight: "clamp" });
 
   return (
-    <SceneFrame background={COLORS.backgroundAccent}>
-      <div style={{ ...hookPop(frame, fps), fontSize: 104, fontWeight: 800, lineHeight: 1.12, letterSpacing: -1 }}>
+    <SceneFrame scene={scene}>
+      <div style={{ ...hookPop(frame, fps), fontSize: 92, fontWeight: 800, lineHeight: 1.12, letterSpacing: -1 }}>
         {scene.onScreenText}
       </div>
       <div

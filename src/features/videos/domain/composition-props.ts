@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { buildCaptionCues } from "./captions";
 import { effectiveSceneFrames, VIDEO_FPS } from "./duration";
+import { DEFAULT_ILLUSTRATION, illustrationSchema, type Illustration } from "./illustration";
 import { SCENE_TYPE_LABELS, SCENE_TYPES, VISUAL_VARIANTS, type SceneType, type VisualVariant } from "./scene-types";
 
 export const compositionSceneSchema = z.object({
@@ -13,6 +14,7 @@ export const compositionSceneSchema = z.object({
   captions: z.array(z.object({ text: z.string(), startFrame: z.number().int(), endFrame: z.number().int() })),
   durationInFrames: z.number().int().positive(),
   audioSrc: z.string().nullable(),
+  illustration: illustrationSchema,
 });
 
 export const shortVideoPropsSchema = z.object({
@@ -37,6 +39,8 @@ export interface CompositionSource {
     durationFrames: number;
     hidden: boolean;
     audioAssetId: string | null;
+    // Absent for scenes made before illustrations existed; they get the default picture for their type.
+    illustration?: Illustration | null;
   }[];
 }
 
@@ -44,7 +48,7 @@ export const SHORT_VIDEO_COMPOSITION_ID = "ShortVideo";
 
 // Recorded in every render snapshot. Bump it whenever a change to the Remotion composition or its scenes would make the
 // same props look different, so an old render can be told apart from what the code produces today.
-export const RENDER_TEMPLATE_VERSION = "short-video-template-v1";
+export const RENDER_TEMPLATE_VERSION = "short-video-template-v2";
 
 // Single mapping used by the browser Player and the worker render, so preview and output never diverge.
 export function toCompositionProps(
@@ -68,6 +72,7 @@ export function toCompositionProps(
           captions: buildCaptionCues(scene.narration, durationInFrames),
           durationInFrames,
           audioSrc: scene.audioAssetId ? audioUrl(scene.audioAssetId) : null,
+          illustration: scene.illustration ?? DEFAULT_ILLUSTRATION[scene.type],
         };
       }),
   };

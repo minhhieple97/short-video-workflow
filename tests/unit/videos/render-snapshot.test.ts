@@ -97,7 +97,7 @@ describe("render snapshot", () => {
 
     expect(fingerprintRenderSnapshot(snapshot())).toBe(base);
     expect(fingerprintRenderSnapshot(edited)).not.toBe(base);
-    expect(fingerprintRenderSnapshot(snapshot({ templateVersion: "short-video-template-v2" }))).not.toBe(base);
+    expect(fingerprintRenderSnapshot(snapshot({ templateVersion: "short-video-template-other" }))).not.toBe(base);
     expect(fingerprintRenderSnapshot(snapshot({ audio: [] }))).not.toBe(base);
   });
 

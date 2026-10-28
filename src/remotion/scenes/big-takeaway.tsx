@@ -13,8 +13,8 @@ export function BigTakeawayScene({ scene }: Readonly<{ scene: CompositionScene }
   const motion = scene.type === "HOOK" ? hookPop(frame, fps) : enter(frame, fps);
 
   return (
-    <SceneFrame label={scene.type === "HOOK" ? undefined : scene.label}>
-      <div style={{ ...motion, position: "relative", fontSize: 96, fontWeight: 800, lineHeight: 1.12 }}>
+    <SceneFrame scene={scene} label={scene.type === "HOOK" ? undefined : scene.label}>
+      <div style={{ ...motion, position: "relative", fontSize: 84, fontWeight: 800, lineHeight: 1.12 }}>
         <span
           style={{
             backgroundImage: `linear-gradient(${COLORS.backgroundAccent}, ${COLORS.backgroundAccent})`,

@@ -12,9 +12,9 @@ export function ActionChecklistScene({ scene }: Readonly<{ scene: CompositionSce
   const tick = interpolate(frame, [10, 28], [60, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
 
   return (
-    <SceneFrame label={scene.label} labelColor={COLORS.solution}>
+    <SceneFrame scene={scene} label={scene.label} labelColor={COLORS.solution}>
       <div style={{ ...enter(frame, fps), display: "flex", gap: 36, alignItems: "flex-start" }}>
-        <svg width="140" height="140" viewBox="0 0 100 100" style={{ flexShrink: 0 }} aria-hidden>
+        <svg width="120" height="120" viewBox="0 0 100 100" style={{ flexShrink: 0 }} aria-hidden>
           <rect
             x="6"
             y="6"
@@ -36,7 +36,7 @@ export function ActionChecklistScene({ scene }: Readonly<{ scene: CompositionSce
             strokeDashoffset={tick}
           />
         </svg>
-        <div style={{ fontSize: 80, fontWeight: 800, lineHeight: 1.15 }}>{scene.onScreenText}</div>
+        <div style={{ fontSize: 72, fontWeight: 800, lineHeight: 1.15 }}>{scene.onScreenText}</div>
       </div>
     </SceneFrame>
   );

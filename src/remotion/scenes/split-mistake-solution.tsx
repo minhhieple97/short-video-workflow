@@ -16,21 +16,21 @@ export function SplitMistakeSolutionScene({ scene }: Readonly<{ scene: Compositi
   const motion = scene.type === "HOOK" ? hookPop(frame, fps) : enter(frame, fps);
 
   return (
-    <SceneFrame label={scene.type === "HOOK" ? undefined : scene.label} labelColor={tone.strong}>
+    <SceneFrame scene={scene} label={scene.type === "HOOK" ? undefined : scene.label} labelColor={tone.strong}>
       <div
         style={{
           ...motion,
           display: "flex",
-          gap: 32,
+          gap: 28,
           alignItems: "flex-start",
-          padding: 48,
-          borderRadius: 36,
+          padding: 32,
+          borderRadius: 28,
           backgroundColor: tone.soft,
           borderLeft: `18px solid ${tone.strong}`,
         }}
       >
-        <div style={{ fontSize: 120, fontWeight: 800, lineHeight: 1, color: tone.strong }}>{tone.mark}</div>
-        <div style={{ fontSize: 76, fontWeight: 800, lineHeight: 1.15 }}>{scene.onScreenText}</div>
+        <div style={{ fontSize: 96, fontWeight: 800, lineHeight: 1, color: tone.strong }}>{tone.mark}</div>
+        <div style={{ fontSize: 68, fontWeight: 800, lineHeight: 1.15 }}>{scene.onScreenText}</div>
       </div>
     </SceneFrame>
   );
