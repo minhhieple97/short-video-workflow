@@ -362,7 +362,7 @@ model JobRecord {
   id                 String       @id @default(cuid())
   bullmqJobId        String       @unique
   jobType            String
-  // SYSTEM (diagnostics) | CHAPTER | VIDEO | SCENE | RENDER | PRODUCTION_ITEM | ARCHIVE.
+  // SYSTEM (diagnostics) | CHAPTER | VIDEO | SCENE | RENDER | PRODUCTION_ITEM | ARCHIVE | EXTRACTION.
   entityType         String
   entityId           String
   status             JobStatus    @default(QUEUED)
