@@ -164,9 +164,9 @@ worker/processors  →  features/*/services (*-runner.ts)  →  server/{ai,tts,m
 | Asset server cục bộ khi render                            | Remotion render trong Chromium cần URL cho âm thanh; phục vụ đúng các tệp của video qua `127.0.0.1` tránh lộ toàn bộ `data/`.              |
 | Composition dùng chung Player và render                   | Bản xem trước là bản sẽ được render — không có hai bộ layout lệch nhau.                                                                    |
 
-## 11. Kiến trúc đích v1.2 (chưa triển khai)
+## 11. Kiến trúc v1.2 (có trong mã, chưa nghiệm thu với tài khoản thật)
 
-> Mọi thứ từ §1 tới §10 mô tả mã **đang chạy**. Mục này mô tả đích của `plan.md` (đặc tả: [§23](../BOOK_VIDEO_STUDIO_REQUIREMENTS_VI_v1.1.md)). Từng đoạn chỉ được chuyển vào các mục trên khi code tương ứng chạy thật; bảng hiện trạng nằm ở §23.7 của đặc tả và nhật ký task ở `plan.md` §5.
+> §1–§10 mô tả luồng v1.1, vẫn chạy nguyên. Mục này mô tả luồng v1.2 của `plan.md` (đặc tả: [§23](../BOOK_VIDEO_STUDIO_REQUIREMENTS_VI_v1.1.md)): toàn bộ đã có trong mã và được kiểm thử với fake cục bộ (OCR, NotebookLM, Claude, Drive), nhưng **chưa chạy với tài khoản Mistral/NotebookLM/Google thật** (G07, G08). Bảng hiện trạng ở §23.7 của đặc tả, nhật ký task ở `plan.md` §5, vận hành ở [`runbook.md`](./runbook.md) (cài đặt, đổi nhà cung cấp — gồm cách thêm OCR provider bằng adapter + bộ contract —, hạn mức, lỗi, khôi phục, giới hạn đã biết).
 
 ```mermaid
 flowchart TD

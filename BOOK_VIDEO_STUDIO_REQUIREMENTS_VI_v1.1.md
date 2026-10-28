@@ -1216,7 +1216,7 @@ Nếu thời gian thực thi hạn chế, hoàn thành vertical slice bằng **M
 
 ## 23. MỞ RỘNG v1.2 — PDF/OCR → NOTEBOOKLM → CLAUDE → REMOTION → GOOGLE DRIVE
 
-> **Trạng thái: mục tiêu đã chốt, chưa triển khai.** Mã hiện tại vẫn thực thi v1.1 (§1–§22). Một mục chỉ được đổi sang "Đã triển khai" ở bảng §23.7 trong cùng commit làm nó chạy thật; adapter hoặc fixture đơn lẻ chưa đủ điều kiện. Kế hoạch từng task nằm ở `plan.md`.
+> **Trạng thái: đã có trong mã, chưa nghiệm thu với tài khoản thật.** Luồng v1.1 (§1–§22) vẫn chạy nguyên. Bảng §23.7 nói rõ từng năng lực; mọi tích hợp (Mistral OCR, NotebookLM, Google Drive) mới được kiểm thử với fake cục bộ, việc chạy với tài khoản thật thuộc G07/G08 của `plan.md`. Vận hành: `docs/runbook.md`.
 
 ### 23.1. Luồng sản phẩm
 
