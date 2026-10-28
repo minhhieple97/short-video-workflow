@@ -8,18 +8,22 @@ import { dataPath } from "@/server/storage/paths";
 import { JOB_TYPES } from "@/shared/types/job";
 
 import { chapterAnalysisOutputSchema } from "../contracts/chapter-analysis";
+import { scenePlanSchema } from "@/server/scene-plan/scene-plan-compiler";
+
 import { sceneRegenerationOutputSchema, videoScriptOutputSchema } from "../contracts/video-script";
 
 export const TASK_OUTPUT_SCHEMAS = {
   "chapter-analysis": chapterAnalysisOutputSchema,
   "video-script": videoScriptOutputSchema,
   "scene-regeneration": sceneRegenerationOutputSchema,
+  "scene-plan": scenePlanSchema,
 } as const;
 export type TaskKind = keyof typeof TASK_OUTPUT_SCHEMAS;
+export const TASK_KINDS = Object.keys(TASK_OUTPUT_SCHEMAS) as [TaskKind, ...TaskKind[]];
 
 const taskMetaSchema = z.object({
   taskId: z.string(),
-  kind: z.enum(["chapter-analysis", "video-script", "scene-regeneration"]),
+  kind: z.enum(TASK_KINDS),
   promptVersion: z.string(),
   createdAt: z.string(),
   resume: z.object({ jobType: z.enum(JOB_TYPES), payload: z.record(z.string(), z.unknown()) }).nullable(),
