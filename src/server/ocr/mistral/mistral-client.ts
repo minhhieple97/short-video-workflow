@@ -5,8 +5,11 @@ import type { z } from "zod";
 import { IntegrationError, type IntegrationFailureKind } from "@/server/integrations/integration-error";
 
 import {
+  mistralBatchJobListSchema,
+  mistralBatchJobSchema,
   mistralDeletedFileSchema,
   mistralFileSchema,
+  type MistralBatchJob,
   type MistralDeletedFile,
   type MistralFile,
 } from "./mistral-schemas";
@@ -96,6 +99,56 @@ export class MistralClient {
     signal?: AbortSignal,
   ): Promise<MistralFile> {
     return this.uploadBlob(new Blob([input.content]), input.fileName, input.purpose, signal);
+  }
+
+  createBatchJob(
+    input: { model: string; endpoint: "/v1/ocr"; inputFileIds: string[]; metadata: Record<string, string> },
+    signal?: AbortSignal,
+  ): Promise<MistralBatchJob> {
+    return this.send({
+      method: "POST",
+      path: "/v1/batch/jobs",
+      body: JSON.stringify({
+        model: input.model,
+        endpoint: input.endpoint,
+        input_files: input.inputFileIds,
+        metadata: input.metadata,
+      }),
+      headers: { "content-type": "application/json" },
+      mutating: true,
+      timeoutMs: READ_TIMEOUT_MS,
+      signal,
+      parse: parseJson(mistralBatchJobSchema),
+    });
+  }
+
+  getBatchJob(jobId: string, signal?: AbortSignal): Promise<MistralBatchJob> {
+    return this.send({
+      method: "GET",
+      path: `/v1/batch/jobs/${encodeURIComponent(jobId)}`,
+      mutating: false,
+      timeoutMs: READ_TIMEOUT_MS,
+      signal,
+      parse: parseJson(mistralBatchJobSchema),
+    });
+  }
+
+  // Newest first. The server-side metadata filter is not used because its query encoding is not documented.
+  async listBatchJobs(input: { page: number; pageSize: number }, signal?: AbortSignal): Promise<MistralBatchJob[]> {
+    const query = new URLSearchParams({
+      page: String(input.page),
+      page_size: String(input.pageSize),
+      order_by: "-created",
+    });
+    const list = await this.send({
+      method: "GET",
+      path: `/v1/batch/jobs?${query}`,
+      mutating: false,
+      timeoutMs: READ_TIMEOUT_MS,
+      signal,
+      parse: parseJson(mistralBatchJobListSchema),
+    });
+    return list.data;
   }
 
   deleteFile(fileId: string, signal?: AbortSignal): Promise<MistralDeletedFile> {

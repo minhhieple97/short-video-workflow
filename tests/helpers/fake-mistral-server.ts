@@ -8,6 +8,21 @@ export interface StoredFile {
   bytes: Buffer;
 }
 
+export interface FakeBatchJob {
+  id: string;
+  status: string;
+  endpoint: string;
+  model: string;
+  input_files: string[];
+  metadata: Record<string, string>;
+  output_file: string | null;
+  error_file: string | null;
+  total_requests: number;
+  succeeded_requests: number;
+  failed_requests: number;
+  createdOrder: number;
+}
+
 export interface RecordedRequest {
   method: string;
   path: string;
@@ -18,6 +33,8 @@ export interface RecordedRequest {
 export type Fault =
   | { kind: "status"; status: number; body?: unknown; headers?: Record<string, string> }
   | { kind: "drop" }
+  // The request takes effect and then the connection dies, so the client never learns the outcome.
+  | { kind: "drop-after" }
   | { kind: "garbage" };
 
 type RouteHandler = (request: IncomingRequest) => Promise<unknown> | unknown;
@@ -40,6 +57,7 @@ interface Route {
 // addRoute(); every request is recorded, and faults can be injected per method and path.
 export class FakeMistralServer {
   readonly files = new Map<string, StoredFile>();
+  readonly jobs = new Map<string, FakeBatchJob>();
   readonly requests: RecordedRequest[] = [];
   // Lets a test make the server report a different size than it received.
   reportedBytes: ((file: StoredFile) => number) | null = null;
@@ -47,6 +65,7 @@ export class FakeMistralServer {
   private readonly routes: Route[] = [];
   private readonly faults: { method: string; pattern: RegExp; fault: Fault }[] = [];
   private fileCounter = 0;
+  private jobCounter = 0;
 
   private constructor(
     private readonly server: http.Server,
@@ -63,6 +82,7 @@ export class FakeMistralServer {
     const { port } = server.address() as AddressInfo;
     instance = new FakeMistralServer(server, apiKey, `http://127.0.0.1:${port}`);
     instance.installFileRoutes();
+    instance.installBatchRoutes();
     return instance;
   }
 
@@ -129,6 +149,58 @@ export class FakeMistralServer {
     });
   }
 
+  private installBatchRoutes(): void {
+    const publicJob = ({ createdOrder: _order, ...job }: FakeBatchJob) => job;
+
+    this.addRoute("POST", /^\/v1\/batch\/jobs$/, (request) => {
+      const body = JSON.parse(request.body.toString("utf8")) as {
+        model: string;
+        endpoint: string;
+        input_files: string[];
+        metadata?: Record<string, string>;
+      };
+      const inputs = body.input_files.map((id) => this.files.get(id));
+      if (inputs.some((file) => file === undefined)) return { status: 422, body: { message: "Unknown input file" } };
+
+      this.jobCounter += 1;
+      const job: FakeBatchJob = {
+        id: `job-${this.jobCounter}`,
+        status: "QUEUED",
+        endpoint: body.endpoint,
+        model: body.model,
+        input_files: body.input_files,
+        metadata: body.metadata ?? {},
+        output_file: null,
+        error_file: null,
+        total_requests: inputs.reduce(
+          (sum, file) => sum + (file?.bytes.toString("utf8").split("\n").filter(Boolean).length ?? 0),
+          0,
+        ),
+        succeeded_requests: 0,
+        failed_requests: 0,
+        createdOrder: this.jobCounter,
+      };
+      this.jobs.set(job.id, job);
+      return publicJob(job);
+    });
+
+    this.addRoute("GET", /^\/v1\/batch\/jobs$/, (request) => {
+      const page = Number(request.query.get("page") ?? "0");
+      const pageSize = Number(request.query.get("page_size") ?? "100");
+      const newestFirst = [...this.jobs.values()].sort((left, right) => right.createdOrder - left.createdOrder);
+      return {
+        data: newestFirst.slice(page * pageSize, (page + 1) * pageSize).map(publicJob),
+        object: "list",
+        total: newestFirst.length,
+      };
+    });
+
+    this.addRoute("GET", /^\/v1\/batch\/jobs\/([^/]+)$/, (request) => {
+      const job = this.jobs.get(decodeURIComponent(request.path.split("/")[4] ?? ""));
+      return job ? publicJob(job) : { status: 404, body: { message: "Job not found" } };
+    });
+  }
+
   private async handle(request: http.IncomingMessage, response: http.ServerResponse): Promise<void> {
     const url = new URL(request.url ?? "/", "http://fake.invalid");
     const method = request.method ?? "GET";
@@ -150,6 +222,14 @@ export class FakeMistralServer {
     const faultIndex = this.faults.findIndex((entry) => entry.method === method && entry.pattern.test(url.pathname));
     const injected = faultIndex >= 0 ? this.faults.splice(faultIndex, 1)[0]?.fault : undefined;
     if (injected?.kind === "drop") {
+      request.socket.destroy();
+      return;
+    }
+    if (injected?.kind === "drop-after") {
+      const applied = this.routes.find(
+        (candidate) => candidate.method === method && candidate.pattern.test(url.pathname),
+      );
+      await applied?.handler(incoming);
       request.socket.destroy();
       return;
     }
