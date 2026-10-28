@@ -6,11 +6,12 @@ export interface JobEntityIds {
   sceneIds: string[];
   renderIds: string[];
   productionItemIds: string[];
+  archiveIds: string[];
 }
 
 // Batched lookups for the entities referenced by JobRecord.entityType/entityId.
 export async function findJobEntities(ids: JobEntityIds) {
-  const [chapters, videos, scenes, renders, productionItems] = await Promise.all([
+  const [chapters, videos, scenes, renders, productionItems, archives] = await Promise.all([
     prisma.chapter.findMany({ where: { id: { in: ids.chapterIds } }, select: { id: true, title: true, bookId: true } }),
     prisma.video.findMany({ where: { id: { in: ids.videoIds } }, select: { id: true, title: true } }),
     prisma.videoScene.findMany({
@@ -25,6 +26,10 @@ export async function findJobEntities(ids: JobEntityIds) {
       where: { id: { in: ids.productionItemIds } },
       select: { id: true, videoId: true, lesson: { select: { title: true } } },
     }),
+    prisma.renderArchive.findMany({
+      where: { id: { in: ids.archiveIds } },
+      select: { id: true, render: { select: { videoId: true, video: { select: { title: true } } } } },
+    }),
   ]);
-  return { chapters, videos, scenes, renders, productionItems };
+  return { chapters, videos, scenes, renders, productionItems, archives };
 }

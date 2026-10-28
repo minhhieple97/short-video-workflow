@@ -2,6 +2,7 @@ import "dotenv/config";
 
 import { Queue, Worker } from "bullmq";
 
+import { sweepRenderArchives } from "@/features/archive/services/archive-request.service";
 import { sweepDueJobIntents, type EnqueueJob } from "@/features/jobs/services/job-dispatch.service";
 import { reconcileProductionItems } from "@/features/productions/services/production-reconcile.service";
 import { configureDatabase, prisma } from "@/server/db/client";
@@ -12,6 +13,7 @@ import { ensureDataDirs } from "@/server/storage/paths";
 import { getAppConfig } from "@/shared/config/env";
 import { createLogger, toSafeErrorMessage } from "@/shared/logger";
 
+import { startArchiveSweeper } from "./lifecycle/archive-sweeper";
 import { startDispatchSweeper } from "./lifecycle/dispatch-sweeper";
 import { startHeartbeat } from "./lifecycle/heartbeat";
 import { reconcileJobRecords } from "./lifecycle/reconcile";
@@ -43,14 +45,17 @@ async function main(): Promise<void> {
   await reconcileJobRecords(queue);
   // After the records match Redis: an item whose job was lost gets a new one, delivered by the sweeper below.
   await reconcileProductionItems();
+  await sweepRenderArchives();
   const worker = new Worker(QUEUE_NAME, processJob, { connection, concurrency: config.concurrency.worker });
   worker.on("error", (error) => logger.error("Worker error", { error: toSafeErrorMessage(error) }));
 
   const stopHeartbeat = startHeartbeat(connection);
   const stopDispatchSweeper = startDispatchSweeper(enqueue);
+  const stopArchiveSweeper = startArchiveSweeper();
   registerShutdown(async () => {
     stopHeartbeat();
     await stopDispatchSweeper();
+    await stopArchiveSweeper();
     await worker.close();
     await queue.close();
     await connection.quit();

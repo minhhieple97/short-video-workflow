@@ -22,4 +22,6 @@ export const JOB_OPTIONS_BY_TYPE: Record<JobType, JobsOptions> = {
   RENDER_VIDEO: {},
   // A production item resumes from its checkpoint by itself, and waits through deferral rather than BullMQ retries.
   RUN_PRODUCTION_ITEM: {},
+  // An archive resumes from its stored checkpoints and waits out quota or outages through deferral, not BullMQ retries.
+  ARCHIVE_RENDER: {},
 };

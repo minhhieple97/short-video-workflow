@@ -151,6 +151,7 @@ describe.skipIf(!redisAvailable)("job outbox against real BullMQ", () => {
       },
       RENDER_VIDEO: unused,
       RUN_PRODUCTION_ITEM: unused,
+      ARCHIVE_RENDER: unused,
     };
 
     const waiting = await dispatch.recordJobIntent(request("scene-a"));

@@ -19,10 +19,9 @@ export interface ArchiveRenderFacts {
 }
 
 // Remote names follow the plan's layout: video_s<script version>_<renderId>_<width>x<height>.mp4, script.json, manifest.json.
-export function archiveFileNames(snapshot: RenderSnapshot, renderId: string) {
-  const { width, height } = snapshot.render;
+export function archiveFileNames(render: { id: string; scriptVersion: number; width: number; height: number }) {
   return {
-    VIDEO: `video_s${snapshot.video.scriptVersion}_${renderId}_${width}x${height}.mp4`,
+    VIDEO: `video_s${render.scriptVersion}_${render.id}_${render.width}x${render.height}.mp4`,
     SCRIPT: "script.json",
     MANIFEST: "manifest.json",
   } as const;

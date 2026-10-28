@@ -1,5 +1,9 @@
+import { randomUUID } from "node:crypto";
+
+import { createJobIntentWithin } from "@/features/jobs/repositories/job-dispatch.repository";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
+import { ACTIVE_JOB_STATUSES } from "@/shared/types/job";
 import type {
   ArchiveDestination,
   ArchiveFileKind,
@@ -7,6 +11,8 @@ import type {
 } from "@/server/archive/video-archive-provider";
 
 import { UNFINISHED_ARCHIVE_STATUSES } from "../domain/archive-status";
+
+export const ARCHIVE_ENTITY = "ARCHIVE";
 
 const WITH_FILES = { files: { orderBy: { kind: "asc" } } } as const satisfies Prisma.RenderArchiveInclude;
 
@@ -168,12 +174,110 @@ export function completeArchive(archiveId: string, now = new Date()): Promise<bo
   });
 }
 
-export function listUnfinishedArchiveIds(): Promise<string[]> {
+export function listUnfinishedArchiveIds(destination?: {
+  provider: string;
+  destinationKey: string;
+}): Promise<string[]> {
   return prisma.renderArchive
     .findMany({
-      where: { status: { in: [...UNFINISHED_ARCHIVE_STATUSES] } },
+      where: { status: { in: [...UNFINISHED_ARCHIVE_STATUSES] }, ...destination },
       select: { id: true },
       orderBy: { createdAt: "asc" },
     })
     .then((archives) => archives.map((archive) => archive.id));
+}
+
+// A temporary failure parks the archive as WAITING with its reason and counts it; returns the new count.
+export async function recordArchiveRetry(
+  archiveId: string,
+  failure: { code: string; message: string },
+): Promise<number> {
+  const archive = await prisma.renderArchive.update({
+    where: { id: archiveId },
+    data: { status: "WAITING", retries: { increment: 1 }, errorCode: failure.code, errorMessage: failure.message },
+  });
+  return archive.retries;
+}
+
+// Finished FINAL renders that asked to be archived (the intent is written with the render) and have no archive yet in
+// this destination.
+export async function listRendersAwaitingArchive(destination: { provider: string; destinationKey: string }) {
+  return prisma.renderRecord.findMany({
+    where: {
+      status: "COMPLETED",
+      qualityPreset: "FINAL",
+      archiveIntentAt: { not: null },
+      archives: { none: destination },
+    },
+    select: { id: true },
+    orderBy: { completedAt: "asc" },
+  });
+}
+
+function startArchiveJobWithin(tx: Prisma.TransactionClient, archiveId: string) {
+  return createJobIntentWithin(tx, {
+    bullmqJobId: randomUUID(),
+    jobType: "ARCHIVE_RENDER",
+    entityType: ARCHIVE_ENTITY,
+    entityId: archiveId,
+    payload: { archiveId },
+  });
+}
+
+function findActiveArchiveJob(tx: Prisma.TransactionClient, archiveId: string) {
+  return tx.jobRecord.findFirst({
+    where: {
+      jobType: "ARCHIVE_RENDER",
+      entityType: ARCHIVE_ENTITY,
+      entityId: archiveId,
+      status: { in: [...ACTIVE_JOB_STATUSES] },
+    },
+  });
+}
+
+// Gives an unfinished archive a job when it has none. Writing the archive first takes SQLite's write lock, so two callers
+// cannot both find no job and start one each.
+export function ensureArchiveJob(archiveId: string): Promise<{ jobRecordId: string; started: boolean } | null> {
+  return prisma.$transaction(async (tx) => {
+    const { count } = await tx.renderArchive.updateMany({
+      where: { id: archiveId, status: { in: [...UNFINISHED_ARCHIVE_STATUSES] } },
+      data: { updatedAt: new Date() },
+    });
+    if (count === 0) return null;
+    const active = await findActiveArchiveJob(tx, archiveId);
+    if (active) return { jobRecordId: active.id, started: false };
+    const intent = await startArchiveJobWithin(tx, archiveId);
+    return { jobRecordId: intent.jobRecordId, started: true };
+  });
+}
+
+// The archive and its job are written together, so an archive never waits for a job that was not recorded.
+export async function createArchiveWithJob(
+  target: ArchiveTarget,
+  files: readonly { kind: ArchiveFileKind; remoteName: string }[],
+): Promise<{ archiveId: string; created: boolean }> {
+  try {
+    const archiveId = await prisma.$transaction(async (tx) => {
+      const archive = await tx.renderArchive.create({
+        data: { ...target, files: { create: files.map((file) => ({ ...file })) } },
+      });
+      await startArchiveJobWithin(tx, archive.id);
+      return archive.id;
+    });
+    return { archiveId, created: true };
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error;
+    const existing = await findRenderArchiveFor(target);
+    if (!existing) throw error;
+    await ensureArchiveJob(existing.id);
+    return { archiveId: existing.id, created: false };
+  }
+}
+
+// Cancelling an archive's job stops that archive; it waits for the user to retry it.
+export async function cancelArchive(archiveId: string): Promise<void> {
+  await prisma.renderArchive.updateMany({
+    where: { id: archiveId, status: { in: [...UNFINISHED_ARCHIVE_STATUSES] } },
+    data: { status: "FAILED", errorCode: "ARCHIVE_CANCELLED", errorMessage: "Đã huỷ việc lưu lên Google Drive." },
+  });
 }

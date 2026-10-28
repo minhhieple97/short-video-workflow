@@ -1,6 +1,7 @@
 import type { JobType } from "@/shared/types/job";
 
 import { processAnalyzeChapter } from "./analyze-chapter";
+import { processArchiveRender } from "./archive-render";
 import { createJobDispatcher } from "./dispatcher";
 import { processDiagnosticPing } from "./diagnostic-ping";
 import { processGenerateScript } from "./generate-script";
@@ -16,6 +17,7 @@ const PROCESSORS: Record<JobType, JobProcessor> = {
   GENERATE_SCENE_TTS: processGenerateTts,
   RENDER_VIDEO: processRenderVideo,
   RUN_PRODUCTION_ITEM: processRunProductionItem,
+  ARCHIVE_RENDER: processArchiveRender,
 };
 
 export const processJob = createJobDispatcher(PROCESSORS);

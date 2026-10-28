@@ -55,7 +55,11 @@ export async function materializeArchiveFiles(input: {
   videoOutputPath: string;
 }): Promise<Record<ArchiveFileKind, ArchiveLocalFile>> {
   const { snapshot, facts } = input;
-  const names = archiveFileNames(snapshot, facts.renderId);
+  const names = archiveFileNames({
+    id: facts.renderId,
+    ...snapshot.render,
+    scriptVersion: snapshot.video.scriptVersion,
+  });
   const videoId = snapshot.video.id;
 
   const videoDigest = await hashFile(dataPath(input.videoOutputPath));

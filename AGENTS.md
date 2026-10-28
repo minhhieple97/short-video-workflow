@@ -197,9 +197,12 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 
 ## 8. Jobs & queue
 
-- One queue `studio-jobs`; job types: `ANALYZE_CHAPTER`, `GENERATE_VIDEO_SCRIPT`, `GENERATE_SCENE_TTS`, `RENDER_VIDEO`, `RUN_PRODUCTION_ITEM` (plus `DIAGNOSTIC_PING` for health checks).
+- One queue `studio-jobs`; job types: `ANALYZE_CHAPTER`, `GENERATE_VIDEO_SCRIPT`, `GENERATE_SCENE_TTS`, `RENDER_VIDEO`, `RUN_PRODUCTION_ITEM`, `ARCHIVE_RENDER` (plus `DIAGNOSTIC_PING` for health checks).
 - A production item's job is written in the same transaction that makes the item runnable (creation, retry); never start one any other way.
   Its processor claims the item, steps from the checkpoint and defers instead of waiting; cancelling the job cancels the item.
+- An archive and its `ARCHIVE_RENDER` job are written in one transaction (`createArchiveWithJob`); the worker's archive sweep
+  (start-up + every minute) archives FINAL renders that carry an archive intent and re-jobs unfinished archives. The archive
+  processor only uploads: it never renders, voices or calls an AI.
 - Worker `concurrency = WORKER_CONCURRENCY` (default 1); global AI concurrency = 1; Remotion `concurrency = RENDER_CONCURRENCY` (default 1).
 - Job payloads carry **IDs and small metadata only** — never book text, audio, or secrets.
 - **Tracked jobs go through the outbox:** `recordJobIntent` writes the `JobRecord` and its `JobDispatch` row in one transaction, then

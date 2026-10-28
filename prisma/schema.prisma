@@ -303,6 +303,8 @@ model RenderArchive {
   status         String              @default("PENDING")
   // The render's folder on the remote side, allocated before any file is uploaded and never changed afterwards.
   remoteFolderId String?
+  // Temporary failures in a row (quota, outage); bounded so an archive that never gets through ends with its reason.
+  retries        Int                 @default(0)
   errorCode      String?
   errorMessage   String?
   createdAt      DateTime            @default(now())
@@ -357,7 +359,7 @@ model JobRecord {
   id                 String       @id @default(cuid())
   bullmqJobId        String       @unique
   jobType            String
-  // SYSTEM (diagnostics) | CHAPTER | VIDEO | SCENE | RENDER | PRODUCTION_ITEM.
+  // SYSTEM (diagnostics) | CHAPTER | VIDEO | SCENE | RENDER | PRODUCTION_ITEM | ARCHIVE.
   entityType         String
   entityId           String
   status             JobStatus    @default(QUEUED)
