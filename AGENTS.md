@@ -122,6 +122,8 @@ src/
     ocr/ script-studio/ scene-plan/ archive/   v1.2 ports + vendor-free DTOs only (OcrProvider, ScriptStudioProvider, ScenePlanCompiler,
                        VideoArchiveProvider); real adapters land with the B/C/D/E tasks of `plan.md`. Fakes + contract suites live in
                        tests/helpers/{fakes,contracts}; every adapter must pass its port's contract suite
+    script-studio/notebooklm/  MCP stdio client (`McpStdioClient`: argv spawn, explicit env, bounded stderr never in errors)
+                       for the NotebookLM server (`notebooklm-mcp-cli`, pinned); the adapter lands with group C of `plan.md`
     archive/google-drive/  Google OAuth helpers (PKCE, loopback redirect, `drive.file` only), the credential store
                        (`data/credentials/google-drive.json`, mode 0600, never in SQLite, DTOs or logs), `DriveAccessToken`,
                        and `GoogleDriveArchiveProvider` (folder tree with pre-generated IDs, resumable upload, checksum verify)

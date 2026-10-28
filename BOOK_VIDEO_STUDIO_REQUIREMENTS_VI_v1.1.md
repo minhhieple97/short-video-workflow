@@ -1300,7 +1300,7 @@ Hook 4 giây áp dụng cho **mọi luồng** vì Player, preflight và render d
 | Outbox bền vững giữa SQLite và Redis             | Đã triển khai        | A05                  |
 | Kết quả "trì hoãn" của processor trong worker    | Cơ chế đã có, chưa processor nào dùng | A06 |
 | Nhập PDF, trích text, OCR Mistral Batch          | Một phần: có bảng dữ liệu (B01), API tải PDF (B02) dự trù chi phí/pacing OCR (B06) và adapter `OcrProvider` cho Mistral Batch (B07–B09, mới thử với fake server, chưa chạy với tài khoản thật) đối chiếu kết quả OCR theo bản đồ trang (B10) ghép Markdown chuẩn kèm bản đồ offset (B12) và vòng đời/đối soát lô OCR (B11); chưa trích text/OCR nên lần chạy vẫn `QUEUED` | B01–B13 |
-| NotebookLM MCP, catalogue, bản thảo              | Chưa triển khai      | C01–C09              |
+| NotebookLM MCP, catalogue, bản thảo | Một phần: client MCP stdio (C01); chưa có adapter NotebookLM | C01–C09 |
 | Chọn lesson, production batch, Claude compiler   | Một phần: bảng và claim (D01), API chọn lesson + snapshot (D02), mạch kể (D03), hợp đồng handoff bản thảo/kế hoạch cảnh (D04), bộ biên dịch cảnh bằng Claude/mock (D05), áp dụng kế hoạch cảnh một lần + khoá chỉnh sửa (D06), giọng đọc tuần tự có checkpoint (D07), readiness tự động sau audio (D08), một lượt sửa AI mỗi video (D09), snapshot render bất biến (D10), tách lỗi render khỏi hậu xử lý + ý định lưu trữ bền (D11), điều phối mỗi item bằng một job tiếp tục được + huỷ/thử lại/reconcile (D12; chế độ thật chờ adapter NotebookLM ở nhóm C) | D01–D12 |
 | Hook 4 giây / 120 frame (mọi luồng)              | Đã triển khai        | D03                  |
 | Mạch kể bắt buộc (kiểm tra thứ tự beat và cảnh)  | Đã triển khai trong contract, chưa có bộ biên dịch thật | D03, D05 |

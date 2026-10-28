@@ -1,0 +1,105 @@
+// A stand-in MCP server for tests, speaking newline-delimited JSON-RPC on stdio. FAKE_MCP_MODE (comma-separated) picks
+// misbehaviours; FAKE_MCP_LOG records every message it receives.
+import fs from "node:fs";
+
+const modes = new Set((process.env.FAKE_MCP_MODE ?? "").split(",").filter(Boolean));
+const log = process.env.FAKE_MCP_LOG;
+const protocol = process.env.FAKE_MCP_PROTOCOL ?? "2025-06-18";
+let buffer = "";
+let pingId = 1000;
+const waitingForPing = new Map();
+
+// "stay-open" keeps running after stdin closes, like a server that does not notice its client went away.
+const stayOpen = modes.has("stay-open") || modes.has("ignore-sigterm");
+if (stayOpen) setInterval(() => undefined, 1000);
+if (modes.has("ignore-sigterm")) process.on("SIGTERM", () => undefined);
+else
+  process.on("SIGTERM", () => {
+    if (log) fs.appendFileSync(log, `${JSON.stringify({ signal: "SIGTERM" })}\n`);
+    process.exit(0);
+  });
+if (modes.has("stderr-secret")) process.stderr.write("cookie=SID-SECRET-VALUE\n");
+
+const send = (message) => {
+  if (modes.has("garbage")) process.stdout.write("this is not json\n");
+  process.stdout.write(`${JSON.stringify(message)}\n`);
+};
+
+function handle(message) {
+  if (log) fs.appendFileSync(log, `${JSON.stringify(message)}\n`);
+  if (message.id !== undefined && waitingForPing.has(message.id)) {
+    waitingForPing.get(message.id)(message);
+    waitingForPing.delete(message.id);
+    return;
+  }
+  if (message.method === "initialize") {
+    send({
+      jsonrpc: "2.0",
+      id: message.id,
+      result: {
+        protocolVersion: protocol,
+        capabilities: { tools: {} },
+        serverInfo: { name: "fake-mcp", version: "9.9" },
+      },
+    });
+    return;
+  }
+  if (message.method === "tools/list") {
+    const page2 = message.params?.cursor === "page-2";
+    const tools = page2
+      ? [{ name: "env", inputSchema: { type: "object" } }]
+      : [{ name: "echo", inputSchema: { type: "object" } }];
+    send({ jsonrpc: "2.0", id: message.id, result: { tools, ...(page2 ? {} : { nextCursor: "page-2" }) } });
+    return;
+  }
+  if (message.method === "tools/call") {
+    if (modes.has("crash-on-call")) process.exit(3);
+    if (modes.has("hang-on-call")) return;
+    if (modes.has("rpc-error")) {
+      send({ jsonrpc: "2.0", id: message.id, error: { code: -32602, message: "bad params with cookie=SECRET" } });
+      return;
+    }
+    const answer = () => {
+      const { name, arguments: args } = message.params;
+      const structured =
+        name === "env"
+          ? { status: "success", keys: Object.keys(process.env).sort() }
+          : { status: "success", echo: args };
+      send({
+        jsonrpc: "2.0",
+        id: message.id,
+        result: {
+          content: [{ type: "text", text: JSON.stringify(structured) }],
+          structuredContent: structured,
+          isError: false,
+        },
+      });
+    };
+    if (modes.has("ping-first")) {
+      const id = pingId++;
+      waitingForPing.set(id, (reply) => {
+        if (log) fs.appendFileSync(log, `${JSON.stringify({ pingReply: reply })}\n`);
+        answer();
+      });
+      send({ jsonrpc: "2.0", id, method: "ping" });
+      return;
+    }
+    answer();
+    return;
+  }
+  if (message.id !== undefined) send({ jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "nope" } });
+}
+
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+  buffer += chunk;
+  let newline;
+  while ((newline = buffer.indexOf("\n")) >= 0) {
+    const line = buffer.slice(0, newline);
+    buffer = buffer.slice(newline + 1);
+    if (line.trim()) handle(JSON.parse(line));
+  }
+});
+process.stdin.on("end", () => {
+  if (!stayOpen) process.exit(0);
+});
