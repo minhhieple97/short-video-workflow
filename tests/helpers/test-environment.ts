@@ -3,6 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { OFFLINE_INTEGRATIONS_ENV } from "./offline-env";
+
 export interface TestEnvironment {
   dataDir: string;
   cleanup: () => void;
@@ -16,11 +18,11 @@ export function setupTestEnvironment(): TestEnvironment {
   fs.mkdirSync(dataDir, { recursive: true });
 
   Object.assign(process.env, {
+    ...OFFLINE_INTEGRATIONS_ENV,
     NODE_ENV: "test",
     DATABASE_URL: `file:${path.join(dataDir, "test.db")}`,
     DATA_DIR: dataDir,
     REDIS_URL: "redis://127.0.0.1:6399",
-    AI_MODE: "mock",
   });
   execFileSync("pnpm", ["exec", "prisma", "migrate", "deploy"], { env: process.env, stdio: "pipe" });
 
