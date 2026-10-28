@@ -12,6 +12,7 @@ import type {
   ArchiveVerifyRequest,
   VideoArchiveProvider,
 } from "../video-archive-provider";
+import type { DriveCapacityGuard } from "./drive-capacity";
 import { DriveFolderTree, type ArchiveFolderStore } from "./drive-folder-tree";
 import { DriveResumableUpload } from "./drive-resumable-upload";
 import type { GoogleDriveClient } from "./google-drive-client";
@@ -21,6 +22,7 @@ export const GOOGLE_DRIVE_PROVIDER_ID = "google-drive";
 export interface GoogleDriveArchiveProviderOptions {
   drive: GoogleDriveClient;
   folders: ArchiveFolderStore;
+  capacity?: DriveCapacityGuard;
   chunkBytes?: number;
 }
 
@@ -31,9 +33,11 @@ export class GoogleDriveArchiveProvider implements VideoArchiveProvider {
   private readonly drive: GoogleDriveClient;
   private readonly tree: DriveFolderTree;
   private readonly uploader: DriveResumableUpload;
+  private readonly capacity: DriveCapacityGuard | undefined;
 
   constructor(options: GoogleDriveArchiveProviderOptions) {
     this.drive = options.drive;
+    this.capacity = options.capacity;
     this.tree = new DriveFolderTree(options.drive, options.folders);
     this.uploader = new DriveResumableUpload(options.drive, { chunkBytes: options.chunkBytes });
   }
@@ -42,8 +46,12 @@ export class GoogleDriveArchiveProvider implements VideoArchiveProvider {
     return this.tree.prepare(request, options?.signal);
   }
 
-  upload(request: ArchiveUploadRequest, options?: ArchiveUploadOptions): Promise<ArchiveUploadResult> {
-    return this.uploader.upload(request, options);
+  // A new upload is refused up front when the file cannot fit; a resumed one already had its room checked.
+  async upload(request: ArchiveUploadRequest, options?: ArchiveUploadOptions): Promise<ArchiveUploadResult> {
+    if (!request.checkpoint) await this.capacity?.ensureRoomFor(request.file.bytes, options?.signal);
+    const result = await this.uploader.upload(request, options);
+    await this.capacity?.recordUpload(result.bytes);
+    return result;
   }
 
   // Compares what Drive holds with the local file now, rather than trusting an earlier upload answer. The checksum

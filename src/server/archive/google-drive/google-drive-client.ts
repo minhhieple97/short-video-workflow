@@ -46,6 +46,13 @@ async function uploadState(response: Response): Promise<DriveUploadState> {
 }
 const createdSchema = z.object({ id: z.string().min(1) });
 
+const storageQuotaSchema = z.object({
+  storageQuota: z.object({
+    limit: z.coerce.number().int().nonnegative().optional(),
+    usage: z.coerce.number().int().nonnegative(),
+  }),
+});
+
 const aboutSchema = z.object({
   user: z.object({ permissionId: z.string().min(1), emailAddress: z.string().min(1).optional() }),
 });
@@ -59,6 +66,8 @@ export interface DriveAccount {
 
 export interface GoogleDriveClientOptions {
   getAccessToken: () => Promise<string>;
+  // Called before every request, with the bytes it will send, so pacing and the app's daily limits are applied.
+  beforeRequest?: (bytes: number) => Promise<void>;
   // Called when Drive refuses the token (401) so the next one is refreshed; the request is then sent once more.
   invalidateAccessToken?: () => void;
   endpoints?: GoogleEndpoints;
@@ -72,10 +81,12 @@ type DriveRequest<TResult> = Omit<GoogleRequest<TResult>, "headers" | "timeoutMs
 export class GoogleDriveClient {
   private readonly getAccessToken: () => Promise<string>;
   private readonly invalidateAccessToken: (() => void) | undefined;
+  private readonly beforeRequest: ((bytes: number) => Promise<void>) | undefined;
   private readonly endpoints: GoogleEndpoints;
 
   constructor(options: GoogleDriveClientOptions) {
     this.getAccessToken = options.getAccessToken;
+    this.beforeRequest = options.beforeRequest;
     this.invalidateAccessToken = options.invalidateAccessToken;
     this.endpoints = options.endpoints ?? GOOGLE_ENDPOINTS;
   }
@@ -90,6 +101,18 @@ export class GoogleDriveClient {
       parse: async (response) => aboutSchema.parse(await response.json()),
     });
     return { permissionId: about.user.permissionId, emailAddress: about.user.emailAddress ?? null };
+  }
+
+  // The account's storage; `limit` is absent when the storage is unlimited.
+  async getStorageQuota(signal?: AbortSignal): Promise<{ limitBytes: number | null; usageBytes: number }> {
+    const about = await this.send({
+      url: `${this.endpoints.driveApiUrl}/about?${new URLSearchParams({ fields: "storageQuota(limit,usage)" })}`,
+      method: "GET",
+      mutating: false,
+      signal,
+      parse: async (response) => storageQuotaSchema.parse(await response.json()),
+    });
+    return { limitBytes: about.storageQuota.limit ?? null, usageBytes: about.storageQuota.usage };
   }
 
   // IDs Drive reserves for this user; a file or folder created with one of them can be retried safely (Drive answers
@@ -217,6 +240,8 @@ export class GoogleDriveClient {
   }
 
   private async send<TResult>(request: DriveRequest<TResult>, retried = false): Promise<TResult> {
+    request.signal?.throwIfAborted();
+    await this.beforeRequest?.(bodyBytes(request.body));
     try {
       return await sendGoogleRequest({
         ...request,
@@ -238,3 +263,9 @@ export function googleStatusOf(error: unknown): number | null {
 }
 
 const isUnauthorized = (error: unknown): boolean => googleStatusOf(error) === 401;
+
+function bodyBytes(body: BodyInit | undefined): number {
+  if (typeof body === "string") return Buffer.byteLength(body);
+  if (body instanceof Uint8Array) return body.byteLength;
+  return 0;
+}

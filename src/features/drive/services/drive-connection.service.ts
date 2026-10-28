@@ -28,10 +28,12 @@ import {
 import type { DriveAuthorizationDto, DriveConnectionDto, DriveDisconnectDto } from "../schemas/drive-connection.dto";
 
 const logger = createLogger("drive.connection");
+
+type DriveOAuthConfig = Pick<AppConfig["drive"], "clientId" | "clientSecret">;
 export const DRIVE_PROVIDER = "google-drive";
 export const OAUTH_AUTHORIZATION_TTL_MS = 10 * 60_000;
 
-function requireClientId(drive: AppConfig["drive"]): string {
+function requireClientId(drive: DriveOAuthConfig): string {
   if (!drive.clientId) {
     throw new AppError(
       "DRIVE_NOT_CONFIGURED",
@@ -46,7 +48,7 @@ function requireClientId(drive: AppConfig["drive"]): string {
 // this app on the loopback address. Nothing is granted until the callback exchanges the code.
 export async function startDriveConnection(
   requestUrl: string,
-  drive: AppConfig["drive"] = getAppConfig().drive,
+  drive: DriveOAuthConfig = getAppConfig().drive,
   now: Date = new Date(),
 ): Promise<DriveAuthorizationDto> {
   const clientId = requireClientId(drive);
@@ -69,7 +71,7 @@ export async function startDriveConnection(
 }
 
 export async function getDriveConnectionStatus(
-  drive: AppConfig["drive"] = getAppConfig().drive,
+  drive: DriveOAuthConfig = getAppConfig().drive,
 ): Promise<DriveConnectionDto> {
   const credential = await readDriveCredential();
   return {
@@ -99,7 +101,7 @@ const STATE_PROBLEMS = {
 // answer never reaches the token endpoint, and nothing is stored unless the whole exchange succeeds.
 export async function completeDriveConnection(
   params: DriveCallbackParams,
-  options: { drive?: AppConfig["drive"]; endpoints?: GoogleEndpoints; now?: Date } = {},
+  options: { drive?: DriveOAuthConfig; endpoints?: GoogleEndpoints; now?: Date } = {},
 ): Promise<DriveConnectionDto> {
   const drive = options.drive ?? getAppConfig().drive;
   const endpoints = options.endpoints ?? GOOGLE_ENDPOINTS;
@@ -162,7 +164,7 @@ export async function completeDriveConnection(
 // Forgets the connection and asks Google to revoke it. Files already archived stay in the user's Drive: disconnecting
 // never deletes anything remote, and archive records keep their remote IDs for a later reconnect.
 export async function disconnectDrive(
-  options: { drive?: AppConfig["drive"]; endpoints?: GoogleEndpoints } = {},
+  options: { drive?: DriveOAuthConfig; endpoints?: GoogleEndpoints } = {},
 ): Promise<DriveDisconnectDto> {
   const drive = options.drive ?? getAppConfig().drive;
   const credential = await readDriveCredential();

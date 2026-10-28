@@ -44,10 +44,18 @@ const SPECIFIC_MESSAGES: Record<string, string> = {
   unauthorized_client:
     "Google không nhận OAuth client này. Hãy kiểm tra GOOGLE_OAUTH_CLIENT_ID và GOOGLE_OAUTH_CLIENT_SECRET.",
   invalid_grant: "Quyền truy cập Google Drive không còn hiệu lực. Hãy kết nối lại.",
+  storageQuotaExceeded: "Google Drive đã hết dung lượng lưu trữ. Hãy giải phóng dung lượng hoặc nâng gói rồi thử lại.",
 };
 
 const OAUTH_AUTH_ERRORS = new Set(["invalid_grant", "invalid_client", "unauthorized_client"]);
-const RATE_LIMIT_REASONS = new Set(["rateLimitExceeded", "userRateLimitExceeded"]);
+// Request-rate limits pass with time; a full Drive does not, and it is not a permission problem either.
+const RATE_LIMIT_REASONS = new Set([
+  "rateLimitExceeded",
+  "userRateLimitExceeded",
+  "dailyLimitExceeded",
+  "sharingRateLimitExceeded",
+]);
+const STORAGE_FULL_REASON = "storageQuotaExceeded";
 
 // OAuth errors are {"error": "invalid_grant", ...}; Drive errors are {"error": {"errors": [{"reason": "..."}]}}. Only a
 // short identifier is kept: the rest of the body is never copied into an error, a log line or the UI.
@@ -74,6 +82,7 @@ export function classifyGoogleFailure(
   mutating: boolean,
 ): IntegrationFailureKind {
   if (reason && OAUTH_AUTH_ERRORS.has(reason)) return "AUTH";
+  if (reason === STORAGE_FULL_REASON) return "REJECTED";
   if (status === 429 || (status === 403 && reason !== null && RATE_LIMIT_REASONS.has(reason))) return "QUOTA";
   if (status === 401 || status === 403) return "AUTH";
   if (status === 408 || status >= 500) return mutating ? "UNKNOWN_OUTCOME" : "TRANSIENT";

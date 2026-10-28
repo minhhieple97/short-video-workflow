@@ -582,3 +582,25 @@ model OAuthAuthorization {
 
   @@index([expiresAt])
 }
+
+// Drive API use by this app only (not the whole Google project or account), per hour, so the archive stays within its
+// daily request and upload limits. Hours older than a day are dropped.
+model DriveUsageHour {
+  id        String   @id @default(cuid())
+  provider  String
+  hourStart DateTime
+  requests  Int      @default(0)
+  bytesSent BigInt   @default(0)
+
+  @@unique([provider, hourStart])
+}
+
+// What Google last reported about an account's storage, so the UI and the check before an upload never call Google.
+// Storage capacity says nothing about API quotas, whatever the account's storage plan.
+model DriveCapacity {
+  destinationKey String   @id
+  // Null when the account has unlimited storage.
+  limitBytes     BigInt?
+  usageBytes     BigInt
+  fetchedAt      DateTime
+}

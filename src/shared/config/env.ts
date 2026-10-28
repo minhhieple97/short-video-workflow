@@ -48,6 +48,9 @@ const envSchema = z
     MISTRAL_OCR_USD_PER_1000_PAGES: z.coerce.number().positive().max(1000).default(2),
     GOOGLE_OAUTH_CLIENT_ID: optionalSecret,
     GOOGLE_OAUTH_CLIENT_SECRET: optionalSecret,
+    DRIVE_MIN_REQUEST_INTERVAL_MS: z.coerce.number().int().min(0).max(60_000).default(1000),
+    DRIVE_MAX_REQUESTS_PER_DAY: z.coerce.number().int().positive().max(1_000_000).default(5000),
+    DRIVE_MAX_UPLOAD_GIB_PER_DAY: z.coerce.number().positive().max(750).default(10),
     CHAPTER_HEADING_PATTERNS: regexList,
 
     AI_MODE: z.enum(["mock", "cli-task", "cli-auto"]).default("cli-task"),
@@ -98,7 +101,13 @@ export interface AppConfig {
   pdf: { maxSizeBytes: number };
   ocr: { costCeilingMicroUsd: number };
   mistral: { apiKey: string | undefined; baseUrl: string; ocrModel: string; usdPer1000Pages: number };
-  drive: { clientId: string | undefined; clientSecret: string | undefined };
+  drive: {
+    clientId: string | undefined;
+    clientSecret: string | undefined;
+    minRequestIntervalMs: number;
+    maxRequestsPerDay: number;
+    maxUploadBytesPerDay: number;
+  };
   ai: {
     mode: "mock" | "cli-task" | "cli-auto";
     maxConcurrency: number;
@@ -160,6 +169,9 @@ export function parseAppConfig(source: Record<string, string | undefined>): AppC
     drive: {
       clientId: env.GOOGLE_OAUTH_CLIENT_ID,
       clientSecret: env.GOOGLE_OAUTH_CLIENT_SECRET,
+      minRequestIntervalMs: env.DRIVE_MIN_REQUEST_INTERVAL_MS,
+      maxRequestsPerDay: env.DRIVE_MAX_REQUESTS_PER_DAY,
+      maxUploadBytesPerDay: Math.round(env.DRIVE_MAX_UPLOAD_GIB_PER_DAY * 1024 ** 3),
     },
     ai: {
       mode: env.AI_MODE,

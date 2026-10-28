@@ -59,6 +59,8 @@ type Answer = { status: number; body: unknown; headers?: Record<string, string> 
 export class FakeGoogleServer {
   readonly requests: RecordedGoogleRequest[] = [];
   account: FakeGoogleAccount = { permissionId: "permission-1", emailAddress: "ban@example.com" };
+  // Drive reports these as int64 strings; no limit means unlimited storage.
+  storageQuota: { limit?: string; usage: string } = { limit: String(15 * 1024 ** 3), usage: "0" };
   grantedScope = "https://www.googleapis.com/auth/drive.file";
   issueRefreshToken = true;
   private readonly faults = new Map<string, GoogleFault[]>();
@@ -179,7 +181,7 @@ export class FakeGoogleServer {
   }
 
   private drive(key: string, request: RecordedGoogleRequest): Answer {
-    if (key === ABOUT) return { status: 200, body: { user: this.account } };
+    if (key === ABOUT) return { status: 200, body: { user: this.account, storageQuota: this.storageQuota } };
     if (key === GENERATE_IDS) {
       const count = Number(request.query.get("count"));
       const ids = Array.from({ length: count }, () => `gen-${++this.generated}`);
