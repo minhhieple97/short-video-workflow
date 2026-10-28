@@ -161,3 +161,39 @@ worker/processors  →  features/*/services (*-runner.ts)  →  server/{ai,tts,m
 | Trạng thái kiểu `String` cho vài trường                   | Tập giá trị sống trong domain TypeScript; thêm giá trị không cần migration SQLite.                                                         |
 | Asset server cục bộ khi render                            | Remotion render trong Chromium cần URL cho âm thanh; phục vụ đúng các tệp của video qua `127.0.0.1` tránh lộ toàn bộ `data/`.              |
 | Composition dùng chung Player và render                   | Bản xem trước là bản sẽ được render — không có hai bộ layout lệch nhau.                                                                    |
+
+## 11. Kiến trúc đích v1.2 (chưa triển khai)
+
+> Mọi thứ từ §1 tới §10 mô tả mã **đang chạy**. Mục này mô tả đích của `plan.md` (đặc tả: [§23](../BOOK_VIDEO_STUDIO_REQUIREMENTS_VI_v1.1.md)). Từng đoạn chỉ được chuyển vào các mục trên khi code tương ứng chạy thật; bảng hiện trạng nằm ở §23.7 của đặc tả và nhật ký task ở `plan.md` §5.
+
+```mermaid
+flowchart TD
+  A["Upload PDF"] --> B["Worker: kiểm tra PDF, trích text local theo trang"]
+  B --> C{"Trang cần OCR?"}
+  C -- có --> D["OcrProvider (Mistral Batch)"]
+  C -- không --> E["Văn bản theo trang"]
+  D --> E
+  E --> F["Markdown chuẩn + bản đồ trang"]
+  F --> G["ScriptStudioProvider (NotebookLM, MCP stdio): chương + bài học"]
+  G --> H["Người dùng chọn bài học"]
+  H --> I["ScriptStudioProvider: bản thảo kịch bản"]
+  I --> J["ScenePlanCompiler (Claude qua askClaude): JSON cảnh"]
+  J --> K["TTS → kiểm tra tự động → Remotion"]
+  K --> L["MP4 local đã xác minh"]
+  L --> M["Job archive độc lập"]
+  M --> N["VideoArchiveProvider (Google Drive)"]
+```
+
+| Port                   | Việc của port                                   | Điều adapter giữ kín (không lộ ra service)                      |
+| ---------------------- | ----------------------------------------------- | --------------------------------------------------------------- |
+| `OcrProvider`          | Bắt đầu xử lý, đọc trạng thái, lấy kết quả, hủy | Trạng thái Batch, file ID, giới hạn Mistral, định dạng phản hồi |
+| `ScriptStudioProvider` | Phân tích nguồn, rút bài học, viết bản thảo     | Tên tool MCP, notebook/source ID, envelope lỗi của NotebookLM   |
+| `ScenePlanCompiler`    | Chuyển bản thảo thành JSON cảnh hợp lệ          | Prompt, cờ CLI, cách phân loại lỗi Claude                       |
+| `VideoArchiveProvider` | Chuẩn bị đích, upload, đối soát, xác minh       | OAuth, session upload, folder/file ID, quota của Google         |
+
+- **Service nhận port qua tham số**, factory chọn implementation; hợp đồng OCR cho phép cả "xong ngay" lẫn "cần chờ" nên provider không dùng Batch vẫn khớp.
+- **Một queue, một worker, concurrency 1.** Submit / poll / collect của OCR là các job ngắn, không giữ worker chờ Batch nhiều giờ; worker không enqueue job con rồi đứng chờ. Cơ chế outbox và job trì hoãn được thiết kế ở A05–A06 và sẽ được mô tả ở đây khi có code.
+- **Năm loại dữ liệu khác nhau:** PDF gốc (bất biến) → bản trích xuất (dẫn xuất) → catalogue (chương, bài học, nguồn) → bản thảo NotebookLM → kế hoạch cảnh Claude (đầu vào duy nhất của Remotion) → snapshot render (bất biến, nguồn của manifest Drive). Bản thảo không bao giờ được ghi vào chỗ chứa kết quả Claude.
+- **Cache theo bước:** NotebookLM thành công / Claude lỗi chỉ chạy lại Claude; render thành công / Drive lỗi chỉ chạy lại upload.
+- **Chọn lesson không phải duyệt:** người dùng chọn bài học để sản xuất; readiness do máy kiểm tra sau khi audio gắn xong. Hook tối đa 4 giây / 120 frame (v1.1 hiện là 3 giây / 90 frame cho tới task D03).
+- **Thêm provider OCR mới:** viết adapter thỏa `OcrProvider`, thêm vào factory, chạy bộ contract test dùng chung với fake; chương, bài học, NotebookLM, Claude và Remotion không phải sửa. (Bộ contract test thuộc A04.)

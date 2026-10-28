@@ -1,8 +1,8 @@
 # BOOK VIDEO STUDIO — BUSINESS REQUIREMENTS & TECHNICAL ARCHITECTURE
 
 > **Loại tài liệu:** Product Requirements Document (PRD) + Business Requirements (BRD) + Solution Architecture + Implementation Specification  
-> **Phiên bản:** 1.1 — 27/10/2026 (cập nhật Short-form Video + WSL optimization)  
-> **Trạng thái:** Đặc tả MVP cho Codex triển khai  
+> **Phiên bản:** 1.1 — 27/10/2026 (cập nhật Short-form Video + WSL optimization); mở rộng v1.2 (§23) đã chốt 28/10/2026  
+> **Trạng thái:** Đặc tả MVP cho Codex triển khai. §1–§22 mô tả phần đã triển khai (v1.1); **§23 là mục tiêu v1.2, chưa triển khai**  
 > **Ngôn ngữ giao diện, kịch bản, giọng đọc và phụ đề:** Tiếng Việt (vi-VN)  
 > **Mục đích xuất bản:** TikTok, YouTube Shorts, Facebook Reels; video dọc **9:16**  
 > **Thời lượng:** Mặc định **30–60 giây** (target 60 giây); tùy chọn mở rộng tối đa **90 giây** khi người dùng chủ động chọn  
@@ -76,6 +76,8 @@ Không triển khai trong MVP:
 - Auto-upload TikTok/YouTube/Facebook, marketing SEO, monetization, thumbnail AI.
 - Thanh toán, sử dụng Claude API key hay trích xuất token/cookie từ tài khoản Claude.
 - Speech-to-text word alignment chính xác đến từng âm tiết; chỉ cần subtitle đủ dùng.
+
+> **Cập nhật v1.2:** hai mục "PDF/EPUB/OCR" (chỉ riêng **PDF** và OCR trang scan; EPUB và đọc hình ảnh trong sách vẫn ngoài phạm vi) và "upload cloud" (chỉ riêng **lưu trữ video vào Google Drive của chính người dùng**) được đưa vào phạm vi bởi §23. Các mục còn lại giữ nguyên, kể cả "không dùng Claude API key" và "không tự đăng lên TikTok/YouTube/Facebook".
 
 ---
 
@@ -1202,5 +1204,105 @@ Nếu thời gian thực thi hạn chế, hoàn thành vertical slice bằng **M
 - Nâng yêu cầu voiceover/caption/on-screen text **tiếng Việt**, mobile safe-zone overlays, visual QA.
 - Thêm tối ưu WSL2 cho máy Windows RAM host **48 GB** nhưng CPU/GPU không mạnh: worker/render concurrency mặc định 1, cache assets, preview nhẹ, kiểm tra memory và benchmark.
 - Cập nhật business rules, functional requirements, data schema, story contract, milestones, acceptance tests, `.env.example` và README; **không thay đổi stack hoặc chính sách không dùng Claude API**.
+
+### 22.1. CHANGELOG — MỞ RỘNG 1.2 (28/10/2026, đã chốt, chưa triển khai)
+
+- Nhập **cả cuốn sách PDF** (300–700 trang): trích văn bản local, OCR bằng **Mistral OCR Batch** cho trang không có văn bản dùng được.
+- **NotebookLM** (qua MCP stdio trong worker) dựng cấu trúc chương, danh mục bài học và bản thảo kịch bản; **Claude** (`askClaude()`) biên tập lời dẫn và biên dịch ra JSON cảnh cho Remotion.
+- Người dùng **chọn bài học cần sản xuất**; mỗi bài học được chọn tạo một video. Không duyệt từng kịch bản; không dùng Google Sheets.
+- Mẫu kể chuyện bắt buộc **Hook → tình huống → sai lầm → bài học trong sách → quay lại tình huống → hành động**; hook tối đa **4 giây / 120 frame** (thay cho 3 giây / 90 frame).
+- Video và hồ sơ (`script.json`, `manifest.json`) được lưu lên **Google Drive** qua OAuth `drive.file`, bằng job độc lập với render.
+- Không đổi stack, không dùng Claude API key, vẫn chỉ nghe `127.0.0.1`.
+
+## 23. MỞ RỘNG v1.2 — PDF/OCR → NOTEBOOKLM → CLAUDE → REMOTION → GOOGLE DRIVE
+
+> **Trạng thái: mục tiêu đã chốt, chưa triển khai.** Mã hiện tại vẫn thực thi v1.1 (§1–§22). Một mục chỉ được đổi sang "Đã triển khai" ở bảng §23.7 trong cùng commit làm nó chạy thật; adapter hoặc fixture đơn lẻ chưa đủ điều kiện. Kế hoạch từng task nằm ở `plan.md`.
+
+### 23.1. Luồng sản phẩm
+
+1. Người dùng nhập một sách PDF (mặc định tối đa **500 MiB và 1.000 trang**).
+2. Worker kiểm tra PDF, trích văn bản local theo trang; chỉ trang không có văn bản dùng được mới đi OCR (**Mistral OCR 4.1 Batch**, model ghim cố định, không dùng alias tự đổi).
+3. Văn bản theo trang được ghép thành Markdown chuẩn kèm **bản đồ trang**; NotebookLM xác định chương và lập danh mục bài học có nguồn.
+4. Người dùng **chọn các bài học muốn sản xuất** và preset thời lượng (mặc định 60 giây; 90 giây cần chọn riêng).
+5. Mỗi bài học được chọn là một video: NotebookLM viết bản thảo → Claude biên tập lời dẫn, chia cảnh, chọn bố cục và chữ trên màn hình → TTS → kiểm tra tự động → render Remotion.
+6. Video, `script.json` và `manifest.json` được lưu lên Drive. Lỗi Drive không làm mất MP4 và không chạy lại AI, TTS hay render.
+
+### 23.2. Quy tắc thay thế v1.1 trong luồng mới
+
+| Chủ đề                      | v1.1 (đã triển khai)                                         | v1.2 (mục tiêu)                                                                                         |
+| --------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| Định dạng nhập              | `.txt`, `.md`                                                | Thêm `.pdf`; luồng `.txt`/`.md` giữ nguyên                                                              |
+| Chọn nguồn video            | Chỉ lesson `APPROVED` (BR-08), người dùng duyệt lesson/script | Người dùng **chọn** lesson; readiness tự động từ kiểm tra nguồn. Chọn lesson không được ghi là "đã duyệt" |
+| Hook                        | 0–3 giây, tối đa 90 frame (BR-15, FR-11, NFR-13)             | Tối đa **4 giây / 120 frame** ở 30 FPS, bắt đầu frame 0                                                 |
+| Số bài học mỗi chương       | 1–3                                                          | Không giới hạn cứng; gộp bài trùng khi xác định được                                                    |
+| Lưu trữ video               | Chỉ local `data/videos/`                                     | Local vẫn là bản gốc; Drive là bản lưu trữ độc lập                                                      |
+| Luồng thủ công `cli-task`   | Có                                                           | **Giữ nguyên** (mock, `cli-task`, `cli-auto` không bị thay thế)                                         |
+
+Phần hook 4 giây và bỏ bước duyệt lesson/script chỉ áp dụng cho luồng sản xuất mới; luồng thủ công v1.1 giữ hành vi cũ cho tới khi có quyết định riêng.
+
+### 23.3. Mẫu kể chuyện bắt buộc
+
+**Hook → tình huống đời thường → sai lầm/thất bại → bài học trong sách → quay lại xử lý tình huống → hành động cụ thể.**
+
+- Lời hứa của hook phải được giải quyết trong phần nội dung.
+- Bài học và tên sách chỉ xuất hiện **sau** phần tình huống/sai lầm.
+- Claude được sửa lời dẫn nhưng **không được thêm** trích dẫn, số liệu hay khẳng định ngoài nguồn.
+- Tình huống do AI sáng tác phải được ghi là minh họa trong hồ sơ (`manifest.json`).
+
+### 23.4. Ranh giới tích hợp (port)
+
+| Port                   | Trách nhiệm                                                   | Triển khai đầu tiên                |
+| ---------------------- | ------------------------------------------------------------- | ---------------------------------- |
+| `OcrProvider`          | Bắt đầu xử lý, đọc trạng thái, lấy kết quả, hủy               | Mistral OCR Batch                  |
+| `ScriptStudioProvider` | Phân tích nguồn, rút bài học, viết bản thảo                   | NotebookLM qua MCP stdio           |
+| `ScenePlanCompiler`    | Chuyển bản thảo thành JSON cảnh hợp lệ cho Remotion           | Claude qua `askClaude()`           |
+| `VideoArchiveProvider` | Chuẩn bị đích, upload, đối soát, xác minh                     | Google Drive (OAuth `drive.file`)  |
+
+- Mỗi adapter quản lý đúng một tích hợp; factory chọn implementation, service nhận port qua tham số. Không nhét OCR, NotebookLM, OAuth và render vào `AiProvider`.
+- Hợp đồng OCR hỗ trợ cả kết quả hoàn thành ngay lẫn operation cần chờ.
+- Không có plugin framework, DI container hay workflow DSL. Không triển khai DeepSeek, GPU tự host, sinh mã Remotion tùy ý, và không mở ứng dụng ra ngoài `127.0.0.1`.
+
+### 23.5. Phân biệt các loại dữ liệu
+
+| Dữ liệu                  | Ý nghĩa                                                                 | Bất biến                                          |
+| ------------------------ | ----------------------------------------------------------------------- | ------------------------------------------------- |
+| PDF gốc                  | Byte người dùng tải lên, kèm SHA-256                                     | Không bao giờ sửa                                 |
+| Bản trích xuất           | Văn bản theo trang (text local hoặc OCR) + Markdown chuẩn + bản đồ trang | Dẫn xuất; có thể tạo lại từ PDF gốc               |
+| Catalogue                | Chương và bài học có nguồn, map về trang/revision                        | Retry không nhân bài học                          |
+| Bản thảo NotebookLM      | Lời dẫn, nhịp kể chuyện và nguồn                                         | Không ghi vào kết quả Claude                      |
+| Kế hoạch cảnh Claude     | JSON cảnh đã kiểm tra Zod; đầu vào duy nhất của Remotion                 | Có version và fingerprint riêng                   |
+| Snapshot render          | Cảnh, audio, nguồn, template tại thời điểm render                        | Bất biến; manifest Drive lấy từ đây, không từ cảnh hiện tại |
+
+- Trang OCR không được thiếu âm thầm; trang trống hợp lệ khác trang xử lý lỗi.
+- OCR confidence và trạng thái "trích đoạn khớp nguồn" là hai bằng chứng riêng.
+- Không dùng offset đã chuẩn hóa whitespace làm số trang PDF.
+- Mỗi item của một production batch ứng với đúng một bài học và một video; retry không tạo video mới.
+- Claude CLI chỉ sinh JSON: không builtin tool, không MCP ngoài cấu hình cho phép, môi trường đã làm sạch. Tối đa **một lượt sửa AI chung cho mỗi video** (sai nội dung/nguồn sửa ở NotebookLM; lỗi biên dịch hoặc quá thời lượng sửa ở Claude).
+- Readiness được xác lập **sau khi audio gắn xong**. Thiếu audio, hook vượt 4 giây hoặc vượt preset chặn bản FINAL; không tăng preset và không tăng tốc narration để vừa thời lượng.
+
+### 23.6. Giới hạn và ngân sách mặc định
+
+| Hạng mục        | Giá trị mặc định                                                                                     |
+| --------------- | ---------------------------------------------------------------------------------------------------- |
+| PDF             | 500 MiB, 1.000 trang                                                                                 |
+| Chunk OCR       | Tối đa 50 trang và 40 MiB, có map về trang PDF gốc                                                   |
+| Chi phí OCR     | Dự trù tối đa **$3/sách**, chỉnh được trước khi chạy; không tự nâng trần, không tự đổi provider      |
+| Concurrency     | Worker 1, Remotion 1, AI 1; worker không đứng chờ Batch hay job con                                  |
+| Drive           | 1 upload cùng lúc, 1 request/giây, 5.000 request và 10 GiB gửi/24 giờ                                |
+| Credential      | OAuth loopback, scope `drive.file`, token chỉ ở server; API key Mistral đọc qua `src/shared/config/env.ts` |
+
+### 23.7. Hiện trạng triển khai
+
+| Năng lực                                         | Trạng thái           | Task trong `plan.md` |
+| ------------------------------------------------ | -------------------- | -------------------- |
+| Nhập `.txt`/`.md`, chương, lesson, video, render | Đã triển khai (v1.1) | —                    |
+| Port OCR/Script/Scene/Archive và outbox/deferred | Chưa triển khai      | A04–A06              |
+| Nhập PDF, trích text, OCR Mistral Batch          | Chưa triển khai      | B01–B13              |
+| NotebookLM MCP, catalogue, bản thảo              | Chưa triển khai      | C01–C09              |
+| Chọn lesson, production batch, Claude compiler   | Chưa triển khai      | D01–D12              |
+| Hook 4 giây / 120 frame                          | Chưa triển khai      | D03, F04             |
+| Google Drive archive                             | Chưa triển khai      | E01–E11              |
+| Giao diện luồng mới                              | Chưa triển khai      | F01–F07              |
+| Nghiệm thu với OCR, NotebookLM, Drive thật       | Chưa thực hiện       | G07, G08             |
 
 > **Nhắc cuối cho Codex:** Hãy triển khai ứng dụng thực tế dựa trên đặc tả này. Ưu tiên chạy tốt trên máy WSL, code có cấu trúc rõ, không phát triển quá phạm vi MVP, không tự thay Claude CLI bằng API. Bất kỳ chức năng nào chưa chạy thật phải được đánh dấu rõ trong báo cáo cuối.

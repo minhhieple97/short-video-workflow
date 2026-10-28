@@ -15,6 +15,11 @@ Hard constraints (do not relax without an explicit user decision):
 - **Stack is fixed:** Next.js App Router + TypeScript strict, Tailwind CSS, shadcn/ui, Zod, Prisma + SQLite, BullMQ + Redis,
   standalone Node.js worker, Remotion. **No NestJS, no microservices, no cloud infra.** One repo, one web process, one worker process.
 - **No Anthropic API / SDK / API key**, ever. AI runs through `MockAiProvider` or the user's own Claude Code CLI (see §9).
+- **Outbound integrations are limited to the ones the project owner approved for v1.2** (requirements §23, status in §14 below): Mistral OCR
+  Batch (the user's own key), NotebookLM through an MCP stdio subprocess of the worker, and Google Drive through OAuth `drive.file` for archiving
+  rendered videos. Each lives behind its own port in `src/server/` (`OcrProvider`, `ScriptStudioProvider`, `ScenePlanCompiler`,
+  `VideoArchiveProvider`); do not add other cloud services, and do not route them through `AiProvider`. They are **planned, not implemented**,
+  until §14 says otherwise.
 - **Short-form only:** 9:16, final 1080×1920 / draft 720×1280, 30 FPS, H.264 + AAC, ≤ 90 s (default 60 s). No 16:9, no long videos.
 - **Vietnamese (vi-VN)** for UI copy, scripts, narration, on-screen text and captions. Code, identifiers, file names: English.
 - **Localhost only** (`127.0.0.1`). No auth, no multi-user, no public exposure.
@@ -249,6 +254,11 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 | M4        | Remotion preview + local render                                | done (gate verified)                  |
 | M5        | Voiceover, real CLI task flow, Jobs dashboard                  | done (gate verified)                  |
 | M6        | Hardening, E2E, docs                                           | done (gate verified, E2E passing)     |
+| M7        | PDF/OCR → NotebookLM → Claude → Remotion → Drive (`plan.md`)   | in progress — see `plan.md` §5 log    |
+
+M7 is delivered task by task on branch `feat/book-ocr-notebooklm-drive`; `plan.md` §5 is the source of truth for which tasks are done, and the
+requirements §23.7 table lists which capabilities are real. The v1.1 behavior described elsewhere in this file (hook ≤ 90 frames, approved-lesson
+gate) stays in force until the matching M7 task (D03, D02/D08) lands and updates this file.
 
 ## 15. Visual language ("Studio Ink")
 
