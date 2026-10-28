@@ -26,6 +26,8 @@ export const generateScriptPayloadSchema = baseJobPayloadSchema.extend({
 
 export const archiveRenderPayloadSchema = baseJobPayloadSchema.extend({ archiveId: z.string().min(1) });
 
+export const extractPdfPayloadSchema = baseJobPayloadSchema.extend({ extractionId: z.string().min(1) });
+
 export const runProductionItemPayloadSchema = baseJobPayloadSchema.extend({
   itemId: z.string().min(1),
 });

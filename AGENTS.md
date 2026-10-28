@@ -96,7 +96,8 @@ src/
                          domain/ (pure, framework-free rules — client-safe), schemas/ (Zod input + *.dto.ts types),
                          services/ (business logic), repositories/ (Prisma), components/ (React)
     books/             import parser (domain/), staging + immutable original/chapter files, import wizard, library/detail UI
-    extraction/        v1.2 PDF books: streamed upload (`pdf-import.service.ts`), per-page extraction runs (planned B03+; see `plan.md`)
+    extraction/        v1.2 PDF books: streamed upload (`pdf-import.service.ts`), `EXTRACT_PDF` run (`extraction-run.service.ts`:
+                       text layer → OCR batches → canonical Markdown → chapters), retry/reconcile, OCR budget and results
     chapters/          chapter listing/reading/rename, analysis runner (worker) + analysis requests (web, server-only)
     lessons/           lesson domain (fields, excerpt verification), repository, review service, library/review UI
     videos/            short-form domain (scene types, layouts, duration budget, snapshots), script generation/editing, editor UI
@@ -203,7 +204,7 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 
 ## 8. Jobs & queue
 
-- One queue `studio-jobs`; job types: `ANALYZE_CHAPTER`, `GENERATE_VIDEO_SCRIPT`, `GENERATE_SCENE_TTS`, `RENDER_VIDEO`, `RUN_PRODUCTION_ITEM`, `ARCHIVE_RENDER` (plus `DIAGNOSTIC_PING` for health checks).
+- One queue `studio-jobs`; job types: `ANALYZE_CHAPTER`, `GENERATE_VIDEO_SCRIPT`, `GENERATE_SCENE_TTS`, `RENDER_VIDEO`, `RUN_PRODUCTION_ITEM`, `ARCHIVE_RENDER`, `EXTRACT_PDF` (plus `DIAGNOSTIC_PING` for health checks).
 - A production item's job is written in the same transaction that makes the item runnable (creation, retry); never start one any other way.
   Its processor claims the item, steps from the checkpoint and defers instead of waiting; cancelling the job cancels the item.
 - An archive and its `ARCHIVE_RENDER` job are written in one transaction (`createArchiveWithJob`); the worker's archive sweep

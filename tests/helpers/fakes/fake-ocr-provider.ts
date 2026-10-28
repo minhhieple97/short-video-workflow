@@ -42,6 +42,7 @@ export class FakeOcrProvider implements OcrProvider {
   private readonly operationByKey = new Map<string, string>();
   private submissions = 0;
   private startFault: StartFault | null = null;
+  private pollFault: Error | null = null;
   private cleanupFailure: Error | null = null;
   // Runs inside cleanup(), so a test can look at what had been stored by the time the provider was asked to delete.
   onCleanup: ((operationRef: string) => Promise<void>) | null = null;
@@ -87,6 +88,11 @@ export class FakeOcrProvider implements OcrProvider {
 
   async poll(operationRef: string, options?: CallOptions): Promise<OcrOperationStatus> {
     options?.signal?.throwIfAborted();
+    const fault = this.pollFault;
+    if (fault) {
+      this.pollFault = null;
+      throw fault;
+    }
     const operation = this.requireOperation(operationRef);
     if (operation.state === "cancelled") return { status: "cancelled" };
     if (operation.state === "failed" && operation.failure)
@@ -116,6 +122,11 @@ export class FakeOcrProvider implements OcrProvider {
   // The next start() fails with this error, with or without the submission having been accepted first.
   failNextStart(error: Error, options: { applied: boolean }): void {
     this.startFault = { error, applied: options.applied };
+  }
+
+  // The next poll() fails with this error, as an outage or a revoked key would.
+  failNextPoll(error: Error): void {
+    this.pollFault = error;
   }
 
   failCleanupWith(error: Error | null): void {

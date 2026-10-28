@@ -109,3 +109,34 @@ export async function resetFailedOcrPages(extractionId: string): Promise<number[
     return pageNumbers;
   });
 }
+
+export async function listPageNumbersWithStatus(extractionId: string, status: string): Promise<number[]> {
+  const pages = await prisma.extractionPage.findMany({
+    where: { extractionId, status },
+    orderBy: { pageNumber: "asc" },
+    select: { pageNumber: true },
+  });
+  return pages.map((page) => page.pageNumber);
+}
+
+// Pages that cannot be sent at all (a single page over the provider's size limit) fail with their reason instead of
+// being skipped, so the run ends PARTIAL rather than silently missing them.
+export async function markPagesUnsendable(
+  extractionId: string,
+  pageNumbers: readonly number[],
+  errorCode: string,
+): Promise<void> {
+  await prisma.extractionPage.updateMany({
+    where: { extractionId, pageNumber: { in: [...pageNumbers] }, status: "NEEDS_OCR" },
+    data: { status: "FAILED", errorCode },
+  });
+}
+
+// Pages marked as sent while no operation is open any more belong to nothing; they go back to the queue to be sent.
+export async function requeueOrphanedOcrPages(extractionId: string): Promise<number> {
+  const { count } = await prisma.extractionPage.updateMany({
+    where: { extractionId, status: "OCR_SUBMITTED" },
+    data: { status: "NEEDS_OCR" },
+  });
+  return count;
+}

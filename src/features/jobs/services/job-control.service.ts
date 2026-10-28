@@ -3,6 +3,7 @@ import "server-only";
 import { archiveRenderNow } from "@/features/archive/services/archive-control.service";
 import { findRenderArchive } from "@/features/archive/repositories/render-archive.repository";
 import { requestChapterAnalysis } from "@/features/chapters/services/analysis-request.service";
+import { retryExtraction } from "@/features/extraction/services/extraction-retry.service";
 import { retryProductionItem } from "@/features/productions/services/production-retry.service";
 import { findSceneWithVideo } from "@/features/videos/repositories/audio.repository";
 import { findRenderRecord } from "@/features/videos/repositories/render.repository";
@@ -86,6 +87,8 @@ export async function retryJob(id: string): Promise<JobDto> {
       if (!active) throw new AppError("JOB_NOT_RETRYABLE", "Bản lưu trữ này không cần thử lại.", 409);
       return getJob(active.id);
     }
+    case "EXTRACT_PDF":
+      return retryExtraction(record.entityId);
     default:
       throw new AppError("JOB_NOT_RETRYABLE", "Loại tác vụ này không hỗ trợ thử lại.", 409);
   }

@@ -6,6 +6,7 @@ export const JOB_TYPES = [
   "RENDER_VIDEO",
   "RUN_PRODUCTION_ITEM",
   "ARCHIVE_RENDER",
+  "EXTRACT_PDF",
 ] as const;
 export type JobType = (typeof JOB_TYPES)[number];
 
@@ -59,6 +60,7 @@ export const JOB_TYPE_LABELS: Record<JobType, string> = {
   RENDER_VIDEO: "Render video",
   RUN_PRODUCTION_ITEM: "Sản xuất video",
   ARCHIVE_RENDER: "Lưu lên Google Drive",
+  EXTRACT_PDF: "Trích xuất PDF",
 };
 
 export const JOB_STATUS_LABELS: Record<JobStatus, string> = {

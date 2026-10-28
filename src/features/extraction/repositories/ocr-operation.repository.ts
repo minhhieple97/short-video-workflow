@@ -16,6 +16,7 @@ export interface ReserveOcrOperationInput {
   requestKey: string;
   pageCount: number;
   estimateMicroUsd: number;
+  chunkPlanJson?: string;
 }
 
 export type ReserveOcrOperationResult =
@@ -74,6 +75,7 @@ export function reserveOcrOperation(input: ReserveOcrOperationInput): Promise<Re
         status: "PLANNED",
         pageCount: input.pageCount,
         reservedCostMicroUsd: input.estimateMicroUsd,
+        chunkPlanJson: input.chunkPlanJson,
       },
     });
     await tx.bookExtraction.update({
@@ -223,4 +225,15 @@ export async function markOcrOutputStored(operationId: string): Promise<void> {
 
 export async function markOcrCleaned(operationId: string): Promise<void> {
   await prisma.ocrOperation.update({ where: { id: operationId }, data: { cleanedAt: new Date() } });
+}
+
+export function findOpenOcrOperation(extractionId: string): Promise<OcrOperation | null> {
+  return prisma.ocrOperation.findFirst({
+    where: { extractionId, status: { in: [...OPEN_OCR_OPERATION_STATUSES] } },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+export function countOcrOperations(extractionId: string): Promise<number> {
+  return prisma.ocrOperation.count({ where: { extractionId } });
 }

@@ -1,4 +1,5 @@
 import { cancelArchive } from "@/features/archive/repositories/render-archive.repository";
+import { cancelExtraction } from "@/features/extraction/repositories/extraction-jobs.repository";
 import type { JobRecord } from "@/generated/prisma/client";
 import { findChapterWithBook, setChapterAnalysisStatus } from "@/features/chapters/repositories/chapter.repository";
 import { cancelItem, refreshBatchStatus } from "@/features/productions/repositories/production-jobs.repository";
@@ -25,6 +26,8 @@ export async function releaseJobEntity(
   }
   // A lost archive job is replaced by the archive sweep; only a cancel stops the archive.
   if (record.jobType === "ARCHIVE_RENDER" && outcome === "CANCELLED") await cancelArchive(record.entityId);
+  // Likewise a lost extraction job is replaced at worker start-up; only a cancel stops the run.
+  if (record.jobType === "EXTRACT_PDF" && outcome === "CANCELLED") await cancelExtraction(record.entityId);
   // A lost item job is replaced at worker start-up (the item resumes from its checkpoint), so only a cancel changes it.
   if (record.jobType === "RUN_PRODUCTION_ITEM" && outcome === "CANCELLED") {
     const batchId = await cancelItem(record.entityId);

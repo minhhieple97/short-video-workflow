@@ -422,7 +422,7 @@ model BookExtraction {
   id                   String    @id @default(cuid())
   bookId               String
   book                 Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  // QUEUED | INSPECTING | EXTRACTING | OCR_PENDING | ASSEMBLING | COMPLETED | PARTIAL | FAILED | CANCELLED
+  // QUEUED | INSPECTING | EXTRACTING | OCR_PENDING | ASSEMBLING | NEEDS_CHAPTERS | COMPLETED | PARTIAL | FAILED | CANCELLED
   status               String
   // SHA-256 of the PDF this run read, so the run is tied to exact bytes.
   sourceHash           String
@@ -440,6 +440,8 @@ model BookExtraction {
   canonicalPath        String?
   errorCode            String?
   errorMessage         String?
+  // Temporary OCR provider failures in a row; reset by any progress, and bounded so a run cannot wait forever.
+  transientFailures    Int       @default(0)
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
   completedAt          DateTime?
@@ -488,6 +490,8 @@ model OcrOperation {
   status               String
   // Opaque provider handle (OcrProvider operationRef); services never parse it.
   operationRef         String?
+  // JSON [{chunkId, pageNumbers}]: which PDF pages each chunk holds, to rebuild the chunk files and map results back.
+  chunkPlanJson        String?
   pageCount            Int
   reservedCostMicroUsd Int
   // Only set when the provider reports a real figure.

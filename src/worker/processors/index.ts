@@ -4,6 +4,7 @@ import { processAnalyzeChapter } from "./analyze-chapter";
 import { processArchiveRender } from "./archive-render";
 import { createJobDispatcher } from "./dispatcher";
 import { processDiagnosticPing } from "./diagnostic-ping";
+import { processExtractPdf } from "./extract-pdf";
 import { processGenerateScript } from "./generate-script";
 import { processGenerateTts } from "./generate-tts";
 import { processRenderVideo } from "./render-video";
@@ -18,6 +19,7 @@ const PROCESSORS: Record<JobType, JobProcessor> = {
   RENDER_VIDEO: processRenderVideo,
   RUN_PRODUCTION_ITEM: processRunProductionItem,
   ARCHIVE_RENDER: processArchiveRender,
+  EXTRACT_PDF: processExtractPdf,
 };
 
 export const processJob = createJobDispatcher(PROCESSORS);

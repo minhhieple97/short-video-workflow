@@ -24,4 +24,6 @@ export const JOB_OPTIONS_BY_TYPE: Record<JobType, JobsOptions> = {
   RUN_PRODUCTION_ITEM: {},
   // An archive resumes from its stored checkpoints and waits out quota or outages through deferral, not BullMQ retries.
   ARCHIVE_RENDER: {},
+  // An extraction resumes from its stored pages and OCR operations, and waits for a remote batch through deferral.
+  EXTRACT_PDF: {},
 };

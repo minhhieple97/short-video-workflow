@@ -63,7 +63,7 @@ afterAll(async () => {
 });
 
 describe("importPdfBook", () => {
-  it("stores the PDF unchanged and read-only, then creates the book with a queued extraction", async () => {
+  it("stores the PDF unchanged and read-only, then creates the book with a queued extraction and its job", async () => {
     const result = await pdfImport.importPdfBook({
       fileName: "Atomic Habits.pdf",
       body: streamOf([SMALL_PDF.subarray(0, 10), SMALL_PDF.subarray(10)]),
@@ -88,6 +88,18 @@ describe("importPdfBook", () => {
       sourceHash: sha256(SMALL_PDF),
       costCeilingMicroUsd: 3_000_000,
     });
+    // The job that runs the extraction was recorded with the book, waiting in the outbox for the worker.
+    const job = await db.prisma.jobRecord.findUniqueOrThrow({
+      where: { id: result.jobId },
+      include: { dispatch: true },
+    });
+    expect(job).toMatchObject({
+      jobType: "EXTRACT_PDF",
+      entityType: "EXTRACTION",
+      entityId: result.extractionId,
+      status: "QUEUED",
+    });
+    expect(JSON.parse(job.dispatch?.payloadJson ?? "{}")).toEqual({ extractionId: result.extractionId });
 
     const stored = path.join(env.dataDir, book.sourceFilePath);
     expect(fs.readFileSync(stored)).toEqual(Buffer.from(SMALL_PDF));

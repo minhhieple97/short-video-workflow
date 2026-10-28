@@ -13,17 +13,18 @@ interface EntityRef {
 const RETRYABLE = new Set(["FAILED", "CANCELLED"]);
 const CANCELLABLE = new Set(["QUEUED", "RUNNING", "WAITING_FOR_CLI"]);
 
-// Resolves entity names in six batched queries instead of one query per job row.
+// Resolves entity names in batched queries (one per entity type) instead of one query per job row.
 async function resolveEntities(records: readonly JobRecord[]): Promise<Map<string, EntityRef>> {
   const idsOf = (type: string) =>
     records.filter((record) => record.entityType === type).map((record) => record.entityId);
-  const { chapters, videos, scenes, renders, productionItems, archives } = await findJobEntities({
+  const { chapters, videos, scenes, renders, productionItems, archives, extractions } = await findJobEntities({
     chapterIds: idsOf("CHAPTER"),
     videoIds: idsOf("VIDEO"),
     sceneIds: idsOf("SCENE"),
     renderIds: idsOf("RENDER"),
     productionItemIds: idsOf("PRODUCTION_ITEM"),
     archiveIds: idsOf("ARCHIVE"),
+    extractionIds: idsOf("EXTRACTION"),
   });
 
   const refs = new Map<string, EntityRef>();
@@ -56,6 +57,12 @@ async function resolveEntities(records: readonly JobRecord[]): Promise<Map<strin
     refs.set(`ARCHIVE:${archive.id}`, {
       label: `Lưu Drive · ${archive.render.video.title}`,
       href: `/videos/${archive.render.videoId}/render`,
+    });
+  }
+  for (const extraction of extractions) {
+    refs.set(`EXTRACTION:${extraction.id}`, {
+      label: `Trích xuất PDF · ${extraction.book.title}`,
+      href: `/books/${extraction.bookId}`,
     });
   }
   return refs;

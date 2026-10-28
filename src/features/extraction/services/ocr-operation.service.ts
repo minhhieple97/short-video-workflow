@@ -37,7 +37,13 @@ export type SubmitOcrOutcome =
   | { status: "UNKNOWN_OUTCOME" }
   | { status: "FAILED"; code: string }
   // Nothing was accepted or billed (auth, quota, outage): the operation is PLANNED again, reservation intact.
-  | { status: "RETRY_LATER"; code: string; retryAfterMs: number | null };
+  | {
+      status: "RETRY_LATER";
+      kind: "AUTH" | "QUOTA" | "TRANSIENT";
+      code: string;
+      message: string;
+      retryAfterMs: number | null;
+    };
 
 export type CollectOcrOutcome =
   | { status: "PENDING"; retryAfterMs: number }
@@ -180,7 +186,13 @@ async function handleSubmitFailure(
       return { status: "FAILED", code: error.code };
     default:
       await revertOcrToPlanned(operation, pageNumbersOf(plan));
-      return { status: "RETRY_LATER", code: error.code, retryAfterMs: error.retryAfterMs ?? null };
+      return {
+        status: "RETRY_LATER",
+        kind: error.kind,
+        code: error.code,
+        message: error.message,
+        retryAfterMs: error.retryAfterMs ?? null,
+      };
   }
 }
 

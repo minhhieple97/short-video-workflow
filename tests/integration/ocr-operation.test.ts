@@ -198,7 +198,13 @@ describe("submitOcrOperation", () => {
 
       const outcome = await operations.submitOcrOperation({ provider, operationId, chunks: CHUNKS });
 
-      expect(outcome).toEqual({ status: "RETRY_LATER", code, retryAfterMs: retryAfterMs ?? null });
+      expect(outcome).toEqual({
+        status: "RETRY_LATER",
+        kind,
+        code,
+        message: "refused",
+        retryAfterMs: retryAfterMs ?? null,
+      });
       expect(await operation()).toMatchObject({ status: "PLANNED" });
       expect(await pageStates()).toEqual(["1:EXTRACTED", "2:NEEDS_OCR", "3:NEEDS_OCR", "4:NEEDS_OCR", "5:NEEDS_OCR"]);
       expect(await totals()).toEqual({ reserved: RESERVED, actual: 0 });

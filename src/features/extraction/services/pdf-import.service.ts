@@ -29,6 +29,7 @@ export interface PdfImportInput {
 export interface PdfImportResult {
   bookId: string;
   extractionId: string;
+  jobId: string;
   status: "QUEUED";
 }
 
@@ -76,7 +77,7 @@ export async function importPdfBook(input: PdfImportInput): Promise<PdfImportRes
     await fs.chmod(original, READ_ONLY);
 
     // The OCR ceiling is copied onto the run now, so changing the setting later cannot silently raise it.
-    const { book, extraction } = await createPdfBookWithExtraction(
+    const { book, extraction, job } = await createPdfBookWithExtraction(
       {
         id: bookId,
         title: input.title ?? titleFromFileName(fileName),
@@ -88,7 +89,7 @@ export async function importPdfBook(input: PdfImportInput): Promise<PdfImportRes
       getAppConfig().ocr.costCeilingMicroUsd,
     );
     logger.info("PDF imported", { bookId: book.id, extractionId: extraction.id, sourceHash: sha256, bytes });
-    return { bookId: book.id, extractionId: extraction.id, status: "QUEUED" };
+    return { bookId: book.id, extractionId: extraction.id, jobId: job.id, status: "QUEUED" };
   } catch (error) {
     await removeBookDirectory(bookId);
     throw error;

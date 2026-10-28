@@ -3,6 +3,7 @@ import "dotenv/config";
 import { Queue, Worker } from "bullmq";
 
 import { sweepRenderArchives } from "@/features/archive/services/archive-request.service";
+import { reconcileExtractions } from "@/features/extraction/services/extraction-reconcile.service";
 import { sweepDueJobIntents, type EnqueueJob } from "@/features/jobs/services/job-dispatch.service";
 import { reconcileProductionItems } from "@/features/productions/services/production-reconcile.service";
 import { configureDatabase, prisma } from "@/server/db/client";
@@ -45,6 +46,7 @@ async function main(): Promise<void> {
   await reconcileJobRecords(queue);
   // After the records match Redis: an item whose job was lost gets a new one, delivered by the sweeper below.
   await reconcileProductionItems();
+  await reconcileExtractions();
   await sweepRenderArchives();
   const worker = new Worker(QUEUE_NAME, processJob, { connection, concurrency: config.concurrency.worker });
   worker.on("error", (error) => logger.error("Worker error", { error: toSafeErrorMessage(error) }));

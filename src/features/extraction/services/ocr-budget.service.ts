@@ -3,6 +3,8 @@ import type { OcrProvider } from "@/server/ocr/ocr-provider";
 import { AppError, NotFoundError } from "@/shared/errors";
 
 import { formatUsd, toMicroUsd } from "../domain/ocr-budget";
+import { serializeChunkPlan } from "../domain/ocr-chunk-plan";
+import type { PlannedOcrChunk } from "../domain/ocr-results";
 import {
   reserveOcrOperation,
   setOcrCostCeiling as storeCostCeiling,
@@ -18,11 +20,13 @@ export interface PlanOcrOperationInput {
   // Stable per set of chunks: a replay gets the existing operation instead of reserving budget again.
   requestKey: string;
   pageCount: number;
+  // Stored with the operation so a later step can rebuild the chunk files and map results back to PDF pages.
+  chunkPlan?: readonly PlannedOcrChunk[];
 }
 
 // Reserves budget for one OCR batch and records it as PLANNED before anything is sent to the provider.
 export async function planOcrOperation(input: PlanOcrOperationInput): Promise<OcrOperation> {
-  const { provider, extractionId, requestKey, pageCount } = input;
+  const { provider, extractionId, requestKey, pageCount, chunkPlan } = input;
   const result = await reserveOcrOperation({
     extractionId,
     provider: provider.id,
@@ -30,6 +34,7 @@ export async function planOcrOperation(input: PlanOcrOperationInput): Promise<Oc
     requestKey,
     pageCount,
     estimateMicroUsd: toMicroUsd(provider.estimateCostUsd(pageCount)),
+    chunkPlanJson: chunkPlan ? serializeChunkPlan(chunkPlan) : undefined,
   });
 
   switch (result.kind) {
