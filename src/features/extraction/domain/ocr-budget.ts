@@ -5,6 +5,8 @@ export const MAX_OPEN_OCR_OPERATIONS = 1;
 // Until an operation settles it holds its budget reservation, including while its submit outcome is unknown.
 export const OPEN_OCR_OPERATION_STATUSES = ["PLANNED", "SUBMITTING", "SUBMITTED", "UNKNOWN_OUTCOME"] as const;
 
+export type OcrOperationState = (typeof OPEN_OCR_OPERATION_STATUSES)[number] | "COMPLETED" | "FAILED" | "CANCELLED";
+
 export const SETTLED_OCR_OPERATION_STATUSES = ["COMPLETED", "FAILED", "CANCELLED"] as const;
 
 // Rounds up to a whole micro-USD; toPrecision first removes float noise such as 0.0005 * 1e6 = 500.00000000000006.

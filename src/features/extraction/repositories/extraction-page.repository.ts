@@ -50,3 +50,20 @@ export function listExtractionPages(extractionId: string) {
     select: { pageNumber: true, status: true, text: true },
   });
 }
+
+// Pages that were headed for OCR and failed go back to the queue; pages that failed for another reason are left alone.
+export async function resetFailedOcrPages(extractionId: string): Promise<number[]> {
+  return prisma.$transaction(async (tx) => {
+    const failed = await tx.extractionPage.findMany({
+      where: { extractionId, status: "FAILED", ocrReason: { not: null } },
+      orderBy: { pageNumber: "asc" },
+      select: { pageNumber: true },
+    });
+    const pageNumbers = failed.map((page) => page.pageNumber);
+    await tx.extractionPage.updateMany({
+      where: { extractionId, pageNumber: { in: pageNumbers }, status: "FAILED" },
+      data: { status: "NEEDS_OCR", errorCode: null },
+    });
+    return pageNumbers;
+  });
+}

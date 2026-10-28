@@ -138,3 +138,89 @@ export function setOcrCostCeiling(extractionId: string, ceilingMicroUsd: number)
     };
   });
 }
+
+export function findOcrOperation(operationId: string): Promise<OcrOperation | null> {
+  return prisma.ocrOperation.findUnique({ where: { id: operationId } });
+}
+
+// The intent is recorded before the provider is called: SUBMITTING with the pages marked as sent. Returns false when
+// another caller already moved the operation on.
+export function beginOcrSubmit(operation: OcrOperation, pageNumbers: readonly number[]): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    const { count } = await tx.ocrOperation.updateMany({
+      where: { id: operation.id, status: "PLANNED" },
+      data: { status: "SUBMITTING", errorCode: null, errorMessage: null },
+    });
+    if (count === 0) return false;
+    await tx.extractionPage.updateMany({
+      where: { extractionId: operation.extractionId, pageNumber: { in: [...pageNumbers] }, status: "NEEDS_OCR" },
+      data: { status: "OCR_SUBMITTED" },
+    });
+    return true;
+  });
+}
+
+export async function markOcrSubmitted(operationId: string, operationRef: string): Promise<void> {
+  await prisma.ocrOperation.updateMany({
+    where: { id: operationId, status: { in: ["SUBMITTING", "UNKNOWN_OUTCOME"] } },
+    data: { status: "SUBMITTED", operationRef, submittedAt: new Date(), errorCode: null, errorMessage: null },
+  });
+}
+
+export async function markOcrUnknownOutcome(
+  operationId: string,
+  errorCode: string,
+  errorMessage: string,
+): Promise<void> {
+  await prisma.ocrOperation.updateMany({
+    where: { id: operationId, status: "SUBMITTING" },
+    data: { status: "UNKNOWN_OUTCOME", errorCode, errorMessage },
+  });
+}
+
+// Nothing reached the provider (or it was never found there): the operation can be submitted again, reservation intact.
+export function revertOcrToPlanned(operation: OcrOperation, pageNumbers: readonly number[]): Promise<void> {
+  return prisma.$transaction(async (tx) => {
+    await tx.ocrOperation.updateMany({
+      where: { id: operation.id, status: { in: ["SUBMITTING", "UNKNOWN_OUTCOME"] } },
+      data: { status: "PLANNED" },
+    });
+    await tx.extractionPage.updateMany({
+      where: { extractionId: operation.extractionId, pageNumber: { in: [...pageNumbers] }, status: "OCR_SUBMITTED" },
+      data: { status: "NEEDS_OCR" },
+    });
+  });
+}
+
+export async function markOcrPagesFailed(
+  operation: OcrOperation,
+  pageNumbers: readonly number[],
+  errorCode: string,
+): Promise<void> {
+  await prisma.extractionPage.updateMany({
+    where: { extractionId: operation.extractionId, pageNumber: { in: [...pageNumbers] }, status: "OCR_SUBMITTED" },
+    data: { status: "FAILED", errorCode },
+  });
+}
+
+export async function markOcrPagesReadyForRetry(
+  operation: OcrOperation,
+  pageNumbers: readonly number[],
+): Promise<void> {
+  await prisma.extractionPage.updateMany({
+    where: { extractionId: operation.extractionId, pageNumber: { in: [...pageNumbers] }, status: "OCR_SUBMITTED" },
+    data: { status: "NEEDS_OCR" },
+  });
+}
+
+export async function markOcrPolled(operationId: string): Promise<void> {
+  await prisma.ocrOperation.update({ where: { id: operationId }, data: { lastPolledAt: new Date() } });
+}
+
+export async function markOcrOutputStored(operationId: string): Promise<void> {
+  await prisma.ocrOperation.update({ where: { id: operationId }, data: { outputStoredAt: new Date() } });
+}
+
+export async function markOcrCleaned(operationId: string): Promise<void> {
+  await prisma.ocrOperation.update({ where: { id: operationId }, data: { cleanedAt: new Date() } });
+}

@@ -19,7 +19,16 @@ export interface FakeOcrOptions {
 
 interface FakeOperation {
   chunks: OcrInputChunk[];
-  state: "pending" | "completed" | "cancelled";
+  state: "pending" | "completed" | "cancelled" | "failed";
+  results?: OcrChunkResult[];
+  failure?: { code: string; retryable: boolean };
+}
+
+// A scripted failure for the next start() call.
+interface StartFault {
+  error: Error;
+  // True when the provider accepted the submission before the failure (a lost answer); false when it never saw it.
+  applied: boolean;
 }
 
 export class FakeOcrProvider implements OcrProvider {
@@ -32,6 +41,10 @@ export class FakeOcrProvider implements OcrProvider {
   private readonly operations = new Map<string, FakeOperation>();
   private readonly operationByKey = new Map<string, string>();
   private submissions = 0;
+  private startFault: StartFault | null = null;
+  private cleanupFailure: Error | null = null;
+  // Runs inside cleanup(), so a test can look at what had been stored by the time the provider was asked to delete.
+  onCleanup: ((operationRef: string) => Promise<void>) | null = null;
 
   constructor(private readonly options: FakeOcrOptions) {
     this.limits = options.limits ?? { maxPages: 50, maxBytes: 40 * 1024 * 1024 };
@@ -51,6 +64,11 @@ export class FakeOcrProvider implements OcrProvider {
     this.assertWithinLimits(request.chunks);
 
     const existing = this.operationByKey.get(request.requestKey);
+    const fault = this.startFault;
+    if (fault && !fault.applied) {
+      this.startFault = null;
+      throw fault.error;
+    }
     if (existing) return this.describeStart(existing);
 
     this.submissions += 1;
@@ -60,6 +78,10 @@ export class FakeOcrProvider implements OcrProvider {
       state: this.options.mode === "immediate" ? "completed" : "pending",
     });
     this.operationByKey.set(request.requestKey, operationRef);
+    if (fault?.applied) {
+      this.startFault = null;
+      throw fault.error;
+    }
     return this.describeStart(operationRef);
   }
 
@@ -67,8 +89,10 @@ export class FakeOcrProvider implements OcrProvider {
     options?.signal?.throwIfAborted();
     const operation = this.requireOperation(operationRef);
     if (operation.state === "cancelled") return { status: "cancelled" };
+    if (operation.state === "failed" && operation.failure)
+      return { status: "failed", message: "scripted", ...operation.failure };
     if (operation.state === "pending") return { status: "pending", retryAfterMs: 1_000 };
-    return { status: "completed", chunks: resultsFor(operation.chunks) };
+    return { status: "completed", chunks: operation.results ?? resultsFor(operation.chunks) };
   }
 
   async findOperation(requestKey: string, options?: CallOptions): Promise<string | null> {
@@ -84,7 +108,31 @@ export class FakeOcrProvider implements OcrProvider {
 
   async cleanup(operationRef: string, options?: CallOptions): Promise<void> {
     options?.signal?.throwIfAborted();
+    await this.onCleanup?.(operationRef);
+    if (this.cleanupFailure) throw this.cleanupFailure;
     this.cleanedOperations.add(operationRef);
+  }
+
+  // The next start() fails with this error, with or without the submission having been accepted first.
+  failNextStart(error: Error, options: { applied: boolean }): void {
+    this.startFault = { error, applied: options.applied };
+  }
+
+  failCleanupWith(error: Error | null): void {
+    this.cleanupFailure = error;
+  }
+
+  // Finishes the operation with exactly these chunk results instead of the default full success.
+  completeWith(operationRef: string, results: OcrChunkResult[]): void {
+    const operation = this.requireOperation(operationRef);
+    operation.state = "completed";
+    operation.results = results;
+  }
+
+  failOperation(operationRef: string, failure: { code: string; retryable: boolean }): void {
+    const operation = this.requireOperation(operationRef);
+    operation.state = "failed";
+    operation.failure = failure;
   }
 
   settle(operationRef: string): void {
