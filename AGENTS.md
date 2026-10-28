@@ -96,6 +96,7 @@ src/
                          domain/ (pure, framework-free rules — client-safe), schemas/ (Zod input + *.dto.ts types),
                          services/ (business logic), repositories/ (Prisma), components/ (React)
     books/             import parser (domain/), staging + immutable original/chapter files, import wizard, library/detail UI
+    extraction/        v1.2 PDF books: streamed upload (`pdf-import.service.ts`), per-page extraction runs (planned B03+; see `plan.md`)
     chapters/          chapter listing/reading/rename, analysis runner (worker) + analysis requests (web, server-only)
     lessons/           lesson domain (fields, excerpt verification), repository, review service, library/review UI
     videos/            short-form domain (scene types, layouts, duration budget, snapshots), script generation/editing, editor UI

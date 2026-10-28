@@ -36,6 +36,7 @@ const envSchema = z
     REDIS_URL: z.string().regex(/^rediss?:\/\//, "REDIS_URL must start with redis:// or rediss://"),
 
     MAX_IMPORT_SIZE_MB: z.coerce.number().positive().max(100).default(10),
+    MAX_PDF_SIZE_MB: z.coerce.number().positive().max(2048).default(500),
     CHAPTER_HEADING_PATTERNS: regexList,
 
     AI_MODE: z.enum(["mock", "cli-task", "cli-auto"]).default("cli-task"),
@@ -83,6 +84,7 @@ export interface AppConfig {
   dataDir: string;
   redisUrl: string;
   import: { maxSizeBytes: number; extraChapterPatterns: string[] };
+  pdf: { maxSizeBytes: number };
   ai: {
     mode: "mock" | "cli-task" | "cli-auto";
     maxConcurrency: number;
@@ -128,6 +130,9 @@ export function parseAppConfig(source: Record<string, string | undefined>): AppC
     import: {
       maxSizeBytes: Math.round(env.MAX_IMPORT_SIZE_MB * 1024 * 1024),
       extraChapterPatterns: env.CHAPTER_HEADING_PATTERNS,
+    },
+    pdf: {
+      maxSizeBytes: Math.round(env.MAX_PDF_SIZE_MB * 1024 * 1024),
     },
     ai: {
       mode: env.AI_MODE,

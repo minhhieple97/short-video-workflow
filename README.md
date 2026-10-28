@@ -127,17 +127,18 @@ Nội dung sách luôn được bọc như **dữ liệu không đáng tin**: c�
 
 ## Cấu hình (`.env`)
 
-| Biến                                                             | Mặc định                                           | Ý nghĩa                                                                             |
-| ---------------------------------------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `DATABASE_URL` / `DATA_DIR`                                      | `file:./data/studio.db` / `./data`                 | SQLite và thư mục dữ liệu (tương đối với thư mục dự án; không được nằm dưới `/mnt`) |
-| `REDIS_URL`                                                      | `redis://127.0.0.1:6379`                           | Hàng đợi BullMQ                                                                     |
-| `MAX_IMPORT_SIZE_MB`, `CHAPTER_HEADING_PATTERNS`                 | `10`, `[]`                                         | Giới hạn tệp sách; mảng JSON regex nhận diện chương bổ sung                         |
-| `AI_MODE`, `CLAUDE_CLI_COMMAND`, `AI_TASK_TIMEOUT_SEC`           | `cli-task`, `claude`, `600`                        | Chế độ AI (`mock` / `cli-task` / `cli-auto`) và lệnh Claude Code                    |
-| `TTS_MODE`, `TTS_VOICE`, `TTS_SPEED`, `EDGE_TTS_COMMAND`         | `edge-tts`, `vi-VN-NamMinhNeural`, `0`, `edge-tts` | Giọng đọc (`TTS_MODE=upload` chỉ dùng âm thanh tải lên)                             |
-| `SCENE_AUDIO_PADDING_MS`, `MAX_AUDIO_UPLOAD_MB`                  | `300`, `20`                                        | Khoảng nghỉ sau mỗi đoạn đọc; giới hạn tải lên                                      |
-| `DEFAULT_VIDEO_DURATION_SEC`, `MAX_VIDEO_DURATION_SEC`           | `60`, `90`                                         | Preset mặc định và giới hạn tuyệt đối                                               |
-| `RENDER_WIDTH/HEIGHT/FPS`, `DRAFT_RENDER_WIDTH/HEIGHT`           | `1080×1920@30`, `720×1280`                         | Kích thước 9:16 (được kiểm tra khi khởi động)                                       |
-| `WORKER_CONCURRENCY`, `RENDER_CONCURRENCY`, `MAX_AI_CONCURRENCY` | `1`, `1`, `1`                                      | Chỉ tăng sau khi đo trên máy thật                                                   |
+| Biến                                                             | Mặc định                                           | Ý nghĩa                                                                                           |
+| ---------------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL` / `DATA_DIR`                                      | `file:./data/studio.db` / `./data`                 | SQLite và thư mục dữ liệu (tương đối với thư mục dự án; không được nằm dưới `/mnt`)               |
+| `REDIS_URL`                                                      | `redis://127.0.0.1:6379`                           | Hàng đợi BullMQ                                                                                   |
+| `MAX_IMPORT_SIZE_MB`, `CHAPTER_HEADING_PATTERNS`                 | `10`, `[]`                                         | Giới hạn tệp sách; mảng JSON regex nhận diện chương bổ sung                                       |
+| `MAX_PDF_SIZE_MB`                                                | `500`                                              | Giới hạn tệp PDF tải lên qua `POST /api/books/import/pdf` (ghi thẳng ra đĩa, không giữ trong RAM) |
+| `AI_MODE`, `CLAUDE_CLI_COMMAND`, `AI_TASK_TIMEOUT_SEC`           | `cli-task`, `claude`, `600`                        | Chế độ AI (`mock` / `cli-task` / `cli-auto`) và lệnh Claude Code                                  |
+| `TTS_MODE`, `TTS_VOICE`, `TTS_SPEED`, `EDGE_TTS_COMMAND`         | `edge-tts`, `vi-VN-NamMinhNeural`, `0`, `edge-tts` | Giọng đọc (`TTS_MODE=upload` chỉ dùng âm thanh tải lên)                                           |
+| `SCENE_AUDIO_PADDING_MS`, `MAX_AUDIO_UPLOAD_MB`                  | `300`, `20`                                        | Khoảng nghỉ sau mỗi đoạn đọc; giới hạn tải lên                                                    |
+| `DEFAULT_VIDEO_DURATION_SEC`, `MAX_VIDEO_DURATION_SEC`           | `60`, `90`                                         | Preset mặc định và giới hạn tuyệt đối                                                             |
+| `RENDER_WIDTH/HEIGHT/FPS`, `DRAFT_RENDER_WIDTH/HEIGHT`           | `1080×1920@30`, `720×1280`                         | Kích thước 9:16 (được kiểm tra khi khởi động)                                                     |
+| `WORKER_CONCURRENCY`, `RENDER_CONCURRENCY`, `MAX_AI_CONCURRENCY` | `1`, `1`, `1`                                      | Chỉ tăng sau khi đo trên máy thật                                                                 |
 
 Dự án không có và không cần `ANTHROPIC_API_KEY`.
 
