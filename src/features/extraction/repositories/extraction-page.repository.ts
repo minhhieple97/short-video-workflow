@@ -42,3 +42,11 @@ export async function storeOcrPageOutcomes(
   });
   return summary;
 }
+
+export function listExtractionPages(extractionId: string) {
+  return prisma.extractionPage.findMany({
+    where: { extractionId },
+    orderBy: { pageNumber: "asc" },
+    select: { pageNumber: true, status: true, text: true },
+  });
+}

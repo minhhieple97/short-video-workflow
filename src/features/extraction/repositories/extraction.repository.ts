@@ -25,3 +25,11 @@ export function createPdfBookWithExtraction(
     return { book: created, extraction };
   });
 }
+
+export function findExtraction(extractionId: string): Promise<BookExtraction | null> {
+  return prisma.bookExtraction.findUnique({ where: { id: extractionId } });
+}
+
+export async function setCanonicalPath(extractionId: string, canonicalPath: string): Promise<void> {
+  await prisma.bookExtraction.update({ where: { id: extractionId }, data: { canonicalPath } });
+}
