@@ -1,13 +1,14 @@
 "use client";
 
-import { Player, type PlayerRef } from "@remotion/player";
+import { Player, type ErrorFallback, type PlayerRef } from "@remotion/player";
 import { Play } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { ShortVideo } from "@/remotion/compositions/short-video";
+import { CANVAS } from "@/remotion/theme/tokens";
 
 import { totalFrames, type ShortVideoProps } from "../../domain/composition-props";
 import { HOOK_MAX_FRAMES, HOOK_MAX_SECONDS, VIDEO_FPS } from "../../domain/duration";
@@ -21,6 +22,41 @@ import { SafeZoneOverlay } from "./safe-zone-overlay";
 
 // Up to the nominal preview size, shrinking with the viewport (main + frame padding and the bezel take 4.75rem).
 const PHONE_SCREEN = { width: `min(${PREVIEW_FRAME.width}px, calc(100vw - 4.75rem))`, aspectRatio: "9 / 16" } as const;
+const PLAYER_STYLE = { width: "100%" } as const;
+
+const PlayerError: ErrorFallback = () => (
+  <div className="flex h-full items-center justify-center bg-black p-6 text-center text-sm text-white">
+    Không phát được bản xem trước. Hãy tải lại trang.
+  </div>
+);
+
+// The frame readout lives apart from the Player so that only this text re-renders on every frame.
+function PlayerClock({
+  playerRef,
+  hookFrames,
+}: Readonly<{ playerRef: RefObject<PlayerRef | null>; hookFrames: number }>) {
+  const [frame, setFrame] = useState(0);
+
+  useEffect(() => {
+    const player = playerRef.current;
+    if (!player) return;
+    const onFrame = ({ detail }: { detail: { frame: number } }) => setFrame(detail.frame);
+    player.addEventListener("frameupdate", onFrame);
+    return () => player.removeEventListener("frameupdate", onFrame);
+  }, [playerRef]);
+
+  const inHook = frame < hookFrames;
+  return (
+    <span
+      className={cn(
+        "tabular-nums",
+        inHook ? "font-medium text-emerald-700 dark:text-emerald-400" : "text-muted-foreground",
+      )}
+    >
+      {(frame / VIDEO_FPS).toFixed(1)}s{inHook ? " · HOOK" : ""}
+    </span>
+  );
+}
 
 interface PhonePlayerProps {
   props: ShortVideoProps;
@@ -33,14 +69,12 @@ export function PhonePlayer({ props, initialMode, onModeChange }: Readonly<Phone
   const stopAtRef = useRef<number | null>(null);
   const [mode, setMode] = useState(initialMode);
   const [showGuide, setShowGuide] = useState(true);
-  const [frame, setFrame] = useState(0);
   const hookFrames = Math.min(props.scenes[0]?.durationInFrames ?? HOOK_MAX_FRAMES, HOOK_MAX_FRAMES);
 
   useEffect(() => {
     const player = playerRef.current;
     if (!player) return;
     const onFrame = ({ detail }: { detail: { frame: number } }) => {
-      setFrame(detail.frame);
       if (stopAtRef.current !== null && detail.frame >= stopAtRef.current) {
         stopAtRef.current = null;
         player.pause();
@@ -50,10 +84,11 @@ export function PhonePlayer({ props, initialMode, onModeChange }: Readonly<Phone
     return () => player.removeEventListener("frameupdate", onFrame);
   }, []);
 
-  function playHook(): void {
+  // Passing the click lets the browser count playback as started by the user, so the narration is not blocked.
+  function playHook(event: MouseEvent<HTMLButtonElement>): void {
     stopAtRef.current = hookFrames - 1;
     playerRef.current?.seekTo(0);
-    playerRef.current?.play();
+    playerRef.current?.play(event);
   }
 
   return (
@@ -88,10 +123,13 @@ export function PhonePlayer({ props, initialMode, onModeChange }: Readonly<Phone
             component={ShortVideo}
             inputProps={props}
             durationInFrames={totalFrames(props)}
-            compositionWidth={1080}
-            compositionHeight={1920}
-            fps={VIDEO_FPS}
-            style={{ width: "100%" }}
+            compositionWidth={CANVAS.width}
+            compositionHeight={CANVAS.height}
+            fps={CANVAS.fps}
+            style={PLAYER_STYLE}
+            errorFallback={PlayerError}
+            // Mounts the next scene (and loads its narration) a second early so it does not start late.
+            defaultPremountInSeconds={1}
             controls
           />
           {showGuide ? <SafeZoneOverlay mode={mode} /> : null}
@@ -99,7 +137,7 @@ export function PhonePlayer({ props, initialMode, onModeChange }: Readonly<Phone
       </div>
 
       <div className="flex flex-wrap items-center justify-center gap-3 text-sm">
-        <Button size="sm" variant="outline" onClick={playHook}>
+        <Button size="sm" variant="outline" onClickCapture={playHook}>
           <Play aria-hidden />
           Xem {HOOK_MAX_SECONDS} giây đầu
         </Button>
@@ -107,14 +145,7 @@ export function PhonePlayer({ props, initialMode, onModeChange }: Readonly<Phone
           <Checkbox checked={showGuide} onCheckedChange={(checked) => setShowGuide(checked === true)} />
           Vùng an toàn
         </label>
-        <span
-          className={cn(
-            "tabular-nums",
-            frame < hookFrames ? "font-medium text-emerald-700 dark:text-emerald-400" : "text-muted-foreground",
-          )}
-        >
-          {(frame / VIDEO_FPS).toFixed(1)}s{frame < hookFrames ? " · HOOK" : ""}
-        </span>
+        <PlayerClock playerRef={playerRef} hookFrames={hookFrames} />
       </div>
     </div>
   );

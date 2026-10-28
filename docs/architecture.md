@@ -344,8 +344,16 @@ status:     PENDING ─claim─► RUNNING ─┬─► COMPLETED
 - **Pha render** (trọn hoặc không gì): preflight trên snapshot → `renderMedia` → ffprobe kiểm H.264/AAC, kích thước, FPS, thời lượng →
   `COMPLETED`, cùng câu lệnh đặt `archiveIntentAt` cho FINAL. Lỗi/huỷ trong pha này xoá tệp dở. **Pha sau** chỉ báo tiến độ; lỗi ở đó
   không bao giờ xoá MP4 hay lật trạng thái. Render đã `COMPLETED` chạy lại là no-op.
-- Bundle một lần mỗi tiến trình worker; bản nháp dùng `scale = 720/1080` trên cùng composition 1080×1920; ghi `*.part.mp4` rồi đổi tên.
-  MP4 cũ không bao giờ bị xoá tự động.
+- Bundle một lần mỗi tiến trình worker; mỗi render mở **một** Chromium (`openBrowser`) dùng chung cho `selectComposition` và
+  `renderMedia`, đóng trong `finally`; cảnh báo/lỗi của trang (cắt ngắn) vào log worker. Bản nháp dùng `scale = 720/1080` trên cùng
+  composition 1080×1920; ghi `*.part.mp4` rồi đổi tên. MP4 cũ không bao giờ bị xoá tự động.
+- Font chưa tải được thì render bị huỷ (`cancelRender`) thay vì ra MP4 với font dự phòng. Ký hiệu ngoài font đóng gói (✓, ✗…) được vẽ
+  bằng SVG để xem trước và MP4 giống nhau.
+- Tốc độ render bị chặn bởi bước chụp khung hình: đo 600 frame bản nháp, preset x264 `veryfast` hay bỏ bóng mờ của thẻ chữ đều không
+  nhanh hơn đáng kể (tối đa 1,2 %), nên giữ preset `medium` và giao diện hiện tại.
+- Player (trình biên tập): phần đọc thời gian theo frame nằm ở component anh em của `<Player>` để Player không render lại 30 lần/giây;
+  cảnh kế tiếp được mount sớm 1 giây (`defaultPremountInSeconds`) để lời đọc không vào trễ; nút xem hook truyền sự kiện click cho
+  `play()` để trình duyệt không chặn âm thanh.
 
 ### 9.3 Preflight
 

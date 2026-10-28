@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AbsoluteFill, Audio, continueRender, delayRender, Series } from "remotion";
+import { AbsoluteFill, Html5Audio, Series, useDelayRender } from "remotion";
 
 import type { ShortVideoProps } from "@/features/videos/domain/composition-props";
 
@@ -12,14 +12,16 @@ import { COLORS } from "../theme/tokens";
 
 // Content-driven: every word on screen comes from props; nothing about a specific book is hard-coded here.
 export function ShortVideo({ title, scenes, bookTitle, showCaptions }: ShortVideoProps) {
+  const { delayRender, continueRender, cancelRender } = useDelayRender();
   const [handle] = useState(() => delayRender("Loading Be Vietnam Pro"));
 
+  // Without the bundled font, Vietnamese diacritics would come out in a fallback font, so the render fails instead.
   useEffect(() => {
     void ensureFonts().then(
       () => continueRender(handle),
-      () => continueRender(handle),
+      (error: unknown) => cancelRender(error),
     );
-  }, [handle]);
+  }, [handle, continueRender, cancelRender]);
 
   return (
     <AbsoluteFill style={{ backgroundColor: COLORS.background }}>
@@ -34,7 +36,7 @@ export function ShortVideo({ title, scenes, bookTitle, showCaptions }: ShortVide
               <SceneRenderer scene={scene} />
               {index > 0 ? <BookBadge title={bookTitle} /> : null}
               {showCaptions ? <CaptionTrack captions={scene.captions} /> : null}
-              {scene.audioSrc ? <Audio src={scene.audioSrc} /> : null}
+              {scene.audioSrc ? <Html5Audio src={scene.audioSrc} pauseWhenBuffering /> : null}
             </Series.Sequence>
           ))}
         </Series>

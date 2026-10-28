@@ -3,7 +3,14 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { bundle } from "@remotion/bundler";
-import { makeCancelSignal, renderMedia, selectComposition, type CancelSignal } from "@remotion/renderer";
+import {
+  makeCancelSignal,
+  openBrowser,
+  renderMedia,
+  selectComposition,
+  type BrowserLog,
+  type CancelSignal,
+} from "@remotion/renderer";
 
 import { SHORT_VIDEO_COMPOSITION_ID, type ShortVideoProps } from "@/features/videos/domain/composition-props";
 import { createLogger } from "@/shared/logger";
@@ -43,15 +50,29 @@ export interface RenderShortVideoOptions {
   cancelSignal?: CancelSignal;
 }
 
+// Only problems reach the worker log, cut short: page messages could quote what is on screen.
+function logBrowserProblem(log: BrowserLog): void {
+  if (log.type !== "error" && log.type !== "warning") return;
+  logger.warn("Render browser reported a problem", { type: log.type, text: log.text.slice(0, 300) });
+}
+
 // H.264 + AAC (a silent track is added when there is no narration) written to a temp file, then renamed atomically.
+// One Chromium serves both the composition lookup and the render instead of a launch for each.
 export async function renderShortVideo(options: RenderShortVideoOptions): Promise<void> {
   const serveUrl = await ensureRemotionBundle();
-  const composition = await selectComposition({ serveUrl, id: SHORT_VIDEO_COMPOSITION_ID, inputProps: options.props });
   await fs.mkdir(path.dirname(options.outputFile), { recursive: true });
   const tempFile = `${options.outputFile}.${randomUUID()}.part.mp4`;
   const startedAt = Date.now();
+  const browser = await openBrowser("chrome", { logLevel: "error" });
 
   try {
+    const composition = await selectComposition({
+      serveUrl,
+      id: SHORT_VIDEO_COMPOSITION_ID,
+      inputProps: options.props,
+      puppeteerInstance: browser,
+      onBrowserLog: logBrowserProblem,
+    });
     await renderMedia({
       composition,
       serveUrl,
@@ -65,6 +86,8 @@ export async function renderShortVideo(options: RenderShortVideoOptions): Promis
       concurrency: options.concurrency,
       scale: options.scale,
       cancelSignal: options.cancelSignal,
+      puppeteerInstance: browser,
+      onBrowserLog: logBrowserProblem,
       onProgress: ({ progress }) => options.onProgress(progress),
     });
     await fs.rename(tempFile, options.outputFile);
@@ -72,5 +95,7 @@ export async function renderShortVideo(options: RenderShortVideoOptions): Promis
   } catch (error) {
     await fs.rm(tempFile, { force: true });
     throw error;
+  } finally {
+    await browser.close({ silent: true });
   }
 }

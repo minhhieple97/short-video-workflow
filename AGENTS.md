@@ -271,7 +271,8 @@ Dependency direction: `app → features/*/services → features/*/repositories �
   (a test enforces it). Settings and actions come from the fixed lists in `features/videos/domain/illustration.ts`. Claude picks one per
   hook and scene (`scene-plan`, `video-script`); it is stored on `VideoScene.illustrationJson` (null = the default for the scene type) and is
   part of the scene's content hash only when chosen, so older scenes keep their hash. Rewriting one scene keeps its picture.
-- Vietnamese diacritics must render correctly (font fallback checked in Chromium on WSL).
+- Vietnamese diacritics must render correctly (font fallback checked in Chromium on WSL). On-screen text may only use glyphs in the
+  bundled font; draw symbols such as ✓ ✗ → as SVG, or the preview and the MP4 pick different system fonts.
 
 ## 12. Testing
 
@@ -331,6 +332,10 @@ unverified. The hook limit is 4 s / 120 frames for every flow.
 - DO import DTO types from `schemas/*.dto.ts` in client components; DON'T import from `services/` there.
 - DO run Claude only through `askClaude()` (used by `pnpm ai:run` and, when `AI_MODE=cli-auto`, by the worker) with no built-in tools, `--strict-mcp-config` (no MCP servers from the user's config) and a sanitized env; DON'T spawn `claude` from the web, from route handlers, or in parallel, and DON'T make `cli-auto` the default.
 - DO keep `@remotion/bundler` / `@remotion/renderer` in worker-only modules (`server/render/*`, `*-runner.ts`); DON'T import them from anything a route or page imports.
+- DO keep per-frame state (current frame/time) in a small sibling of `<Player>` and pass the click event to `play(e)`; DON'T put it in the
+  component that renders `<Player>` (it would re-render 30 times a second).
+- DO share one browser per render (`openBrowser` → `puppeteerInstance` for `selectComposition` and `renderMedia`); measure before tuning
+  render speed — frame capture dominates, encoder preset and card shadows did not matter.
 - DO build composition props only through `toCompositionProps()` so the Player and the render stay identical; DON'T render editor guides (safe zones) inside the composition.
 - DO make a render from its `RenderSnapshot` (captured at request time); DON'T read the live video in `render-runner.ts` (ESLint enforces it) and DON'T change a stored snapshot. Bump `RENDER_TEMPLATE_VERSION` when a Remotion change alters what the same props look like.
 - DO state honestly what is unfinished or unverified; DON'T leave fake buttons or fake queue updates.
