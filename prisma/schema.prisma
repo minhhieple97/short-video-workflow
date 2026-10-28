@@ -551,3 +551,18 @@ model ProductionItem {
   @@unique([batchId, position])
   @@index([status])
 }
+
+// A Google sign-in that was started and not finished yet. Only a hash of the state is stored, the code verifier never
+// leaves the server, and a row can be used once before it expires.
+model OAuthAuthorization {
+  id           String    @id @default(cuid())
+  provider     String
+  stateHash    String    @unique
+  codeVerifier String
+  redirectUri  String
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([expiresAt])
+}

@@ -101,6 +101,7 @@ src/
     lessons/           lesson domain (fields, excerpt verification), repository, review service, library/review UI
     videos/            short-form domain (scene types, layouts, duration budget, snapshots), script generation/editing, editor UI
     jobs/              job payload schemas, JobRecord/AiRun repositories, enqueue/retry/cancel services, jobs dashboard UI
+    drive/             v1.2 Google Drive connection: OAuth start/callback state (hashed, one-time), connection status DTO
     archive/           v1.2 render archives (one per render and destination, one entry per uploaded file, resumable checkpoints)
     productions/       v1.2 production batches: lesson selection (`production-request`), the item pipeline (`production-pipeline`,
                        one resumable `RUN_PRODUCTION_ITEM` job per item), correction, readiness, cancel/retry and start-up reconcile
@@ -121,6 +122,8 @@ src/
     ocr/ script-studio/ scene-plan/ archive/   v1.2 ports + vendor-free DTOs only (OcrProvider, ScriptStudioProvider, ScenePlanCompiler,
                        VideoArchiveProvider); real adapters land with the B/C/D/E tasks of `plan.md`. Fakes + contract suites live in
                        tests/helpers/{fakes,contracts}; every adapter must pass its port's contract suite
+    archive/google-drive/  Google OAuth helpers (PKCE, loopback redirect, `drive.file` only) and the credential store
+                       (`data/credentials/google-drive.json`, mode 0600, never in SQLite, DTOs or logs)
     http/              route-helpers.ts (AppError → JSON, readJson/parseInput with Zod), page-helpers.ts (orNotFound)
   worker/              Standalone process: main.ts, processors/ (dispatcher + one per job type), lifecycle/ (heartbeat, shutdown)
   remotion/            Pure React video code: index.ts (registerRoot), root.tsx (ShortVideo + calculateMetadata), compositions/,

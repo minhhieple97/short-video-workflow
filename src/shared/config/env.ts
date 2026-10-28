@@ -46,6 +46,8 @@ const envSchema = z
     // Pinned on purpose: an alias such as "latest" could change the model (and the price) between runs.
     MISTRAL_OCR_MODEL: z.string().min(1).default("mistral-ocr-4-1"),
     MISTRAL_OCR_USD_PER_1000_PAGES: z.coerce.number().positive().max(1000).default(2),
+    GOOGLE_OAUTH_CLIENT_ID: optionalSecret,
+    GOOGLE_OAUTH_CLIENT_SECRET: optionalSecret,
     CHAPTER_HEADING_PATTERNS: regexList,
 
     AI_MODE: z.enum(["mock", "cli-task", "cli-auto"]).default("cli-task"),
@@ -96,6 +98,7 @@ export interface AppConfig {
   pdf: { maxSizeBytes: number };
   ocr: { costCeilingMicroUsd: number };
   mistral: { apiKey: string | undefined; baseUrl: string; ocrModel: string; usdPer1000Pages: number };
+  drive: { clientId: string | undefined; clientSecret: string | undefined };
   ai: {
     mode: "mock" | "cli-task" | "cli-auto";
     maxConcurrency: number;
@@ -153,6 +156,10 @@ export function parseAppConfig(source: Record<string, string | undefined>): AppC
       baseUrl: env.MISTRAL_API_BASE_URL.replace(/\/+$/, ""),
       ocrModel: env.MISTRAL_OCR_MODEL,
       usdPer1000Pages: env.MISTRAL_OCR_USD_PER_1000_PAGES,
+    },
+    drive: {
+      clientId: env.GOOGLE_OAUTH_CLIENT_ID,
+      clientSecret: env.GOOGLE_OAUTH_CLIENT_SECRET,
     },
     ai: {
       mode: env.AI_MODE,
