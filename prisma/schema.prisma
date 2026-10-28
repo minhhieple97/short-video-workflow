@@ -314,6 +314,22 @@ model RenderArchive {
   @@index([status])
 }
 
+// A folder of the archive tree in one destination, identified by its path below the app's root folder ("" is the root).
+// Its remote ID is stored before the folder is created, so a create that lost its answer is repeated with the same ID
+// (Drive answers 409 instead of making a second folder). Folders are never looked up by searching the user's Drive.
+model ArchiveFolder {
+  id             String    @id @default(cuid())
+  provider       String
+  destinationKey String
+  path           String
+  remoteId       String
+  createdAt      DateTime  @default(now())
+  // Set once the remote side confirmed the folder exists.
+  confirmedAt    DateTime?
+
+  @@unique([provider, destinationKey, path])
+}
+
 model RenderArchiveFile {
   id              String        @id @default(cuid())
   archiveId       String

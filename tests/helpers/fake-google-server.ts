@@ -15,7 +15,9 @@ export interface RecordedGoogleRequest {
 export type GoogleFault =
   | { kind: "status"; status: number; body?: unknown; headers?: Record<string, string> }
   | { kind: "json"; body: unknown }
-  | { kind: "drop" };
+  | { kind: "drop" }
+  // The request takes effect, then the connection dies, so the client never learns the outcome.
+  | { kind: "drop-after" };
 
 export interface FakeGoogleAccount {
   permissionId: string;
@@ -25,6 +27,17 @@ export interface FakeGoogleAccount {
 const TOKEN = "POST /token";
 const REVOKE = "POST /revoke";
 const ABOUT = "GET /drive/v3/about";
+const GENERATE_IDS = "GET /drive/v3/files/generateIds";
+const CREATE_FILE = "POST /drive/v3/files";
+
+export interface FakeDriveObject {
+  id: string;
+  name: string;
+  mimeType: string;
+  parents: string[];
+}
+
+type Answer = { status: number; body: unknown };
 
 // A local stand-in for Google's token endpoint and Drive API: it answers like Google, records every request and can be
 // told to fail, so tests never reach the real services or spend quota.
@@ -50,8 +63,18 @@ export class FakeGoogleServer {
   // Refresh tokens Google still honours; revoking one (or its access token) removes it.
   readonly liveRefreshTokens = new Set<string>();
 
-  failNext(route: "token" | "revoke" | "about", fault: GoogleFault): void {
-    const key = { token: TOKEN, revoke: REVOKE, about: ABOUT }[route];
+  // Everything this fake Drive holds, by ID; tests may remove entries to play a user deleting things in Drive.
+  readonly objects = new Map<string, FakeDriveObject>();
+  private generated = 0;
+
+  failNext(route: "token" | "revoke" | "about" | "generateIds" | "createFile", fault: GoogleFault): void {
+    const key = {
+      token: TOKEN,
+      revoke: REVOKE,
+      about: ABOUT,
+      generateIds: GENERATE_IDS,
+      createFile: CREATE_FILE,
+    }[route];
     this.faults.set(key, [...(this.faults.get(key) ?? []), fault]);
   }
 
@@ -100,9 +123,33 @@ export class FakeGoogleServer {
 
     if (key === TOKEN) return this.tokenGrant(new URLSearchParams(body), response);
     if (key === REVOKE) return this.revoke(new URLSearchParams(body), response);
-    if (key === ABOUT) return this.json(response, { user: this.account });
-    response.writeHead(404, { "content-type": "application/json" });
-    response.end(JSON.stringify({ error: { code: 404, message: "Not Found", errors: [{ reason: "notFound" }] } }));
+    const answer = this.drive(key, recorded);
+    if (fault?.kind === "drop-after") {
+      request.socket.destroy();
+      return;
+    }
+    response.writeHead(answer.status, { "content-type": "application/json" });
+    response.end(JSON.stringify(answer.body));
+  }
+
+  private drive(key: string, request: RecordedGoogleRequest): Answer {
+    if (key === ABOUT) return { status: 200, body: { user: this.account } };
+    if (key === GENERATE_IDS) {
+      const count = Number(request.query.get("count"));
+      const ids = Array.from({ length: count }, () => `gen-${++this.generated}`);
+      return { status: 200, body: { kind: "drive#generatedIds", space: "drive", ids } };
+    }
+    if (key === CREATE_FILE) return this.createMetadataOnly(request);
+    return driveError(404, "notFound");
+  }
+
+  private createMetadataOnly(request: RecordedGoogleRequest): Answer {
+    const meta = JSON.parse(request.body) as { id: string; name: string; mimeType: string; parents?: string[] };
+    if (this.objects.has(meta.id)) return driveError(409, "conflict");
+    const parents = meta.parents ?? ["root"];
+    if (parents.some((parent) => parent !== "root" && !this.objects.has(parent))) return driveError(404, "notFound");
+    this.objects.set(meta.id, { id: meta.id, name: meta.name, mimeType: meta.mimeType, parents });
+    return { status: 200, body: { id: meta.id } };
   }
 
   private tokenGrant(form: URLSearchParams, response: http.ServerResponse): void {
@@ -148,4 +195,8 @@ export class FakeGoogleServer {
     response.writeHead(200, { "content-type": "application/json" });
     response.end(JSON.stringify(body));
   }
+}
+
+function driveError(status: number, reason: string): Answer {
+  return { status, body: { error: { code: status, message: reason, errors: [{ reason, domain: "global" }] } } };
 }
