@@ -12,6 +12,7 @@ import {
   listDueJobIntents,
   markIntentDispatched,
   recordIntentFailure,
+  rescheduleRunningJob,
   type JobIntent,
 } from "../repositories/job-dispatch.repository";
 import { markJobFailed } from "../repositories/job-record.repository";
@@ -63,6 +64,18 @@ export async function dispatchJobIntent(intent: JobIntent, enqueue: EnqueueJob):
   const { jobType, data } = parseIntent(intent);
   await enqueue(jobType, data, intent.jobRecord.bullmqJobId);
   await markIntentDispatched(intent.id);
+}
+
+// Called by the worker when a processor reports that its remote operation is still pending. The schedule lives in
+// SQLite, so it survives a worker restart (and a wiped Redis). False means the job was no longer RUNNING.
+export function deferRunningJob(
+  jobRecordId: string,
+  jobData: unknown,
+  retryAfterMs: number,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const { jobRecordId: _ownId, ...payload } = payloadSchema.parse(jobData);
+  return rescheduleRunningJob(jobRecordId, payload, new Date(now.getTime() + retryAfterMs));
 }
 
 // The job was refused before it could run (for example Redis is down), so it must not linger as QUEUED.

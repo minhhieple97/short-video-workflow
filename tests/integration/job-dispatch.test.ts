@@ -159,3 +159,81 @@ describe("job outbox", () => {
     expect(await db.prisma.jobDispatch.count()).toBe(0);
   });
 });
+
+describe("deferred jobs", () => {
+  const deferredBy = 30_000;
+
+  async function runningDispatchedJob() {
+    const intent = await dispatch.recordJobIntent(request("scene-a"));
+    await dispatch.sweepDueJobIntents(recordingEnqueue().enqueue);
+    await db.prisma.jobRecord.update({ where: { id: intent.jobRecordId }, data: { status: "RUNNING" } });
+    return intent;
+  }
+
+  it("puts a running job back in the outbox under a new job id, due after the delay", async () => {
+    const intent = await runningDispatchedJob();
+    const now = new Date();
+
+    const rescheduled = await dispatch.deferRunningJob(
+      intent.jobRecordId,
+      { sceneId: "scene-a", jobRecordId: intent.jobRecordId },
+      deferredBy,
+      now,
+    );
+
+    expect(rescheduled).toBe(true);
+    const record = await db.prisma.jobRecord.findUniqueOrThrow({
+      where: { id: intent.jobRecordId },
+      include: { dispatch: true },
+    });
+    expect(record.status).toBe("QUEUED");
+    expect(record.bullmqJobId).not.toBe(intent.jobRecord.bullmqJobId);
+    expect(record.dispatch).toMatchObject({ dispatchedAt: null, availableAt: new Date(now.getTime() + deferredBy) });
+    expect(JSON.parse(record.dispatch?.payloadJson ?? "null")).toEqual({ sceneId: "scene-a" });
+
+    const { calls, enqueue } = recordingEnqueue();
+    expect(await dispatch.sweepDueJobIntents(enqueue, now)).toBe(0);
+    expect(await dispatch.sweepDueJobIntents(enqueue, new Date(now.getTime() + deferredBy + 1))).toBe(1);
+    expect(calls).toEqual([
+      {
+        jobType: "GENERATE_SCENE_TTS",
+        data: { sceneId: "scene-a", jobRecordId: intent.jobRecordId },
+        bullmqJobId: record.bullmqJobId,
+      },
+    ]);
+  });
+
+  it("leaves a job alone when it is no longer running", async () => {
+    const intent = await runningDispatchedJob();
+    await db.prisma.jobRecord.update({ where: { id: intent.jobRecordId }, data: { status: "CANCEL_REQUESTED" } });
+
+    expect(await dispatch.deferRunningJob(intent.jobRecordId, { sceneId: "scene-a" }, deferredBy)).toBe(false);
+
+    const record = await db.prisma.jobRecord.findUniqueOrThrow({
+      where: { id: intent.jobRecordId },
+      include: { dispatch: true },
+    });
+    expect(record).toMatchObject({ status: "CANCEL_REQUESTED", bullmqJobId: intent.jobRecord.bullmqJobId });
+    expect(record.dispatch?.dispatchedAt).not.toBeNull();
+  });
+
+  it("creates the outbox row for a job that never had one", async () => {
+    const record = await db.prisma.jobRecord.create({
+      data: {
+        bullmqJobId: "legacy-job",
+        jobType: "GENERATE_SCENE_TTS",
+        entityType: "SCENE",
+        entityId: "scene-legacy",
+        status: "RUNNING",
+      },
+    });
+
+    expect(
+      await dispatch.deferRunningJob(record.id, { sceneId: "scene-legacy", jobRecordId: record.id }, deferredBy),
+    ).toBe(true);
+
+    const row = await db.prisma.jobDispatch.findUniqueOrThrow({ where: { jobRecordId: record.id } });
+    expect(row.dispatchedAt).toBeNull();
+    expect(JSON.parse(row.payloadJson)).toEqual({ sceneId: "scene-legacy" });
+  });
+});

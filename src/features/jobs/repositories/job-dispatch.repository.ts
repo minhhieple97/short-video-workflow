@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import type { JobDispatch, JobRecord } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import type { JobType } from "@/shared/types/job";
@@ -15,6 +17,30 @@ interface CreateJobIntentInput {
 }
 
 // One nested write: the JobRecord and its outbox row exist together or not at all.
+// Puts a RUNNING job back in the outbox under a fresh BullMQ job id (the finished one would swallow a duplicate add).
+// Returns false, changing nothing, when the job is no longer RUNNING (for example a cancel was requested meanwhile).
+export function rescheduleRunningJob(
+  jobRecordId: string,
+  payload: Record<string, unknown>,
+  availableAt: Date,
+): Promise<boolean> {
+  const payloadJson = JSON.stringify(payload);
+  return prisma.$transaction(async (tx) => {
+    const { count } = await tx.jobRecord.updateMany({
+      where: { id: jobRecordId, status: "RUNNING" },
+      data: { status: "QUEUED", bullmqJobId: randomUUID() },
+    });
+    if (count === 0) return false;
+
+    await tx.jobDispatch.upsert({
+      where: { jobRecordId },
+      create: { jobRecordId, payloadJson, availableAt },
+      update: { payloadJson, availableAt, dispatchedAt: null, attempts: 0, lastError: null },
+    });
+    return true;
+  });
+}
+
 export function createJobIntent(input: CreateJobIntentInput): Promise<JobIntent> {
   const { payload, availableAt, ...record } = input;
   return prisma.jobDispatch.create({

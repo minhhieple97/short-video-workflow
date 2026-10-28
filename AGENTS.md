@@ -193,7 +193,8 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - Job payloads carry **IDs and small metadata only** — never book text, audio, or secrets.
 - **Tracked jobs go through the outbox:** `recordJobIntent` writes the `JobRecord` and its `JobDispatch` row in one transaction, then
   `dispatchJobIntent` enqueues and marks `dispatchedAt`; the worker's `sweepDueJobIntents` delivers rows that never reached Redis and delayed
-  rows (`availableAt`). Do not call `queue.add` for a tracked job anywhere else (`pnpm ai:run`'s requeue is the one legacy exception), and
+  rows (`availableAt`). A processor that must wait on a remote operation returns `deferred(retryAfterMs)` (never sleeps or polls inside the
+  worker); the dispatcher reschedules the same `JobRecord` through the outbox under a new job id. Do not call `queue.add` for a tracked job anywhere else (`pnpm ai:run`'s requeue is the one legacy exception), and
   `reconcileJobRecords` must keep skipping jobs whose row is undelivered.
 - Processors must be **idempotent** (BullMQ is at-least-once): same input fingerprint must not duplicate lessons/audio/renders unless forced.
 - Worker connections use `maxRetriesPerRequest: null`; producer connections (web) use a low retry count so API calls fail fast when Redis is down.
