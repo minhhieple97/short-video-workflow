@@ -13,7 +13,7 @@ import { createScenePlanArtifact } from "@/server/scene-plan/handoff";
 import { MockScenePlanCompiler } from "@/server/scene-plan/mock-scene-plan-compiler";
 
 import { SAMPLE_LESSON } from "../helpers/contracts/script-studio-provider-contract";
-import { FakeScriptStudioProvider } from "../helpers/fakes/fake-script-studio-provider";
+import { MockScriptStudioProvider } from "@/server/script-studio/mock-script-studio-provider";
 import { setupTestEnvironment, type TestEnvironment } from "../helpers/test-environment";
 
 const FAKE_EDGE_TTS = path.join(import.meta.dirname, "../helpers/fake-edge-tts-audio.mjs");
@@ -90,7 +90,7 @@ beforeEach(async () => {
   await claim.claimProductionItem(itemId, TOKEN, 60_000);
   await db.prisma.productionItem.update({ where: { id: itemId }, data: { checkpoint: "COMPILED" } });
 
-  const draft = await new FakeScriptStudioProvider().writeDraft({
+  const draft = await new MockScriptStudioProvider().writeDraft({
     sources: [],
     lesson: SAMPLE_LESSON,
     targetDurationSec: 60,

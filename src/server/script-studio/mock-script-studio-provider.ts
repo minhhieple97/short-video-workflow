@@ -12,8 +12,9 @@ import type {
 
 const PAGES_PER_FAKE_CHAPTER = 10;
 
-export class FakeScriptStudioProvider implements ScriptStudioProvider {
-  readonly id = "fake-script-studio";
+// Deterministic and offline (AI_MODE=mock): turns the lesson's own fields into a draft that tells the whole story.
+export class MockScriptStudioProvider implements ScriptStudioProvider {
+  readonly id = "mock-script-studio";
   readonly uploadedSources: SourceRef[] = [];
 
   private readonly remoteIdByKey = new Map<string, string>();

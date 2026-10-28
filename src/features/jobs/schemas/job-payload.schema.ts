@@ -24,6 +24,10 @@ export const generateScriptPayloadSchema = baseJobPayloadSchema.extend({
   sceneId: z.string().min(1).optional(),
 });
 
+export const runProductionItemPayloadSchema = baseJobPayloadSchema.extend({
+  itemId: z.string().min(1),
+});
+
 export const renderVideoPayloadSchema = baseJobPayloadSchema.extend({
   renderId: z.string().min(1),
 });

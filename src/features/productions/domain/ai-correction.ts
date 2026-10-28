@@ -25,6 +25,10 @@ const SCENE_COMPILER_CODES = new Set([
 
 const MAX_NOTE_CHARS = 600;
 
+export function isCorrectableIssue(code: string): boolean {
+  return SCRIPT_STUDIO_CODES.has(code) || SCENE_COMPILER_CODES.has(code);
+}
+
 const GUIDANCE: Record<string, string> = {
   OVER_TARGET: "Tổng thời lượng vượt preset: rút gọn lời dẫn cho vừa, không tăng preset và không đọc nhanh hơn.",
   OVER_MAX: "Tổng thời lượng vượt giới hạn tuyệt đối: rút gọn mạnh lời dẫn, không đọc nhanh hơn.",
@@ -50,7 +54,7 @@ export interface CorrectionPlan {
 // problems of both kinds the earlier step wins, because the compile step runs again afterwards anyway, and the note
 // still carries every problem so the corrected draft is also written to the right length.
 export function planCorrection(issues: readonly CorrectionIssue[]): CorrectionPlan | null {
-  const fixable = issues.filter((issue) => SCRIPT_STUDIO_CODES.has(issue.code) || SCENE_COMPILER_CODES.has(issue.code));
+  const fixable = issues.filter((issue) => isCorrectableIssue(issue.code));
   if (fixable.length === 0) return null;
 
   const target: CorrectionTarget = fixable.some((issue) => SCRIPT_STUDIO_CODES.has(issue.code))

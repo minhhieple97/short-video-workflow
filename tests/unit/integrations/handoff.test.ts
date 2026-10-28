@@ -17,10 +17,10 @@ import type { ScriptDraft } from "@/server/script-studio/script-studio-contracts
 
 import { SAMPLE_LESSON } from "../../helpers/contracts/script-studio-provider-contract";
 import { MockScenePlanCompiler } from "@/server/scene-plan/mock-scene-plan-compiler";
-import { FakeScriptStudioProvider } from "../../helpers/fakes/fake-script-studio-provider";
+import { MockScriptStudioProvider } from "@/server/script-studio/mock-script-studio-provider";
 
 async function sample(): Promise<{ draft: ScriptDraft; plan: ScenePlan }> {
-  const draft = await new FakeScriptStudioProvider().writeDraft({
+  const draft = await new MockScriptStudioProvider().writeDraft({
     sources: [],
     lesson: SAMPLE_LESSON,
     targetDurationSec: 60,

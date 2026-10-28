@@ -49,6 +49,18 @@ export function findActiveRender(videoId: string, qualityPreset: "DRAFT" | "FINA
   });
 }
 
+// The newest finished render of this quality for exactly this script version, so a render is never made twice.
+export function findCompletedRender(
+  videoId: string,
+  qualityPreset: "DRAFT" | "FINAL",
+  scriptVersion: number,
+): Promise<RenderRecord | null> {
+  return prisma.renderRecord.findFirst({
+    where: { videoId, qualityPreset, scriptVersion, status: "COMPLETED" },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
 export function markRenderStarted(id: string, scriptVersion: number): Promise<RenderRecord> {
   return prisma.renderRecord.update({
     where: { id },

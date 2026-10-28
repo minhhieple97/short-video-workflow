@@ -481,6 +481,14 @@ model ProductionItem {
   // The single AI correction a video gets: where it went (SCRIPT_STUDIO | SCENE_COMPILER) and what it was told. Null while unused.
   aiCorrectionTarget     String?
   aiCorrectionNote       String?
+  // The two artifacts that travel between steps, kept apart (see server/scene-plan/handoff.ts): what the script studio wrote
+  // and what the compiler made of it. Each is re-validated, fingerprint included, when it is read.
+  draftArtifactJson      Json?
+  scenePlanArtifactJson  Json?
+  // Consecutive attempts that ended in a temporary failure (quota, outage); reset by any step that succeeds.
+  transientRetries       Int             @default(0)
+  // The FINAL render this item is waiting for or finished with; cleared when the item is retried after a failed render.
+  renderId               String?
   // Lease so that only one worker advances an item at a time; an expired lease can be taken over.
   claimToken             String?
   claimExpiresAt         DateTime?

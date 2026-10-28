@@ -10,7 +10,7 @@ import { MockScenePlanCompiler } from "@/server/scene-plan/mock-scene-plan-compi
 import type { ScenePlan } from "@/server/scene-plan/scene-plan-compiler";
 
 import { SAMPLE_LESSON } from "../helpers/contracts/script-studio-provider-contract";
-import { FakeScriptStudioProvider } from "../helpers/fakes/fake-script-studio-provider";
+import { MockScriptStudioProvider } from "@/server/script-studio/mock-script-studio-provider";
 import { setupTestEnvironment, type TestEnvironment } from "../helpers/test-environment";
 
 let env: TestEnvironment;
@@ -25,7 +25,7 @@ let videoId: string;
 const TOKEN = "worker-a";
 
 async function planFor(variant = "") {
-  const draft = await new FakeScriptStudioProvider().writeDraft({
+  const draft = await new MockScriptStudioProvider().writeDraft({
     sources: [],
     lesson: { ...SAMPLE_LESSON, title: `${SAMPLE_LESSON.title}${variant}` },
     targetDurationSec: 60,

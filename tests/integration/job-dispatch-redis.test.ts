@@ -150,6 +150,7 @@ describe.skipIf(!redisAvailable)("job outbox against real BullMQ", () => {
         return order.filter((entry) => entry === "tts").length === 1 ? processorTypes.deferred(1_500) : { done: true };
       },
       RENDER_VIDEO: unused,
+      RUN_PRODUCTION_ITEM: unused,
     };
 
     const waiting = await dispatch.recordJobIntent(request("scene-a"));
