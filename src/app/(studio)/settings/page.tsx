@@ -1,6 +1,12 @@
+import { CheckCircle2 } from "lucide-react";
+
 import { PageHeader } from "@/components/layout/page-header";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DriveConnectionCard } from "@/features/drive/components/drive-connection-card";
+import { driveCallbackError } from "@/features/drive/domain/drive-messages";
+import { getDriveOverview } from "@/features/drive/services/drive-overview.service";
 import { RunTestJobButton } from "@/features/jobs/components/run-test-job-button";
 import { getDiagnosticsSnapshot } from "@/server/diagnostics/get-diagnostics-snapshot";
 import type { CheckResult, CheckStatus } from "@/server/diagnostics/types";
@@ -55,8 +61,16 @@ function CheckCard({ check }: Readonly<{ check: CheckResult }>) {
   );
 }
 
-export default async function SettingsPage() {
-  const snapshot = await getDiagnosticsSnapshot();
+interface SettingsPageProps {
+  searchParams: Promise<{ drive?: string; drive_error?: string }>;
+}
+
+export default async function SettingsPage({ searchParams }: Readonly<SettingsPageProps>) {
+  const [snapshot, driveOverview, query] = await Promise.all([
+    getDiagnosticsSnapshot(),
+    getDriveOverview(),
+    searchParams,
+  ]);
 
   return (
     <section className="flex flex-col gap-8">
@@ -69,6 +83,27 @@ export default async function SettingsPage() {
           </Badge>
         }
       />
+
+      {query.drive === "connected" ? (
+        <Alert>
+          <CheckCircle2 aria-hidden />
+          <AlertTitle>Đã kết nối Google Drive</AlertTitle>
+          <AlertDescription>Các bản render cuối mới sẽ được lưu lên Drive tự động.</AlertDescription>
+        </Alert>
+      ) : null}
+      {query.drive_error ? (
+        <Alert variant="destructive">
+          <AlertTitle>Chưa kết nối được Google Drive</AlertTitle>
+          <AlertDescription>{driveCallbackError(query.drive_error)}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      <section aria-labelledby="integrations-heading" className="flex flex-col gap-4">
+        <h2 id="integrations-heading" className="text-lg font-bold">
+          Tích hợp
+        </h2>
+        <DriveConnectionCard overview={driveOverview} />
+      </section>
 
       <div className="grid gap-4 md:grid-cols-2">
         {snapshot.checks.map((check) => (

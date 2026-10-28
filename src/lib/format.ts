@@ -12,7 +12,8 @@ export function formatNumber(value: number): string {
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${NUMBER.format(Math.round(bytes / 102.4) / 10)} KB`;
-  return `${NUMBER.format(Math.round(bytes / 104857.6) / 10)} MB`;
+  if (bytes < 1024 ** 3) return `${NUMBER.format(Math.round(bytes / 104857.6) / 10)} MB`;
+  return `${NUMBER.format(Math.round(bytes / 107374182.4) / 10)} GB`;
 }
 
 export function formatDuration(startIso: string, endIso: string): string {

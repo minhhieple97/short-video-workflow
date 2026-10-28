@@ -335,3 +335,7 @@ export function resetArchiveForRetry(
     return { jobRecordId: intent.jobRecordId };
   });
 }
+
+export function countFailedArchives(destination: { provider: string; destinationKey: string }): Promise<number> {
+  return prisma.renderArchive.count({ where: { ...destination, status: "FAILED" } });
+}

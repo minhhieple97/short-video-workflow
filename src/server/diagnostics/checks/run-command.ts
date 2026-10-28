@@ -9,3 +9,9 @@ export async function readFirstOutputLine(command: string, args: readonly string
   const { stdout } = await execFileAsync(command, [...args], { timeout: COMMAND_TIMEOUT_MS });
   return stdout.split("\n")[0]?.trim() ?? "";
 }
+
+// Some tools (pdfinfo, for one) print their version on stderr.
+export async function readVersionLine(command: string, args: readonly string[]): Promise<string> {
+  const { stdout, stderr } = await execFileAsync(command, [...args], { timeout: COMMAND_TIMEOUT_MS });
+  return (stdout.trim() || stderr.trim()).split("\n")[0]?.trim() ?? "";
+}

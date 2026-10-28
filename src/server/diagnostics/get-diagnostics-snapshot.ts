@@ -9,7 +9,11 @@ import { checkClaudeCli } from "./checks/claude-cli";
 import { checkDatabase } from "./checks/database";
 import { checkEdgeTts } from "./checks/edge-tts";
 import { checkFfmpeg } from "./checks/ffmpeg";
+import { checkGoogleDrive } from "./checks/google-drive";
+import { checkMistralOcr } from "./checks/mistral-ocr";
 import { checkNodeRuntime } from "./checks/node-runtime";
+import { checkNotebookLm } from "./checks/notebooklm";
+import { checkPoppler } from "./checks/poppler";
 import { checkRedis } from "./checks/redis";
 import { checkRemotionBrowser } from "./checks/remotion-browser";
 import { checkWorkerHeartbeat } from "./checks/worker-heartbeat";
@@ -60,6 +64,10 @@ export async function getDiagnosticsSnapshot(): Promise<DiagnosticsSnapshot> {
     runCheck("claude-cli", "Claude Code CLI", checkClaudeCli),
     runCheck("edge-tts", "edge-tts", checkEdgeTts),
     runCheck("chromium", "Chromium (Remotion)", checkRemotionBrowser),
+    runCheck("poppler", "Poppler (PDF)", () => checkPoppler()),
+    runCheck("mistral-ocr", "Mistral OCR", () => checkMistralOcr()),
+    runCheck("notebooklm", "NotebookLM", () => checkNotebookLm()),
+    runCheck("google-drive", "Google Drive", () => checkGoogleDrive()),
     runCheck("resources", "Tài nguyên máy", checkWslResources),
   ]);
 
