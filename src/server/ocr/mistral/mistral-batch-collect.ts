@@ -119,6 +119,16 @@ export async function pollBatchJob(
   jobId: string,
   signal?: AbortSignal,
 ): Promise<OcrOperationStatus> {
+  try {
+    return await readBatchJob(client, jobId, signal);
+  } catch (error) {
+    // The job, or the file holding its output, is gone: asking again would give the same answer forever.
+    if (isGone(error)) return { status: "expired" };
+    throw error;
+  }
+}
+
+async function readBatchJob(client: MistralClient, jobId: string, signal?: AbortSignal): Promise<OcrOperationStatus> {
   const job = await client.getBatchJob(jobId, signal);
   switch (job.status) {
     case "QUEUED":

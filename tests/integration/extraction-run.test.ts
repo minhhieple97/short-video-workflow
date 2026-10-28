@@ -257,6 +257,33 @@ describe.skipIf(!poppler)("runExtraction (needs poppler-utils)", () => {
     expect(second.requestKey).toBe(`${extractionId}-ocr-2`);
   });
 
+  it("does not get stuck when the provider no longer holds a batch's output: the pages are sent again on retry", async () => {
+    const { extractionId } = await seedPdf(MIXED_BOOK);
+    const first = await runUntilSubmitted(extractionId);
+    provider.expire(first.operationRef ?? "");
+
+    await expect(run.runExtraction(extractionId, deps())).resolves.toMatchObject({
+      kind: "STOPPED",
+      status: "PARTIAL",
+      code: "OCR_PAGES_FAILED",
+    });
+    expect(await pageStates(extractionId)).toEqual([
+      "1:EXTRACTED",
+      "2:FAILED(OCR_OUTPUT_EXPIRED)",
+      "3:EXTRACTED",
+      "4:FAILED(OCR_OUTPUT_EXPIRED)",
+    ]);
+    // The lost batch was billed, so it stays in the spend.
+    expect(await extraction(extractionId)).toMatchObject({ actualCostMicroUsd: 2_000, reservedCostMicroUsd: 0 });
+
+    await endJobs();
+    await jobs.resetExtractionForRetry(extractionId);
+    const second = await runExtractionToSecondBatch(extractionId);
+    provider.settle(second.operationRef ?? "");
+    await expect(run.runExtraction(extractionId, deps())).resolves.toEqual({ kind: "COMPLETED" });
+    expect(provider.submissionCount).toBe(2);
+  });
+
   it("marks a page too large to send as failed instead of skipping it", async () => {
     provider = new FakeOcrProvider({ mode: "batch", limits: { maxPages: 50, maxBytes: 64 } });
     const { extractionId } = await seedPdf(MIXED_BOOK);

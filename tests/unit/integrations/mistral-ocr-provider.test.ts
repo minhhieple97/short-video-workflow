@@ -221,14 +221,14 @@ describe("MistralBatchOcrProvider", () => {
     await expect(provider.cleanup("job-never-existed")).resolves.toBeUndefined();
   });
 
-  it("loses the output once cleaned up, which is why callers must store it first", async () => {
+  it("loses the output once cleaned up (which is why callers must store it first) and says so as expired", async () => {
     const operationRef = await submitAndComplete([makeChunk("a", 1)]);
     const chunks = await completedChunks(operationRef);
     expect(chunks).toHaveLength(1);
 
     await provider.cleanup(operationRef);
 
-    await expect(provider.poll(operationRef)).rejects.toMatchObject({ code: "MISTRAL_HTTP_404" });
+    await expect(provider.poll(operationRef)).resolves.toEqual({ status: "expired" });
   });
 });
 

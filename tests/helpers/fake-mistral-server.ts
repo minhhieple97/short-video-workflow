@@ -138,7 +138,9 @@ export class FakeMistralServer {
       }
 
       const document = this.files.get(request.body.document.file_id)?.bytes.toString("latin1") ?? "";
-      const pageCount = Number(/pages=(\d+)/.exec(document)?.[1] ?? "1");
+      // Test documents say how many pages they stand for; a real PDF (a chunk cut by Poppler) has its page objects counted.
+      const marker = /pages=(\d+)/.exec(document)?.[1];
+      const pageCount = marker ? Number(marker) : Math.max(1, document.match(/\/Type\s*\/Page(?![s\w])/g)?.length ?? 0);
       const base = options.oneBasedPages ? 1 : 0;
       const confidence = options.confidence === undefined ? 0.97 : options.confidence;
       const pages = Array.from({ length: pageCount }, (_, position) => ({

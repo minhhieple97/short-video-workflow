@@ -40,7 +40,10 @@ export type OcrOperationStatus =
   | { status: "pending"; retryAfterMs: number }
   | { status: "completed"; chunks: OcrChunkResult[] }
   | { status: "failed"; code: string; message: string; retryable: boolean }
-  | { status: "cancelled" };
+  | { status: "cancelled" }
+  // The operation ran, but its output is no longer held by the provider (deleted or past its retention): it was billed
+  // and its pages have to be sent again.
+  | { status: "expired" };
 
 export interface OcrProvider {
   readonly id: string;

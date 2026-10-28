@@ -19,7 +19,7 @@ export interface FakeOcrOptions {
 
 interface FakeOperation {
   chunks: OcrInputChunk[];
-  state: "pending" | "completed" | "cancelled" | "failed";
+  state: "pending" | "completed" | "cancelled" | "failed" | "expired";
   results?: OcrChunkResult[];
   failure?: { code: string; retryable: boolean };
 }
@@ -95,6 +95,7 @@ export class FakeOcrProvider implements OcrProvider {
     }
     const operation = this.requireOperation(operationRef);
     if (operation.state === "cancelled") return { status: "cancelled" };
+    if (operation.state === "expired") return { status: "expired" };
     if (operation.state === "failed" && operation.failure)
       return { status: "failed", message: "scripted", ...operation.failure };
     if (operation.state === "pending") return { status: "pending", retryAfterMs: 1_000 };
@@ -144,6 +145,11 @@ export class FakeOcrProvider implements OcrProvider {
     const operation = this.requireOperation(operationRef);
     operation.state = "failed";
     operation.failure = failure;
+  }
+
+  // The provider no longer holds the operation's output (retention passed, or it was deleted).
+  expire(operationRef: string): void {
+    this.requireOperation(operationRef).state = "expired";
   }
 
   settle(operationRef: string): void {

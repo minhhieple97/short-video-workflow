@@ -226,6 +226,11 @@ export async function collectOcrOperation(input: {
       await markOcrPagesReadyForRetry(operation, pageNumbersOf(plan));
       await settleOcrOperation(operation.id, { status: "CANCELLED" });
       return { status: "CANCELLED" };
+    // It ran and was billed, but nothing came back: the spend is kept and the pages fail, to be sent again on retry.
+    case "expired":
+      await markOcrPagesFailed(operation, pageNumbersOf(plan), "OCR_OUTPUT_EXPIRED");
+      await settleOcrOperation(operation.id, { status: "COMPLETED", reportedMicroUsd: null });
+      return { status: "FAILED", code: "OCR_OUTPUT_EXPIRED", retryable: true };
   }
 }
 

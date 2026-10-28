@@ -349,6 +349,25 @@ describe("collectOcrOperation", () => {
     expect(await totals()).toEqual({ reserved: 0, actual: 0 });
   });
 
+  it("counts a batch whose output is gone as spent and fails its pages so a retry sends them again", async () => {
+    const operationRef = await submitted();
+    provider.expire(operationRef);
+
+    const outcome = await operations.collectOcrOperation({ provider, operationId, plan: CHUNKS });
+
+    expect(outcome).toEqual({ status: "FAILED", code: "OCR_OUTPUT_EXPIRED", retryable: true });
+    expect(await operation()).toMatchObject({ status: "COMPLETED", outputStoredAt: null });
+    expect(await pageStates()).toEqual([
+      "1:EXTRACTED",
+      "2:FAILED(OCR_OUTPUT_EXPIRED)",
+      "3:FAILED(OCR_OUTPUT_EXPIRED)",
+      "4:FAILED(OCR_OUTPUT_EXPIRED)",
+      "5:FAILED(OCR_OUTPUT_EXPIRED)",
+    ]);
+    expect(await totals()).toEqual({ reserved: 0, actual: RESERVED });
+    await expect(operations.resetFailedOcrPagesForRetry(extractionId)).resolves.toEqual([2, 3, 4, 5]);
+  });
+
   it("does not change the spend when the same completed batch is collected twice", async () => {
     const operationRef = await submitted();
     provider.completeWith(operationRef, [ok("a", ["Hai", "Ba"]), ok("b", ["Bốn", "Năm"])]);
