@@ -4,12 +4,14 @@ import { getBook } from "@/features/books/services/book.service";
 import { hasCompletedAiRun } from "@/features/jobs/repositories/ai-run.repository";
 import { enqueueTrackedJob } from "@/features/jobs/services/job-service";
 import { CHAPTER_ANALYSIS_PROMPT_VERSION } from "@/server/ai/prompts/chapter-analysis-prompt";
+import { LESSON_EXTRACTION_PROMPT_VERSION } from "@/server/script-studio/notebooklm/prompts/lesson-extraction-prompt";
 import { getAppConfig } from "@/shared/config/env";
 import { AppError, NotFoundError } from "@/shared/errors";
 import type { JobDto } from "@/shared/types/job";
 
 import { findChapterWithBook, listChaptersByBook, setChapterAnalysisStatus } from "../repositories/chapter.repository";
 import { analysisInputHash } from "./chapter-analysis.service";
+import { notebookAnalysisInputHash } from "./notebook-chapter-analysis.service";
 
 interface AnalysisTarget {
   id: string;
@@ -20,9 +22,14 @@ interface AnalysisTarget {
 }
 
 async function isUpToDate(chapter: AnalysisTarget, bookTitle: string): Promise<boolean> {
-  if (chapter.analysisStatus !== "ANALYZED" || chapter.analysisPromptVersion !== CHAPTER_ANALYSIS_PROMPT_VERSION) {
-    return false;
+  if (chapter.analysisStatus !== "ANALYZED") return false;
+  // A chapter catalogued by NotebookLM is up to date against its own prompt version and input.
+  if (chapter.analysisPromptVersion === LESSON_EXTRACTION_PROMPT_VERSION) {
+    return hasCompletedAiRun(
+      notebookAnalysisInputHash({ contentHash: chapter.contentHash, chapterTitle: chapter.title, bookTitle }),
+    );
   }
+  if (chapter.analysisPromptVersion !== CHAPTER_ANALYSIS_PROMPT_VERSION) return false;
   return hasCompletedAiRun(
     analysisInputHash({
       mode: getAppConfig().ai.mode,

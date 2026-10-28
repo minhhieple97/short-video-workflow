@@ -118,6 +118,9 @@ export function ProductionRequestForm({
                         {lesson.sources.map((source, index) => (
                           <li key={`${lesson.id}-${index}`} className="border-border border-l-2 pl-3">
                             <span className="font-medium">{source.chapterTitle}</span>
+                            {source.page === null ? null : (
+                              <span className="text-muted-foreground"> · trang {source.page}</span>
+                            )}
                             <q className="text-muted-foreground mt-0.5 block">{source.excerpt}</q>
                           </li>
                         ))}

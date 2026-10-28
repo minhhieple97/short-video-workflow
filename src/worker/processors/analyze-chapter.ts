@@ -1,10 +1,25 @@
 import { runChapterAnalysis } from "@/features/chapters/services/chapter-analysis.service";
+import {
+  notebookAnalysisSettingsFor,
+  runNotebookChapterAnalysis,
+} from "@/features/chapters/services/notebook-chapter-analysis.service";
 import { analyzeChapterPayloadSchema } from "@/features/jobs/schemas/job-payload.schema";
 
 import type { JobProcessor } from "./types";
 
 export const processAnalyzeChapter: JobProcessor = async ({ job, jobRecordId, signal, reportProgress }) => {
   const payload = analyzeChapterPayloadSchema.parse(job.data);
+  const notebook = await notebookAnalysisSettingsFor(payload.chapterId);
+  if (notebook) {
+    return runNotebookChapterAnalysis({
+      chapterId: payload.chapterId,
+      jobRecordId,
+      force: payload.force,
+      settings: notebook,
+      signal,
+      onProgress: reportProgress,
+    });
+  }
   return runChapterAnalysis({
     chapterId: payload.chapterId,
     jobRecordId,

@@ -118,3 +118,11 @@ export function completeExtractionWithChapters(
 export function findLatestExtractionForBook(bookId: string): Promise<BookExtraction | null> {
   return prisma.bookExtraction.findFirst({ where: { bookId }, orderBy: { createdAt: "desc" } });
 }
+
+// The run a PDF book's chapters were made from: its latest completed extraction.
+export function findCompletedExtractionForBook(bookId: string): Promise<BookExtraction | null> {
+  return prisma.bookExtraction.findFirst({
+    where: { bookId, status: "COMPLETED" },
+    orderBy: { completedAt: "desc" },
+  });
+}

@@ -4,6 +4,8 @@ export const CHAPTER_ANALYSIS_STATUSES = [
   "ANALYZING",
   "WAITING_FOR_CLI",
   "ANALYZED",
+  // Lessons were found, but the reader stopped before the end of at least one part: never presented as complete.
+  "PARTIAL",
   "FAILED",
 ] as const;
 export type ChapterAnalysisStatus = (typeof CHAPTER_ANALYSIS_STATUSES)[number];
@@ -14,6 +16,7 @@ export const CHAPTER_ANALYSIS_STATUS_LABELS: Record<ChapterAnalysisStatus, strin
   ANALYZING: "Đang phân tích",
   WAITING_FOR_CLI: "Chờ chạy Claude CLI",
   ANALYZED: "Đã phân tích",
+  PARTIAL: "Phân tích chưa hết",
   FAILED: "Lỗi phân tích",
 };
 

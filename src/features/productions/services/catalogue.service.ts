@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getBook } from "@/features/books/services/book.service";
+import { pageFromLocator } from "@/features/lessons/domain/source-excerpts";
 
 import { findCatalogueLessons } from "../repositories/production.repository";
 import type { CatalogueDto } from "../schemas/catalogue.dto";
@@ -20,7 +21,13 @@ export async function getCatalogue(bookId: string): Promise<CatalogueDto> {
         .flatMap((source) => {
           const excerpt = (source.sourceExcerpt ?? "").trim();
           return excerpt
-            ? [{ chapterTitle: source.chapter.title, excerpt: excerpt.slice(0, EXCERPT_PREVIEW_CHARS) }]
+            ? [
+                {
+                  chapterTitle: source.chapter.title,
+                  excerpt: excerpt.slice(0, EXCERPT_PREVIEW_CHARS),
+                  page: pageFromLocator(source.sourceLocator),
+                },
+              ]
             : [];
         });
       return {

@@ -402,7 +402,7 @@ model AiRun {
   id            String    @id @default(cuid())
   // Loose pointer to JobRecord.id (no relation).
   jobRecordId   String?
-  // "mock" | "cli-task" | later "automated-cli"; never store secrets or session tokens in this table.
+  // "mock" | "cli-task" | "cli-auto" | "notebooklm"; never store secrets or session tokens in this table.
   mode          String
   promptVersion String
   inputHash     String

@@ -15,7 +15,7 @@ let chapterTwo: string;
 async function lesson(
   title: string,
   status: "DRAFT" | "APPROVED" | "ARCHIVED",
-  sources: { chapterId: string; excerpt: string | null }[],
+  sources: { chapterId: string; excerpt: string | null; locator?: string }[],
 ) {
   return db.prisma.lesson.create({
     data: {
@@ -29,7 +29,13 @@ async function lesson(
       actionableStep: "a",
       origin: "AI",
       status,
-      sources: { create: sources.map((source) => ({ chapterId: source.chapterId, sourceExcerpt: source.excerpt })) },
+      sources: {
+        create: sources.map((source) => ({
+          chapterId: source.chapterId,
+          sourceExcerpt: source.excerpt,
+          sourceLocator: source.locator ?? null,
+        })),
+      },
     },
   });
 }
@@ -75,7 +81,7 @@ afterAll(async () => {
 describe("getCatalogue", () => {
   it("offers every lesson that is not archived, approved or not, with its sources in chapter order", async () => {
     await lesson("Bắt đầu nhỏ", "DRAFT", [
-      { chapterId: chapterTwo, excerpt: "  Trích đoạn chương hai.  " },
+      { chapterId: chapterTwo, excerpt: "  Trích đoạn chương hai.  ", locator: "page:14;offset:120" },
       { chapterId: chapterOne, excerpt: "Trích đoạn chương một." },
     ]);
     await lesson("Đã duyệt", "APPROVED", [{ chapterId: chapterOne, excerpt: "x" }]);
@@ -92,8 +98,8 @@ describe("getCatalogue", () => {
       summary: "Tóm tắt Bắt đầu nhỏ",
       unavailableReason: null,
       sources: [
-        { chapterTitle: "Chương 1", excerpt: "Trích đoạn chương một." },
-        { chapterTitle: "Chương 2", excerpt: "Trích đoạn chương hai." },
+        { chapterTitle: "Chương 1", excerpt: "Trích đoạn chương một.", page: null },
+        { chapterTitle: "Chương 2", excerpt: "Trích đoạn chương hai.", page: 14 },
       ],
     });
   });

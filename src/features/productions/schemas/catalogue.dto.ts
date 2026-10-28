@@ -3,6 +3,8 @@ import type { LessonStatus } from "@/features/lessons/domain/lesson-fields";
 export interface CatalogueSourceDto {
   chapterTitle: string;
   excerpt: string;
+  // The PDF page the excerpt was found on; null for books without pages.
+  page: number | null;
 }
 
 // A lesson as offered for production: what it says, where in the book it comes from, and whether it can be chosen.

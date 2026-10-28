@@ -8,6 +8,7 @@ const VARIANTS: Record<ChapterAnalysisStatus, "slate" | "amber" | "violet" | "bl
   ANALYZING: "violet",
   WAITING_FOR_CLI: "blue",
   ANALYZED: "mint",
+  PARTIAL: "amber",
   FAILED: "rose",
 };
 
