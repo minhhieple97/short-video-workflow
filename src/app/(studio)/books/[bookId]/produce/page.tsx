@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { ProductionRequestForm } from "@/features/productions/components/production-request-form";
 import { getCatalogue } from "@/features/productions/services/catalogue.service";
 import { orNotFound } from "@/server/http/page-helpers";
+import { getAppConfig } from "@/shared/config/env";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,11 @@ export default async function ProduceVideosPage({ params }: Readonly<{ params: P
           description="Phân tích chương hoặc tạo bài học trong tab Bài học của sách trước."
         />
       ) : (
-        <ProductionRequestForm bookId={catalogue.book.id} lessons={catalogue.lessons} />
+        <ProductionRequestForm
+          bookId={catalogue.book.id}
+          lessons={catalogue.lessons}
+          maxDurationSec={getAppConfig().video.maxDurationSec}
+        />
       )}
     </section>
   );

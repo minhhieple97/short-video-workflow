@@ -1,8 +1,8 @@
-import { HOOK_MAX_SECONDS, SYLLABLES_PER_SECOND } from "@/features/videos/domain/duration";
+import { HOOK_MAX_SECONDS, MAX_STORY_SCENES, SYLLABLES_PER_SECOND } from "@/features/videos/domain/duration";
 import type { LessonSnapshot } from "@/features/videos/domain/lesson-snapshot";
 import { NARRATIVE_BEATS } from "@/features/videos/domain/narrative-beats";
 
-export const SCRIPT_DRAFT_PROMPT_VERSION = "notebooklm-script-draft-v2";
+export const SCRIPT_DRAFT_PROMPT_VERSION = "notebooklm-script-draft-v3";
 
 // Vietnamese is one syllable per written word, so the syllable rate is also the word budget.
 const wordBudget = (seconds: number) => Math.floor(seconds * SYLLABLES_PER_SECOND * 0.9);
@@ -34,6 +34,7 @@ export function buildScriptDraftPrompt(input: {
     "- LESSON: liên hệ bài học trong sách và điều rút ra từ nó. Tên sách và bài học chỉ xuất hiện từ nhịp này trở đi, không ở HOOK/SITUATION/MISTAKE.",
     "- RESOLUTION: quay lại đúng tình huống ban đầu và xử lý nó bằng bài học; ACTION: một hành động cụ thể làm được ngay.",
     `- Tổng lời dẫn tối đa khoảng ${wordBudget(input.targetDurationSec)} từ. Không đọc nhanh để vừa thời lượng; viết ngắn lại.`,
+    `- Video dài hơn 60 giây: kể sâu hơn chứ không thêm bài học — mỗi phần có thể gồm nhiều cảnh (mỗi cảnh khoảng 8–15 giây), tình huống chi tiết hơn, nhiều bước hành động hơn; tối đa ${MAX_STORY_SCENES} nhịp.`,
     '- Chỉ dùng điều có trong nguồn; không bịa trích dẫn, số liệu hay khẳng định. sourceExcerpts là câu chép NGUYÊN VĂN từ nguồn, đúng ngôn ngữ của nguồn (không dịch), để riêng, không trộn vào narration; page là số của dòng "[Trang N]" gần nhất (không có thì 1).',
     "- illustrative = true cho nhịp có tình huống do bạn tự nghĩ ra (không có trong sách).",
     input.revisionNote

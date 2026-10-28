@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { MAX_STORY_SCENES } from "@/features/videos/domain/duration";
 import {
   describeStoryOrderProblem,
   findNarrativeOrderProblem,
@@ -43,7 +44,7 @@ export const scriptDraftBeatSchema = z.object({
 export const scriptDraftSchema = z
   .object({
     lessonId: z.string().min(1),
-    beats: z.array(scriptDraftBeatSchema).min(1).max(12),
+    beats: z.array(scriptDraftBeatSchema).min(1).max(MAX_STORY_SCENES),
   })
   .superRefine((draft, context) => {
     const problem = findNarrativeOrderProblem(draft.beats.map((beat) => beat.beat));

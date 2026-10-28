@@ -1,8 +1,11 @@
 import { z } from "zod";
 
+import { DEFAULT_TARGET_SEC, DURATION_PRESETS_SEC, isLongPreset } from "../domain/duration";
 import { BODY_SCENE_TYPES, VISUAL_VARIANTS } from "../domain/scene-types";
 
-const durationPreset = z.union([z.literal(30), z.literal(45), z.literal(60), z.literal(90)]);
+export const durationPresetSchema = z.literal(DURATION_PRESETS_SEC, {
+  error: `Thời lượng phải là một preset: ${DURATION_PRESETS_SEC.join(", ")} giây.`,
+});
 const optionalText = (max: number) =>
   z
     .string()
@@ -11,15 +14,16 @@ const optionalText = (max: number) =>
     .nullish()
     .transform((value) => (value ? value : null));
 
-const EXTENDED_RULE = "Preset 90 giây chỉ dùng khi chọn rõ “Extended Short”.";
+const EXTENDED_RULE = "Preset dài hơn 60 giây chỉ dùng khi chọn rõ “Video dài”.";
 
+// `extended` records that the user chose a long preset on purpose; it is never set by the app.
 export const durationFields = {
-  targetDurationSec: durationPreset.default(60),
+  targetDurationSec: durationPresetSchema.default(DEFAULT_TARGET_SEC),
   extended: z.boolean().default(false),
 };
 
 export function enforceExtended(value: { targetDurationSec: number; extended: boolean }, ctx: z.RefinementCtx): void {
-  if ((value.targetDurationSec === 90) !== value.extended) {
+  if (isLongPreset(value.targetDurationSec) !== value.extended) {
     ctx.addIssue({ code: "custom", path: ["targetDurationSec"], message: EXTENDED_RULE });
   }
 }

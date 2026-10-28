@@ -1,5 +1,5 @@
 import { LEADING_SILENCE_WARNING_MS } from "./audio";
-import { HOOK_MAX_FRAMES, HOOK_MAX_SECONDS, VIDEO_FPS, effectiveSceneFrames } from "./duration";
+import { HOOK_MAX_FRAMES, HOOK_MAX_SECONDS, MAX_TARGET_SEC, VIDEO_FPS, effectiveSceneFrames } from "./duration";
 import type { SceneType } from "./scene-types";
 
 export type RenderQuality = "DRAFT" | "FINAL";
@@ -32,7 +32,7 @@ export interface PreflightInput {
 }
 
 const MAX_ON_SCREEN_CHARS = 60;
-const ABSOLUTE_MAX_SECONDS = 90;
+const ABSOLUTE_MAX_SECONDS = MAX_TARGET_SEC;
 
 // Final renders need zero blocking issues; drafts may be rendered with warnings for review.
 export function runPreflight(input: PreflightInput, quality: RenderQuality): PreflightReport {
@@ -64,7 +64,10 @@ export function runPreflight(input: PreflightInput, quality: RenderQuality): Pre
   }
 
   if (totalSeconds > ABSOLUTE_MAX_SECONDS) {
-    blocking.push({ code: "OVER_MAX", message: `Tổng thời lượng ${totalSeconds}s vượt giới hạn tuyệt đối 90s.` });
+    blocking.push({
+      code: "OVER_MAX",
+      message: `Tổng thời lượng ${totalSeconds}s vượt giới hạn tuyệt đối ${ABSOLUTE_MAX_SECONDS}s.`,
+    });
   } else if (totalSeconds > input.targetDurationSec) {
     finalOnly({
       code: "OVER_TARGET",

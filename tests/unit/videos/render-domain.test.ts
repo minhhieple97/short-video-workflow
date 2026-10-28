@@ -134,14 +134,18 @@ describe("preflight", () => {
     expect(report.blocking.find((issue) => issue.code === "HOOK_TOO_LONG")?.message).toContain("tối đa 4s (120 frame)");
   });
 
-  it("always blocks a missing hook, empty text or anything longer than 90 seconds", () => {
+  it("always blocks a missing hook, empty text or anything longer than five minutes", () => {
     expect(runPreflight(input({ scenes: [scene()] }), "DRAFT").blocking.map((i) => i.code)).toContain("HOOK_MISSING");
     expect(
       runPreflight(input({ scenes: [hook, scene({ onScreenText: " " })] }), "DRAFT").blocking.map((i) => i.code),
     ).toContain("EMPTY_TEXT");
     expect(
-      runPreflight(input({ scenes: [hook, scene({ durationFrames: 2800 })] }), "DRAFT").blocking.map((i) => i.code),
+      runPreflight(input({ scenes: [hook, scene({ durationFrames: 9_100 })] }), "DRAFT").blocking.map((i) => i.code),
     ).toContain("OVER_MAX");
+    // Ninety seconds and more is fine now, up to the five-minute limit.
+    expect(
+      runPreflight(input({ scenes: [hook, scene({ durationFrames: 2_800 })] }), "DRAFT").blocking.map((i) => i.code),
+    ).not.toContain("OVER_MAX");
   });
 });
 

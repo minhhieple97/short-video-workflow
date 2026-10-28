@@ -1,10 +1,10 @@
-import { HOOK_MAX_SECONDS, SYLLABLES_PER_SECOND } from "@/features/videos/domain/duration";
+import { HOOK_MAX_SECONDS, MAX_STORY_SCENES, SYLLABLES_PER_SECOND } from "@/features/videos/domain/duration";
 import { STORY_SCENE_ORDER } from "@/features/videos/domain/narrative-beats";
 import type { ScenePlanTaskInput } from "@/server/scene-plan/handoff";
 
 import { fenceUntrustedText, UNTRUSTED_TEXT_RULE } from "./untrusted-text";
 
-export const SCENE_PLAN_PROMPT_VERSION = "scene-plan-v2";
+export const SCENE_PLAN_PROMPT_VERSION = "scene-plan-v3";
 
 export function buildScenePlanPrompt(input: ScenePlanTaskInput): string {
   const hookSyllables = HOOK_MAX_SECONDS * SYLLABLES_PER_SECOND - 1;
@@ -24,6 +24,7 @@ export function buildScenePlanPrompt(input: ScenePlanTaskInput): string {
     "- Tên sách và bài học chỉ được nhắc từ cảnh bài học trở đi, không nhắc trong hook, tình huống và sai lầm.",
     `- hook: lời dẫn tối đa ~${hookSyllables} âm tiết (đọc xong trong ${HOOK_MAX_SECONDS} giây), có chữ trên màn hình ngay từ frame 0, không lời chào, không logo.`,
     `- scenes: đúng thứ tự ${STORY_SCENE_ORDER.join(" → ")}; mỗi loại ít nhất một cảnh, không dùng loại cảnh nào khác. Tương ứng bản thảo: SITUATION ← SITUATION, COMMON_MISTAKE ← MISTAKE, KEY_TAKEAWAY ← LESSON, BETTER_APPROACH ← RESOLUTION, ACTION_STEP ← ACTION.`,
+    `- Video dài hơn 60 giây: kể sâu hơn chứ không thêm bài học — mỗi phần có thể gồm nhiều cảnh (mỗi cảnh khoảng 8–15 giây), tình huống chi tiết hơn, nhiều bước hành động hơn; tối đa ${MAX_STORY_SCENES} cảnh sau hook.`,
     `- Lời dẫn đọc khoảng ${SYLLABLES_PER_SECOND} âm tiết/giây; tổng lời dẫn (hook + các cảnh) không quá ~${syllableBudget} âm tiết. Không nói nhanh để vừa: hãy rút gọn.`,
     "- Lời dẫn và chữ trên màn hình LUÔN bằng tiếng Việt tự nhiên, có dấu, kể cả khi trích đoạn nguồn bằng tiếng Anh (không chép câu tiếng Anh lên màn hình, trừ tên riêng, tên sách). onScreenText cô đọng (từ khoá, tối đa 120 ký tự; hook tối đa 60 ký tự), không phải đoạn văn.",
     "- visualVariant thuộc: HOOK_QUESTION, SPLIT_MISTAKE_SOLUTION, SCENARIO_CARD, BIG_TAKEAWAY, ACTION_CHECKLIST.",

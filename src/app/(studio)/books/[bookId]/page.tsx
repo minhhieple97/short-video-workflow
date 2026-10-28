@@ -112,6 +112,7 @@ export default async function BookDetailPage({ params, searchParams }: Readonly<
                 <CreateVideoDialog
                   bookId={book.id}
                   lessons={approvedLessons.map(({ id, title, usedInVideoCount }) => ({ id, title, usedInVideoCount }))}
+                  maxDurationSec={getAppConfig().video.maxDurationSec}
                 />
               </div>
               <VideoTable videos={videos} emptyHint="Duyệt ít nhất một bài học rồi bấm “Tạo video”." />

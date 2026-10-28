@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { DURATION_PRESETS_SEC, MAX_STORY_SCENES } from "@/features/videos/domain/duration";
 import { lessonSnapshotSchema } from "@/features/videos/domain/lesson-snapshot";
 import { BODY_SCENE_TYPES, HOOK_VARIANTS, VISUAL_VARIANTS } from "@/features/videos/domain/scene-types";
 
@@ -24,7 +25,7 @@ export const storyboardSceneSchema = z.object({
 export const videoScriptInputSchema = z.object({
   videoId: z.string(),
   title: z.string(),
-  targetDurationSec: z.union([z.literal(30), z.literal(45), z.literal(60), z.literal(90)]),
+  targetDurationSec: z.literal(DURATION_PRESETS_SEC),
   videoProfile: z.literal("SHORT_VERTICAL"),
   lessons: z.array(lessonSnapshotSchema).min(1),
   promptVersion: z.string(),
@@ -33,7 +34,8 @@ export const videoScriptInputSchema = z.object({
 export const videoScriptOutputSchema = z.object({
   videoId: z.string(),
   hookOptions: z.array(hookOptionSchema).min(2).max(3),
-  scenes: z.array(storyboardSceneSchema).min(1).max(10),
+  // A five-minute video tells each part of the story in several scenes.
+  scenes: z.array(storyboardSceneSchema).min(1).max(MAX_STORY_SCENES),
 });
 
 export const sceneRegenerationInputSchema = z.object({

@@ -21,10 +21,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage, sendJson } from "@/lib/api-client";
-import { cn } from "@/lib/utils";
 
-import { assessLessonLoad, EXTENDED_PRESET_SEC, STANDARD_PRESETS_SEC } from "../domain/duration";
+import { assessLessonLoad, DEFAULT_TARGET_SEC } from "../domain/duration";
 import type { VideoDetail } from "../schemas/video.dto";
+import { DurationPresetPicker, type DurationChoice } from "./duration-preset-picker";
 
 export interface SelectableLesson {
   id: string;
@@ -35,17 +35,17 @@ export interface SelectableLesson {
 export function CreateVideoDialog({
   bookId,
   lessons,
-}: Readonly<{ bookId: string; lessons: readonly SelectableLesson[] }>) {
+  maxDurationSec,
+}: Readonly<{ bookId: string; lessons: readonly SelectableLesson[]; maxDurationSec: number }>) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [preset, setPreset] = useState<number>(60);
-  const [extended, setExtended] = useState(false);
+  const [duration, setDuration] = useState<DurationChoice>({ targetDurationSec: DEFAULT_TARGET_SEC, extended: false });
   const [pending, setPending] = useState(false);
 
-  const target = extended ? EXTENDED_PRESET_SEC : preset;
+  const target = duration.targetDurationSec;
   const load = assessLessonLoad(selected.length, target);
   const reused = lessons.filter((lesson) => selected.includes(lesson.id) && lesson.usedInVideoCount > 0);
   const firstSelected = lessons.find((lesson) => lesson.id === selected[0]);
@@ -62,8 +62,7 @@ export function CreateVideoDialog({
         title: title.trim() || firstSelected?.title || "Video mới",
         description,
         lessonIds: selected,
-        targetDurationSec: target,
-        extended,
+        ...duration,
       });
       toast.success("Đã tạo video. Hãy tạo kịch bản.");
       warnings.forEach((warning) => toast.warning(warning));
@@ -135,27 +134,7 @@ export function CreateVideoDialog({
 
         <div className="flex flex-col gap-2">
           <span className="text-sm font-medium">Thời lượng (dọc 9:16 · 1080×1920 · 30 FPS)</span>
-          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Preset thời lượng">
-            {STANDARD_PRESETS_SEC.map((seconds) => (
-              <Button
-                key={seconds}
-                type="button"
-                role="radio"
-                aria-checked={!extended && preset === seconds}
-                variant={!extended && preset === seconds ? "default" : "outline"}
-                onClick={() => {
-                  setExtended(false);
-                  setPreset(seconds);
-                }}
-              >
-                {seconds} giây{seconds === 60 ? " (mặc định)" : ""}
-              </Button>
-            ))}
-          </div>
-          <label className={cn("flex items-center gap-2 text-sm", extended && "font-medium")}>
-            <Checkbox checked={extended} onCheckedChange={(checked) => setExtended(checked === true)} />
-            Extended Short — 90 giây (chỉ khi nội dung thực sự cần)
-          </label>
+          <DurationPresetPicker value={duration} onChange={setDuration} maxDurationSec={maxDurationSec} />
         </div>
 
         {selected.length > 0 ? (

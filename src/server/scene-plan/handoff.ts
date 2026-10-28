@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import { z } from "zod";
 
+import { DURATION_PRESETS_SEC } from "@/features/videos/domain/duration";
 import { lessonSnapshotSchema } from "@/features/videos/domain/lesson-snapshot";
 import { stableStringify } from "@/shared/stable-json";
 import { scriptDraftSchema, type ScriptDraft } from "@/server/script-studio/script-studio-contracts";
@@ -115,7 +116,7 @@ export function createScenePlanArtifact(input: {
 export const scenePlanTaskInputSchema = z.object({
   draft: scriptDraftSchema,
   lesson: lessonSnapshotSchema,
-  targetDurationSec: z.union([z.literal(30), z.literal(45), z.literal(60), z.literal(90)]),
+  targetDurationSec: z.literal(DURATION_PRESETS_SEC),
   revisionNote: z.string().nullable(),
   promptVersion: z.string().min(1),
 });

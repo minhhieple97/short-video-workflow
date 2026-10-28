@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LESSON_STATUS_LABELS } from "@/features/lessons/domain/lesson-fields";
-import { EXTENDED_PRESET_SEC, STANDARD_PRESETS_SEC } from "@/features/videos/domain/duration";
+import { DurationPresetPicker, type DurationChoice } from "@/features/videos/components/duration-preset-picker";
+import { DEFAULT_TARGET_SEC, formatPreset } from "@/features/videos/domain/duration";
 import { errorMessage, sendJson } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
@@ -21,13 +22,13 @@ import type { ProductionDto } from "../schemas/production.dto";
 export function ProductionRequestForm({
   bookId,
   lessons,
-}: Readonly<{ bookId: string; lessons: readonly CatalogueLessonDto[] }>) {
+  maxDurationSec,
+}: Readonly<{ bookId: string; lessons: readonly CatalogueLessonDto[]; maxDurationSec: number }>) {
   const router = useRouter();
   // One key per visit of this form, so a double submit or a retry after a lost answer is the same request.
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [selected, setSelected] = useState<string[]>([]);
-  const [preset, setPreset] = useState<number>(60);
-  const [extended, setExtended] = useState(false);
+  const [duration, setDuration] = useState<DurationChoice>({ targetDurationSec: DEFAULT_TARGET_SEC, extended: false });
   const [pending, setPending] = useState(false);
 
   const selectable = useMemo(() => lessons.filter((lesson) => lesson.unavailableReason === null), [lessons]);
@@ -46,8 +47,7 @@ export function ProductionRequestForm({
         bookId,
         lessonIds,
         idempotencyKey,
-        targetDurationSec: extended ? EXTENDED_PRESET_SEC : preset,
-        extended,
+        ...duration,
       });
       toast.success(`Đã xếp ${production.items.length} video vào hàng sản xuất.`);
       router.push(`/productions/${production.id}`);
@@ -138,34 +138,14 @@ export function ProductionRequestForm({
         <h2 id="preset-heading" className="text-lg font-bold">
           Thời lượng mỗi video (9:16 · 1080×1920 · 30 FPS)
         </h2>
-        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Preset thời lượng">
-          {STANDARD_PRESETS_SEC.map((seconds) => (
-            <Button
-              key={seconds}
-              type="button"
-              role="radio"
-              aria-checked={!extended && preset === seconds}
-              variant={!extended && preset === seconds ? "default" : "outline"}
-              onClick={() => {
-                setExtended(false);
-                setPreset(seconds);
-              }}
-            >
-              {seconds} giây{seconds === 60 ? " (mặc định)" : ""}
-            </Button>
-          ))}
-        </div>
-        <label className={cn("flex items-center gap-2 text-sm", extended && "font-medium")}>
-          <Checkbox checked={extended} onCheckedChange={(checked) => setExtended(checked === true)} />
-          Extended Short — 90 giây (chỉ khi nội dung thực sự cần)
-        </label>
+        <DurationPresetPicker value={duration} onChange={setDuration} maxDurationSec={maxDurationSec} />
       </section>
 
       <div className="bg-card shadow-card sticky bottom-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4">
         <p className="text-sm">
           {selected.length === 0
             ? "Chọn ít nhất một bài học."
-            : `${selected.length} bài học → ${selected.length} video ${extended ? EXTENDED_PRESET_SEC : preset} giây.`}
+            : `${selected.length} bài học → ${selected.length} video ${formatPreset(duration.targetDurationSec)}.`}
         </p>
         <Button onClick={() => void submit()} disabled={pending || selected.length === 0}>
           <Clapperboard aria-hidden />

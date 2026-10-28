@@ -4,7 +4,6 @@ import { Settings2 } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -19,17 +18,24 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { sendJson } from "@/lib/api-client";
 
-import { EXTENDED_PRESET_SEC, STANDARD_PRESETS_SEC } from "../domain/duration";
+import { isDurationPreset, DEFAULT_TARGET_SEC } from "../domain/duration";
 import type { VideoDetail } from "../schemas/video.dto";
+import { DurationPresetPicker, type DurationChoice } from "./duration-preset-picker";
 import { useVideoAction } from "./use-video-action";
 
-export function VideoSettingsDialog({ video, locked }: Readonly<{ video: VideoDetail; locked: boolean }>) {
+export function VideoSettingsDialog({
+  video,
+  locked,
+  maxDurationSec,
+}: Readonly<{ video: VideoDetail; locked: boolean; maxDurationSec: number }>) {
   const { pending, run } = useVideoAction();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState(video.title);
   const [description, setDescription] = useState(video.description ?? "");
-  const [preset, setPreset] = useState(video.extended ? 60 : video.targetDurationSec);
-  const [extended, setExtended] = useState(video.extended);
+  const [duration, setDuration] = useState<DurationChoice>({
+    targetDurationSec: isDurationPreset(video.targetDurationSec) ? video.targetDurationSec : DEFAULT_TARGET_SEC,
+    extended: video.extended,
+  });
 
   async function save(): Promise<void> {
     const saved = await run(
@@ -37,8 +43,7 @@ export function VideoSettingsDialog({ video, locked }: Readonly<{ video: VideoDe
         sendJson(`/api/videos/${video.id}`, "PATCH", {
           title,
           description,
-          targetDurationSec: extended ? EXTENDED_PRESET_SEC : preset,
-          extended,
+          ...duration,
           platformPreviewMode: video.platformPreviewMode,
         }),
       "Đã lưu cài đặt video.",
@@ -72,27 +77,7 @@ export function VideoSettingsDialog({ video, locked }: Readonly<{ video: VideoDe
             onChange={(e) => setDescription(e.target.value)}
           />
         </div>
-        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Preset thời lượng">
-          {STANDARD_PRESETS_SEC.map((seconds) => (
-            <Button
-              key={seconds}
-              type="button"
-              role="radio"
-              aria-checked={!extended && preset === seconds}
-              variant={!extended && preset === seconds ? "default" : "outline"}
-              onClick={() => {
-                setExtended(false);
-                setPreset(seconds);
-              }}
-            >
-              {seconds} giây
-            </Button>
-          ))}
-        </div>
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox checked={extended} onCheckedChange={(checked) => setExtended(checked === true)} />
-          Extended Short — 90 giây
-        </label>
+        <DurationPresetPicker value={duration} onChange={setDuration} maxDurationSec={maxDurationSec} />
         <DialogFooter>
           <Button onClick={() => void save()} disabled={pending || title.trim().length === 0}>
             Lưu

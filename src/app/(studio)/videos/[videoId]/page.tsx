@@ -27,7 +27,7 @@ import {
 import { VideoSettingsDialog } from "@/features/videos/components/video-settings-dialog";
 import { VideoStatusBadge } from "@/features/videos/components/video-status-badge";
 import { toCompositionProps } from "@/features/videos/domain/composition-props";
-import { HOOK_MAX_SECONDS } from "@/features/videos/domain/duration";
+import { formatPreset, HOOK_MAX_SECONDS } from "@/features/videos/domain/duration";
 import { toPlatformPreviewMode } from "@/features/videos/domain/safe-zones";
 import { mediaAssetUrl } from "@/features/videos/services/video-mapper";
 import { findActiveVideoJob, getVideo } from "@/features/videos/services/video.service";
@@ -78,7 +78,9 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
               9:16 · {video.width}×{video.height} · {video.fps} FPS
             </Badge>
             <Badge variant="orange">
-              {video.extended ? "Extended Short 90s" : `Short ${video.targetDurationSec}s`}
+              {video.extended
+                ? `Video dài ${formatPreset(video.targetDurationSec)}`
+                : `Short ${video.targetDurationSec}s`}
             </Badge>
             <span>Kịch bản v{video.scriptVersion}</span>
           </div>
@@ -87,7 +89,7 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
           <>
             <GenerateScriptButton video={video} busyLabel={busyLabel} locked={inProduction} />
             <ApproveScriptButton video={video} locked={locked} />
-            <VideoSettingsDialog video={video} locked={locked} />
+            <VideoSettingsDialog video={video} locked={locked} maxDurationSec={getAppConfig().video.maxDurationSec} />
             {locked ? (
               <Button variant="outline" disabled>
                 <Clapperboard aria-hidden />

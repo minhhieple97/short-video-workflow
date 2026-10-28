@@ -49,7 +49,7 @@ async function createVideo(page: Page, bookUrl: string, lessonIndexes: number[],
   await page.getByRole("button", { name: "Tạo video" }).click();
   const dialog = page.getByRole("dialog");
   for (const index of lessonIndexes) await dialog.getByRole("checkbox").nth(index).click();
-  if (extended) await dialog.getByText("Extended Short").click();
+  if (extended) await dialog.getByText(/^Video dài/).click();
   await dialog.getByRole("button", { name: "Tạo video" }).click();
   await page.waitForURL(/\/videos\/[a-z0-9]+$/);
   return page.url();
@@ -106,9 +106,9 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
     return url;
   });
 
-  await test.step("create video B (two lessons, explicit Extended 90s) and edit one scene only", async () => {
+  await test.step("create video B (two lessons, explicit long 90 s) and edit one scene only", async () => {
     const url = await createVideo(page, bookUrl, [1, 2], true);
-    await expect(page.getByText("Extended Short 90s")).toBeVisible();
+    await expect(page.getByText("Video dài 90 giây")).toBeVisible();
     await generateScript(page);
     const videoId = url.split("/").at(-1) ?? "";
     const before = (await (await request.get(`/api/videos/${videoId}`)).json()) as { scenes: SceneJson[] };

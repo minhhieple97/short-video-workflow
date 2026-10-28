@@ -60,11 +60,16 @@ describe("createVideoSchema", () => {
     expect(createVideoSchema.parse({ ...base, targetDurationSec: 45 }).targetDurationSec).toBe(45);
   });
 
-  it("allows 90 seconds only as an explicit Extended Short", () => {
-    expect(createVideoSchema.safeParse({ ...base, targetDurationSec: 90 }).success).toBe(false);
+  it("allows the long presets, up to five minutes, only as an explicit choice of a long video", () => {
+    for (const seconds of [90, 120, 180, 240, 300]) {
+      expect(createVideoSchema.safeParse({ ...base, targetDurationSec: seconds }).success).toBe(false);
+      expect(createVideoSchema.parse({ ...base, targetDurationSec: seconds, extended: true }).targetDurationSec).toBe(
+        seconds,
+      );
+    }
     expect(createVideoSchema.safeParse({ ...base, targetDurationSec: 60, extended: true }).success).toBe(false);
-    expect(createVideoSchema.parse({ ...base, targetDurationSec: 90, extended: true }).targetDurationSec).toBe(90);
-    expect(createVideoSchema.safeParse({ ...base, targetDurationSec: 120, extended: true }).success).toBe(false);
+    expect(createVideoSchema.safeParse({ ...base, targetDurationSec: 150, extended: true }).success).toBe(false);
+    expect(createVideoSchema.safeParse({ ...base, targetDurationSec: 360, extended: true }).success).toBe(false);
   });
 });
 

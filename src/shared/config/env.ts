@@ -1,7 +1,8 @@
 import { z } from "zod";
 
 export const VIDEO_ASPECT_RATIO = "9:16" as const;
-export const DURATION_PRESETS_SEC = [30, 45, 60, 90] as const;
+// Mirrors DURATION_PRESETS_SEC of features/videos/domain/duration.ts (a test keeps them equal); config cannot import features.
+export const DURATION_PRESETS_SEC = [30, 45, 60, 90, 120, 180, 240, 300] as const;
 
 const positiveInt = (fallback: number) => z.coerce.number().int().positive().default(fallback);
 
@@ -84,7 +85,7 @@ const envSchema = z
 
     VIDEO_PROFILE: z.literal("SHORT_VERTICAL").default("SHORT_VERTICAL"),
     DEFAULT_VIDEO_DURATION_SEC: durationPreset.default(60),
-    MAX_VIDEO_DURATION_SEC: z.coerce.number().int().positive().max(90).default(90),
+    MAX_VIDEO_DURATION_SEC: z.coerce.number().int().positive().max(300).default(300),
     RENDER_WIDTH: positiveInt(1080),
     RENDER_HEIGHT: positiveInt(1920),
     RENDER_FPS: positiveInt(30),

@@ -299,7 +299,9 @@ describe("production API", () => {
     ["no lessons", { lessonIds: [] }],
     ["a lesson selected twice", { lessonIds: ["a", "a"] }],
     ["a short key", { idempotencyKey: "short" }],
-    ["90 seconds without choosing Extended", { targetDurationSec: 90 }],
+    ["a long preset without choosing a long video", { targetDurationSec: 300 }],
+    ["a length that is no preset", { targetDurationSec: 150, extended: true }],
+    ["more than five minutes", { targetDurationSec: 360, extended: true }],
   ])("answers 400 for %s", async (_label, override) => {
     const response = await post({ bookId, lessonIds, idempotencyKey: "key-abcdefgh", ...override });
 
@@ -307,17 +309,19 @@ describe("production API", () => {
     expect(await db.prisma.productionBatch.count()).toBe(0);
   });
 
-  it("accepts 90 seconds when Extended is chosen explicitly", async () => {
+  it("accepts a five-minute video when a long video is chosen explicitly", async () => {
     const response = await post({
       bookId,
       lessonIds,
       idempotencyKey: "key-abcdefgh",
-      targetDurationSec: 90,
+      targetDurationSec: 300,
       extended: true,
     });
 
     expect(response.status).toBe(202);
-    expect(await response.json()).toMatchObject({ targetDurationSec: 90 });
+    expect(await response.json()).toMatchObject({ targetDurationSec: 300 });
+    const videos = await db.prisma.video.findMany({ where: { bookId } });
+    expect(videos.map((video) => video.targetDurationSec)).toEqual([300, 300, 300]);
   });
 
   it("answers 404 for an unknown production", async () => {

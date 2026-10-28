@@ -20,7 +20,8 @@ Hard constraints (do not relax without an explicit user decision):
   rendered videos. Each lives behind its own port in `src/server/` (`OcrProvider`, `ScriptStudioProvider`, `ScenePlanCompiler`,
   `VideoArchiveProvider`); do not add other cloud services, and do not route them through `AiProvider`. They are implemented and tested
   against local fakes only; running them with real accounts (G07/G08 in `plan.md`) is still to do. Tests never reach them (`tests/helpers/offline-env.ts`).
-- **Short-form only:** 9:16, final 1080×1920 / draft 720×1280, 30 FPS, H.264 + AAC, ≤ 90 s (default 60 s). No 16:9, no long videos.
+- **Vertical video only:** 9:16, final 1080×1920 / draft 720×1280, 30 FPS, H.264 + AAC, ≤ 5 min (default 60 s; the owner raised the
+  limit from 90 s on 2026-10-28). Long presets (90 s–5 min) only on an explicit choice; still one lesson per batch-produced video. No 16:9.
 - **Vietnamese (vi-VN)** for UI copy, scripts, narration, on-screen text and captions. Code, identifiers, file names: English.
 - **Localhost only** (`127.0.0.1`). No auth, no multi-user, no public exposure.
 - **Low-resource machine:** worker concurrency = 1, Remotion render concurrency = 1 until benchmarked on the real machine.
@@ -236,8 +237,8 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - Never add `@anthropic-ai/sdk`, never create `ANTHROPIC_API_KEY`, never read/copy/log Claude tokens, cookies or credentials.
 - Run subprocesses with `spawn`/`execFile` and an argument array — **never** build shell strings from input, never use `exec` with interpolation.
 - Never use `--dangerously-skip-permissions`. When the model only needs to emit JSON, do not grant file-write/shell tools.
-- Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v2`, `scene-plan-v2`, and for NotebookLM `notebooklm-chapter-detection-v1`,
-  `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v2`); changing a prompt's text means bumping its version (the draft version also keys the
+- Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v3`, `scene-plan-v3`, and for NotebookLM `notebooklm-chapter-detection-v1`,
+  `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v3`); changing a prompt's text means bumping its version (the draft version also keys the
   draft cache). Book content is passed as quoted untrusted data.
 - Validate model output with Zod; on schema failure mark the job `FAILED` and store nothing. No unbounded retries (respect quota errors). Timeouts + best-effort cancel.
 
@@ -254,7 +255,9 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 ## 11. Short-form video rules
 
 - Profile `SHORT_VERTICAL`: 9:16; final 1080×1920, draft 720×1280; 30 FPS; MP4 H.264 + AAC.
-- Duration presets `SHORT_30`, `SHORT_45`, `SHORT_60` (default), `EXTENDED_90` (explicit user choice only). Final render must not exceed the chosen preset; never auto-raise it.
+- Duration presets 30, 45, 60 s (default 60) and the long presets 90, 120, 180, 240, 300 s (explicit "Video dài" choice only, capped by
+  `MAX_VIDEO_DURATION_SEC`); `DURATION_PRESETS_SEC` in `features/videos/domain/duration.ts` is the list. Final render must not exceed the chosen preset;
+  never auto-raise it. Up to `MAX_STORY_SCENES` (30) scenes or draft beats after the hook.
 - First scene is `HOOK`: starts at frame 0, ≤ 120 frames (`HOOK_MAX_FRAMES`, 4 s), text visible and narration audible immediately; no logo/intro/silence before it.
 - Real audio duration (ffprobe) + padding determines timing. Never cut narration or speed it up unnaturally to fit.
 - Preview and render share the same composition and the same Zod-validated input props. No hardcoded book titles, lesson counts or narration inside Remotion components.

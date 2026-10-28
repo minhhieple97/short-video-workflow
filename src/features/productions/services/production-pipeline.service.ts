@@ -1,5 +1,5 @@
 import { lessonSnapshotSchema, type LessonSnapshot } from "@/features/videos/domain/lesson-snapshot";
-import type { TargetDurationSec } from "@/features/videos/domain/duration";
+import { isDurationPreset, type TargetDurationSec } from "@/features/videos/domain/duration";
 import { findRenderRecord } from "@/features/videos/repositories/render.repository";
 import { SCENE_PLAN_PROMPT_VERSION } from "@/server/ai/prompts/scene-plan-prompt";
 import { IntegrationError } from "@/server/integrations/integration-error";
@@ -79,7 +79,7 @@ function lessonOf(item: ProductionItemForRun): LessonSnapshot {
 
 function targetOf(item: ProductionItemForRun): TargetDurationSec {
   const target = item.batch.targetDurationSec;
-  if (target !== 30 && target !== 45 && target !== 60 && target !== 90) {
+  if (!isDurationPreset(target)) {
     throw new AppError("PRODUCTION_PRESET_INVALID", "Preset thời lượng của đợt sản xuất không hợp lệ.", 500);
   }
   return target;
