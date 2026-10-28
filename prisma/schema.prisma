@@ -72,9 +72,10 @@ model Book {
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
 
-  chapters Chapter[]
-  lessons  Lesson[]
-  videos   Video[]
+  chapters    Chapter[]
+  lessons     Lesson[]
+  videos      Video[]
+  extractions BookExtraction[]
 
   @@index([status])
   @@index([createdAt])
@@ -332,5 +333,96 @@ model AiRun {
   completedAt   DateTime?
 
   @@index([jobRecordId])
+  @@index([status])
+}
+
+// One pass that turns a PDF book into per-page text: the local text layer first, OCR only for pages without usable text.
+// The PDF stays immutable; everything here is derived and can be rebuilt from it.
+model BookExtraction {
+  id                   String    @id @default(cuid())
+  bookId               String
+  book                 Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  // QUEUED | INSPECTING | EXTRACTING | OCR_PENDING | ASSEMBLING | COMPLETED | PARTIAL | FAILED | CANCELLED
+  status               String
+  // SHA-256 of the PDF this run read, so the run is tied to exact bytes.
+  sourceHash           String
+  // Known once the PDF has been inspected.
+  pageCount            Int?
+  // OCR provider and pinned model chosen for this run; null while no page needs OCR.
+  ocrProvider          String?
+  ocrModel             String?
+  // Money is kept in integer micro-USD so ceiling checks never suffer floating-point drift.
+  costCeilingMicroUsd  Int?
+  // Amount reserved for OCR that is submitted or whose outcome is unknown.
+  reservedCostMicroUsd Int       @default(0)
+  actualCostMicroUsd   Int       @default(0)
+  // Relative path (under DATA_DIR) of the assembled canonical Markdown.
+  canonicalPath        String?
+  errorCode            String?
+  errorMessage         String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  completedAt          DateTime?
+
+  pages         ExtractionPage[]
+  ocrOperations OcrOperation[]
+
+  @@index([bookId])
+  @@index([status])
+}
+
+// Result for one page of the source PDF. A blank page is a valid EXTRACTED result (method EMPTY), distinct from FAILED.
+model ExtractionPage {
+  id           String         @id @default(cuid())
+  extractionId String
+  extraction   BookExtraction @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+  // 1-based page number in the source PDF; never an offset into normalized text.
+  pageNumber   Int
+  // PENDING | EXTRACTED | NEEDS_OCR | OCR_SUBMITTED | FAILED
+  status       String
+  // Set once the page is classified: TEXT | OCR | EMPTY.
+  method       String?
+  // Why the text layer was not usable, for pages that go to OCR.
+  ocrReason    String?
+  text         String?
+  // OCR confidence 0..1 exactly as the provider reported it; null when none was reported (never invented).
+  confidence   Float?
+  errorCode    String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@unique([extractionId, pageNumber])
+  @@index([extractionId, status])
+}
+
+// A batch handed to a remote OCR provider. The row exists before the submit call so an unknown outcome can be reconciled.
+model OcrOperation {
+  id                   String         @id @default(cuid())
+  extractionId         String
+  extraction           BookExtraction @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+  provider             String
+  model                String
+  // Stable idempotency key the adapter uses to recognise a submission it already made.
+  requestKey           String         @unique
+  // PLANNED | SUBMITTING | SUBMITTED | COMPLETED | FAILED | CANCELLED | UNKNOWN_OUTCOME
+  status               String
+  // Opaque provider handle (OcrProvider operationRef); services never parse it.
+  operationRef         String?
+  pageCount            Int
+  reservedCostMicroUsd Int
+  // Only set when the provider reports a real figure.
+  actualCostMicroUsd   Int?
+  errorCode            String?
+  errorMessage         String?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  submittedAt          DateTime?
+  lastPolledAt         DateTime?
+  completedAt          DateTime?
+  // Output saved locally; provider-side cleanup may only happen after this is set.
+  outputStoredAt       DateTime?
+  cleanedAt            DateTime?
+
+  @@index([extractionId])
   @@index([status])
 }
