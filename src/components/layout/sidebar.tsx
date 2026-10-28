@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import type { SystemStatusDto } from "@/shared/types/system-status";
 
+import { ThemeToggle } from "./theme-toggle";
 import { useSystemStatus } from "./use-system-status";
 
 interface NavItem {
@@ -97,6 +98,10 @@ function StatusCard({ status }: Readonly<{ status: SystemStatusDto | null }>) {
           <span className="rounded-full bg-white/10 px-2.5 py-0.5 font-semibold text-white">{status.aiMode}</span>
         </p>
       ) : null}
+      <div className="text-sidebar-foreground flex items-center justify-between text-xs">
+        <span>Giao diện</span>
+        <ThemeToggle />
+      </div>
     </div>
   );
 }
@@ -107,7 +112,7 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="bg-sidebar sticky top-0 hidden h-screen w-64 shrink-0 flex-col gap-8 overflow-y-auto p-4 md:flex">
+      <aside className="bg-sidebar border-sidebar-border sticky top-0 hidden h-screen w-64 shrink-0 flex-col gap-8 overflow-y-auto border-r p-4 md:flex">
         <Brand />
         <NavLinks activeJobs={activeJobs} layout="column" />
         <div className="mt-auto">
@@ -115,7 +120,10 @@ export function Sidebar() {
         </div>
       </aside>
       <header className="bg-sidebar flex flex-col gap-3 px-4 pt-4 pb-3 md:hidden">
-        <Brand />
+        <div className="flex items-center justify-between gap-3">
+          <Brand />
+          <ThemeToggle />
+        </div>
         <NavLinks activeJobs={activeJobs} layout="row" />
       </header>
     </>

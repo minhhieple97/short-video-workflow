@@ -5,12 +5,13 @@ import { cn } from "@/lib/utils";
 import type { VideoSummary } from "../schemas/video.dto";
 import { VideoStatusBadge } from "./video-status-badge";
 
-// Poster colors for the 9:16 thumbnails, picked from the video id so a video keeps its color.
+// Poster colors for the 9:16 thumbnails, picked from the video id so a video keeps its color. They are fixed hexes,
+// not theme tokens: a poster stands for the rendered video, which looks the same in light and dark.
 const POSTERS = [
   { surface: "bg-brand text-ink", chip: "bg-ink text-white", shadow: "shadow-[0_10px_24px_rgb(255_122_69/0.28)]" },
   {
-    surface: "bg-primary text-white",
-    chip: "bg-white text-primary",
+    surface: "bg-[#5b3fd9] text-white",
+    chip: "bg-white text-[#4b32b8]",
     shadow: "shadow-[0_10px_24px_rgb(91_63_217/0.28)]",
   },
   { surface: "bg-[#12a37a] text-ink", chip: "bg-ink text-white", shadow: "shadow-[0_10px_24px_rgb(18_163_122/0.28)]" },

@@ -204,4 +204,15 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
     await open(page, `${bookUrl}?tab=lessons&status=APPROVED`);
     await expect(page.locator("tbody tr")).toHaveCount(3);
   });
+
+  await test.step("the dark theme can be chosen and is remembered", async () => {
+    await open(page, "/");
+    const html = page.locator("html");
+    await expect(html).not.toHaveClass(/dark/);
+    await page.getByRole("button", { name: "Giao diện tối" }).click();
+    await expect(html).toHaveClass(/dark/);
+    await open(page, "/books");
+    await expect(html).toHaveClass(/dark/);
+    await expect(page.getByRole("button", { name: "Giao diện tối" })).toHaveAttribute("aria-pressed", "true");
+  });
 });
