@@ -134,17 +134,30 @@ async function rewriteOrder(tx: Tx, orderedIds: readonly string[]): Promise<void
   }
 }
 
-export function replaceScript(
-  videoId: string,
-  script: { hookOptions: Prisma.InputJsonValue; scenes: readonly NewSceneRecord[] },
-): Promise<Video> {
-  return prisma.$transaction(async (tx) => {
-    await tx.videoScene.deleteMany({ where: { videoId } });
-    await tx.videoScene.createMany({
-      data: script.scenes.map((scene, order) => ({ ...scene, videoId, order })),
-    });
-    return bumpScript(tx, videoId, { hookOptionsJson: script.hookOptions });
+export type ReplacementScript = { hookOptions: Prisma.InputJsonValue; scenes: readonly NewSceneRecord[] };
+
+// The one place a whole script is written, so the manual flow and the production flow cannot drift apart. The caller
+// supplies the transaction when the write must be atomic with something else.
+export async function replaceScriptWithin(tx: Tx, videoId: string, script: ReplacementScript): Promise<Video> {
+  await tx.videoScene.deleteMany({ where: { videoId } });
+  await tx.videoScene.createMany({
+    data: script.scenes.map((scene, order) => ({ ...scene, videoId, order })),
   });
+  return bumpScript(tx, videoId, { hookOptionsJson: script.hookOptions });
+}
+
+export function replaceScript(videoId: string, script: ReplacementScript): Promise<Video> {
+  return prisma.$transaction((tx) => replaceScriptWithin(tx, videoId, script));
+}
+
+// Whether an automated production still owns this video: while it does, edits, audio and renders made by hand would be
+// overwritten or would race the pipeline.
+export async function isVideoInActiveProduction(videoId: string): Promise<boolean> {
+  const item = await prisma.productionItem.findFirst({
+    where: { videoId, status: { in: ["PENDING", "RUNNING", "WAITING"] } },
+    select: { id: true },
+  });
+  return item !== null;
 }
 
 export function updateSceneRecord(

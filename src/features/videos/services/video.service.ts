@@ -11,6 +11,7 @@ import {
   deleteVideoRecord,
   findApprovedLessonsForVideo,
   findVideoDetail,
+  isVideoInActiveProduction,
   listSceneIds,
   listVideoRecords,
   markScriptApproved,
@@ -128,6 +129,13 @@ export async function findActiveVideoJob(videoId: string): Promise<ActiveVideoJo
 // AI returns. `target` names the job the caller is about to enqueue; one already active for that same target is fine
 // because enqueueing dedupes it. Only user-facing services call this; the worker writes through repositories.
 export async function assertScriptNotGenerating(videoId: string, target?: { sceneId: string | null }): Promise<void> {
+  if (await isVideoInActiveProduction(videoId)) {
+    throw new AppError(
+      "VIDEO_IN_PRODUCTION",
+      "Video đang được sản xuất tự động. Hãy đợi đợt sản xuất xong hoặc huỷ nó trước khi thay đổi video.",
+      409,
+    );
+  }
   const active = await findActiveVideoJob(videoId);
   if (!active || (target && active.sceneId === target.sceneId)) return;
   throw new AppError(

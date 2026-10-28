@@ -453,28 +453,30 @@ model ProductionBatch {
 }
 
 model ProductionItem {
-  id             String          @id @default(cuid())
-  batchId        String
-  batch          ProductionBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  id                     String          @id @default(cuid())
+  batchId                String
+  batch                  ProductionBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
   // Restrict: a lesson cannot be hard-deleted while a production still points at it.
-  lessonId       String
-  lesson         Lesson          @relation(fields: [lessonId], references: [id], onDelete: Restrict)
-  position       Int
+  lessonId               String
+  lesson                 Lesson          @relation(fields: [lessonId], references: [id], onDelete: Restrict)
+  position               Int
   // The video made for this item; set when the item is created, so a retry reuses it instead of creating another.
-  videoId        String?         @unique
-  video          Video?          @relation(fields: [videoId], references: [id], onDelete: SetNull)
+  videoId                String?         @unique
+  video                  Video?          @relation(fields: [videoId], references: [id], onDelete: SetNull)
   // PENDING | RUNNING | WAITING | COMPLETED | FAILED | CANCELLED
-  status         String
+  status                 String
   // The last step finished, so a restart skips what is done: NONE | DRAFTED | COMPILED | APPLIED | VOICED | READY | RENDERED
-  checkpoint     String          @default("NONE")
+  checkpoint             String          @default("NONE")
+  // Fingerprint of the scene plan whose scenes are currently on the video, so applying the same plan again changes nothing.
+  appliedPlanFingerprint String?
   // Lease so that only one worker advances an item at a time; an expired lease can be taken over.
-  claimToken     String?
-  claimExpiresAt DateTime?
-  errorCode      String?
-  errorMessage   String?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  completedAt    DateTime?
+  claimToken             String?
+  claimExpiresAt         DateTime?
+  errorCode              String?
+  errorMessage           String?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  completedAt            DateTime?
 
   @@unique([batchId, lessonId])
   @@unique([batchId, position])
