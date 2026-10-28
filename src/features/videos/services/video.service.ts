@@ -5,7 +5,6 @@ import { AppError, NotFoundError } from "@/shared/errors";
 import type { JobDto } from "@/shared/types/job";
 
 import { assessLessonLoad } from "../domain/duration";
-import type { LessonSnapshot } from "../domain/lesson-snapshot";
 import { toVideoStatus } from "../domain/video-status";
 import {
   createVideoRecord,
@@ -21,6 +20,7 @@ import {
 } from "../repositories/video.repository";
 import type { VideoDetail, VideoSummary } from "../schemas/video.dto";
 import type { CreateVideoInput, UpdateVideoInput } from "../schemas/video.schema";
+import { buildLessonSnapshot } from "./lesson-snapshot-builder";
 import { toVideoDetail } from "./video-mapper";
 
 export async function requireVideo(id: string): Promise<VideoDetailRecord> {
@@ -66,26 +66,7 @@ export async function createVideo(input: CreateVideoInput): Promise<{ video: Vid
     title: input.title,
     description: input.description,
     targetDurationSec: input.targetDurationSec,
-    lessons: ordered.map((lesson) => {
-      const snapshot: LessonSnapshot = {
-        lessonId: lesson.id,
-        title: lesson.title,
-        summary: lesson.summary,
-        principle: lesson.principle,
-        realLifeScenario: lesson.realLifeScenario,
-        commonMistake: lesson.commonMistake,
-        betterApproach: lesson.betterApproach,
-        actionableStep: lesson.actionableStep,
-        contentHash: lesson.contentHash,
-        sources: lesson.sources.map((source) => ({
-          chapterId: source.chapter.id,
-          chapterTitle: source.chapter.title,
-          excerpt: source.sourceExcerpt,
-        })),
-        capturedAt,
-      };
-      return { lessonId: lesson.id, snapshot };
-    }),
+    lessons: ordered.map((lesson) => ({ lessonId: lesson.id, snapshot: buildLessonSnapshot(lesson, capturedAt) })),
   });
 
   const load = assessLessonLoad(lessonIds.length, input.targetDurationSec);

@@ -13,12 +13,12 @@ const optionalText = (max: number) =>
 
 const EXTENDED_RULE = "Preset 90 giây chỉ dùng khi chọn rõ “Extended Short”.";
 
-const durationFields = {
+export const durationFields = {
   targetDurationSec: durationPreset.default(60),
   extended: z.boolean().default(false),
 };
 
-function enforceExtended(value: { targetDurationSec: number; extended: boolean }, ctx: z.RefinementCtx): void {
+export function enforceExtended(value: { targetDurationSec: number; extended: boolean }, ctx: z.RefinementCtx): void {
   if ((value.targetDurationSec === 90) !== value.extended) {
     ctx.addIssue({ code: "custom", path: ["targetDurationSec"], message: EXTENDED_RULE });
   }

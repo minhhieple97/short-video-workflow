@@ -1301,7 +1301,7 @@ Hook 4 giây áp dụng cho **mọi luồng** vì Player, preflight và render d
 | Kết quả "trì hoãn" của processor trong worker    | Cơ chế đã có, chưa processor nào dùng | A06 |
 | Nhập PDF, trích text, OCR Mistral Batch          | Một phần: có bảng dữ liệu (B01), API tải PDF (B02) dự trù chi phí/pacing OCR (B06) và adapter `OcrProvider` cho Mistral Batch (B07–B09, mới thử với fake server, chưa chạy với tài khoản thật) đối chiếu kết quả OCR theo bản đồ trang (B10) ghép Markdown chuẩn kèm bản đồ offset (B12) và vòng đời/đối soát lô OCR (B11); chưa trích text/OCR nên lần chạy vẫn `QUEUED` | B01–B13 |
 | NotebookLM MCP, catalogue, bản thảo              | Chưa triển khai      | C01–C09              |
-| Chọn lesson, production batch, Claude compiler   | Một phần: bảng và claim (D01), mạch kể (D03); chưa có API/luồng | D01–D12 |
+| Chọn lesson, production batch, Claude compiler   | Một phần: bảng và claim (D01), API chọn lesson + snapshot (D02), mạch kể (D03); chưa có luồng chạy các item | D01–D12 |
 | Hook 4 giây / 120 frame (mọi luồng)              | Đã triển khai        | D03                  |
 | Mạch kể bắt buộc (kiểm tra thứ tự beat và cảnh)  | Đã triển khai trong contract, chưa có bộ biên dịch thật | D03, D05 |
 | Google Drive archive                             | Chưa triển khai      | E01–E11              |

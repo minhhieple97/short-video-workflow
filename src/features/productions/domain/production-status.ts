@@ -35,3 +35,15 @@ export function deriveBatchStatus(items: readonly ItemStatus[]): BatchStatus {
   if (completed > 0) return "PARTIAL";
   return items.every((status) => status === "CANCELLED") ? "CANCELLED" : "FAILED";
 }
+
+export function toBatchStatus(value: string): BatchStatus {
+  return BATCH_STATUSES.find((status) => status === value) ?? "FAILED";
+}
+
+export function toItemStatus(value: string): ItemStatus {
+  return ITEM_STATUSES.find((status) => status === value) ?? "FAILED";
+}
+
+export function toItemCheckpoint(value: string): ItemCheckpoint {
+  return ITEM_CHECKPOINTS.find((checkpoint) => checkpoint === value) ?? "NONE";
+}
