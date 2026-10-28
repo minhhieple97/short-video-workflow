@@ -12,6 +12,8 @@ import { getBook } from "@/features/books/services/book.service";
 import { AnalyzeBookButton } from "@/features/chapters/components/analyze-book-button";
 import { ChapterTable } from "@/features/chapters/components/chapter-table";
 import { listChapters } from "@/features/chapters/services/chapter.service";
+import { ExtractionPanel } from "@/features/extraction/components/extraction-panel";
+import { getBookExtraction } from "@/features/extraction/services/extraction-view.service";
 import { CreateLessonDialog } from "@/features/lessons/components/create-lesson-dialog";
 import { LessonFilters } from "@/features/lessons/components/lesson-filters";
 import { LessonTable } from "@/features/lessons/components/lesson-table";
@@ -35,11 +37,12 @@ export default async function BookDetailPage({ params, searchParams }: Readonly<
   const [{ bookId }, query] = await Promise.all([params, searchParams]);
   const book = await orNotFound(getBook(bookId));
   const filter = lessonFilterSchema.safeParse({ chapterId: query.chapter, status: query.status, usage: query.usage });
-  const [chapters, lessons, approvedLessons, videos] = await Promise.all([
+  const [chapters, lessons, approvedLessons, videos, extraction] = await Promise.all([
     listChapters(bookId),
     listLessons(bookId, filter.success ? filter.data : {}),
     listLessons(bookId, { status: "APPROVED" }),
     listVideos({ bookId }),
+    getBookExtraction(bookId),
   ]);
   const chapterRefs = chapters.map(({ id, order, title }) => ({ id, order, title }));
 
@@ -70,6 +73,7 @@ export default async function BookDetailPage({ params, searchParams }: Readonly<
         }
       />
       {book.description ? <p className="text-sm whitespace-pre-line">{book.description}</p> : null}
+      {extraction ? <ExtractionPanel extraction={extraction} /> : null}
 
       <BookTabs
         activeTab={toBookTab(query.tab)}

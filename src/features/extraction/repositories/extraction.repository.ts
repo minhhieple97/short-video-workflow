@@ -113,3 +113,7 @@ export function completeExtractionWithChapters(
     return "completed";
   });
 }
+
+export function findLatestExtractionForBook(bookId: string): Promise<BookExtraction | null> {
+  return prisma.bookExtraction.findFirst({ where: { bookId }, orderBy: { createdAt: "desc" } });
+}

@@ -22,13 +22,12 @@ export const RUNNABLE_EXTRACTION_STATUSES: readonly ExtractionStatus[] = [
   "ASSEMBLING",
 ];
 
-// What a user retry may pick up again: a stopped run, or one held up by a reason the user has since fixed.
-export const RETRYABLE_EXTRACTION_STATUSES: readonly ExtractionStatus[] = [
-  "FAILED",
-  "PARTIAL",
-  "CANCELLED",
-  "OCR_PENDING",
-];
+// The original file never changes, so trying again cannot get past these; the book has to be imported again.
+const PERMANENT_FAILURE_CODES = new Set(["PDF_ENCRYPTED", "PDF_CORRUPT", "EXTRACTION_NOT_PDF"]);
+
+export function isPermanentExtractionFailure(status: string, errorCode: string | null): boolean {
+  return status === "FAILED" && errorCode !== null && PERMANENT_FAILURE_CODES.has(errorCode);
+}
 
 export function toExtractionStatus(value: string): ExtractionStatus {
   return EXTRACTION_STATUSES.find((status) => status === value) ?? "FAILED";

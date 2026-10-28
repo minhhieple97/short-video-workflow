@@ -1,3 +1,4 @@
+import { toExtractionStatus } from "@/features/extraction/domain/extraction-status";
 import { AppError, NotFoundError } from "@/shared/errors";
 import { foldForSearch } from "@/shared/search";
 
@@ -11,6 +12,10 @@ import {
 import type { BookSummary } from "../schemas/book.dto";
 import type { UpdateBookInput } from "../schemas/book.schema";
 
+function toExtractionSummary(extraction: { status: string; errorCode: string | null } | undefined) {
+  return extraction ? { status: toExtractionStatus(extraction.status), hasError: extraction.errorCode !== null } : null;
+}
+
 function toBookSummary(book: BookWithCounts): BookSummary {
   return {
     id: book.id,
@@ -18,6 +23,8 @@ function toBookSummary(book: BookWithCounts): BookSummary {
     author: book.author,
     description: book.description,
     sourceFileName: book.sourceFileName,
+    sourceFormat: book.sourceFormat,
+    extraction: toExtractionSummary(book.extractions[0]),
     chapterCount: book._count.chapters,
     lessonCount: book._count.lessons,
     videoCount: book._count.videos,

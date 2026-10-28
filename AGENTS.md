@@ -97,7 +97,8 @@ src/
                          services/ (business logic), repositories/ (Prisma), components/ (React)
     books/             import parser (domain/), staging + immutable original/chapter files, import wizard, library/detail UI
     extraction/        v1.2 PDF books: streamed upload (`pdf-import.service.ts`), `EXTRACT_PDF` run (`extraction-run.service.ts`:
-                       text layer → OCR batches → canonical Markdown → chapters), retry/reconcile, OCR budget and results
+                       text layer → OCR batches → canonical Markdown → chapters), retry/reconcile, OCR budget and results,
+                       PDF upload tab + extraction progress card (`components/`)
     chapters/          chapter listing/reading/rename, analysis runner (worker) + analysis requests (web, server-only)
     lessons/           lesson domain (fields, excerpt verification), repository, review service, library/review UI
     videos/            short-form domain (scene types, layouts, duration budget, snapshots), script generation/editing, editor UI

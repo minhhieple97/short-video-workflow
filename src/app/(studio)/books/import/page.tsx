@@ -1,6 +1,9 @@
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { PageHeader } from "@/components/layout/page-header";
 import { ImportWizard } from "@/features/books/components/import/import-wizard";
+import { getAppConfig } from "@/shared/config/env";
+
+export const dynamic = "force-dynamic";
 
 export default function ImportBookPage() {
   return (
@@ -8,9 +11,9 @@ export default function ImportBookPage() {
       <Breadcrumbs items={[{ label: "Sách", href: "/books" }, { label: "Nhập sách" }]} />
       <PageHeader
         title="Nhập sách"
-        description="Tải lên tệp .md/.txt hoặc dán văn bản, kiểm tra danh sách chương rồi xác nhận."
+        description="Tải lên tệp .md/.txt hoặc dán văn bản, kiểm tra danh sách chương rồi xác nhận; sách PDF được trích xuất trong nền."
       />
-      <ImportWizard />
+      <ImportWizard maxPdfBytes={getAppConfig().pdf.maxSizeBytes} />
     </section>
   );
 }

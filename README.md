@@ -231,7 +231,7 @@ Chi tiết luồng dữ liệu và trách nhiệm từng tiến trình: [`docs/a
 
 ## Giới hạn đã biết
 
-- Sách PDF (Poppler + OCR Mistral Batch) đã có luồng xử lý nhưng chưa có giao diện tiến độ và chưa thử với tài khoản Mistral thật; chưa hỗ trợ EPUB.
+- Sách PDF (Poppler + OCR Mistral Batch, tab "Sách PDF" ở trang Nhập sách) chưa được thử với tài khoản Mistral thật; sách không tìm thấy tiêu đề chương dừng ở "Chưa xác định chương". Chưa hỗ trợ EPUB.
 - Phụ đề hiển thị theo cụm từ, căn theo số âm tiết — không đồng bộ chính xác từng từ.
 - Chưa có nhạc nền. Studio chỉ tự gọi Claude khi bạn bật `AI_MODE=cli-auto`.
 - Vùng an toàn là ước lượng; hãy kiểm tra lại trên ứng dụng thật trước khi đăng.

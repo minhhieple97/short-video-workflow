@@ -10,13 +10,19 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { PdfUploadPanel } from "@/features/extraction/components/pdf-upload-panel";
 import { apiRequest, errorMessage } from "@/lib/api-client";
 
 import type { ImportPreview } from "../../schemas/book.dto";
 
-type SourceMode = "file" | "text";
+type SourceMode = "file" | "text" | "pdf";
 
-export function ImportSourceForm({ onPreview }: Readonly<{ onPreview: (preview: ImportPreview) => void }>) {
+const toSourceMode = (value: string): SourceMode => (value === "text" || value === "pdf" ? value : "file");
+
+export function ImportSourceForm({
+  onPreview,
+  maxPdfBytes,
+}: Readonly<{ onPreview: (preview: ImportPreview) => void; maxPdfBytes: number }>) {
   const [mode, setMode] = useState<SourceMode>("file");
   const [file, setFile] = useState<File | null>(null);
   const [text, setText] = useState("");
@@ -24,10 +30,12 @@ export function ImportSourceForm({ onPreview }: Readonly<{ onPreview: (preview: 
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const ready = mode === "file" ? file !== null : text.trim().length > 0;
+  const ready = mode === "file" ? file !== null : mode === "text" && text.trim().length > 0;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    // Enter in the PDF tab's fields lands here too; the PDF is sent by its own button.
+    if (!ready) return;
     const body = new FormData();
     if (mode === "file" && file) body.append("file", file);
     else {
@@ -48,10 +56,11 @@ export function ImportSourceForm({ onPreview }: Readonly<{ onPreview: (preview: 
 
   return (
     <form onSubmit={(event) => void handleSubmit(event)} className="flex max-w-2xl flex-col gap-4">
-      <Tabs value={mode} onValueChange={(value) => setMode(value === "text" ? "text" : "file")}>
+      <Tabs value={mode} onValueChange={(value) => setMode(toSourceMode(value))}>
         <TabsList>
           <TabsTrigger value="file">Tải tệp lên</TabsTrigger>
           <TabsTrigger value="text">Dán văn bản</TabsTrigger>
+          <TabsTrigger value="pdf">Sách PDF</TabsTrigger>
         </TabsList>
         <TabsContent value="file" className="flex flex-col gap-2 pt-4">
           <Label htmlFor="book-file">Tệp sách (.md hoặc .txt, UTF-8)</Label>
@@ -87,20 +96,28 @@ export function ImportSourceForm({ onPreview }: Readonly<{ onPreview: (preview: 
             placeholder="Dán toàn bộ nội dung sách vào đây…"
           />
         </TabsContent>
+        {/* A PDF has no preview step: it is uploaded as is and its chapters come from the extraction. */}
+        <TabsContent value="pdf" className="pt-4">
+          <PdfUploadPanel maxSizeBytes={maxPdfBytes} />
+        </TabsContent>
       </Tabs>
 
-      {error ? (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
+      {mode === "pdf" ? null : (
+        <>
+          {error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
 
-      <div>
-        <Button type="submit" disabled={!ready || pending}>
-          {pending ? <Loader2 className="animate-spin" aria-hidden /> : <FileUp aria-hidden />}
-          Phân tích cấu trúc chương
-        </Button>
-      </div>
+          <div>
+            <Button type="submit" disabled={!ready || pending}>
+              {pending ? <Loader2 className="animate-spin" aria-hidden /> : <FileUp aria-hidden />}
+              Phân tích cấu trúc chương
+            </Button>
+          </div>
+        </>
+      )}
     </form>
   );
 }

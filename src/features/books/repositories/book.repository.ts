@@ -11,9 +11,14 @@ const SUMMARY_COUNTS = {
       lessons: { where: { status: { not: "ARCHIVED" as const } } },
     },
   },
+  // A PDF book's latest extraction run; text imports have none.
+  extractions: { orderBy: { createdAt: "desc" as const }, take: 1, select: { status: true, errorCode: true } },
 };
 
-export type BookWithCounts = Book & { _count: { chapters: number; videos: number; lessons: number } };
+export type BookWithCounts = Book & {
+  _count: { chapters: number; videos: number; lessons: number };
+  extractions: { status: string; errorCode: string | null }[];
+};
 
 export interface NewChapterRecord {
   id: string;

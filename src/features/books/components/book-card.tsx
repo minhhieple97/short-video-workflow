@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
+import { EXTRACTION_STATUS_LABELS, HELD_LABEL } from "@/features/extraction/domain/extraction-labels";
+import { RUNNABLE_EXTRACTION_STATUSES } from "@/features/extraction/domain/extraction-status";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +18,13 @@ function spineFor(id: string): string {
 }
 
 export function BookCard({ book }: Readonly<{ book: BookSummary }>) {
+  const run = book.extraction;
+  const extraction =
+    !run || run.status === "COMPLETED"
+      ? null
+      : run.hasError && RUNNABLE_EXTRACTION_STATUSES.includes(run.status)
+        ? HELD_LABEL
+        : EXTRACTION_STATUS_LABELS[run.status];
   return (
     <Link
       href={`/books/${book.id}`}
@@ -36,6 +45,7 @@ export function BookCard({ book }: Readonly<{ book: BookSummary }>) {
           <p className="text-muted-foreground text-sm">{book.author ?? "Chưa rõ tác giả"}</p>
         </div>
         <div className="flex flex-wrap gap-1.5">
+          {extraction ? <Badge variant={extraction.tone}>PDF · {extraction.label}</Badge> : null}
           <Badge variant="violet">{book.chapterCount} chương</Badge>
           <Badge variant="mint">{book.lessonCount} bài học</Badge>
           <Badge variant="orange">{book.videoCount} video</Badge>

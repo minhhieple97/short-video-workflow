@@ -61,7 +61,7 @@ async function resolveEntities(records: readonly JobRecord[]): Promise<Map<strin
   }
   for (const extraction of extractions) {
     refs.set(`EXTRACTION:${extraction.id}`, {
-      label: `Trích xuất PDF · ${extraction.book.title}`,
+      label: `PDF · ${extraction.book.title}`,
       href: `/books/${extraction.bookId}`,
     });
   }
