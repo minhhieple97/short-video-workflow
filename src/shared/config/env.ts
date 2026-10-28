@@ -48,6 +48,17 @@ const envSchema = z
     MISTRAL_OCR_USD_PER_1000_PAGES: z.coerce.number().positive().max(1000).default(2),
     GOOGLE_OAUTH_CLIENT_ID: optionalSecret,
     GOOGLE_OAUTH_CLIENT_SECRET: optionalSecret,
+    NOTEBOOKLM_MCP_COMMAND: z.string().min(1).default("uvx"),
+    // Pinned: the server talks to NotebookLM's undocumented API, so an unreviewed upgrade could change its behaviour.
+    NOTEBOOKLM_MCP_PACKAGE: z.string().min(1).default("notebooklm-mcp-cli==0.15.8"),
+    NOTEBOOKLM_PROFILE: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z
+        .string()
+        .regex(/^[\w.-]{1,64}$/)
+        .optional(),
+    ),
+    NOTEBOOKLM_CALL_TIMEOUT_SEC: positiveInt(180),
     DRIVE_MIN_REQUEST_INTERVAL_MS: z.coerce.number().int().min(0).max(60_000).default(1000),
     DRIVE_MAX_REQUESTS_PER_DAY: z.coerce.number().int().positive().max(1_000_000).default(5000),
     DRIVE_MAX_UPLOAD_GIB_PER_DAY: z.coerce.number().positive().max(750).default(10),
@@ -101,6 +112,7 @@ export interface AppConfig {
   pdf: { maxSizeBytes: number };
   ocr: { costCeilingMicroUsd: number };
   mistral: { apiKey: string | undefined; baseUrl: string; ocrModel: string; usdPer1000Pages: number };
+  notebookLm: { command: string; packageSpec: string; profile: string | undefined; callTimeoutMs: number };
   drive: {
     clientId: string | undefined;
     clientSecret: string | undefined;
@@ -165,6 +177,12 @@ export function parseAppConfig(source: Record<string, string | undefined>): AppC
       baseUrl: env.MISTRAL_API_BASE_URL.replace(/\/+$/, ""),
       ocrModel: env.MISTRAL_OCR_MODEL,
       usdPer1000Pages: env.MISTRAL_OCR_USD_PER_1000_PAGES,
+    },
+    notebookLm: {
+      command: env.NOTEBOOKLM_MCP_COMMAND,
+      packageSpec: env.NOTEBOOKLM_MCP_PACKAGE,
+      profile: env.NOTEBOOKLM_PROFILE,
+      callTimeoutMs: env.NOTEBOOKLM_CALL_TIMEOUT_SEC * 1000,
     },
     drive: {
       clientId: env.GOOGLE_OAUTH_CLIENT_ID,

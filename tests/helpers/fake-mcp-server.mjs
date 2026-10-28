@@ -25,6 +25,36 @@ const send = (message) => {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 };
 
+// FAKE_MCP_PERSONA=notebooklm answers like notebooklm-mcp-cli: {"status": ...} envelopes reported with isError false,
+// a process-wide active profile, and scripted answers per tool from FAKE_NLM_SCRIPT ({ tool: [answer, ...] }).
+const notebooklm = process.env.FAKE_MCP_PERSONA === "notebooklm";
+const nlmTools = (
+  process.env.FAKE_NLM_TOOLS ??
+  "profile,notebook_create,notebook_get,notebook_query,source_add,source_get_content,source_delete,usage_get,server_info"
+).split(",");
+const nlmProfiles = (process.env.FAKE_NLM_PROFILES ?? "default").split(",");
+const nlmScript = process.env.FAKE_NLM_SCRIPT ? JSON.parse(fs.readFileSync(process.env.FAKE_NLM_SCRIPT, "utf8")) : {};
+let activeProfile = "default";
+
+function notebooklmAnswer(name, args) {
+  if (name === "profile") {
+    if (args.action === "switch") {
+      if (!nlmProfiles.includes(args.name)) return { status: "error", error: `Profile '${args.name}' not found` };
+      // Like a server started with NOTEBOOKLM_COOKIES: it answers but stays on its own account.
+      if (process.env.FAKE_NLM_IGNORE_SWITCH !== "1") activeProfile = args.name;
+      return { status: "success", active: { profile: activeProfile, source: "session" } };
+    }
+    return {
+      status: "success",
+      active: { profile: activeProfile, source: "saved default", saved_default: "default" },
+      profiles: nlmProfiles.map((profile) => ({ name: profile })),
+    };
+  }
+  const queued = nlmScript[name];
+  if (Array.isArray(queued) && queued.length > 0) return queued.shift();
+  return { status: "success", tool: name, profile: activeProfile, args };
+}
+
 function handle(message) {
   if (log) fs.appendFileSync(log, `${JSON.stringify(message)}\n`);
   if (message.id !== undefined && waitingForPing.has(message.id)) {
@@ -40,6 +70,36 @@ function handle(message) {
         protocolVersion: protocol,
         capabilities: { tools: {} },
         serverInfo: { name: "fake-mcp", version: "9.9" },
+      },
+    });
+    return;
+  }
+  if (message.method === "tools/list" && notebooklm) {
+    send({
+      jsonrpc: "2.0",
+      id: message.id,
+      result: { tools: nlmTools.map((name) => ({ name, inputSchema: { type: "object" } })) },
+    });
+    return;
+  }
+  if (message.method === "tools/call" && notebooklm) {
+    const answer = notebooklmAnswer(message.params.name, message.params.arguments ?? {});
+    if (answer.__hang) return;
+    if (answer.__textOnly) {
+      send({
+        jsonrpc: "2.0",
+        id: message.id,
+        result: { content: [{ type: "text", text: JSON.stringify(answer.body) }], isError: false },
+      });
+      return;
+    }
+    send({
+      jsonrpc: "2.0",
+      id: message.id,
+      result: {
+        content: [{ type: "text", text: JSON.stringify(answer) }],
+        structuredContent: answer,
+        isError: answer.__isError === true,
       },
     });
     return;
