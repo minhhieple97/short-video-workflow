@@ -23,6 +23,8 @@ import { isCorrectableIssue } from "../domain/ai-correction";
 import { advanceProductionCheckpoint } from "../repositories/production-step.repository";
 import { requestAiCorrection } from "./ai-correction.service";
 import { markProductionItemReady } from "./production-readiness.service";
+import { draftCacheKey } from "./draft-cache-key";
+import { cacheDraft, readCachedDraft } from "./draft-cache.service";
 import { queueFinalRender } from "./production-render.service";
 import { applyScenePlan } from "./scene-plan-apply.service";
 import { voiceProductionItem } from "./voice-production-item.service";
@@ -101,16 +103,22 @@ async function draftStep(
   const lesson = lessonOf(item);
   const targetDurationSec = targetOf(item);
   const sources = await deps.resolveSources({ bookId: item.batch.bookId, lesson, signal });
+  const revisionNote = item.aiCorrectionTarget === "SCRIPT_STUDIO" ? item.aiCorrectionNote : null;
+  const cacheKey = draftCacheKey(deps.scriptStudio, {
+    lessonId: lesson.lessonId,
+    lessonContentHash: lesson.contentHash,
+    targetDurationSec,
+    sourceRemoteIds: sources.map((source) => source.remoteId),
+    revisionNote,
+  });
   try {
-    const draft = await deps.scriptStudio.writeDraft(
-      {
-        sources,
-        lesson,
-        targetDurationSec,
-        revisionNote: item.aiCorrectionTarget === "SCRIPT_STUDIO" ? item.aiCorrectionNote : null,
-      },
-      { signal },
-    );
+    // A draft already written for exactly this request (before a crash, or for an earlier batch) is used as is, so the
+    // script studio's quota is spent once per request.
+    let draft = await readCachedDraft(cacheKey);
+    if (!draft) {
+      draft = await deps.scriptStudio.writeDraft({ sources, lesson, targetDurationSec, revisionNote }, { signal });
+      await cacheDraft(cacheKey, deps.scriptStudio, draft);
+    }
     const artifact = createDraftArtifact({ draft, lessonContentHash: lesson.contentHash, targetDurationSec });
     if (!(await saveDraftArtifact(item.id, claimToken, artifact))) throw lostClaim();
     return { kind: "CONTINUE" };

@@ -54,6 +54,8 @@ export interface WriteDraftRequest {
 
 export interface ScriptStudioProvider {
   readonly id: string;
+  // Changes whenever the same request could produce a different draft (a new prompt), so cached drafts are not reused.
+  readonly draftVersion: string;
   ensureSource(request: EnsureSourceRequest, options?: CallOptions): Promise<SourceRef>;
   detectChapters(request: DetectChaptersRequest, options?: CallOptions): Promise<DetectedChapter[]>;
   extractLessons(request: ExtractLessonsRequest, options?: CallOptions): Promise<LessonExtraction>;

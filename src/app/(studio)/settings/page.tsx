@@ -8,6 +8,8 @@ import { DriveConnectionCard } from "@/features/drive/components/drive-connectio
 import { driveCallbackError } from "@/features/drive/domain/drive-messages";
 import { getDriveOverview } from "@/features/drive/services/drive-overview.service";
 import { RunTestJobButton } from "@/features/jobs/components/run-test-job-button";
+import { NotebookLmCard } from "@/features/notebooklm/components/notebooklm-card";
+import { getNotebookLmOverview } from "@/features/notebooklm/services/notebooklm-overview.service";
 import { getDiagnosticsSnapshot } from "@/server/diagnostics/get-diagnostics-snapshot";
 import type { CheckResult, CheckStatus } from "@/server/diagnostics/types";
 
@@ -66,9 +68,10 @@ interface SettingsPageProps {
 }
 
 export default async function SettingsPage({ searchParams }: Readonly<SettingsPageProps>) {
-  const [snapshot, driveOverview, query] = await Promise.all([
+  const [snapshot, driveOverview, notebookLmOverview, query] = await Promise.all([
     getDiagnosticsSnapshot(),
     getDriveOverview(),
+    getNotebookLmOverview(),
     searchParams,
   ]);
 
@@ -103,6 +106,7 @@ export default async function SettingsPage({ searchParams }: Readonly<SettingsPa
           Tích hợp
         </h2>
         <DriveConnectionCard overview={driveOverview} />
+        <NotebookLmCard overview={notebookLmOverview} />
       </section>
 
       <div className="grid gap-4 md:grid-cols-2">

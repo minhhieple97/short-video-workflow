@@ -7,6 +7,7 @@ import { AppError, NotFoundError } from "@/shared/errors";
 import type { JobDto } from "@/shared/types/job";
 
 import { findActiveJobForEntity, findJobRecordById } from "../repositories/job-record.repository";
+import type { DiagnosticKind } from "../schemas/job-payload.schema";
 import { dispatchJobIntent, failJobIntent, recordJobIntent, type TrackedJobRequest } from "./job-dispatch.service";
 import { toJobDto } from "./job-dto";
 
@@ -36,7 +37,7 @@ export async function enqueueTrackedJob(request: TrackedJobRequest): Promise<{ j
   return { job: toJobDto(record), reused: false };
 }
 
-export async function enqueueDiagnosticPingJob(kind: "ping" | "mock-ai" = "ping"): Promise<JobDto> {
+export async function enqueueDiagnosticPingJob(kind: DiagnosticKind = "ping"): Promise<JobDto> {
   const { job } = await enqueueTrackedJob({
     jobType: "DIAGNOSTIC_PING",
     entityType: "SYSTEM",

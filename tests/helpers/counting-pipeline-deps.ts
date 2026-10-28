@@ -32,6 +32,7 @@ export function createCountingDeps(
   const mock = new MockScenePlanCompiler();
   const scriptStudio: ScriptStudioProvider = {
     id: "counting-studio",
+    draftVersion: studio.draftVersion,
     ensureSource: (request, callOptions) => studio.ensureSource(request, callOptions),
     detectChapters: (request, callOptions) => studio.detectChapters(request, callOptions),
     extractLessons: (request, callOptions) => studio.extractLessons(request, callOptions),

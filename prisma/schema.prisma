@@ -652,3 +652,18 @@ model NotebookSourceBinding {
   @@unique([notebookBindingId, sourceKey, contentHash])
   @@index([notebookBindingId, sourceKey])
 }
+
+// A script draft that passed validation, kept by what it was written from (provider and its draft prompt version, the
+// lesson's content, the preset, the exact source revisions and the correction note). The same request is answered from
+// here, so a retry after a crash or a later batch of the same lesson does not spend NotebookLM quota again.
+model ScriptDraftCache {
+  id           String   @id @default(cuid())
+  cacheKey     String   @unique
+  provider     String
+  draftVersion String
+  lessonId     String
+  draftJson    String
+  createdAt    DateTime @default(now())
+
+  @@index([lessonId])
+}

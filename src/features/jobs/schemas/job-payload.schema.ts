@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+// "notebooklm" signs in as the configured profile in the worker (the web never starts the MCP server).
+const DIAGNOSTIC_KINDS = ["ping", "mock-ai", "notebooklm"] as const;
+export type DiagnosticKind = (typeof DIAGNOSTIC_KINDS)[number];
+
 // Redis job payloads carry IDs and small metadata only — never book text, audio or secrets.
 export const baseJobPayloadSchema = z.object({
   jobRecordId: z.string().min(1),
@@ -7,11 +11,11 @@ export const baseJobPayloadSchema = z.object({
 
 export const diagnosticPingPayloadSchema = baseJobPayloadSchema.extend({
   message: z.string().max(200).default("ping"),
-  kind: z.enum(["ping", "mock-ai"]).default("ping"),
+  kind: z.enum(DIAGNOSTIC_KINDS).default("ping"),
 });
 
 export const diagnosticRequestSchema = z.object({
-  kind: z.enum(["ping", "mock-ai"]).default("ping"),
+  kind: z.enum(DIAGNOSTIC_KINDS).default("ping"),
 });
 
 export const analyzeChapterPayloadSchema = baseJobPayloadSchema.extend({

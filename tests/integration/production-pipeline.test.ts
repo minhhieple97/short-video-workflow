@@ -4,6 +4,7 @@ import type * as Claim from "@/features/productions/repositories/production-clai
 import type * as Pipeline from "@/features/productions/services/production-pipeline.service";
 import type * as ProductionRender from "@/features/productions/services/production-render.service";
 import type * as ProductionRequest from "@/features/productions/services/production-request.service";
+import { Prisma } from "@/generated/prisma/client";
 import type * as DbClient from "@/server/db/client";
 import { IntegrationError } from "@/server/integrations/integration-error";
 import { JobCancelledError } from "@/shared/errors";
@@ -109,6 +110,61 @@ describe("runProductionPipeline", () => {
     expect(second.calls.drafts).toHaveLength(0);
     expect(second.calls.compiles).toHaveLength(1);
     expect((await item()).checkpoint).toBe("READY");
+  });
+
+  it("answers a draft request it has answered before from the cache, without asking the script studio again", async () => {
+    const first = makeDeps({ compileFails: () => new IntegrationError("X", "outage", "TRANSIENT") });
+    await run(first.deps);
+    const saved = (await item()).draftArtifactJson;
+    // As if the worker had died after the script studio answered but before the draft was kept with the item.
+    await db.prisma.productionItem.update({
+      where: { id: itemId },
+      data: { checkpoint: "NONE", draftArtifactJson: Prisma.DbNull },
+    });
+
+    const second = makeDeps();
+    await run(second.deps);
+
+    expect(first.calls.drafts).toHaveLength(1);
+    expect(second.calls.drafts).toHaveLength(0);
+    expect((await item()).draftArtifactJson).toEqual(saved);
+    expect((await item()).checkpoint).toBe("READY");
+  });
+
+  it("ignores a cached draft that no longer passes the draft contract and asks again", async () => {
+    const first = makeDeps({ compileFails: () => new IntegrationError("X", "outage", "TRANSIENT") });
+    await run(first.deps);
+    await db.prisma.scriptDraftCache.updateMany({ data: { draftJson: JSON.stringify({ beats: [] }) } });
+    await db.prisma.productionItem.update({
+      where: { id: itemId },
+      data: { checkpoint: "NONE", draftArtifactJson: Prisma.DbNull },
+    });
+
+    const second = makeDeps();
+    await run(second.deps);
+
+    expect(second.calls.drafts).toHaveLength(1);
+    expect((await item()).checkpoint).toBe("READY");
+  });
+
+  it("does not reuse a draft once the request differs (a correction note, another preset)", async () => {
+    const first = makeDeps({ compileFails: () => new IntegrationError("X", "outage", "TRANSIENT") });
+    await run(first.deps);
+    await db.prisma.productionItem.update({
+      where: { id: itemId },
+      data: {
+        checkpoint: "NONE",
+        draftArtifactJson: Prisma.DbNull,
+        aiCorrectionTarget: "SCRIPT_STUDIO",
+        aiCorrectionNote: "Giữ đúng trích đoạn.",
+      },
+    });
+
+    const second = makeDeps();
+    await run(second.deps);
+
+    expect(second.calls.drafts).toHaveLength(1);
+    expect(second.calls.drafts[0]?.revisionNote).toBe("Giữ đúng trích đoạn.");
   });
 
   it("defers a temporary failure with a growing pause, and fails after a bounded number of tries", async () => {

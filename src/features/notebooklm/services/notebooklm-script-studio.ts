@@ -5,7 +5,10 @@ import { IntegrationError } from "@/server/integrations/integration-error";
 import { NotebookLmSession } from "@/server/script-studio/notebooklm/notebooklm-session";
 import { buildChapterDetectionPrompt } from "@/server/script-studio/notebooklm/prompts/chapter-detection-prompt";
 import { buildLessonExtractionPrompt } from "@/server/script-studio/notebooklm/prompts/lesson-extraction-prompt";
-import { buildScriptDraftPrompt } from "@/server/script-studio/notebooklm/prompts/script-draft-prompt";
+import {
+  buildScriptDraftPrompt,
+  SCRIPT_DRAFT_PROMPT_VERSION,
+} from "@/server/script-studio/notebooklm/prompts/script-draft-prompt";
 import {
   detectedChapterSchema,
   lessonExtractionSchema,
@@ -23,7 +26,9 @@ import type {
   SourceRef,
   WriteDraftRequest,
 } from "@/server/script-studio/script-studio-provider";
+import { createLogger, toSafeErrorMessage } from "@/shared/logger";
 
+import { recordNotebookLmFailure, recordNotebookLmUsage } from "./notebooklm-status.service";
 import {
   askNotebookForJson,
   ensureNotebookDocument,
@@ -32,6 +37,7 @@ import {
   type NotebookStudioSettings,
 } from "./notebook-studio.service";
 
+const logger = createLogger("notebooklm.studio");
 const MAX_CHAPTERS = 500;
 // A source reference names its notebook too, so a question can be asked without looking the book up again.
 const REF_SEPARATOR = "#";
@@ -60,6 +66,7 @@ function splitRefs(sources: readonly SourceRef[]): { notebookId: string; sourceI
 // sources it is about, and its answer must be the JSON asked for.
 export class NotebookLmScriptStudio implements ScriptStudioProvider {
   readonly id = "notebooklm";
+  readonly draftVersion = SCRIPT_DRAFT_PROMPT_VERSION;
   private session: Promise<NotebookLmSession> | null = null;
 
   constructor(private readonly settings: NotebookStudioSettings) {}
@@ -125,14 +132,19 @@ export class NotebookLmScriptStudio implements ScriptStudioProvider {
     );
   }
 
+  // Reads the account's remaining allowance on the way out, so Settings shows what the last run left.
   async close(): Promise<void> {
     const session = this.session;
     this.session = null;
-    if (session)
-      await session.then(
-        (opened) => opened.close(),
-        () => undefined,
-      );
+    const opened = session ? await session.catch(() => null) : null;
+    if (!opened) return;
+    try {
+      await recordNotebookLmUsage(opened, this.settings.profile);
+    } catch (error) {
+      logger.warn("NotebookLM usage could not be read", { error: toSafeErrorMessage(error) });
+    } finally {
+      await opened.close();
+    }
   }
 
   private async open(signal: AbortSignal | undefined): Promise<NotebookLmSession> {
@@ -141,6 +153,7 @@ export class NotebookLmScriptStudio implements ScriptStudioProvider {
       return await this.session;
     } catch (error) {
       this.session = null;
+      if (!signal?.aborted) await recordNotebookLmFailure(this.settings.profile, error);
       throw error;
     }
   }

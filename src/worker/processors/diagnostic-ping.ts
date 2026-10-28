@@ -1,4 +1,9 @@
 import { diagnosticPingPayloadSchema } from "@/features/jobs/schemas/job-payload.schema";
+import { checkNotebookLm } from "@/features/notebooklm/services/notebooklm-status.service";
+import {
+  NOTEBOOKLM_NOT_CONFIGURED_MESSAGE,
+  notebookStudioSettings,
+} from "@/features/notebooklm/services/notebook-studio.service";
 import type { AiProvider } from "@/server/ai/ai-provider";
 import { chapterAnalysisOutputSchema } from "@/server/ai/contracts/chapter-analysis";
 import { videoScriptOutputSchema } from "@/server/ai/contracts/video-script";
@@ -50,11 +55,20 @@ async function runMockAiCheck(taskId: string) {
   return { lessons: lessons.length, hookOptions: output.hookOptions.length, scenes: output.scenes.length };
 }
 
-export const processDiagnosticPing: JobProcessor = async ({ job, jobRecordId, reportProgress }) => {
+async function runNotebookLmCheck(signal: AbortSignal) {
+  const settings = notebookStudioSettings();
+  if (!settings) throw new AppError("NOTEBOOKLM_NOT_CONFIGURED", NOTEBOOKLM_NOT_CONFIGURED_MESSAGE, 409);
+  const status = await checkNotebookLm(settings, signal);
+  if (status.state !== "OK") throw new AppError(`NOTEBOOKLM_${status.state}`, status.message ?? "NotebookLM lỗi.", 502);
+  return { state: status.state, tier: status.tier, windows: status.windows.length };
+}
+
+export const processDiagnosticPing: JobProcessor = async ({ job, jobRecordId, reportProgress, signal }) => {
   const payload = diagnosticPingPayloadSchema.parse(job.data);
   await reportProgress(50);
 
   const mockAi = payload.kind === "mock-ai" ? await runMockAiCheck(jobRecordId) : null;
+  const notebookLm = payload.kind === "notebooklm" ? await runNotebookLmCheck(signal) : null;
   const result = {
     kind: payload.kind,
     message: payload.message,
@@ -62,6 +76,7 @@ export const processDiagnosticPing: JobProcessor = async ({ job, jobRecordId, re
     workerPid: process.pid,
     processedAt: new Date().toISOString(),
     mockAi,
+    notebookLm,
   };
   await writeFileAtomic(dataPath("diagnostics", `last-${payload.kind}.json`), `${JSON.stringify(result, null, 2)}\n`);
 

@@ -15,6 +15,7 @@ const PAGES_PER_FAKE_CHAPTER = 10;
 // Deterministic and offline (AI_MODE=mock): turns the lesson's own fields into a draft that tells the whole story.
 export class MockScriptStudioProvider implements ScriptStudioProvider {
   readonly id = "mock-script-studio";
+  readonly draftVersion = "mock-draft-v1";
   readonly uploadedSources: SourceRef[] = [];
 
   private readonly remoteIdByKey = new Map<string, string>();
