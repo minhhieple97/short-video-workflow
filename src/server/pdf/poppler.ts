@@ -124,6 +124,7 @@ export async function extractTextLayer(
   config: PopplerConfig,
   signal?: AbortSignal,
 ): Promise<string[]> {
+  await fs.mkdir(path.dirname(absolute(workFile)), { recursive: true });
   await runPoppler(
     "pdftotext",
     ["-enc", "UTF-8", "-eol", "unix", absolute(filePath), absolute(workFile)],

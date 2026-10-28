@@ -33,3 +33,29 @@ export function findExtraction(extractionId: string): Promise<BookExtraction | n
 export async function setCanonicalPath(extractionId: string, canonicalPath: string): Promise<void> {
   await prisma.bookExtraction.update({ where: { id: extractionId }, data: { canonicalPath } });
 }
+
+export function findExtractionWithBook(extractionId: string) {
+  return prisma.bookExtraction.findUnique({
+    where: { id: extractionId },
+    include: { book: { select: { id: true, sourceFilePath: true, sourceFormat: true } } },
+  });
+}
+
+// Moves the run on only from a status it is expected to be in, so a stale step cannot pull it back.
+export async function moveExtractionStatus(
+  extractionId: string,
+  from: readonly string[],
+  data: {
+    status: string;
+    pageCount?: number;
+    errorCode?: string | null;
+    errorMessage?: string | null;
+    completedAt?: Date | null;
+  },
+): Promise<boolean> {
+  const { count } = await prisma.bookExtraction.updateMany({
+    where: { id: extractionId, status: { in: [...from] } },
+    data,
+  });
+  return count > 0;
+}

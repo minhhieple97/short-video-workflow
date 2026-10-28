@@ -109,7 +109,7 @@ describe.skipIf(!config)("Poppler wrapper (needs poppler-utils)", () => {
       "text.pdf",
       buildPdf([{ lines: ["Chapter 1", "First page."] }, { image: true }, {}, { lines: ["Last (page) \\ here"] }]),
     );
-    const workFile = path.join(directory, "text.txt");
+    const workFile = path.join(directory, "not-yet", "made", "text.txt");
 
     const pages = await extractTextLayer(file, 4, workFile, poppler);
 

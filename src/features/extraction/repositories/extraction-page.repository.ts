@@ -1,6 +1,7 @@
 import { prisma } from "@/server/db/client";
 
 import type { OcrPageOutcome } from "../domain/ocr-results";
+import type { PageClassification } from "../domain/page-classification";
 
 // Only a page still waiting for OCR (or one whose earlier OCR failed) may take an OCR result. A page that already
 // holds text, from the PDF's text layer or from an earlier OCR success, is never overwritten.
@@ -41,6 +42,47 @@ export async function storeOcrPageOutcomes(
     else summary.failed += 1;
   });
   return summary;
+}
+
+export interface ClassifiedPage {
+  pageNumber: number;
+  classification: PageClassification;
+}
+
+// Records the text-layer result of every page. A page already further along (OCR sent, OCR done, OCR failed) keeps its
+// state, so running the step again after a crash never undoes OCR work or pays for it twice.
+export function storeClassifiedPages(extractionId: string, pages: readonly ClassifiedPage[]): Promise<void> {
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.extractionPage.findMany({
+      where: { extractionId },
+      select: { pageNumber: true, status: true },
+    });
+    const status = new Map(existing.map((page) => [page.pageNumber, page.status]));
+    for (const { pageNumber, classification } of pages) {
+      const current = status.get(pageNumber);
+      if (current !== undefined && current !== "PENDING") continue;
+      const data =
+        classification.method === "OCR"
+          ? { status: "NEEDS_OCR", method: null, ocrReason: classification.reason, text: null }
+          : { status: "EXTRACTED", method: classification.method, ocrReason: null, text: classification.text };
+      if (current === undefined) await tx.extractionPage.create({ data: { extractionId, pageNumber, ...data } });
+      else await tx.extractionPage.update({ where: { extractionId_pageNumber: { extractionId, pageNumber } }, data });
+    }
+  });
+}
+
+export async function countPagesByStatus(extractionId: string): Promise<Record<string, number>> {
+  const groups = await prisma.extractionPage.groupBy({ by: ["status"], where: { extractionId }, _count: true });
+  return Object.fromEntries(groups.map((group) => [group.status, group._count]));
+}
+
+export async function countExtractedByMethod(extractionId: string): Promise<Record<string, number>> {
+  const groups = await prisma.extractionPage.groupBy({
+    by: ["method"],
+    where: { extractionId, status: "EXTRACTED" },
+    _count: true,
+  });
+  return Object.fromEntries(groups.map((group) => [group.method ?? "", group._count]));
 }
 
 export function listExtractionPages(extractionId: string) {
