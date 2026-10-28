@@ -35,7 +35,18 @@ export function runClaudePrint(options: {
   return new Promise((resolve, reject) => {
     const child = spawn(
       options.command,
-      ["-p", "--output-format", "json", "--tools", "", "--no-session-persistence", "--json-schema", options.jsonSchema],
+      [
+        "-p",
+        "--output-format",
+        "json",
+        // No built-in tools and no MCP servers from the user's configuration: the task only needs JSON back.
+        "--tools",
+        "",
+        "--strict-mcp-config",
+        "--no-session-persistence",
+        "--json-schema",
+        options.jsonSchema,
+      ],
       { env: sanitizeClaudeEnv(process.env), stdio: ["pipe", "pipe", "pipe"] },
     );
     let stdout = "";

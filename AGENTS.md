@@ -213,7 +213,7 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - Never add `@anthropic-ai/sdk`, never create `ANTHROPIC_API_KEY`, never read/copy/log Claude tokens, cookies or credentials.
 - Run subprocesses with `spawn`/`execFile` and an argument array — **never** build shell strings from input, never use `exec` with interpolation.
 - Never use `--dangerously-skip-permissions`. When the model only needs to emit JSON, do not grant file-write/shell tools.
-- Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v1`). Book content is passed as quoted untrusted data.
+- Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v2`, `scene-plan-v1`); changing a prompt's text means bumping its version. Book content is passed as quoted untrusted data.
 - Validate model output with Zod; on schema failure mark the job `FAILED` and store nothing. No unbounded retries (respect quota errors). Timeouts + best-effort cancel.
 
 ## 10. Storage & security
@@ -299,7 +299,7 @@ M7 task (D02/D08) lands and updates this file; the hook limit is already 4 s / 1
 - DO keep UI copy in Vietnamese and identifiers in English; DON'T hardcode content in Remotion components.
 - DO export only components from `"use client"` files; DON'T import constants/functions from a client module into a Server Component (it receives a client reference, not the value — move shared values to a plain module).
 - DO import DTO types from `schemas/*.dto.ts` in client components; DON'T import from `services/` there.
-- DO run Claude only through `askClaude()` (used by `pnpm ai:run` and, when `AI_MODE=cli-auto`, by the worker) with no tools and a sanitized env; DON'T spawn `claude` from the web, from route handlers, or in parallel, and DON'T make `cli-auto` the default.
+- DO run Claude only through `askClaude()` (used by `pnpm ai:run` and, when `AI_MODE=cli-auto`, by the worker) with no built-in tools, `--strict-mcp-config` (no MCP servers from the user's config) and a sanitized env; DON'T spawn `claude` from the web, from route handlers, or in parallel, and DON'T make `cli-auto` the default.
 - DO keep `@remotion/bundler` / `@remotion/renderer` in worker-only modules (`server/render/*`, `*-runner.ts`); DON'T import them from anything a route or page imports.
 - DO build composition props only through `toCompositionProps()` so the Player and the render stay identical; DON'T render editor guides (safe zones) inside the composition.
 - DO state honestly what is unfinished or unverified; DON'T leave fake buttons or fake queue updates.

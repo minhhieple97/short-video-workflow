@@ -1,4 +1,4 @@
 import { describeScenePlanCompilerContract } from "../../helpers/contracts/scene-plan-compiler-contract";
-import { FakeScenePlanCompiler } from "../../helpers/fakes/fake-scene-plan-compiler";
+import { MockScenePlanCompiler } from "@/server/scene-plan/mock-scene-plan-compiler";
 
-describeScenePlanCompilerContract("FakeScenePlanCompiler", () => new FakeScenePlanCompiler());
+describeScenePlanCompilerContract("MockScenePlanCompiler", () => new MockScenePlanCompiler());

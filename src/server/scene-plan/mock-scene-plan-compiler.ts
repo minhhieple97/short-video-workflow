@@ -11,8 +11,9 @@ const SCENE_TYPE_FOR_BEAT: Record<Exclude<NarrativeBeat, "HOOK">, BodySceneType>
   ACTION: "ACTION_STEP",
 };
 
-export class FakeScenePlanCompiler implements ScenePlanCompiler {
-  readonly id = "fake-scene-plan-compiler";
+// Deterministic and offline (AI_MODE=mock): turns each draft beat into its scene without rewording anything.
+export class MockScenePlanCompiler implements ScenePlanCompiler {
+  readonly id = "mock-scene-plan-compiler";
 
   async compile(request: ScenePlanRequest, options?: CallOptions): Promise<ScenePlan> {
     options?.signal?.throwIfAborted();

@@ -16,7 +16,7 @@ import type { ScenePlan } from "@/server/scene-plan/scene-plan-compiler";
 import type { ScriptDraft } from "@/server/script-studio/script-studio-contracts";
 
 import { SAMPLE_LESSON } from "../../helpers/contracts/script-studio-provider-contract";
-import { FakeScenePlanCompiler } from "../../helpers/fakes/fake-scene-plan-compiler";
+import { MockScenePlanCompiler } from "@/server/scene-plan/mock-scene-plan-compiler";
 import { FakeScriptStudioProvider } from "../../helpers/fakes/fake-script-studio-provider";
 
 async function sample(): Promise<{ draft: ScriptDraft; plan: ScenePlan }> {
@@ -26,7 +26,7 @@ async function sample(): Promise<{ draft: ScriptDraft; plan: ScenePlan }> {
     targetDurationSec: 60,
     revisionNote: null,
   });
-  const plan = await new FakeScenePlanCompiler().compile({
+  const plan = await new MockScenePlanCompiler().compile({
     draft,
     lesson: SAMPLE_LESSON,
     targetDurationSec: 60,

@@ -61,6 +61,7 @@ describe("AutomatedCliProvider (AI_MODE=cli-auto)", () => {
       "json",
       "--tools",
       "",
+      "--strict-mcp-config",
       "--no-session-persistence",
       "--json-schema",
       fs.readFileSync(taskFile(taskId, "schema.json"), "utf8"),
