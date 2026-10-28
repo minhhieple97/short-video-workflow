@@ -130,7 +130,16 @@ describe("NotebookLmSession", () => {
     await expect(open({ env: { FAKE_NLM_TOOLS: "profile,notebook_get,usage_get" } })).rejects.toMatchObject({
       code: "NOTEBOOKLM_TOOLS_MISSING",
       kind: "REJECTED",
-      details: { missing: ["notebook_create", "notebook_query", "source_add", "source_get_content", "source_delete"] },
+      details: {
+        missing: [
+          "notebook_list",
+          "notebook_create",
+          "notebook_query",
+          "source_add",
+          "source_get_content",
+          "source_delete",
+        ],
+      },
     });
   });
 
@@ -171,12 +180,16 @@ describe("NotebookLmSession", () => {
     });
   });
 
-  it("treats a hung call as a transport timeout", async () => {
-    await open({ script: { notebook_query: [{ __hang: true }] } });
+  it("treats a hung read as a transport timeout, and a hung change as an unknown outcome", async () => {
+    await open({ script: { notebook_query: [{ __hang: true }], source_add: [{ __hang: true }] } });
 
     await expect(session?.call("notebook_query", { notebook_id: "n", query: "q" })).rejects.toMatchObject({
       code: "MCP_TIMEOUT",
       kind: "TRANSIENT",
+    });
+    await expect(session?.call("source_add", { notebook_id: "n", source_type: "text" })).rejects.toMatchObject({
+      code: "MCP_TIMEOUT",
+      kind: "UNKNOWN_OUTCOME",
     });
   });
 });
@@ -197,6 +210,16 @@ describe("readNotebookLmEnvelope", () => {
     expect(() => readNotebookLmEnvelope("notebook_query", timedOut, false)).toThrow(
       expect.objectContaining({ code: "NOTEBOOKLM_TIMEOUT", kind: "TRANSIENT" }),
     );
+  });
+
+  it("asks for a new sign-in when the server says the login expired", () => {
+    expect(() =>
+      readNotebookLmEnvelope(
+        "notebook_get",
+        result({ status: "expired", error: "Cached auth is no longer valid" }),
+        false,
+      ),
+    ).toThrow(expect.objectContaining({ code: "NOTEBOOKLM_AUTH_REQUIRED", kind: "AUTH" }));
   });
 
   it("does not accept a success envelope marked as an error", () => {

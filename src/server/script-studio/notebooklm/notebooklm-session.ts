@@ -8,6 +8,7 @@ import { readNotebookLmEnvelope, type NotebookLmPayload } from "./notebooklm-env
 // The tools the script studio relies on; a server without them is a version this app was not built against.
 export const REQUIRED_NOTEBOOKLM_TOOLS = [
   "profile",
+  "notebook_list",
   "notebook_create",
   "notebook_get",
   "notebook_query",
@@ -100,10 +101,22 @@ export class NotebookLmSession {
     }
   }
 
-  call(tool: NotebookLmTool, args: Record<string, unknown>, signal?: AbortSignal): Promise<NotebookLmPayload> {
-    return this.client
-      .callTool(tool, args, { signal, timeoutMs: this.callTimeoutMs })
-      .then((result) => readNotebookLmEnvelope(tool, result, MUTATING_TOOLS.has(tool)));
+  async call(tool: NotebookLmTool, args: Record<string, unknown>, signal?: AbortSignal): Promise<NotebookLmPayload> {
+    const mutating = MUTATING_TOOLS.has(tool);
+    let result;
+    try {
+      result = await this.client.callTool(tool, args, { signal, timeoutMs: this.callTimeoutMs });
+    } catch (error) {
+      // A change whose answer never came (timeout, the process died) may still have been made.
+      if (mutating && error instanceof IntegrationError && error.kind === "TRANSIENT") {
+        throw new IntegrationError(error.code, error.message, "UNKNOWN_OUTCOME", {
+          cause: error,
+          details: error.details,
+        });
+      }
+      throw error;
+    }
+    return readNotebookLmEnvelope(tool, result, mutating);
   }
 
   close(): Promise<void> {

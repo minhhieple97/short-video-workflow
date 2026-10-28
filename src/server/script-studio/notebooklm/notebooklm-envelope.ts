@@ -4,7 +4,8 @@ import { IntegrationError, type IntegrationFailureKind } from "@/server/integrat
 
 import type { McpCallResult } from "./mcp-stdio-client";
 
-const envelopeSchema = z.looseObject({ status: z.enum(["success", "error"]), error: z.string().optional() });
+// "success" and "error" are the usual statuses; refresh_auth also answers "expired" for a login that must be renewed.
+const envelopeSchema = z.looseObject({ status: z.string().min(1), error: z.string().optional() });
 
 export type NotebookLmPayload = Record<string, unknown>;
 
@@ -50,6 +51,7 @@ export function readNotebookLmEnvelope(tool: string, result: McpCallResult, muta
   }
   if (envelope.data.status === "success" && !result.isError) return envelope.data;
 
+  if (envelope.data.status === "expired") throw failure("NOTEBOOKLM_AUTH_REQUIRED", "AUTH", tool);
   const text = envelope.data.error ?? "";
   const match = FAILURE_PATTERNS.find((candidate) => candidate.pattern.test(text));
   if (!match) return rejectUnknown(tool);
