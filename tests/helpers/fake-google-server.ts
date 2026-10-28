@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 
@@ -32,6 +33,8 @@ const GENERATE_IDS = "GET /drive/v3/files/generateIds";
 const CREATE_FILE = "POST /drive/v3/files";
 const START_UPLOAD = "POST /upload/drive/v3/files";
 const UPLOAD_CHUNK = "PUT /upload/drive/v3/files";
+// A PUT with "Content-Range: bytes */<total>" asks where an upload stands; it has its own fault queue.
+const UPLOAD_STATUS = "PUT /upload/drive/v3/files (status)";
 const GET_FILE = "GET /drive/v3/files/:id";
 
 interface UploadSession {
@@ -46,6 +49,7 @@ export interface FakeDriveObject {
   mimeType: string;
   parents: string[];
   content?: Buffer;
+  trashed?: boolean;
 }
 
 type Answer = { status: number; body: unknown; headers?: Record<string, string> };
@@ -77,6 +81,8 @@ export class FakeGoogleServer {
   // Everything this fake Drive holds, by ID; tests may remove entries to play a user deleting things in Drive.
   readonly objects = new Map<string, FakeDriveObject>();
   readonly uploadSessions = new Map<string, UploadSession>();
+  // Which checksums files.get reports; Drive fills them in for binary files, possibly not right away.
+  checksums: "both" | "md5" | "none" = "both";
   private generated = 0;
   private sessions = 0;
   // Google may store less of a chunk than was sent; the next chunk keeps only this many bytes.
@@ -87,7 +93,16 @@ export class FakeGoogleServer {
   }
 
   failNext(
-    route: "token" | "revoke" | "about" | "generateIds" | "createFile" | "startUpload" | "uploadChunk" | "getFile",
+    route:
+      | "token"
+      | "revoke"
+      | "about"
+      | "generateIds"
+      | "createFile"
+      | "startUpload"
+      | "uploadChunk"
+      | "uploadStatus"
+      | "getFile",
     fault: GoogleFault,
   ): void {
     const key = {
@@ -98,6 +113,7 @@ export class FakeGoogleServer {
       createFile: CREATE_FILE,
       startUpload: START_UPLOAD,
       uploadChunk: UPLOAD_CHUNK,
+      uploadStatus: UPLOAD_STATUS,
       getFile: GET_FILE,
     }[route];
     this.faults.set(key, [...(this.faults.get(key) ?? []), fault]);
@@ -134,10 +150,10 @@ export class FakeGoogleServer {
       rawBody,
     };
     this.requests.push(recorded);
-    const key =
-      recorded.method === "GET" && /^\/drive\/v3\/files\/(?!generateIds)[^/]+$/.test(recorded.path)
-        ? GET_FILE
-        : `${recorded.method} ${recorded.path}`;
+    const isStatusQuery = String(request.headers["content-range"] ?? "").startsWith("bytes */");
+    let key = `${recorded.method} ${recorded.path}`;
+    if (recorded.method === "GET" && /^\/drive\/v3\/files\/(?!generateIds)[^/]+$/.test(recorded.path)) key = GET_FILE;
+    if (key === UPLOAD_CHUNK && isStatusQuery) key = UPLOAD_STATUS;
 
     const fault = this.faults.get(key)?.shift();
     if (fault?.kind === "drop") {
@@ -171,11 +187,21 @@ export class FakeGoogleServer {
     }
     if (key === CREATE_FILE) return this.createMetadataOnly(request);
     if (key === START_UPLOAD) return this.startUpload(request);
-    if (key === UPLOAD_CHUNK) return this.uploadChunk(request);
+    if (key === UPLOAD_CHUNK || key === UPLOAD_STATUS) return this.uploadChunk(request);
     if (key === GET_FILE) {
       const object = this.objects.get(decodeURIComponent(request.path.split("/").at(-1) ?? ""));
       if (!object) return driveError(404, "notFound");
-      return { status: 200, body: { id: object.id, size: String(object.content?.byteLength ?? 0) } };
+      const content = object.content ?? Buffer.alloc(0);
+      return {
+        status: 200,
+        body: {
+          id: object.id,
+          size: String(content.byteLength),
+          ...(this.checksums !== "none" ? { md5Checksum: createHash("md5").update(content).digest("hex") } : {}),
+          ...(this.checksums === "both" ? { sha256Checksum: createHash("sha256").update(content).digest("hex") } : {}),
+          ...(object.trashed ? { trashed: true } : {}),
+        },
+      };
     }
     return driveError(404, "notFound");
   }

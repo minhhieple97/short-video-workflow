@@ -14,6 +14,15 @@ export const DRIVE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
 
 const generatedIdsSchema = z.object({ ids: z.array(z.string().min(1)) });
 const uploadedSchema = z.object({ id: z.string().min(1), size: z.coerce.number().int().nonnegative() });
+const fileMetadataSchema = z.object({
+  id: z.string().min(1),
+  size: z.coerce.number().int().nonnegative().optional(),
+  md5Checksum: z.string().min(1).optional(),
+  sha256Checksum: z.string().min(1).optional(),
+  trashed: z.boolean().optional(),
+});
+
+export type DriveFileMetadata = z.infer<typeof fileMetadataSchema>;
 
 const UPLOAD_CHUNK_TIMEOUT_MS = 5 * 60_000;
 
@@ -188,6 +197,23 @@ export class GoogleDriveClient {
       parse: async (response) => uploadedSchema.parse(await response.json()),
     });
     return file.size;
+  }
+
+  // Null when Drive has no such file (never created, or deleted for good).
+  async getFileMetadata(fileId: string, signal?: AbortSignal): Promise<DriveFileMetadata | null> {
+    const fields = "id,size,md5Checksum,sha256Checksum,trashed";
+    try {
+      return await this.send({
+        url: `${this.endpoints.driveApiUrl}/files/${encodeURIComponent(fileId)}?${new URLSearchParams({ fields })}`,
+        method: "GET",
+        mutating: false,
+        signal,
+        parse: async (response) => fileMetadataSchema.parse(await response.json()),
+      });
+    } catch (error) {
+      if (googleStatusOf(error) === 404) return null;
+      throw error;
+    }
   }
 
   private async send<TResult>(request: DriveRequest<TResult>, retried = false): Promise<TResult> {

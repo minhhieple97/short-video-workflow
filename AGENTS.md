@@ -122,8 +122,9 @@ src/
     ocr/ script-studio/ scene-plan/ archive/   v1.2 ports + vendor-free DTOs only (OcrProvider, ScriptStudioProvider, ScenePlanCompiler,
                        VideoArchiveProvider); real adapters land with the B/C/D/E tasks of `plan.md`. Fakes + contract suites live in
                        tests/helpers/{fakes,contracts}; every adapter must pass its port's contract suite
-    archive/google-drive/  Google OAuth helpers (PKCE, loopback redirect, `drive.file` only) and the credential store
-                       (`data/credentials/google-drive.json`, mode 0600, never in SQLite, DTOs or logs)
+    archive/google-drive/  Google OAuth helpers (PKCE, loopback redirect, `drive.file` only), the credential store
+                       (`data/credentials/google-drive.json`, mode 0600, never in SQLite, DTOs or logs), `DriveAccessToken`,
+                       and `GoogleDriveArchiveProvider` (folder tree with pre-generated IDs, resumable upload, checksum verify)
     http/              route-helpers.ts (AppError → JSON, readJson/parseInput with Zod), page-helpers.ts (orNotFound)
   worker/              Standalone process: main.ts, processors/ (dispatcher + one per job type), lifecycle/ (heartbeat, shutdown)
   remotion/            Pure React video code: index.ts (registerRoot), root.tsx (ShortVideo + calculateMetadata), compositions/,

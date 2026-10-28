@@ -9,6 +9,8 @@ import { googleStatusOf, type DriveUploadState, type GoogleDriveClient } from ".
 export const UPLOAD_CHUNK_UNIT = 256 * 1024;
 export const DEFAULT_UPLOAD_CHUNK_BYTES = 32 * UPLOAD_CHUNK_UNIT;
 const MAX_STALLED_CHUNKS = 3;
+// A chunk whose answer was lost or timed out is followed by a status query, a few times in a row at most.
+const MAX_CHUNK_RECOVERIES = 3;
 
 // Thrown instead of sending forever; the next attempt asks Google where the upload stands and carries on from there.
 const notAdvancing = () =>
@@ -77,11 +79,13 @@ export class DriveResumableUpload {
       const buffer = Buffer.alloc(Math.min(this.chunkBytes, file.bytes));
       let start = from;
       let stalled = 0;
+      let recoveries = 0;
       for (;;) {
         if (start >= file.bytes || stalled >= MAX_STALLED_CHUNKS) throw notAdvancing();
         const { bytesRead } = await handle.read(buffer, 0, Math.min(buffer.byteLength, file.bytes - start), start);
         const chunk = new Uint8Array(buffer.buffer, buffer.byteOffset, bytesRead);
-        const state = await this.drive.uploadChunk(session, { start, chunk, total: file.bytes }, options.signal);
+        const state = await this.sendChunk(session, { start, chunk, total: file.bytes }, options.signal, recoveries);
+        recoveries = state.recovered ? recoveries + 1 : 0;
         if (state.kind !== "incomplete") return state;
         // Google may keep less than was sent; the next chunk starts where Google says it stands.
         stalled = state.receivedBytes > start ? 0 : stalled + 1;
@@ -90,6 +94,24 @@ export class DriveResumableUpload {
       }
     } finally {
       await handle.close();
+    }
+  }
+
+  // Google may have stored the chunk even though its answer never arrived ("don't assume the server received all bytes",
+  // nor that it received none), so after a timeout or a dropped connection it is asked where the upload stands.
+  private async sendChunk(
+    session: string,
+    input: { start: number; chunk: Uint8Array<ArrayBuffer>; total: number },
+    signal: AbortSignal | undefined,
+    recoveries: number,
+  ): Promise<DriveUploadState & { recovered: boolean }> {
+    try {
+      return { ...(await this.drive.uploadChunk(session, input, signal)), recovered: false };
+    } catch (error) {
+      // A chunk is a write, so a timeout, a dropped connection or a 5xx all surface as UNKNOWN_OUTCOME.
+      const recoverable = error instanceof IntegrationError && error.kind === "UNKNOWN_OUTCOME";
+      if (!recoverable || signal?.aborted || recoveries >= MAX_CHUNK_RECOVERIES) throw error;
+      return { ...(await this.drive.queryUpload(session, input.total, signal)), recovered: true };
     }
   }
 
@@ -112,8 +134,18 @@ export class DriveResumableUpload {
       );
       return { kind: "session", session };
     } catch (error) {
+      const status = googleStatusOf(error);
+      // The render's folder was removed in Drive after it was prepared; the file cannot go there.
+      if (status === 404) {
+        throw new IntegrationError(
+          "ARCHIVE_FOLDER_MISSING",
+          "Thư mục lưu bản render trên Google Drive không còn; cần chuẩn bị lại thư mục rồi upload.",
+          "REJECTED",
+          { cause: error },
+        );
+      }
       // An earlier attempt already finished this file (its answer was lost): Drive refuses the same ID a second time.
-      if (googleStatusOf(error) !== 409) throw error;
+      if (status !== 409) throw error;
       return { kind: "complete", size: await this.drive.getFileSize(fileId, signal) };
     }
   }

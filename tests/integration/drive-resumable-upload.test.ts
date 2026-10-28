@@ -205,14 +205,18 @@ describe("DriveResumableUpload", () => {
   });
 
   it("keeps the session URI out of errors", async () => {
-    google.failNext("uploadChunk", { kind: "status", status: 500 });
+    google.failNext("uploadChunk", {
+      kind: "status",
+      status: 400,
+      body: { error: { errors: [{ reason: "badRequest" }] } },
+    });
     let token = "";
 
     const error = await uploader()
       .upload(request(), { onCheckpoint: (checkpoint) => void (token = checkpoint.token) })
       .catch((caught: unknown) => caught);
 
-    expect(error).toMatchObject({ kind: "UNKNOWN_OUTCOME" });
+    expect(error).toMatchObject({ kind: "REJECTED" });
     expect(token).toContain("upload_id=");
     expect(JSON.stringify(error)).not.toContain("upload_id");
     expect((error as Error).message).not.toContain("upload_id");
