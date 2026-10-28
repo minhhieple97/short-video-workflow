@@ -72,10 +72,11 @@ model Book {
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
 
-  chapters    Chapter[]
-  lessons     Lesson[]
-  videos      Video[]
-  extractions BookExtraction[]
+  chapters          Chapter[]
+  lessons           Lesson[]
+  videos            Video[]
+  extractions       BookExtraction[]
+  productionBatches ProductionBatch[]
 
   @@index([status])
   @@index([createdAt])
@@ -125,8 +126,9 @@ model Lesson {
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
 
-  sources      LessonSource[]
-  videoLessons VideoLesson[]
+  sources         LessonSource[]
+  videoLessons    VideoLesson[]
+  productionItems ProductionItem[]
 
   @@index([bookId])
   @@index([status])
@@ -173,10 +175,11 @@ model Video {
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
 
-  videoLessons VideoLesson[]
-  scenes       VideoScene[]
-  renders      RenderRecord[]
-  mediaAssets  MediaAsset[]
+  videoLessons   VideoLesson[]
+  scenes         VideoScene[]
+  renders        RenderRecord[]
+  mediaAssets    MediaAsset[]
+  productionItem ProductionItem?
 
   @@index([bookId])
   @@index([status])
@@ -424,5 +427,56 @@ model OcrOperation {
   cleanedAt            DateTime?
 
   @@index([extractionId])
+  @@index([status])
+}
+
+// A request to produce videos from lessons the user selected in one book. One item is one lesson and one video.
+model ProductionBatch {
+  id                String    @id @default(cuid())
+  bookId            String
+  book              Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  // Supplied by the caller; a repeated request with the same key returns this batch instead of making another.
+  idempotencyKey    String    @unique
+  // Hash of what was asked for (book, lessons, preset), to notice the same key being reused for different content.
+  fingerprint       String
+  targetDurationSec Int
+  // QUEUED | RUNNING | COMPLETED | PARTIAL | FAILED | CANCELLED (a read model derived from the items).
+  status            String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  completedAt       DateTime?
+
+  items ProductionItem[]
+
+  @@index([bookId])
+  @@index([status])
+}
+
+model ProductionItem {
+  id             String          @id @default(cuid())
+  batchId        String
+  batch          ProductionBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  // Restrict: a lesson cannot be hard-deleted while a production still points at it.
+  lessonId       String
+  lesson         Lesson          @relation(fields: [lessonId], references: [id], onDelete: Restrict)
+  position       Int
+  // The video made for this item; set when the item is created, so a retry reuses it instead of creating another.
+  videoId        String?         @unique
+  video          Video?          @relation(fields: [videoId], references: [id], onDelete: SetNull)
+  // PENDING | RUNNING | WAITING | COMPLETED | FAILED | CANCELLED
+  status         String
+  // The last step finished, so a restart skips what is done: NONE | DRAFTED | COMPILED | APPLIED | VOICED | READY | RENDERED
+  checkpoint     String          @default("NONE")
+  // Lease so that only one worker advances an item at a time; an expired lease can be taken over.
+  claimToken     String?
+  claimExpiresAt DateTime?
+  errorCode      String?
+  errorMessage   String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  completedAt    DateTime?
+
+  @@unique([batchId, lessonId])
+  @@unique([batchId, position])
   @@index([status])
 }
