@@ -1,4 +1,4 @@
-import type { RenderRecord } from "@/generated/prisma/client";
+import type { Prisma, RenderRecord } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 
 export const ACTIVE_RENDER_STATUSES = ["QUEUED", "RENDERING"] as const;
@@ -12,8 +12,22 @@ export function createRenderRecord(data: {
   width: number;
   height: number;
   fps: number;
+  snapshotJson?: Prisma.InputJsonObject;
+  snapshotHash?: string;
 }): Promise<RenderRecord> {
   return prisma.renderRecord.create({ data: { ...data, status: "QUEUED" } });
+}
+
+// Only for a render queued before snapshots existed: a snapshot, once stored, is never replaced.
+export async function saveRenderSnapshotIfMissing(
+  id: string,
+  snapshot: Prisma.InputJsonObject,
+  snapshotHash: string,
+): Promise<void> {
+  await prisma.renderRecord.updateMany({
+    where: { id, snapshotHash: null },
+    data: { snapshotJson: snapshot, snapshotHash },
+  });
 }
 
 export function attachRenderJob(id: string, jobRecordId: string): Promise<RenderRecord> {

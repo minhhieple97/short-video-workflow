@@ -1,0 +1,109 @@
+import { createHash } from "node:crypto";
+
+import { z } from "zod";
+
+import { stableStringify } from "@/shared/stable-json";
+
+import { RENDER_TEMPLATE_VERSION, SHORT_VIDEO_COMPOSITION_ID, type CompositionSource } from "./composition-props";
+import type { PreflightInput } from "./preflight";
+import { HOOK_VARIANTS, SCENE_TYPES, VISUAL_VARIANTS } from "./scene-types";
+
+export const RENDER_SNAPSHOT_VERSION = "render-snapshot-v1";
+
+// Everything a render is made from, captured when the render is requested. A render reads this and never the live video,
+// so an edit made while it waits or runs cannot be mixed into it, and the record of what was rendered stays true.
+export const renderSnapshotSchema = z.object({
+  schemaVersion: z.literal(RENDER_SNAPSHOT_VERSION),
+  templateVersion: z.string().min(1),
+  compositionId: z.string().min(1),
+  capturedAt: z.iso.datetime(),
+  video: z.object({
+    id: z.string(),
+    title: z.string(),
+    bookTitle: z.string(),
+    targetDurationSec: z.number().int().positive(),
+    scriptVersion: z.number().int().positive(),
+    // What the script gate saw when the render was requested, so the preflight is judged on the same facts later.
+    status: z.string(),
+    autoReady: z.boolean(),
+  }),
+  render: z.object({
+    quality: z.enum(["DRAFT", "FINAL"]),
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
+    fps: z.number().int().positive(),
+  }),
+  scenes: z.array(
+    z.object({
+      id: z.string(),
+      order: z.number().int().nonnegative(),
+      type: z.enum(SCENE_TYPES),
+      title: z.string().nullable(),
+      narration: z.string(),
+      onScreenText: z.string(),
+      visualVariant: z.enum(VISUAL_VARIANTS),
+      hookVariant: z.enum(HOOK_VARIANTS).nullable(),
+      durationFrames: z.number().int().nonnegative(),
+      hidden: z.boolean(),
+      audioAssetId: z.string().nullable(),
+    }),
+  ),
+  // The audio files the scenes use, by the path they were stored under (named by content, so the bytes cannot change).
+  audio: z.array(
+    z.object({
+      assetId: z.string(),
+      path: z.string(),
+      mimeType: z.string(),
+      contentHash: z.string().nullable(),
+      durationMs: z.number().int().nullable(),
+      leadingSilenceMs: z.number().int().nonnegative(),
+      provider: z.string().nullable(),
+    }),
+  ),
+  lessons: z.array(
+    z.object({
+      lessonId: z.string(),
+      title: z.string(),
+      sources: z.array(z.object({ chapterId: z.string(), chapterTitle: z.string(), excerpt: z.string().nullable() })),
+    }),
+  ),
+});
+
+export type RenderSnapshot = z.infer<typeof renderSnapshotSchema>;
+
+export function fingerprintRenderSnapshot(snapshot: RenderSnapshot): string {
+  return createHash("sha256").update(stableStringify(snapshot)).digest("hex");
+}
+
+export function currentSnapshotIdentity(): Pick<RenderSnapshot, "schemaVersion" | "templateVersion" | "compositionId"> {
+  return {
+    schemaVersion: RENDER_SNAPSHOT_VERSION,
+    templateVersion: RENDER_TEMPLATE_VERSION,
+    compositionId: SHORT_VIDEO_COMPOSITION_ID,
+  };
+}
+
+export function toCompositionSource(snapshot: RenderSnapshot): CompositionSource {
+  const scenes = [...snapshot.scenes].sort((left, right) => left.order - right.order);
+  return { title: snapshot.video.title, book: { title: snapshot.video.bookTitle }, scenes };
+}
+
+export function toPreflightInput(snapshot: RenderSnapshot): PreflightInput {
+  const silenceByAsset = new Map(snapshot.audio.map((audio) => [audio.assetId, audio.leadingSilenceMs]));
+  return {
+    status: snapshot.video.status,
+    autoReady: snapshot.video.autoReady,
+    targetDurationSec: snapshot.video.targetDurationSec,
+    scenes: [...snapshot.scenes]
+      .sort((left, right) => left.order - right.order)
+      .map((scene) => ({
+        type: scene.type,
+        onScreenText: scene.onScreenText,
+        narration: scene.narration,
+        durationFrames: scene.durationFrames,
+        hidden: scene.hidden,
+        audioAssetId: scene.audioAssetId,
+        audio: scene.audioAssetId ? { leadingSilenceMs: silenceByAsset.get(scene.audioAssetId) ?? 0 } : null,
+      })),
+  };
+}

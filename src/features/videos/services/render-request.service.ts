@@ -12,15 +12,16 @@ import {
   failRenderRecord,
   findActiveRender,
 } from "../repositories/render.repository";
-import { dimensionsFor, preflightFor } from "./render.service";
-import { assertScriptNotGenerating, getVideo } from "./video.service";
+import { preflightFor } from "./render.service";
+import { captureRenderSnapshot } from "./render-snapshot.service";
+import { assertScriptNotGenerating } from "./video.service";
 
 export async function requestRender(
   videoId: string,
   quality: RenderQuality,
 ): Promise<{ renderId: string; jobId: string }> {
   await assertScriptNotGenerating(videoId);
-  const video = await getVideo(videoId);
+  const { snapshot, hash, video } = await captureRenderSnapshot(videoId, quality);
   const report = preflightFor(video, quality);
   if (report.blocking.length > 0) {
     throw new AppError("PREFLIGHT_FAILED", `Chưa thể render: ${report.blocking[0]?.message ?? ""}`, 409, {
@@ -32,14 +33,18 @@ export async function requestRender(
   if (active?.jobRecordId) return { renderId: active.id, jobId: active.jobRecordId };
 
   const renderId = randomUUID();
-  const dims = dimensionsFor(quality);
+  const { width, height, fps } = snapshot.render;
   await createRenderRecord({
     id: renderId,
     videoId,
-    scriptVersion: video.scriptVersion,
+    scriptVersion: snapshot.video.scriptVersion,
     outputPath: `videos/${videoId}/renders/${renderId}-${quality.toLowerCase()}.mp4`,
     qualityPreset: quality,
-    ...dims,
+    width,
+    height,
+    fps,
+    snapshotJson: snapshot,
+    snapshotHash: hash,
   });
 
   try {

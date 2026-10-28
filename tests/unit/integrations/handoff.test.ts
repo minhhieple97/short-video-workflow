@@ -10,8 +10,8 @@ import {
   scenePlanTaskInputSchema,
   SCENE_PLAN_SCHEMA_VERSION,
   scriptDraftArtifactSchema,
-  stableStringify,
 } from "@/server/scene-plan/handoff";
+import { stableStringify } from "@/shared/stable-json";
 import type { ScenePlan } from "@/server/scene-plan/scene-plan-compiler";
 import type { ScriptDraft } from "@/server/script-studio/script-studio-contracts";
 

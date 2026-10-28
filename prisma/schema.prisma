@@ -276,6 +276,9 @@ model RenderRecord {
   createdAt     DateTime            @default(now())
   completedAt   DateTime?
   errorMessage  String?
+  // What this render was made from, captured when it was requested and never changed afterwards (a RenderSnapshot).
+  snapshotJson  Json?
+  snapshotHash  String?
 
   @@index([videoId])
   @@index([status])

@@ -40,6 +40,29 @@ export default defineConfig([
     rules: { "no-restricted-imports": ["error", { patterns: SERVER_ONLY_IMPORTS }] },
   },
   {
+    // A render is made from the snapshot captured when it was requested. Reaching for the live video here would let an
+    // edit made meanwhile leak into it, so these modules are off limits to the runner.
+    files: ["src/features/videos/services/render-runner.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "./video.service",
+                "./video-mapper",
+                "../repositories/video.repository",
+                "./script-editing.service",
+              ],
+              message: "The render runner reads its RenderSnapshot, never the live video.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ["src/remotion/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [

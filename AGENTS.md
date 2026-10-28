@@ -302,6 +302,7 @@ M7 task (D02/D08) lands and updates this file; the hook limit is already 4 s / 1
 - DO run Claude only through `askClaude()` (used by `pnpm ai:run` and, when `AI_MODE=cli-auto`, by the worker) with no built-in tools, `--strict-mcp-config` (no MCP servers from the user's config) and a sanitized env; DON'T spawn `claude` from the web, from route handlers, or in parallel, and DON'T make `cli-auto` the default.
 - DO keep `@remotion/bundler` / `@remotion/renderer` in worker-only modules (`server/render/*`, `*-runner.ts`); DON'T import them from anything a route or page imports.
 - DO build composition props only through `toCompositionProps()` so the Player and the render stay identical; DON'T render editor guides (safe zones) inside the composition.
+- DO make a render from its `RenderSnapshot` (captured at request time); DON'T read the live video in `render-runner.ts` (ESLint enforces it) and DON'T change a stored snapshot. Bump `RENDER_TEMPLATE_VERSION` when a Remotion change alters what the same props look like.
 - DO state honestly what is unfinished or unverified; DON'T leave fake buttons or fake queue updates.
 
 <!-- BEGIN:nextjs-agent-rules -->

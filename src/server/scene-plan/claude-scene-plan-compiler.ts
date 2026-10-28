@@ -6,8 +6,9 @@ import { buildScenePlanPrompt, SCENE_PLAN_PROMPT_VERSION } from "@/server/ai/pro
 import type { CallOptions } from "@/server/integrations/call-options";
 import { IntegrationError, type IntegrationFailureKind } from "@/server/integrations/integration-error";
 import { AppError } from "@/shared/errors";
+import { stableStringify } from "@/shared/stable-json";
 
-import { scenePlanTaskInputSchema, stableStringify } from "./handoff";
+import { scenePlanTaskInputSchema } from "./handoff";
 import { scenePlanSchema, type ScenePlan, type ScenePlanCompiler, type ScenePlanRequest } from "./scene-plan-compiler";
 import { findUnsupportedClaims, hasUnsupportedClaims } from "./source-guard";
 
