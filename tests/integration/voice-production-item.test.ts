@@ -123,7 +123,9 @@ afterAll(async () => {
   env.cleanup();
 });
 
-describe("voiceProductionItem with the real voice-over path", () => {
+// Each test spawns ffmpeg and the fake edge-tts for every scene (about 2.5 s alone), so it needs headroom when the whole
+// suite runs in parallel.
+describe("voiceProductionItem with the real voice-over path", { timeout: 20_000 }, () => {
   it("gives every scene its audio, one call per scene, then moves the item to VOICED", async () => {
     const outcome = await voice.voiceProductionItem({ itemId, claimToken: TOKEN });
 
