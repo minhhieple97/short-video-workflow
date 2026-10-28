@@ -22,7 +22,7 @@ export default async function ProductionPage({ params }: Readonly<{ params: Prom
 
   return (
     <section className="flex flex-col gap-6">
-      <JobsAutoRefresh active={production.inProgress} />
+      <JobsAutoRefresh active={production.inProgress || production.archiving} />
       <Breadcrumbs
         items={[
           { label: "Sản xuất", href: "/productions" },

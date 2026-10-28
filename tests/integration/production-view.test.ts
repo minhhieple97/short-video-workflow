@@ -111,12 +111,15 @@ describe("getProductionView", () => {
       data: { renderId, provider: "google-drive", destinationKey: "p1", status: "RUNNING", remoteFolderId: "folder-1" },
     });
     expect((await viewItem())?.archive).toEqual({ status: "RUNNING", folderUrl: null });
+    // The video is done but its archive is not: the page keeps following it.
+    expect(await view.getProductionView(batchId)).toMatchObject({ inProgress: false, archiving: true });
 
     await db.prisma.renderArchive.update({ where: { id: archive.id }, data: { status: "COMPLETED" } });
     expect((await viewItem())?.archive).toEqual({
       status: "COMPLETED",
       folderUrl: "https://drive.google.com/drive/folders/folder-1",
     });
+    expect(await view.getProductionView(batchId)).toMatchObject({ archiving: false });
   });
 
   it("reports an unknown production as not found", async () => {

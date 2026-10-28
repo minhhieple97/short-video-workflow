@@ -6,7 +6,7 @@ import {
 import { DriveCapacityGuard } from "@/server/archive/google-drive/drive-capacity";
 import { DriveRequestMeter } from "@/server/archive/google-drive/drive-request-meter";
 import { GoogleDriveClient } from "@/server/archive/google-drive/google-drive-client";
-import { GOOGLE_ENDPOINTS, type GoogleEndpoints } from "@/server/archive/google-drive/google-http";
+import { googleEndpoints, type GoogleEndpoints } from "@/server/archive/google-drive/google-http";
 import { GoogleOAuthClient } from "@/server/archive/google-drive/google-oauth-client";
 import { IntegrationError } from "@/server/integrations/integration-error";
 import { getAppConfig, type AppConfig } from "@/shared/config/env";
@@ -41,7 +41,7 @@ export function createDriveArchiveProvider(
       "AUTH",
     );
   }
-  const endpoints = options.endpoints ?? GOOGLE_ENDPOINTS;
+  const endpoints = options.endpoints ?? googleEndpoints(drive.apiBaseUrl);
   const token = new DriveAccessToken({
     oauth: new GoogleOAuthClient({ clientId: drive.clientId, clientSecret: drive.clientSecret, endpoints }),
   });

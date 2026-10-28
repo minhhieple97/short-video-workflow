@@ -7,5 +7,6 @@ export const OFFLINE_INTEGRATIONS_ENV: Record<string, string> = {
   MISTRAL_API_BASE_URL: "http://127.0.0.1:9",
   GOOGLE_OAUTH_CLIENT_ID: "",
   GOOGLE_OAUTH_CLIENT_SECRET: "",
+  GOOGLE_API_BASE_URL: "",
   NOTEBOOKLM_PROFILE: "",
 };

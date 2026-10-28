@@ -18,8 +18,8 @@ Hard constraints (do not relax without an explicit user decision):
 - **Outbound integrations are limited to the ones the project owner approved for v1.2** (requirements §23, status in §14 below): Mistral OCR
   Batch (the user's own key), NotebookLM through an MCP stdio subprocess of the worker, and Google Drive through OAuth `drive.file` for archiving
   rendered videos. Each lives behind its own port in `src/server/` (`OcrProvider`, `ScriptStudioProvider`, `ScenePlanCompiler`,
-  `VideoArchiveProvider`); do not add other cloud services, and do not route them through `AiProvider`. They are **planned, not implemented**,
-  until §14 says otherwise.
+  `VideoArchiveProvider`); do not add other cloud services, and do not route them through `AiProvider`. They are implemented and tested
+  against local fakes only; running them with real accounts (G07/G08 in `plan.md`) is still to do. Tests never reach them (`tests/helpers/offline-env.ts`).
 - **Short-form only:** 9:16, final 1080×1920 / draft 720×1280, 30 FPS, H.264 + AAC, ≤ 90 s (default 60 s). No 16:9, no long videos.
 - **Vietnamese (vi-VN)** for UI copy, scripts, narration, on-screen text and captions. Code, identifiers, file names: English.
 - **Localhost only** (`127.0.0.1`). No auth, no multi-user, no public exposure.
@@ -145,7 +145,7 @@ src/
 prisma/                schema.prisma, migrations/ (committed), seed.ts
 scripts/               CLI entrypoints: run-claude-task.ts, diagnose.ts
 tests/                 unit/ + integration/ (Vitest), e2e/ (Playwright smoke + isolated stack), helpers/
-docs/                  architecture.md (processes, data model, job lifecycle, pipelines, design decisions)
+docs/                  architecture.md (processes, data model, job lifecycle, pipelines, design decisions), runbook.md (v1.2 operations)
 data/                  Runtime data (gitignored): studio.db, books/, ai-tasks/, videos/, diagnostics/
 ```
 
@@ -236,7 +236,9 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - Never add `@anthropic-ai/sdk`, never create `ANTHROPIC_API_KEY`, never read/copy/log Claude tokens, cookies or credentials.
 - Run subprocesses with `spawn`/`execFile` and an argument array — **never** build shell strings from input, never use `exec` with interpolation.
 - Never use `--dangerously-skip-permissions`. When the model only needs to emit JSON, do not grant file-write/shell tools.
-- Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v2`, `scene-plan-v1`); changing a prompt's text means bumping its version. Book content is passed as quoted untrusted data.
+- Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v2`, `scene-plan-v1`, and for NotebookLM `notebooklm-chapter-detection-v1`,
+  `notebooklm-lesson-extraction-v1`, `notebooklm-script-draft-v1`); changing a prompt's text means bumping its version (the draft version also keys the
+  draft cache). Book content is passed as quoted untrusted data.
 - Validate model output with Zod; on schema failure mark the job `FAILED` and store nothing. No unbounded retries (respect quota errors). Timeouts + best-effort cancel.
 
 ## 10. Storage & security
@@ -263,9 +265,12 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 ## 12. Testing
 
 - Vitest for unit/integration (parsers, safe-path, schemas, services, processors). `server-only` is aliased to a stub in `vitest.config.ts`.
-- Playwright E2E (`tests/e2e/smoke.spec.ts`) walks the E2E-01 flow on an isolated stack started by `tests/e2e/start-stack.ts`:
-  temp DB + `DATA_DIR`, Redis logical DB 14 (flushed on every run), worker, `next start` on port 3100, `AI_MODE=mock`, `TTS_MODE=upload`.
-  It reuses Remotion's headless Chromium (no `playwright install`). Keep it one end-to-end path; put edge cases in integration tests.
+- Playwright E2E runs two paths on an isolated stack started by `tests/e2e/start-stack.ts`: `smoke.spec.ts` (E2E-01, the manual v1.1
+  flow) and `pdf-production.spec.ts` (E2E-02: PDF → chapters → catalogue → chosen lesson → batch production → Drive, no approval;
+  skipped without Poppler, run it with `TEST_POPPLER_BIN_DIR` when Poppler is not on PATH). The stack: temp DB + `DATA_DIR`, Redis logical
+  DB 14 (flushed on every run), worker, `next start` on port 3100, `OFFLINE_INTEGRATIONS_ENV` (`AI_MODE=mock`, no real credentials), a fake
+  Google (token + Drive) in the start-stack process with Drive pre-connected, and a fake edge-tts that writes real MP3s. It reuses
+  Remotion's headless Chromium (no `playwright install`). Keep each spec one end-to-end path; put edge cases in integration tests.
 - Tests must assert real behavior — no `expect(true)` placeholders. Prefer real SQLite (temp file) and real BullMQ/Redis over mocks for queue code.
 - Add tests with the code: parsers (Unicode, BOM, ambiguous headings), path guards, Zod schemas, duration/preflight rules.
 - Run the quality gate (§2) before declaring done; report what passed, what failed, and what was not run.
@@ -279,20 +284,21 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 
 ## 14. Milestone status
 
-| Milestone | Scope                                                          | Status                                |
-| --------- | -------------------------------------------------------------- | ------------------------------------- |
-| M0        | Scaffold & toolchain, schema, Redis/BullMQ/worker, diagnostics | done (gate verified; see `README.md`) |
-| M1        | Book import, parser, chapter management                        | done (gate verified)                  |
-| M2        | Lessons + mock AI pipeline                                     | done (gate verified)                  |
-| M3        | Video builder / script editor                                  | done (gate verified)                  |
-| M4        | Remotion preview + local render                                | done (gate verified)                  |
-| M5        | Voiceover, real CLI task flow, Jobs dashboard                  | done (gate verified)                  |
-| M6        | Hardening, E2E, docs                                           | done (gate verified, E2E passing)     |
-| M7        | PDF/OCR → NotebookLM → Claude → Remotion → Drive (`plan.md`)   | in progress — see `plan.md` §5 log    |
+| Milestone | Scope                                                          | Status                                                                         |
+| --------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| M0        | Scaffold & toolchain, schema, Redis/BullMQ/worker, diagnostics | done (gate verified; see `README.md`)                                          |
+| M1        | Book import, parser, chapter management                        | done (gate verified)                                                           |
+| M2        | Lessons + mock AI pipeline                                     | done (gate verified)                                                           |
+| M3        | Video builder / script editor                                  | done (gate verified)                                                           |
+| M4        | Remotion preview + local render                                | done (gate verified)                                                           |
+| M5        | Voiceover, real CLI task flow, Jobs dashboard                  | done (gate verified)                                                           |
+| M6        | Hardening, E2E, docs                                           | done (gate verified, E2E passing)                                              |
+| M7        | PDF/OCR → NotebookLM → Claude → Remotion → Drive (`plan.md`)   | code complete (A–G06, E2E-02 passing); real-account acceptance G07/G08 pending |
 
 M7 is delivered task by task on branch `feat/book-ocr-notebooklm-drive`; `plan.md` §5 is the source of truth for which tasks are done, and the
-requirements §23.7 table lists which capabilities are real. The v1.1 behavior described elsewhere in this file (the approved-lesson gate) stays in force until the matching
-M7 task (D02/D08) lands and updates this file; the hook limit is already 4 s / 120 frames for every flow (D03).
+requirements §23.7 table lists which capabilities are real. The approved-lesson gate described elsewhere in this file applies to the manual
+(v1.1) flow only; batch production selects lessons without approving them and relies on automatic readiness (D02/D08). The hook limit is
+4 s / 120 frames for every flow (D03).
 
 ## 15. Visual language ("Studio Ink")
 

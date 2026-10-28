@@ -16,7 +16,9 @@ export const E2E_ENV: Record<string, string> = {
   DATABASE_URL: `file:${path.join(E2E_DATA_DIR, "e2e.db")}`,
   DATA_DIR: E2E_DATA_DIR,
   REDIS_URL: "redis://127.0.0.1:6379/14",
-  TTS_MODE: "upload",
+  // Batch production voices scenes with edge-tts; start-stack points it at a fake that writes real MP3s. Uploading audio
+  // (the manual flow of E2E-01) works in every mode.
+  TTS_MODE: "edge-tts",
 };
 
 export function findRemotionChromium(): string | undefined {

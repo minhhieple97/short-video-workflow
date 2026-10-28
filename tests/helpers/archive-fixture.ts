@@ -22,6 +22,7 @@ export const CONNECTED_CREDENTIAL: DriveCredential = {
 };
 
 export const TEST_DRIVE_CONFIG = {
+  apiBaseUrl: undefined,
   clientId: "client-1.apps.googleusercontent.com",
   clientSecret: "secret",
   minRequestIntervalMs: 0,

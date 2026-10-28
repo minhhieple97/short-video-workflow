@@ -14,6 +14,17 @@ export const GOOGLE_ENDPOINTS: GoogleEndpoints = {
   driveUploadUrl: "https://www.googleapis.com/upload/drive/v3",
 };
 
+// Google itself, or a local fake of it serving the same paths under one base URL (tests only).
+export function googleEndpoints(apiBaseUrl: string | undefined): GoogleEndpoints {
+  if (!apiBaseUrl) return GOOGLE_ENDPOINTS;
+  return {
+    tokenUrl: `${apiBaseUrl}/token`,
+    revokeUrl: `${apiBaseUrl}/revoke`,
+    driveApiUrl: `${apiBaseUrl}/drive/v3`,
+    driveUploadUrl: `${apiBaseUrl}/upload/drive/v3`,
+  };
+}
+
 export const GOOGLE_READ_TIMEOUT_MS = 30_000;
 
 export interface GoogleRequest<TResult> {

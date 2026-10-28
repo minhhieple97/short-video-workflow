@@ -52,6 +52,8 @@ const envSchema = z
     MISTRAL_OCR_USD_PER_1000_PAGES: z.coerce.number().positive().max(1000).default(2),
     GOOGLE_OAUTH_CLIENT_ID: optionalSecret,
     GOOGLE_OAUTH_CLIENT_SECRET: optionalSecret,
+    // Only to point the app at a local fake of Google's token and Drive APIs in tests; unset means Google itself.
+    GOOGLE_API_BASE_URL: z.preprocess((value) => (value === "" ? undefined : value), z.url().optional()),
     NOTEBOOKLM_MCP_COMMAND: z.string().min(1).default("uvx"),
     // Pinned: the server talks to NotebookLM's undocumented API, so an unreviewed upgrade could change its behaviour.
     NOTEBOOKLM_MCP_PACKAGE: z.string().min(1).default("notebooklm-mcp-cli==0.15.8"),
@@ -120,6 +122,7 @@ export interface AppConfig {
   drive: {
     clientId: string | undefined;
     clientSecret: string | undefined;
+    apiBaseUrl: string | undefined;
     minRequestIntervalMs: number;
     maxRequestsPerDay: number;
     maxUploadBytesPerDay: number;
@@ -194,6 +197,7 @@ export function parseAppConfig(source: Record<string, string | undefined>): AppC
     drive: {
       clientId: env.GOOGLE_OAUTH_CLIENT_ID,
       clientSecret: env.GOOGLE_OAUTH_CLIENT_SECRET,
+      apiBaseUrl: env.GOOGLE_API_BASE_URL?.replace(/\/+$/, ""),
       minRequestIntervalMs: env.DRIVE_MIN_REQUEST_INTERVAL_MS,
       maxRequestsPerDay: env.DRIVE_MAX_REQUESTS_PER_DAY,
       maxUploadBytesPerDay: Math.round(env.DRIVE_MAX_UPLOAD_GIB_PER_DAY * 1024 ** 3),

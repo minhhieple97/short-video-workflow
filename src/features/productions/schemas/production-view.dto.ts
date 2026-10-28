@@ -25,6 +25,8 @@ export interface ProductionViewDto {
   createdAt: string;
   completedAt: string | null;
   inProgress: boolean;
+  // A finished video whose Drive archive is still on its way; the page keeps following it.
+  archiving: boolean;
   counts: Record<ItemStatus, number>;
   items: ProductionItemViewDto[];
 }

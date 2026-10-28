@@ -1,6 +1,6 @@
 import "server-only";
 
-import { archiveFolderUrl } from "@/features/archive/domain/archive-labels";
+import { archiveFolderUrl, toArchiveStatus } from "@/features/archive/domain/archive-labels";
 import { NotFoundError } from "@/shared/errors";
 
 import { CORRECTION_LABELS } from "../domain/production-labels";
@@ -27,6 +27,8 @@ function reasonFor(item: ItemRecord, status: ItemStatus, renderStatus: string | 
 }
 
 // The progress of one production, read from the database only: the page never asks a worker or a remote service.
+const ARCHIVING = new Set(["PENDING", "RUNNING", "WAITING"]);
+
 export async function getProductionView(productionId: string): Promise<ProductionViewDto> {
   const view = await findProductionView(productionId);
   if (!view) throw new NotFoundError("PRODUCTION_NOT_FOUND", "Không tìm thấy đợt sản xuất.");
@@ -66,6 +68,7 @@ export async function getProductionView(productionId: string): Promise<Productio
     createdAt: batch.createdAt.toISOString(),
     completedAt: batch.completedAt?.toISOString() ?? null,
     inProgress: items.some((item) => !isTerminalItemStatus(item.status)),
+    archiving: items.some((item) => item.archive !== null && ARCHIVING.has(toArchiveStatus(item.archive.status))),
     counts,
     items,
   };

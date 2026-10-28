@@ -1,0 +1,120 @@
+import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+
+import { expect, test, type Page } from "@playwright/test";
+
+import { buildPdf } from "../helpers/pdf-fixtures";
+import { popplerTestConfig } from "../helpers/poppler";
+import { E2E_DATA_DIR } from "./stack";
+
+// E2E-02, the v1.2 path a user sees: a PDF book becomes chapters and a lesson catalogue, the user picks a lesson without
+// approving anything, and batch production makes a vertical video that ends up archived in (a fake) Google Drive.
+test.skip(!popplerTestConfig(), "needs poppler-utils (or TEST_POPPLER_BIN_DIR)");
+
+const BODY = [
+  "Small habits make a big difference over a long time.",
+  "Every action you take is a vote for the person you become.",
+  "Make it obvious, make it attractive, make it easy to start.",
+];
+
+async function open(page: Page, url: string): Promise<void> {
+  await page.goto(url);
+  await page.waitForLoadState("networkidle");
+}
+
+function mp4Files(): string[] {
+  const found: string[] = [];
+  const stack = [path.join(E2E_DATA_DIR, "videos")];
+  while (stack.length > 0) {
+    const directory = stack.pop() ?? "";
+    for (const entry of fs.existsSync(directory) ? fs.readdirSync(directory, { withFileTypes: true }) : []) {
+      const full = path.join(directory, entry.name);
+      if (entry.isDirectory()) stack.push(full);
+      else if (entry.name.endsWith(".mp4")) found.push(full);
+    }
+  }
+  return found;
+}
+
+test("E2E-02: PDF → catalogue → chosen lesson → vertical video archived to Drive, with no approval step", async ({
+  page,
+}, testInfo) => {
+  const pdfFile = testInfo.outputPath("sach-e2e.pdf");
+  fs.writeFileSync(
+    pdfFile,
+    buildPdf([{ lines: ["Chapter 1", ...BODY] }, { lines: BODY }, { lines: ["Chapter 2", ...BODY] }]),
+  );
+  const mp4Before = new Set(mp4Files());
+
+  await test.step("upload the PDF and wait for its chapters", async () => {
+    await open(page, "/books/import");
+    await page.getByRole("tab", { name: "Sách PDF" }).click();
+    await page.locator("#pdf-file").setInputFiles(pdfFile);
+    await page.locator("#pdf-title").fill("Sách PDF E2E");
+    await page.getByRole("button", { name: "Tải lên và trích xuất" }).click();
+    await page.waitForURL(/\/books\/[0-9a-f-]{36}$/);
+    await expect(page.getByText("Đã trích xuất", { exact: true })).toBeVisible({ timeout: 120_000 });
+    await page.reload();
+    await expect(page.getByRole("tab", { name: /Chương \(2\)/ })).toBeVisible();
+  });
+  const bookUrl = page.url();
+
+  await test.step("catalogue the chapters into lessons", async () => {
+    await page.getByRole("button", { name: "Phân tích tất cả chương" }).click();
+    await expect
+      .poll(
+        async () => {
+          await open(page, bookUrl);
+          return (await page.getByRole("tab", { name: /Bài học \(\d+\)/ }).textContent()) ?? "";
+        },
+        { timeout: 120_000, intervals: [2_000] },
+      )
+      .not.toContain("(0)");
+  });
+
+  await test.step("pick one lesson as it is (still a draft) and start production", async () => {
+    await open(page, `${bookUrl}/produce`);
+    await page.getByRole("checkbox").first().click();
+    await page.getByRole("button", { name: "Sản xuất 1 video" }).click();
+    await page.waitForURL(/\/productions\/[a-z0-9]+$/);
+  });
+
+  await test.step("the video is made and archived to Drive", async () => {
+    // The page refreshes itself while items run; a failed item stops the wait with its reason.
+    const badges = page.locator('[data-slot="badge"]');
+    await expect
+      .poll(
+        async () => {
+          const texts = await badges.allTextContents();
+          if (texts.includes("Lỗi")) throw new Error(`Production failed: ${await page.locator("main").innerText()}`);
+          return texts;
+        },
+        { timeout: 10 * 60_000, intervals: [3_000] },
+      )
+      .toEqual(expect.arrayContaining(["Hoàn tất", "Đã lưu Drive"]));
+    await expect(page.getByRole("link", { name: /Thư mục Drive/ })).toBeVisible();
+  });
+
+  await test.step("the render is a 9:16 H.264 + AAC MP4 and the lesson was never approved", async () => {
+    const created = mp4Files().filter((file) => !mp4Before.has(file));
+    expect(created).toHaveLength(1);
+    const probe = JSON.parse(
+      execFileSync("ffprobe", [
+        "-v",
+        "error",
+        "-show_entries",
+        "stream=codec_name,width,height",
+        "-of",
+        "json",
+        created[0] ?? "",
+      ]).toString(),
+    ) as { streams: { codec_name: string; width?: number; height?: number }[] };
+    expect(probe.streams.map((stream) => stream.codec_name).sort()).toEqual(["aac", "h264"]);
+    expect(probe.streams.find((stream) => stream.codec_name === "h264")).toMatchObject({ width: 1080, height: 1920 });
+
+    await open(page, `${bookUrl}?tab=lessons`);
+    await expect(page.getByText("Bản nháp").first()).toBeVisible();
+    await expect(page.getByText("Đã duyệt")).toHaveCount(0);
+  });
+});

@@ -6,7 +6,7 @@ import {
   writeDriveCredential,
 } from "@/server/archive/google-drive/drive-credential-store";
 import { GoogleDriveClient } from "@/server/archive/google-drive/google-drive-client";
-import { GOOGLE_ENDPOINTS, type GoogleEndpoints } from "@/server/archive/google-drive/google-http";
+import { googleEndpoints, type GoogleEndpoints } from "@/server/archive/google-drive/google-http";
 import { GoogleOAuthClient } from "@/server/archive/google-drive/google-oauth-client";
 import {
   buildAuthorizationUrl,
@@ -29,7 +29,8 @@ import type { DriveAuthorizationDto, DriveConnectionDto, DriveDisconnectDto } fr
 
 const logger = createLogger("drive.connection");
 
-type DriveOAuthConfig = Pick<AppConfig["drive"], "clientId" | "clientSecret">;
+type DriveOAuthConfig = Pick<AppConfig["drive"], "clientId" | "clientSecret"> &
+  Partial<Pick<AppConfig["drive"], "apiBaseUrl">>;
 export const DRIVE_PROVIDER = "google-drive";
 export const OAUTH_AUTHORIZATION_TTL_MS = 10 * 60_000;
 
@@ -104,7 +105,7 @@ export async function completeDriveConnection(
   options: { drive?: DriveOAuthConfig; endpoints?: GoogleEndpoints; now?: Date } = {},
 ): Promise<DriveConnectionDto> {
   const drive = options.drive ?? getAppConfig().drive;
-  const endpoints = options.endpoints ?? GOOGLE_ENDPOINTS;
+  const endpoints = options.endpoints ?? googleEndpoints(drive.apiBaseUrl);
   const now = options.now ?? new Date();
 
   if (!params.state) throw STATE_PROBLEMS.unknown();
@@ -173,7 +174,7 @@ export async function disconnectDrive(
     const oauth = new GoogleOAuthClient({
       clientId: drive.clientId,
       clientSecret: drive.clientSecret,
-      endpoints: options.endpoints ?? GOOGLE_ENDPOINTS,
+      endpoints: options.endpoints ?? googleEndpoints(drive.apiBaseUrl),
     });
     try {
       await oauth.revoke(credential.refreshToken);
