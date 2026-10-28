@@ -22,6 +22,10 @@ function isUniqueViolation(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
 }
 
+export function findRenderForArchive(renderId: string) {
+  return prisma.renderRecord.findUnique({ where: { id: renderId }, include: { video: { select: { bookId: true } } } });
+}
+
 export function findRenderArchive(id: string): Promise<RenderArchiveRecord | null> {
   return prisma.renderArchive.findUnique({ where: { id }, include: WITH_FILES });
 }

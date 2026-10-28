@@ -4,7 +4,7 @@ import { AppError } from "@/shared/errors";
 import {
   currentSnapshotIdentity,
   fingerprintRenderSnapshot,
-  renderSnapshotSchema,
+  readStoredRenderSnapshot,
   type RenderSnapshot,
 } from "../domain/render-snapshot";
 import type { RenderQuality } from "../domain/preflight";
@@ -105,11 +105,9 @@ export async function captureRenderSnapshot(
 // recaptured. A render queued before snapshots existed has none, so one is captured now from the live video and stored.
 export async function resolveRenderSnapshot(render: RenderRecord): Promise<RenderSnapshot> {
   if (render.snapshotJson !== null && render.snapshotHash !== null) {
-    const parsed = renderSnapshotSchema.safeParse(render.snapshotJson);
-    if (!parsed.success || fingerprintRenderSnapshot(parsed.data) !== render.snapshotHash) {
-      throw new AppError("RENDER_SNAPSHOT_CORRUPT", "Snapshot của bản render bị hỏng hoặc đã bị sửa.", 500);
-    }
-    return parsed.data;
+    const stored = readStoredRenderSnapshot(render.snapshotJson, render.snapshotHash);
+    if (!stored) throw new AppError("RENDER_SNAPSHOT_CORRUPT", "Snapshot của bản render bị hỏng hoặc đã bị sửa.", 500);
+    return stored;
   }
 
   const { snapshot, hash } = await captureRenderSnapshot(render.videoId, render.qualityPreset);

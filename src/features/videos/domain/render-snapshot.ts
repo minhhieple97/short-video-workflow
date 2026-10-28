@@ -75,6 +75,13 @@ export function fingerprintRenderSnapshot(snapshot: RenderSnapshot): string {
   return createHash("sha256").update(stableStringify(snapshot)).digest("hex");
 }
 
+// A stored snapshot is only trusted when its shape is valid and its hash still matches what was stored with it.
+export function readStoredRenderSnapshot(json: unknown, hash: string | null): RenderSnapshot | null {
+  if (json === null || hash === null) return null;
+  const parsed = renderSnapshotSchema.safeParse(json);
+  return parsed.success && fingerprintRenderSnapshot(parsed.data) === hash ? parsed.data : null;
+}
+
 export function currentSnapshotIdentity(): Pick<RenderSnapshot, "schemaVersion" | "templateVersion" | "compositionId"> {
   return {
     schemaVersion: RENDER_SNAPSHOT_VERSION,
