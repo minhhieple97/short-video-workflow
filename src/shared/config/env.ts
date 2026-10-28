@@ -40,6 +40,10 @@ const envSchema = z
 
     MAX_IMPORT_SIZE_MB: z.coerce.number().positive().max(100).default(10),
     MAX_PDF_SIZE_MB: z.coerce.number().positive().max(2048).default(500),
+    MAX_PDF_PAGES: positiveInt(1000),
+    // Empty: the Poppler tools are found on PATH (apt install poppler-utils).
+    POPPLER_BIN_DIR: z.preprocess((value) => (value === "" ? undefined : value), z.string().min(1).optional()),
+    PDF_TOOL_TIMEOUT_SEC: positiveInt(300),
     OCR_COST_CEILING_USD: z.coerce.number().positive().max(1000).default(3),
     MISTRAL_API_KEY: optionalSecret,
     MISTRAL_API_BASE_URL: z.url().default("https://api.mistral.ai"),
@@ -109,7 +113,7 @@ export interface AppConfig {
   dataDir: string;
   redisUrl: string;
   import: { maxSizeBytes: number; extraChapterPatterns: string[] };
-  pdf: { maxSizeBytes: number };
+  pdf: { maxSizeBytes: number; maxPages: number; popplerBinDir: string | undefined; toolTimeoutMs: number };
   ocr: { costCeilingMicroUsd: number };
   mistral: { apiKey: string | undefined; baseUrl: string; ocrModel: string; usdPer1000Pages: number };
   notebookLm: { command: string; packageSpec: string; profile: string | undefined; callTimeoutMs: number };
@@ -168,6 +172,9 @@ export function parseAppConfig(source: Record<string, string | undefined>): AppC
     },
     pdf: {
       maxSizeBytes: Math.round(env.MAX_PDF_SIZE_MB * 1024 * 1024),
+      maxPages: env.MAX_PDF_PAGES,
+      popplerBinDir: env.POPPLER_BIN_DIR,
+      toolTimeoutMs: env.PDF_TOOL_TIMEOUT_SEC * 1000,
     },
     ocr: {
       costCeilingMicroUsd: Math.round(env.OCR_COST_CEILING_USD * 1_000_000),
