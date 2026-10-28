@@ -68,7 +68,7 @@ Bản production: `pnpm build && pnpm start`, kèm `pnpm worker:start` ở termi
 4. Tab **Video** → **Tạo video**: chọn bài học đã duyệt và preset (mặc định 60 giây; 90 giây chỉ khi tích **Extended Short**).
 5. Trong video: **Tạo kịch bản** → tab **Hook** chọn phương án (HOOK luôn ở frame 0 và ≤ 3 giây) → tab **Kịch bản** chỉnh từng cảnh → **Duyệt kịch bản**. Sửa sau khi duyệt sẽ cần duyệt lại.
 6. Tab **Giọng đọc**: tạo bằng edge-tts hoặc tải âm thanh lên. Thanh thời lượng so tổng thời lượng với preset; nếu vượt, hãy rút gọn lời dẫn hoặc đổi preset — ứng dụng không tự cắt lời hay tăng tốc.
-7. Tab **Xem trước**: phát trong khung điện thoại, bật vùng an toàn, **Xem 3 giây đầu**.
+7. **Xem trước**: trên màn hình rộng (từ 1280 px) khung điện thoại luôn nằm bên phải trình biên tập và đứng yên khi cuộn, nên sửa cảnh nào xem được ngay cảnh đó; màn hình hẹp hơn có thêm tab **Xem trước**. Phát trong khung, bật vùng an toàn, **Xem 3 giây đầu**.
 8. **Render**: render nháp để duyệt nhanh, rồi render bản cuối và tải MP4 trong lịch sử render.
 
 ## AI: mock và Claude Code CLI
@@ -81,7 +81,7 @@ Bản production: `pnpm build && pnpm start`, kèm `pnpm worker:start` ở termi
 
 Luồng `cli-task`:
 
-1. Bấm **Phân tích** / **Tạo kịch bản** / **Viết lại cảnh này** → worker tạo `data/ai-tasks/{jobId}/` (`prompt.md` có version, `input.json`, `schema.json`) và tác vụ chuyển sang **Chờ Claude CLI** (không có tiến độ vì đang chờ bạn). Trang video hiện sẵn lệnh cần chạy và tự cập nhật sau khi bạn chạy lệnh. Trong lúc kịch bản đang được tạo, video bị khoá: cài đặt, hook, kịch bản, giọng đọc, duyệt, render và xoá đều tạm tắt (API cũng từ chối với mã `SCRIPT_GENERATION_IN_PROGRESS`); bấm **Huỷ tạo kịch bản** nếu muốn mở khoá.
+1. Bấm **Phân tích** / **Tạo kịch bản** / **Viết lại cảnh này** → worker tạo `data/ai-tasks/{jobId}/` (`prompt.md` có version, `input.json`, `schema.json`) và tác vụ chuyển sang **Chờ Claude CLI** (không có tiến độ vì đang chờ bạn). Trang video hiện sẵn lệnh cần chạy và tự cập nhật sau khi bạn chạy lệnh. Trong lúc kịch bản đang được tạo, hoặc một cảnh đang được viết lại, video bị khoá: cài đặt, hook, kịch bản, giọng đọc, duyệt, render và xoá đều tạm tắt (API cũng từ chối với mã `SCRIPT_GENERATION_IN_PROGRESS`); bấm **Huỷ tạo kịch bản** / **Huỷ viết lại cảnh** nếu muốn mở khoá.
 2. Trong terminal WSL đã đăng nhập Claude Code: `pnpm ai:run --list`, rồi `pnpm ai:run --job <jobId>` (thêm `--dry-run` để xem trước lệnh).
 3. Lệnh chạy `claude -p` **không bật tool nào**, không lưu phiên, kèm JSON Schema; prompt đi qua stdin; biến môi trường phiên Claude Code và mọi API key bị loại bỏ. Kết quả hợp lệ được lưu và tác vụ quay lại hàng đợi để worker ghi vào Studio.
 4. Hết hạn mức, chưa đăng nhập, quá `AI_TASK_TIMEOUT_SEC` hoặc sai schema → tác vụ **Lỗi** với mã rõ ràng (`AI_QUOTA_EXCEEDED`, `AI_CLI_AUTH`, `AI_CLI_TIMEOUT`…), không tự thử lại; đầu ra thô nằm ở `output.raw.txt`.
@@ -208,7 +208,7 @@ sudo service redis-server start
 
 ```
 src/app/         Trang và API route mỏng (Next.js App Router)
-src/components/  ui/ (shadcn đã chỉnh theme "Studio Ink") và layout/ (khung, thanh bên, tiêu đề trang…)
+src/components/  ui/ (shadcn đã chỉnh theme "Studio Ink") và layout/ (khung, thanh bên, nút Sáng/Tối/Theo hệ thống, tiêu đề trang…)
 src/features/    books, chapters, lessons, videos, jobs — mỗi phần có domain/, schemas/, services/, repositories/, components/
 src/server/      Hạ tầng phía server: db, queue, storage, ai, tts, media, render, diagnostics, http
 src/worker/      Tiến trình worker: main.ts, processors/, lifecycle/

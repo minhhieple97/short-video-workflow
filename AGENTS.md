@@ -86,7 +86,7 @@ src/
     api/               books, chapters, lessons, videos, scenes, renders, media, jobs, health, diagnostics
   components/
     ui/                shadcn/ui components, themed to the "Studio Ink" look (see §15); badge has tone variants for statuses
-    layout/            App shell + dark sidebar (polls /api/status), page header, breadcrumbs, URL tabs, empty state, stat tile
+    layout/            App shell + dark sidebar (polls /api/status), theme provider/toggle, page header, breadcrumbs, URL tabs, empty state, stat tile
   features/            Feature-first modules; layers created on first use:
                          domain/ (pure, framework-free rules — client-safe), schemas/ (Zod input + *.dto.ts types),
                          services/ (business logic), repositories/ (Prisma), components/ (React)
@@ -261,6 +261,11 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - Font is Be Vietnam Pro (bundled in `public/fonts`, weights 400–800, latin + vietnamese subsets); no network font loading.
 - Cards are white with `shadow-card` on the lavender page background; primary buttons carry `shadow-raised`; radii come from `--radius`.
 - Videos are shown as 9:16 poster cards (`VideoCard`) wherever they are browsed visually; tables stay for dense lists.
+- **Light, dark and system themes:** `next-themes` toggles the `dark` class on `<html>` (`ThemeProvider`, `ThemeToggle` in the sidebar, stored in
+  `localStorage["studio-theme"]`, default = system). Every color must come from a token that `.dark` redefines; check new UI in both themes.
+  Poster/progress colors that stand for the rendered video are intentionally fixed hexes. Shadows are `--elevation-*` variables so `.dark` can override them.
+- The video editor docks the phone preview beside the editor at ≥ 1280 px (`EditorWorkspace`; one Player mounted at a time). Keep `<main>` on
+  `overflow-x-clip`: `overflow-x-hidden` makes it a scroll container and breaks `position: sticky`.
 
 ## 16. Do / Don't quick list
 
