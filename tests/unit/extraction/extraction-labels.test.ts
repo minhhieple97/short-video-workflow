@@ -18,6 +18,7 @@ describe("extractionSteps", () => {
     ]);
     expect(states("OCR_PENDING")).toEqual(["read:done", "ocr:current", "assemble:todo", "chapters:todo"]);
     expect(states("ASSEMBLING")).toEqual(["read:done", "ocr:done", "assemble:current", "chapters:todo"]);
+    expect(states("DETECTING_CHAPTERS")).toEqual(["read:done", "ocr:done", "assemble:done", "chapters:current"]);
     expect(states("COMPLETED")).toEqual(["read:done", "ocr:done", "assemble:done", "chapters:done"]);
   });
 

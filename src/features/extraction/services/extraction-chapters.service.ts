@@ -18,59 +18,60 @@ import {
 
 const logger = createLogger("extraction.chapters");
 
-export type ExtractionChaptersOutcome =
-  { kind: "CREATED"; chapters: number } | { kind: "ALREADY_DONE" } | { kind: "UNDETECTED"; message: string };
+export type ExtractionChaptersOutcome = { kind: "CREATED"; chapters: number } | { kind: "ALREADY_DONE" };
 
 export const CHAPTERS_NOT_DETECTED_MESSAGE =
   "Đã có toàn bộ chữ của sách nhưng chưa nhận diện được ranh giới chương nên chưa tạo chương.";
 
+export interface ChapterRange {
+  title: string;
+  // [start, end) in the canonical document.
+  start: number;
+  end: number;
+}
+
 const sha256 = (text: string) => createHash("sha256").update(text, "utf8").digest("hex");
 
-// Splits the canonical document into chapters with the same local parser as Markdown imports. Only a structure the
-// parser actually found is used: when it finds no chapter boundary, the run stops at NEEDS_CHAPTERS instead of making
-// the whole book one chapter. Offsets are into the canonical document, which maps back to PDF pages.
-export async function createChaptersFromCanonical(input: {
+// The chapters the local parser (the same one Markdown imports use) finds in the canonical document. Empty when it finds
+// no chapter boundary: its whole-book fallback is never returned as a structure.
+export function parseChapterRanges(markdown: string, extraChapterPatterns?: readonly string[]): ChapterRange[] {
+  const structure = parseBookStructure(markdown, "md", {
+    extraPatterns: compileExtraPatterns(extraChapterPatterns ?? getAppConfig().import.extraChapterPatterns),
+  });
+  if (structure.method === "none") return [];
+  return structure.sections
+    .filter((section) => section.include && section.kind === "chapter")
+    .map(({ title, start, end }) => ({ title, start, end }));
+}
+
+// Writes one chapter file per range and creates the chapters while completing the run, in one transaction that moves the
+// run on from `from` first, so a replayed step finds it finished instead of creating the chapters twice. Offsets are into
+// the canonical document, which maps back to PDF pages.
+export async function createChaptersFromRanges(input: {
   extractionId: string;
   bookId: string;
   markdown: string;
-  extraChapterPatterns?: readonly string[];
+  ranges: readonly ChapterRange[];
+  from: "ASSEMBLING" | "DETECTING_CHAPTERS";
 }): Promise<ExtractionChaptersOutcome> {
   const { extractionId, bookId, markdown } = input;
-  const structure = parseBookStructure(markdown, "md", {
-    extraPatterns: compileExtraPatterns(input.extraChapterPatterns ?? getAppConfig().import.extraChapterPatterns),
-  });
-  const sections =
-    structure.method === "none"
-      ? []
-      : structure.sections.filter((section) => section.include && section.kind === "chapter");
-
   const chapters: { record: NewChapterRecord; content: string }[] = [];
-  for (const section of sections) {
-    const content = normalizeChapterContent(markdown.slice(section.start, section.end));
+  for (const range of input.ranges) {
+    const content = normalizeChapterContent(markdown.slice(range.start, range.end));
     if (content.length === 0) continue;
     const id = randomUUID();
     chapters.push({
       record: {
         id,
         order: chapters.length + 1,
-        title: section.title,
+        title: range.title,
         contentPath: chapterFilePath(bookId, id),
-        sourceStartOffset: section.start,
-        sourceEndOffset: section.end,
+        sourceStartOffset: range.start,
+        sourceEndOffset: range.end,
         contentHash: sha256(content),
       },
       content,
     });
-  }
-
-  if (chapters.length === 0) {
-    await moveExtractionStatus(extractionId, ["ASSEMBLING"], {
-      status: "NEEDS_CHAPTERS",
-      errorCode: "CHAPTERS_NOT_DETECTED",
-      errorMessage: CHAPTERS_NOT_DETECTED_MESSAGE,
-    });
-    logger.info("No chapter boundaries found", { extractionId, method: structure.method });
-    return { kind: "UNDETECTED", message: CHAPTERS_NOT_DETECTED_MESSAGE };
   }
 
   let result: FinishExtractionResult;
@@ -79,6 +80,7 @@ export async function createChaptersFromCanonical(input: {
     result = await completeExtractionWithChapters(
       extractionId,
       bookId,
+      input.from,
       chapters.map(({ record }) => record),
     );
   } catch (error) {
@@ -91,6 +93,25 @@ export async function createChaptersFromCanonical(input: {
   }
   logger.info("Chapters created from the extraction", { extractionId, bookId, chapters: chapters.length });
   return { kind: "CREATED", chapters: chapters.length };
+}
+
+// The local parser's chapters; when it finds none, the run moves on to chapter detection instead of making the whole
+// book one chapter.
+export async function createChaptersFromCanonical(input: {
+  extractionId: string;
+  bookId: string;
+  markdown: string;
+  extraChapterPatterns?: readonly string[];
+}): Promise<ExtractionChaptersOutcome | { kind: "UNDETECTED" }> {
+  const ranges = parseChapterRanges(input.markdown, input.extraChapterPatterns).filter(
+    (range) => normalizeChapterContent(input.markdown.slice(range.start, range.end)).length > 0,
+  );
+  if (ranges.length === 0) {
+    await moveExtractionStatus(input.extractionId, ["ASSEMBLING"], { status: "DETECTING_CHAPTERS" });
+    logger.info("No chapter boundaries found by the local parser", { extractionId: input.extractionId });
+    return { kind: "UNDETECTED" };
+  }
+  return createChaptersFromRanges({ ...input, ranges, from: "ASSEMBLING" });
 }
 
 async function removeChapterFiles(paths: readonly string[]): Promise<void> {

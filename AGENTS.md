@@ -103,7 +103,8 @@ src/
     lessons/           lesson domain (fields, excerpt verification), repository, review service, library/review UI
     videos/            short-form domain (scene types, layouts, duration budget, snapshots), script generation/editing, editor UI
     jobs/              job payload schemas, JobRecord/AiRun repositories, enqueue/retry/cancel services, jobs dashboard UI
-    notebooklm/        v1.2 NotebookLM bindings: one notebook per book and account, one source per part and revision (title marker)
+    notebooklm/        v1.2 NotebookLM bindings: one notebook per book and account, one source per part and revision (title marker);
+                       studio helpers (`notebook-studio.service.ts`: session per use, JSON answers) and the chapter detector
     drive/             v1.2 Google Drive connection: OAuth start/callback state (hashed, one-time), connection status DTO
     archive/           v1.2 render archives (one per render and destination, one entry per uploaded file, resumable checkpoints)
     productions/       v1.2 production batches: lesson selection (`production-request`, catalogue page `/books/:id/produce`), the
@@ -129,7 +130,7 @@ src/
                        VideoArchiveProvider); real adapters land with the B/C/D/E tasks of `plan.md`. Fakes + contract suites live in
                        tests/helpers/{fakes,contracts}; every adapter must pass its port's contract suite
     script-studio/notebooklm/  MCP stdio client (`McpStdioClient`: argv spawn, explicit env, bounded stderr never in errors)
-                       for the NotebookLM server (`notebooklm-mcp-cli`, pinned); the adapter lands with group C of `plan.md`
+                       for the NotebookLM server (`notebooklm-mcp-cli`, pinned), session/profile/envelope, versioned prompts (`prompts/`)
     archive/google-drive/  Google OAuth helpers (PKCE, loopback redirect, `drive.file` only), the credential store
                        (`data/credentials/google-drive.json`, mode 0600, never in SQLite, DTOs or logs), `DriveAccessToken`,
                        and `GoogleDriveArchiveProvider` (folder tree with pre-generated IDs, resumable upload, checksum verify)

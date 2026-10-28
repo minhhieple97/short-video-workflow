@@ -8,6 +8,7 @@ export const EXTRACTION_STATUS_LABELS: Record<ExtractionStatus, { label: string;
   EXTRACTING: { label: "Đang đọc lớp chữ", tone: "violet" },
   OCR_PENDING: { label: "Đang OCR", tone: "blue" },
   ASSEMBLING: { label: "Đang ghép văn bản", tone: "violet" },
+  DETECTING_CHAPTERS: { label: "Đang xác định chương", tone: "violet" },
   NEEDS_CHAPTERS: { label: "Chưa xác định chương", tone: "amber" },
   COMPLETED: { label: "Đã trích xuất", tone: "mint" },
   PARTIAL: { label: "Còn trang lỗi", tone: "rose" },
@@ -45,6 +46,7 @@ function stepOf(status: ExtractionStatus, hasPages: boolean): ExtractionStep["ke
       return "ocr";
     case "ASSEMBLING":
       return "assemble";
+    case "DETECTING_CHAPTERS":
     case "NEEDS_CHAPTERS":
     case "COMPLETED":
       return "chapters";

@@ -6,6 +6,7 @@ import { NotFoundError } from "@/shared/errors";
 import {
   isPermanentExtractionFailure,
   RUNNABLE_EXTRACTION_STATUSES,
+  TEXT_COMPLETE_STATUSES,
   toExtractionStatus,
 } from "../domain/extraction-status";
 import { findActiveExtractionJob } from "../repositories/extraction-jobs.repository";
@@ -19,7 +20,6 @@ import { findOpenOcrOperation } from "../repositories/ocr-operation.repository";
 import type { ExtractionDto } from "../schemas/extraction.dto";
 
 const LISTED_FAILED_PAGES = 20;
-const FINISHED = new Set(["COMPLETED", "NEEDS_CHAPTERS"]);
 
 async function toExtractionDto(extraction: BookExtraction): Promise<ExtractionDto> {
   const [byStatus, byMethod, failed, openBatch, activeJob] = await Promise.all([
@@ -65,9 +65,9 @@ async function toExtractionDto(extraction: BookExtraction): Promise<ExtractionDt
     activeJob: activeJob && { id: activeJob.id, status: activeJob.status },
     held,
     canRetry:
-      activeJob === null && !FINISHED.has(status) && !isPermanentExtractionFailure(status, extraction.errorCode),
-    // A FAILED run stopped before OCR (the PDF could not be read), so the ceiling does not matter to it.
-    canSetCeiling: !FINISHED.has(status) && status !== "FAILED",
+      activeJob === null && status !== "COMPLETED" && !isPermanentExtractionFailure(status, extraction.errorCode),
+    // A FAILED run stopped before OCR (the PDF could not be read), so the ceiling does not matter to it either.
+    canSetCeiling: !TEXT_COMPLETE_STATUSES.includes(status) && status !== "FAILED",
   };
 }
 

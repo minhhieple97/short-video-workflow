@@ -123,12 +123,14 @@ describe("extraction view", () => {
     expect(await view.getExtraction(encrypted.extractionId)).toMatchObject({ status: "FAILED" });
   });
 
-  it("offers neither retry nor a ceiling change once the text is complete", async () => {
-    for (const status of ["COMPLETED", "NEEDS_CHAPTERS"]) {
-      const { extractionId, jobId } = await seed(status);
-      await finishJob(jobId);
-      expect(await view.getExtraction(extractionId)).toMatchObject({ canRetry: false, canSetCeiling: false });
-    }
+  it("offers no ceiling change once the text is complete, and a retry only while chapters are missing", async () => {
+    const done = await seed("COMPLETED");
+    const noChapters = await seed("NEEDS_CHAPTERS");
+    await finishJob(done.jobId);
+    await finishJob(noChapters.jobId);
+
+    expect(await view.getExtraction(done.extractionId)).toMatchObject({ canRetry: false, canSetCeiling: false });
+    expect(await view.getExtraction(noChapters.extractionId)).toMatchObject({ canRetry: true, canSetCeiling: false });
   });
 
   it("returns null for a book imported from text, and shows a PDF book's run status in the library", async () => {

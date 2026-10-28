@@ -4,7 +4,9 @@ export const EXTRACTION_STATUSES = [
   "EXTRACTING",
   "OCR_PENDING",
   "ASSEMBLING",
-  // The text is complete but no chapter boundaries were found; a whole-book fallback is never taken as success.
+  // The local parser found no chapter boundary; NotebookLM is asked where chapters start.
+  "DETECTING_CHAPTERS",
+  // The text is complete but no chapters could be established; a whole-book fallback is never taken as success.
   "NEEDS_CHAPTERS",
   "COMPLETED",
   "PARTIAL",
@@ -20,6 +22,15 @@ export const RUNNABLE_EXTRACTION_STATUSES: readonly ExtractionStatus[] = [
   "EXTRACTING",
   "OCR_PENDING",
   "ASSEMBLING",
+  "DETECTING_CHAPTERS",
+];
+
+// Every page has its text by now, so OCR (and its ceiling) no longer matters.
+export const TEXT_COMPLETE_STATUSES: readonly ExtractionStatus[] = [
+  "ASSEMBLING",
+  "DETECTING_CHAPTERS",
+  "NEEDS_CHAPTERS",
+  "COMPLETED",
 ];
 
 // The original file never changes, so trying again cannot get past these; the book has to be imported again.

@@ -55,6 +55,11 @@ export function notebookLmServerCommand(
   return { command: config.command, args: ["--from", config.packageSpec, "notebooklm-mcp"], env };
 }
 
+// The command for this worker's environment: only the allow-listed variables of this process are passed on.
+export function notebookLmServerForThisProcess(config: { command: string; packageSpec: string }): McpServerCommand {
+  return notebookLmServerCommand(config, process.env);
+}
+
 const profileListSchema = z.looseObject({ active: z.looseObject({ profile: z.string() }) });
 
 // One NotebookLM server process used by one job, signed in as the configured profile. The profile is switched for this

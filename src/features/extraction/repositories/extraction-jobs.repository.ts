@@ -101,10 +101,14 @@ function resumeStatus(status: string, hasPages: boolean): string | null {
     case "PARTIAL":
     case "OCR_PENDING":
       return "OCR_PENDING";
+    // Chapter detection is tried again (NotebookLM may have been set up or signed in since).
+    case "NEEDS_CHAPTERS":
+      return "DETECTING_CHAPTERS";
     case "QUEUED":
     case "INSPECTING":
     case "EXTRACTING":
     case "ASSEMBLING":
+    case "DETECTING_CHAPTERS":
       return status;
     default:
       return null;

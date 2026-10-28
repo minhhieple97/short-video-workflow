@@ -139,11 +139,10 @@ function StatusMessage({ extraction }: Readonly<{ extraction: ExtractionDto }>) 
     return (
       <Alert>
         <Info aria-hidden />
-        <AlertTitle>Đã có toàn bộ chữ, chưa nhận diện được chương</AlertTitle>
+        <AlertTitle>Đã có toàn bộ chữ, chưa xác định được chương</AlertTitle>
         <AlertDescription>
-          Bộ tách chương cục bộ không tìm thấy tiêu đề chương nào (ví dụ “Chương 1”, “Chapter 2” hay heading Markdown),
-          và ứng dụng không coi cả cuốn sách là một chương. Bước xác định chương với NotebookLM chưa có trong phiên bản
-          này.
+          {errorMessage ?? "Không tìm thấy tiêu đề chương nào, và ứng dụng không coi cả cuốn sách là một chương."} Bấm
+          “Thử lại” để hỏi NotebookLM lại sau khi đã cấu hình hoặc đăng nhập.
         </AlertDescription>
       </Alert>
     );

@@ -41,7 +41,7 @@ export async function setCanonicalPath(extractionId: string, canonicalPath: stri
 export function findExtractionWithBook(extractionId: string) {
   return prisma.bookExtraction.findUnique({
     where: { id: extractionId },
-    include: { book: { select: { id: true, sourceFilePath: true, sourceFormat: true } } },
+    include: { book: { select: { id: true, title: true, sourceFilePath: true, sourceFormat: true } } },
   });
 }
 
@@ -94,16 +94,17 @@ export async function recordExtractionTransientFailure(
 
 export type FinishExtractionResult = "completed" | "already_finished";
 
-// Creates the book's chapters and completes the run in one transaction. Moving the run out of ASSEMBLING is the first
-// write, so a replayed step finds it already finished instead of creating the chapters twice.
+// Creates the book's chapters and completes the run in one transaction. Moving the run out of `from` is the first write,
+// so a replayed step finds it already finished instead of creating the chapters twice.
 export function completeExtractionWithChapters(
   extractionId: string,
   bookId: string,
+  from: "ASSEMBLING" | "DETECTING_CHAPTERS",
   chapters: readonly NewChapterRecord[],
 ): Promise<FinishExtractionResult> {
   return prisma.$transaction(async (tx): Promise<FinishExtractionResult> => {
     const { count } = await tx.bookExtraction.updateMany({
-      where: { id: extractionId, status: "ASSEMBLING" },
+      where: { id: extractionId, status: from },
       data: { status: "COMPLETED", completedAt: new Date(), errorCode: null, errorMessage: null },
     });
     if (count === 0) return "already_finished";

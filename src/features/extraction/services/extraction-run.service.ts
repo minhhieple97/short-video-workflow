@@ -1,6 +1,8 @@
 import fs from "node:fs/promises";
 
 import { bookDirectory } from "@/features/books/services/book-files";
+import { createNotebookChapterDetector } from "@/features/notebooklm/services/notebook-chapter-detector";
+import { NOTEBOOKLM_NOT_CONFIGURED_MESSAGE } from "@/features/notebooklm/services/notebook-studio.service";
 import type { OcrOperation } from "@/generated/prisma/client";
 import { IntegrationError } from "@/server/integrations/integration-error";
 import { createOcrProvider } from "@/server/ocr";
@@ -11,10 +13,14 @@ import { getAppConfig } from "@/shared/config/env";
 import { AppError, NotFoundError } from "@/shared/errors";
 import { createLogger } from "@/shared/logger";
 
+import { assembleCanonicalMarkdown } from "../domain/canonical-document";
+import { verifyProposedChapters } from "../domain/chapter-detection";
+import { buildChapterOutline } from "../domain/chapter-outline";
 import { toExtractionStatus, type ExtractionStatus } from "../domain/extraction-status";
 import { parseChunkPlan } from "../domain/ocr-chunk-plan";
 import type { PlannedOcrChunk } from "../domain/ocr-results";
 import {
+  listExtractionPages,
   listPageNumbersWithStatus,
   markPagesUnsendable,
   requeueOrphanedOcrPages,
@@ -28,7 +34,12 @@ import {
 } from "../repositories/extraction.repository";
 import { countOcrOperations, findOpenOcrOperation } from "../repositories/ocr-operation.repository";
 import { assembleExtractionDocument } from "./canonical-document.service";
-import { CHAPTERS_NOT_DETECTED_MESSAGE, createChaptersFromCanonical } from "./extraction-chapters.service";
+import type { ChapterDetector } from "./chapter-detector";
+import {
+  CHAPTERS_NOT_DETECTED_MESSAGE,
+  createChaptersFromCanonical,
+  createChaptersFromRanges,
+} from "./extraction-chapters.service";
 import { planOcrOperation } from "./ocr-budget.service";
 import { buildOcrChunks, materializeOcrChunks } from "./ocr-chunks.service";
 import { collectOcrOperation, submitOcrOperation, type OcrChunkSpec } from "./ocr-operation.service";
@@ -56,6 +67,8 @@ export interface ExtractionRunDeps {
   // Throws an IntegrationError (OCR_NOT_CONFIGURED) when no provider can be used; only called once OCR is needed.
   createOcrProvider: () => OcrProvider;
   extraChapterPatterns?: readonly string[];
+  // Asked where chapters start when the local parser finds none; null when NotebookLM is not set up.
+  chapterDetector?: ChapterDetector | null;
 }
 
 export function defaultExtractionRunDeps(): ExtractionRunDeps {
@@ -65,6 +78,7 @@ export function defaultExtractionRunDeps(): ExtractionRunDeps {
     maxPages: pdf.maxPages,
     createOcrProvider: () => createOcrProvider(),
     extraChapterPatterns: importConfig.extraChapterPatterns,
+    chapterDetector: createNotebookChapterDetector(),
   };
 }
 
@@ -126,7 +140,12 @@ export async function runExtraction(
           markdown: document.markdown,
           extraChapterPatterns: deps.extraChapterPatterns,
         });
-        if (chapters.kind === "UNDETECTED") return { kind: "NEEDS_CHAPTERS", message: chapters.message };
+        if (chapters.kind === "UNDETECTED") logger.info("Asking for chapter starts", { extractionId });
+        break;
+      }
+      case "DETECTING_CHAPTERS": {
+        const outcome = await detectChapters(extraction, deps, signal);
+        if (outcome) return outcome;
         break;
       }
       case "COMPLETED":
@@ -145,6 +164,90 @@ export async function runExtraction(
     }
   }
   throw new AppError("EXTRACTION_NO_PROGRESS", "Lần trích xuất không tiến triển.", 500, { details: { extractionId } });
+}
+
+async function stopAtNeedsChapters(extractionId: string, code: string, message: string): Promise<ExtractionRunOutcome> {
+  await moveExtractionStatus(extractionId, ["DETECTING_CHAPTERS"], {
+    status: "NEEDS_CHAPTERS",
+    errorCode: code,
+    errorMessage: message,
+  });
+  logger.warn("Chapters could not be established", { extractionId, code });
+  return { kind: "STOPPED", status: "NEEDS_CHAPTERS", code, message };
+}
+
+// The local parser found no chapter. The detector proposes chapter starts from an outline of page heads, and nothing is
+// created unless every proposed start is found in the text where it is said to be.
+async function detectChapters(
+  extraction: Extraction,
+  deps: ExtractionRunDeps,
+  signal?: AbortSignal,
+): Promise<StepResult> {
+  if (!deps.chapterDetector) {
+    const message = `${CHAPTERS_NOT_DETECTED_MESSAGE} ${NOTEBOOKLM_NOT_CONFIGURED_MESSAGE}`;
+    await moveExtractionStatus(extraction.id, ["DETECTING_CHAPTERS"], {
+      status: "NEEDS_CHAPTERS",
+      errorCode: "CHAPTERS_NOT_DETECTED",
+      errorMessage: message,
+    });
+    return { kind: "NEEDS_CHAPTERS", message };
+  }
+  const pageCount = extraction.pageCount ?? 0;
+  const pages = (await listExtractionPages(extraction.id)).map((page) => ({
+    pageNumber: page.pageNumber,
+    text: page.text ?? "",
+  }));
+  const document = assembleCanonicalMarkdown(pages, pageCount);
+  const outline = buildChapterOutline(pages);
+  if (outline.markdown.length === 0) {
+    return stopAtNeedsChapters(extraction.id, "BOOK_HAS_NO_TEXT", "Sách không có chữ nào để xác định chương.");
+  }
+
+  let proposed;
+  try {
+    proposed = await deps.chapterDetector.detect(
+      {
+        extractionId: extraction.id,
+        book: { id: extraction.bookId, title: extraction.book.title },
+        outline,
+        pageCount,
+      },
+      signal,
+    );
+  } catch (error) {
+    if (signal?.aborted || !(error instanceof IntegrationError)) throw error;
+    if (error.kind === "AUTH" || error.kind === "REJECTED") {
+      return stopAtNeedsChapters(extraction.id, error.code, error.message);
+    }
+    return transientFailure(extraction.id, {
+      code: error.code,
+      message: error.message,
+      retryAfterMs: error.retryAfterMs ?? null,
+    });
+  }
+
+  const verification = verifyProposedChapters(proposed, document, pages, pageCount);
+  if (!verification.ok) {
+    return stopAtNeedsChapters(
+      extraction.id,
+      "CHAPTER_DETECTION_REJECTED",
+      `Chương do NotebookLM đề xuất không khớp văn bản nên chưa tạo: ${verification.problem}`,
+    );
+  }
+  await createChaptersFromRanges({
+    extractionId: extraction.id,
+    bookId: extraction.bookId,
+    markdown: document.markdown,
+    ranges: verification.chapters,
+    from: "DETECTING_CHAPTERS",
+  });
+  logger.info("Chapters detected", {
+    extractionId: extraction.id,
+    chapters: verification.chapters.length,
+    frontMatterPages: verification.frontMatterPages.length,
+    tocPages: verification.tocPages,
+  });
+  return null;
 }
 
 async function advanceOcr(extraction: Extraction, deps: ExtractionRunDeps, signal?: AbortSignal): Promise<StepResult> {

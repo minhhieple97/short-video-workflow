@@ -4,6 +4,7 @@ import path from "node:path";
 import type { Job } from "bullmq";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import type { ProposedChapter } from "@/features/extraction/domain/chapter-detection";
 import type * as ExtractionJobs from "@/features/extraction/repositories/extraction-jobs.repository";
 import type * as ExtractionRepository from "@/features/extraction/repositories/extraction.repository";
 import type * as ExtractionReconcile from "@/features/extraction/services/extraction-reconcile.service";
@@ -422,6 +423,101 @@ describe.skipIf(!poppler)("runExtraction (needs poppler-utils)", () => {
     expect(fs.readdirSync(path.join(env.dataDir, "books", bookId, "chapters"))).toHaveLength(2);
   });
 
+  const UNMARKED_BOOK: FixturePage[] = [
+    { lines: ["Introduction to habits", ...BODY] },
+    { lines: ["Why identity matters", ...BODY] },
+  ];
+  const firstProposal = {
+    title: "Introduction to habits",
+    startPage: 1,
+    endPage: 1,
+    startAnchor: "Introduction to habits",
+  };
+  const secondProposal = {
+    title: "Why identity matters",
+    startPage: 2,
+    endPage: 2,
+    startAnchor: "Why identity matters",
+  };
+  const proposals = [firstProposal, secondProposal];
+  const detector = (answer: () => Promise<ProposedChapter[]>) => {
+    const asked: string[] = [];
+    return {
+      asked,
+      detector: {
+        detect: async (input: { extractionId: string; outline: { markdown: string } }) => {
+          asked.push(input.outline.markdown);
+          return answer();
+        },
+      },
+    };
+  };
+
+  it("asks the detector when the local parser finds no chapter and creates the chapters it proposes once they check out", async () => {
+    const { bookId, extractionId } = await seedPdf(UNMARKED_BOOK);
+    const { asked, detector: chapterDetector } = detector(async () => proposals);
+
+    await expect(run.runExtraction(extractionId, { ...deps(), chapterDetector })).resolves.toEqual({
+      kind: "COMPLETED",
+    });
+
+    expect(asked).toHaveLength(1);
+    // Page heads only: what follows a page's first 160 characters is not sent.
+    expect(asked[0]?.split("\n")).toHaveLength(2);
+    expect(asked[0]).toContain("[Trang 1] Introduction to habits");
+    expect(asked[0]).not.toContain("easy to start");
+    expect((await chapters(bookId)).map((chapter) => chapter.title)).toEqual([
+      "Introduction to habits",
+      "Why identity matters",
+    ]);
+  });
+
+  it("creates nothing from proposals that do not match the text, and a retry asks again", async () => {
+    const { bookId, extractionId } = await seedPdf(UNMARKED_BOOK);
+    const wrong = detector(async () => [{ ...firstProposal, startAnchor: "Words that are nowhere" }, secondProposal]);
+
+    const outcome = await run.runExtraction(extractionId, { ...deps(), chapterDetector: wrong.detector });
+
+    expect(outcome).toMatchObject({ kind: "STOPPED", status: "NEEDS_CHAPTERS", code: "CHAPTER_DETECTION_REJECTED" });
+    expect(await chapters(bookId)).toEqual([]);
+    expect(await extraction(extractionId)).toMatchObject({ status: "NEEDS_CHAPTERS" });
+
+    await endJobs();
+    await expect(jobs.resetExtractionForRetry(extractionId)).resolves.toMatchObject({ kind: "started" });
+    expect(await extraction(extractionId)).toMatchObject({ status: "DETECTING_CHAPTERS", errorCode: null });
+    const right = detector(async () => proposals);
+    await expect(run.runExtraction(extractionId, { ...deps(), chapterDetector: right.detector })).resolves.toEqual({
+      kind: "COMPLETED",
+    });
+    expect(await chapters(bookId)).toHaveLength(2);
+  });
+
+  it("waits out a temporary NotebookLM failure and stops on a refused sign-in", async () => {
+    const { extractionId } = await seedPdf(UNMARKED_BOOK);
+    const busy = detector(async () => {
+      throw new IntegrationError("NOTEBOOKLM_RATE_LIMITED", "NotebookLM đang giới hạn.", "QUOTA", {
+        retryAfterMs: 90_000,
+      });
+    });
+
+    await expect(run.runExtraction(extractionId, { ...deps(), chapterDetector: busy.detector })).resolves.toEqual({
+      kind: "WAITING",
+      retryAfterMs: 90_000,
+    });
+    expect(await extraction(extractionId)).toMatchObject({ status: "DETECTING_CHAPTERS", transientFailures: 1 });
+
+    const signedOut = detector(async () => {
+      throw new IntegrationError("NOTEBOOKLM_AUTH_REQUIRED", "Cần đăng nhập NotebookLM.", "AUTH");
+    });
+    await expect(
+      run.runExtraction(extractionId, { ...deps(), chapterDetector: signedOut.detector }),
+    ).resolves.toMatchObject({
+      kind: "STOPPED",
+      status: "NEEDS_CHAPTERS",
+      code: "NOTEBOOKLM_AUTH_REQUIRED",
+    });
+  });
+
   it("stops at NEEDS_CHAPTERS rather than making the whole book one chapter", async () => {
     const { bookId, extractionId } = await seedPdf([{ lines: BODY }, { lines: BODY }]);
 
@@ -431,6 +527,7 @@ describe.skipIf(!poppler)("runExtraction (needs poppler-utils)", () => {
     expect(await extraction(extractionId)).toMatchObject({
       status: "NEEDS_CHAPTERS",
       errorCode: "CHAPTERS_NOT_DETECTED",
+      errorMessage: expect.stringContaining("NOTEBOOKLM_PROFILE"),
     });
     expect((await extraction(extractionId)).canonicalPath).not.toBeNull();
     expect(await chapters(bookId)).toEqual([]);

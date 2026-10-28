@@ -77,11 +77,11 @@ model Book {
   videos            Video[]
   extractions       BookExtraction[]
   productionBatches ProductionBatch[]
+  notebooks         NotebookBinding[]
 
   @@index([status])
   @@index([createdAt])
   @@index([sourceHash])
-  notebooks         NotebookBinding[]
 }
 
 model Chapter {
@@ -422,7 +422,8 @@ model BookExtraction {
   id                   String    @id @default(cuid())
   bookId               String
   book                 Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  // QUEUED | INSPECTING | EXTRACTING | OCR_PENDING | ASSEMBLING | NEEDS_CHAPTERS | COMPLETED | PARTIAL | FAILED | CANCELLED
+  // QUEUED | INSPECTING | EXTRACTING | OCR_PENDING | ASSEMBLING | DETECTING_CHAPTERS | NEEDS_CHAPTERS | COMPLETED | PARTIAL
+  // | FAILED | CANCELLED
   status               String
   // SHA-256 of the PDF this run read, so the run is tied to exact bytes.
   sourceHash           String
