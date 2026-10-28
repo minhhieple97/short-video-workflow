@@ -11,6 +11,9 @@ const durationPreset = z.coerce
     message: `must be one of ${DURATION_PRESETS_SEC.join(", ")}`,
   });
 
+// An empty value in .env (`MISTRAL_API_KEY=`) means "not set".
+const optionalSecret = z.preprocess((value) => (value === "" ? undefined : value), z.string().min(1).optional());
+
 const isPortrait9x16 = (width: number, height: number) => width * 16 === height * 9;
 
 const regexList = z
@@ -38,6 +41,11 @@ const envSchema = z
     MAX_IMPORT_SIZE_MB: z.coerce.number().positive().max(100).default(10),
     MAX_PDF_SIZE_MB: z.coerce.number().positive().max(2048).default(500),
     OCR_COST_CEILING_USD: z.coerce.number().positive().max(1000).default(3),
+    MISTRAL_API_KEY: optionalSecret,
+    MISTRAL_API_BASE_URL: z.url().default("https://api.mistral.ai"),
+    // Pinned on purpose: an alias such as "latest" could change the model (and the price) between runs.
+    MISTRAL_OCR_MODEL: z.string().min(1).default("mistral-ocr-4-1"),
+    MISTRAL_OCR_USD_PER_1000_PAGES: z.coerce.number().positive().max(1000).default(2),
     CHAPTER_HEADING_PATTERNS: regexList,
 
     AI_MODE: z.enum(["mock", "cli-task", "cli-auto"]).default("cli-task"),
@@ -87,6 +95,7 @@ export interface AppConfig {
   import: { maxSizeBytes: number; extraChapterPatterns: string[] };
   pdf: { maxSizeBytes: number };
   ocr: { costCeilingMicroUsd: number };
+  mistral: { apiKey: string | undefined; baseUrl: string; ocrModel: string; usdPer1000Pages: number };
   ai: {
     mode: "mock" | "cli-task" | "cli-auto";
     maxConcurrency: number;
@@ -138,6 +147,12 @@ export function parseAppConfig(source: Record<string, string | undefined>): AppC
     },
     ocr: {
       costCeilingMicroUsd: Math.round(env.OCR_COST_CEILING_USD * 1_000_000),
+    },
+    mistral: {
+      apiKey: env.MISTRAL_API_KEY,
+      baseUrl: env.MISTRAL_API_BASE_URL.replace(/\/+$/, ""),
+      ocrModel: env.MISTRAL_OCR_MODEL,
+      usdPer1000Pages: env.MISTRAL_OCR_USD_PER_1000_PAGES,
     },
     ai: {
       mode: env.AI_MODE,

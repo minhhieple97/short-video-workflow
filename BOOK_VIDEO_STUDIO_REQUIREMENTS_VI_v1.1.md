@@ -1299,7 +1299,7 @@ Phần hook 4 giây và bỏ bước duyệt lesson/script chỉ áp dụng cho 
 | Bốn port, DTO và contract test (chỉ có fake)     | Một phần: chưa có adapter thật | A04        |
 | Outbox bền vững giữa SQLite và Redis             | Đã triển khai        | A05                  |
 | Kết quả "trì hoãn" của processor trong worker    | Cơ chế đã có, chưa processor nào dùng | A06 |
-| Nhập PDF, trích text, OCR Mistral Batch          | Một phần: có bảng dữ liệu (B01), API tải PDF (B02) và dự trù chi phí/pacing OCR (B06); chưa trích text/OCR nên lần chạy vẫn `QUEUED` | B01–B13 |
+| Nhập PDF, trích text, OCR Mistral Batch          | Một phần: có bảng dữ liệu (B01), API tải PDF (B02) dự trù chi phí/pacing OCR (B06) và client REST Mistral (B07, mới thử với fake server); chưa trích text/OCR nên lần chạy vẫn `QUEUED` | B01–B13 |
 | NotebookLM MCP, catalogue, bản thảo              | Chưa triển khai      | C01–C09              |
 | Chọn lesson, production batch, Claude compiler   | Chưa triển khai      | D01–D12              |
 | Hook 4 giây / 120 frame                          | Chưa triển khai      | D03, F04             |
