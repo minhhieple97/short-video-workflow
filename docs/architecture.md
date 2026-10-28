@@ -1,253 +1,590 @@
 # Kiến trúc Book Video Studio
 
-Tài liệu cho người phát triển: các tiến trình, luồng dữ liệu, vòng đời tác vụ và lý do của các quyết định thiết kế. Quy tắc viết code và ranh giới import nằm ở [`AGENTS.md`](../AGENTS.md); hành vi sản phẩm nằm ở [đặc tả](../BOOK_VIDEO_STUDIO_REQUIREMENTS_VI_v1.1.md).
+Tài liệu thiết kế kỹ thuật duy nhất, mô tả **trạng thái hiện tại của mã**. Tài liệu liên quan:
+
+- [requirements.md](requirements.md): phạm vi sản phẩm, luồng người dùng, quy tắc nghiệp vụ và video, nghiệm thu, hiện trạng.
+- [operations.md](operations.md): cài đặt, `.env`, bảng mã lỗi, hạn mức, khôi phục, giới hạn và giả định nhà cung cấp chưa kiểm chứng.
+- [AGENTS.md](../AGENTS.md): quy tắc kỹ thuật, sơ đồ mã `src/`, lệnh, quy ước. [README.md](../README.md): giới thiệu và chạy nhanh.
+
+Mistral OCR, NotebookLM và Google Drive đã có trong mã và được kiểm thử với fake cục bộ, nhưng **chưa chạy với tài khoản thật**.
 
 ## 1. Tiến trình
 
-```mermaid
-flowchart LR
-  B[Trình duyệt Windows] -->|HTTP 127.0.0.1:3000| W[Next.js<br/>UI + route handler mỏng]
-  W -->|Prisma| DB[(SQLite<br/>data/studio.db)]
-  W -->|BullMQ add, chỉ ID| R[(Redis<br/>queue studio-jobs)]
-  R --> K[Worker Node<br/>concurrency 1]
-  K -->|Prisma| DB
-  K --> FS[[data/: sách, ai-tasks, audio, MP4]]
-  K --> T[edge-tts / ffmpeg / ffprobe]
-  K --> RM[Remotion + Chromium headless]
-  U[Terminal của người dùng<br/>pnpm ai:run] -->|claude -p| C[Claude Code CLI]
-  U -->|đọc/ghi task| FS
-  U -->|requeue| R
+```
+Trình duyệt ──127.0.0.1:3000──► Next.js (UI + route mỏng) ──Prisma──► SQLite (WAL)
+                                   │ outbox / queue.add (chỉ ID)          ▲
+                                   ▼                                      │
+                              Redis `studio-jobs` ──► Worker (concurrency 1) ──► DATA_DIR
+                                                       ├─ tiến trình con: claude -p, edge-tts, ffmpeg/ffprobe,
+                                                       │  Poppler, uvx notebooklm-mcp (stdio), Chromium (Remotion)
+                                                       └─ HTTPS: Mistral, Google
+Terminal người dùng: pnpm ai:run ──► claude -p ──► ai-tasks/<id>/output.json ──► requeue cùng JobRecord
 ```
 
-| Tiến trình    | Lệnh                                    | Trách nhiệm                                                                                                                                                             |
-| ------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Web           | `pnpm dev` / `pnpm start`               | Trang, API route: kiểm tra đầu vào bằng Zod → service → repository. Việc dài chỉ được **xếp hàng** và trả `202 { jobId }`; UI hỏi lại `GET /api/jobs/:id` mỗi 2–3 giây. |
-| Worker        | `pnpm worker:dev` / `pnpm worker:start` | Chạy mọi việc nặng: phân tích chương, tạo kịch bản, TTS, render. Một tác vụ một lúc.                                                                                    |
-| Redis         | `docker compose up -d`                  | BullMQ — nguồn sự thật về **thực thi** tác vụ.                                                                                                                          |
-| `pnpm ai:run` | Người dùng tự chạy                      | Cầu nối duy nhất tới Claude Code CLI. Web và worker không bao giờ tự gọi `claude`.                                                                                      |
-
-Web không phụ thuộc vào Redis/worker để hiển thị: khi chúng tắt, trang vẫn mở và báo trạng thái suy giảm; thao tác cần xếp hàng trả `503 QUEUE_UNAVAILABLE` sau một lệnh `PING` thử (không treo). Worker thì thoát với mã 1 nếu không kết nối được Redis.
+- **Web** (`pnpm dev`/`start`): Zod → service → repository; việc dài chỉ được ghi thành tác vụ và trả `202 { jobId }`, UI hỏi lại mỗi
+  2–3 giây. Không bao giờ chạy AI, TTS hay render. Redis/worker tắt thì trang vẫn mở và báo suy giảm (`/api/status`, heartbeat cũ hơn
+  15 giây); thao tác cần Redis ngay thì `PING` thử rồi trả `503 QUEUE_UNAVAILABLE`.
+- **Worker** (`pnpm worker:dev`/`start`): mọi việc nặng và mọi lời gọi ra ngoài; `WORKER_CONCURRENCY` và `RENDER_CONCURRENCY` mặc định 1.
+  Không tới được Redis thì thoát mã 1. Khởi động (`src/worker/main.ts`): `PING` Redis, bật WAL → `sweepDueJobIntents` (giao outbox còn
+  sót, để bước sau chỉ xét job đáng lẽ đã ở Redis) → `reconcileJobRecords` → `reconcileProductionItems`, `reconcileExtractions` (cấp job
+  mới cho việc dở đã mất job; chỉ lúc khởi động để lỗi lặp không thành vòng) → `sweepRenderArchives` → mở BullMQ `Worker`; định kỳ:
+  heartbeat 5 giây (TTL 30 giây), quét outbox 5 giây, quét archive 60 giây. SIGINT/SIGTERM: đóng, tối đa 15 giây; job dở thành stalled
+  và được đối soát lần sau.
+- **`pnpm ai:run`**: người dùng tự chạy tác vụ `cli-task` bằng Claude Code CLI của mình.
 
 ## 2. Mô hình dữ liệu
 
-```mermaid
-erDiagram
-  Book ||--o{ Chapter : "có"
-  Book ||--o{ Lesson : "có"
-  Lesson ||--o{ LessonSource : "trích từ"
-  Chapter ||--o{ LessonSource : "được trích"
-  Book ||--o{ Video : "có"
-  Video ||--o{ VideoLesson : "snapshot"
-  Lesson ||--o{ VideoLesson : "được dùng"
-  Video ||--o{ VideoScene : "gồm"
-  VideoScene ||--o{ MediaAsset : "giọng đọc"
-  Video ||--o{ RenderRecord : "render"
-```
+Prisma 7 + SQLite (`prisma/schema.prisma`), migration chỉ cộng thêm. Sáu loại dữ liệu lưu riêng: tệp gốc (bất biến) → bản trích xuất
+(dẫn xuất) → catalogue (chương, bài học, nguồn) → bản thảo NotebookLM → kế hoạch cảnh Claude (đầu vào duy nhất của Remotion) → snapshot
+render (bất biến, nguồn của manifest Drive).
 
-- **Book / Chapter:** tệp gốc lưu nguyên byte kèm SHA-256 và không bao giờ bị sửa; nội dung chương nằm ở `data/books/{bookId}/chapters/{chapterId}.md`. Xoá sách là xoá mềm và bị chặn khi đã có video.
-- **Lesson / LessonSource:** bài học thuộc một sách, trích dẫn 1..N chương. Trích đoạn AI đưa ra phải xuất hiện thật trong chương, nếu không sẽ bị loại.
-- **VideoLesson** giữ `lessonSnapshotJson` tại thời điểm tạo video, nên sửa bài học sau đó không làm đổi video.
-- **Video / VideoScene:** `scriptVersion` tăng mỗi khi kịch bản đổi; `approvedScriptVersion` ghi lại phiên bản đã duyệt. Sửa sau khi duyệt chuyển video về `NEEDS_REVIEW`.
-- **RenderRecord** lưu `scriptVersion` lúc render; bản render "lỗi thời" được **suy ra** (`scriptVersion < Video.scriptVersion`), không phải trạng thái lưu, và tệp MP4 cũ không bao giờ bị xoá tự động.
-- **JobRecord** là read model/nhật ký của tác vụ cho UI; **AiRun** ghi mỗi lần gọi AI (chế độ, phiên bản prompt, hash đầu vào, đường dẫn đầu ra) — không chứa bí mật.
-- Các trường trạng thái kiểu `String` có tập giá trị khai báo trong `features/*/domain` (xem chú thích trong `prisma/schema.prisma`); đường dẫn trong DB luôn **tương đối** với `DATA_DIR`.
+- **Sách:** `Book` (tệp gốc + `sourceHash`, `sourceFormat` `md`/`txt`/`pdf`, xoá mềm, bị chặn khi có video) · `Chapter` (duy nhất
+  `(bookId, order)`; nội dung ở tệp, `contentHash`, `analysisStatus`) · `Lesson` + `LessonSource` (duy nhất
+  `(lessonId, chapterId, sourceLocator)`; locator `offset:<k>` hoặc `page:<n>;offset:<k>`).
+- **Video:** `Video` (`scriptVersion` tăng mỗi lần kịch bản đổi; `approvedScriptVersion` do người duyệt; `autoReadyScriptVersion` do máy
+  kiểm, không phải duyệt) · `VideoLesson` (duy nhất `(videoId, lessonId)`, `(videoId, position)`; `lessonSnapshotJson` chụp lúc chọn) ·
+  `VideoScene` (duy nhất `(videoId, order)`; `contentHash`, `version`, `hidden`, `illustrationJson`) · `MediaAsset` · `RenderRecord`
+  (`snapshotJson` + `snapshotHash` bất biến, `archiveIntentAt`; "lỗi thời" là suy ra `scriptVersion < Video.scriptVersion`, không lưu).
+- **Tác vụ:** `JobRecord` (read model; duy nhất `bullmqJobId`) · `JobDispatch` (hàng outbox, duy nhất `jobRecordId`) · `AiRun` (chế độ,
+  phiên bản prompt, hash đầu vào, đường dẫn đầu ra; không bí mật).
+- **PDF:** `BookExtraction` (gắn `sourceHash`; trần/giữ chỗ/đã chi OCR bằng micro-USD nguyên; `canonicalPath`) · `ExtractionPage` (duy
+  nhất `(extractionId, pageNumber)`; số trang PDF 1-based, không bao giờ là offset; `method` `TEXT`/`OCR`/`EMPTY`; `confidence` chỉ khi
+  provider báo) · `OcrOperation` (duy nhất `requestKey`; ghi **trước** khi gửi; `chunkPlanJson`; `outputStoredAt` có trước `cleanedAt`).
+- **NotebookLM:** `NotebookBinding` (duy nhất `(bookId, profile)`) · `NotebookSourceBinding` (duy nhất
+  `(notebookBindingId, sourceKey, contentHash)`, bản cũ `supersededAt` nhưng giữ) · `ScriptDraftCache` (duy nhất `cacheKey`).
+- **Sản xuất:** `ProductionBatch` (duy nhất `idempotencyKey`, `fingerprint`) · `ProductionItem` (duy nhất `(batchId, lessonId)`,
+  `(batchId, position)`, `videoId`; một bài học = một item = một video; `lessonId` `Restrict`, `videoId` `SetNull`).
+- **Lưu trữ:** `RenderArchive` (duy nhất `(renderId, provider, destinationKey)`) · `RenderArchiveFile` (duy nhất `(archiveId, kind)`;
+  `remoteFileId` cấp trước, ghi một lần; path/bytes/sha256 cố định; checkpoint = token + số byte) · `ArchiveFolder` (duy nhất
+  `(provider, destinationKey, path)`) · `OAuthAuthorization` (duy nhất `stateHash`) · `DriveUsageHour` · `DriveCapacity`.
+
+Phần lớn trạng thái là `String`, tập giá trị khai báo trong `features/*/domain` (hoặc chú thích schema). Đường dẫn trong DB luôn tương
+đối với `DATA_DIR`. Con trỏ lỏng không có quan hệ: `Video.latestRenderId`, `VideoScene.audioAssetId`, `RenderRecord.jobRecordId`.
+
+```
+JobRecord        QUEUED WAITING_FOR_CLI RUNNING COMPLETED FAILED CANCEL_REQUESTED CANCELLED
+Chapter          NOT_ANALYZED QUEUED ANALYZING WAITING_FOR_CLI ANALYZED PARTIAL FAILED
+Video            DRAFT NEEDS_REVIEW APPROVED
+RenderRecord     QUEUED RENDERING COMPLETED FAILED CANCELLED
+BookExtraction   xem §6.2
+ExtractionPage   PENDING EXTRACTED NEEDS_OCR OCR_SUBMITTED FAILED
+OcrOperation     PLANNED SUBMITTING SUBMITTED COMPLETED FAILED CANCELLED UNKNOWN_OUTCOME
+ProductionItem   PENDING RUNNING WAITING COMPLETED FAILED CANCELLED   (+ checkpoint, §8.2)
+ProductionBatch  QUEUED RUNNING COMPLETED PARTIAL FAILED CANCELLED    (suy ra từ item)
+RenderArchive    PENDING RUNNING WAITING COMPLETED FAILED   · file: PENDING UPLOADING UPLOADED VERIFIED
+Notebook*        PENDING CREATING|SUBMITTING UNKNOWN_OUTCOME READY (FAILED cho nguồn)
+```
 
 ## 3. Vòng đời tác vụ
 
-```mermaid
-stateDiagram-v2
-  [*] --> QUEUED : web tạo JobRecord + BullMQ add
-  QUEUED --> RUNNING : worker nhận
-  RUNNING --> COMPLETED
-  RUNNING --> FAILED : lỗi (riêng TTS được thử lại 1 lần)
-  RUNNING --> WAITING_FOR_CLI : AI_MODE=cli-task
-  WAITING_FOR_CLI --> QUEUED : pnpm ai:run lưu output.json
-  QUEUED --> CANCELLED : huỷ khi đang chờ
-  RUNNING --> CANCEL_REQUESTED : huỷ khi đang chạy
-  CANCEL_REQUESTED --> CANCELLED : processor nhận AbortSignal
-  FAILED --> [*]
-  COMPLETED --> [*]
-  CANCELLED --> [*]
-```
+| Loại                    | Payload ngoài `jobRecordId`  | Ghi chú                                   |
+| ----------------------- | ---------------------------- | ----------------------------------------- |
+| `DIAGNOSTIC_PING`       | `kind` (`ping`/`notebooklm`) | `notebooklm` mở phiên, đọc hạn mức        |
+| `ANALYZE_CHAPTER`       | `chapterId`, `force`         | v1.1, hoặc NotebookLM cho chương sách PDF |
+| `GENERATE_VIDEO_SCRIPT` | `videoId`, `sceneId?`        | cả kịch bản hoặc viết lại một cảnh        |
+| `GENERATE_SCENE_TTS`    | `sceneId`                    | BullMQ thử 2 lần, backoff 5 giây          |
+| `RENDER_VIDEO`          | `renderId`                   | `runRender`                               |
+| `EXTRACT_PDF`           | `extractionId`               | `runExtraction`, hoãn khi chờ             |
+| `RUN_PRODUCTION_ITEM`   | `itemId`                     | `runProductionPipeline`, hoãn khi chờ     |
+| `ARCHIVE_RENDER`        | `archiveId`                  | `runRenderArchive`, hoãn khi chờ          |
 
-- **Xếp hàng** (`features/jobs/services/job-service.ts` + `job-dispatch.service.ts`): tạo `JobRecord(QUEUED)` **cùng một hàng outbox `JobDispatch`** trong một giao dịch SQLite (`recordJobIntent`) → kiểm tra Redis và `queue.add(type, { jobRecordId, …ID }, { jobId })` → ghi `dispatchedAt`. Payload chỉ chứa ID, không bao giờ chứa văn bản sách hay âm thanh. Redis từ chối ngay (đường nhanh) thì hàng outbox bị xoá và job thành `FAILED` kèm `503 QUEUE_UNAVAILABLE`, như trước.
-- **Outbox (`JobDispatch`):** nếu tiến trình chết giữa lúc ghi SQLite và lúc `queue.add`, hàng có `dispatchedAt = null` vẫn còn. Worker quét `sweepDueJobIntents` một lần lúc khởi động (trước `reconcile`) và mỗi 5 giây (`lifecycle/dispatch-sweeper.ts`), giao các hàng tới hạn (`availableAt <= now`, nên cũng giữ được job trì hoãn) rồi mới ghi `dispatchedAt`. Giao lại sau một vụ chết giữa hai bước không nhân đôi job vì BullMQ bỏ qua `add` trùng `jobId`; hàng của job đã huỷ bị bỏ, hàng có payload hỏng làm job `FAILED` (`DISPATCH_FAILED`), còn lỗi Redis chỉ ghi `lastError` và thử lại ở lượt sau. Huỷ job còn nằm trong outbox xoá hàng đó mà không gọi Redis.
-- **Dispatcher** (`src/worker/processors/dispatcher.ts`, `createJobDispatcher(processors)`; `processors/index.ts` chỉ đăng ký processor): bỏ qua tác vụ đã huỷ, đánh dấu `RUNNING`, chuyển tiến độ sang cả BullMQ lẫn SQLite, và thăm dò `CANCEL_REQUESTED` mỗi 2 giây để biến nó thành `AbortSignal` cho processor. Processor trả về giá trị đặc biệt "waiting for CLI" thì tác vụ chuyển `WAITING_FOR_CLI` thay vì `COMPLETED`.
-- **Trì hoãn (`deferred(retryAfterMs)`):** khi một thao tác từ xa còn đang chờ, processor trả `deferred()` thay vì đứng chờ. Job BullMQ kết thúc (worker rảnh ngay), còn `deferRunningJob` trong một giao dịch đưa `JobRecord` về `QUEUED`, **đổi `bullmqJobId`** (BullMQ nuốt `add` trùng id của job đã xong) và đặt lại hàng outbox với `availableAt = now + retryAfterMs`. Lịch nằm ở SQLite nên sống qua restart worker và cả khi Redis bị xoá; `reconcile` bỏ qua job vì hàng outbox chưa giao. Nếu lúc đó người dùng đã yêu cầu huỷ, dispatcher kết thúc việc huỷ thay vì đặt lịch. Cơ chế đã có, chưa processor nào dùng (OCR Batch sẽ dùng ở nhóm B).
-- **Idempotent:** BullMQ giao ít nhất một lần, nên processor kiểm tra trạng thái trước khi làm (ví dụ render đã `COMPLETED` thì trả kết quả cũ; task AI đã có `output.json` thì dùng lại).
-- **Khoá video khi đang tạo kịch bản:** khi một tác vụ `GENERATE_VIDEO_SCRIPT` của video còn mở (`QUEUED`, `RUNNING`, `WAITING_FOR_CLI`, `CANCEL_REQUESTED`) — cả tác vụ tạo cả kịch bản (entity `VIDEO`) lẫn tác vụ viết lại một cảnh (entity `SCENE`, tìm theo các cảnh của video, xem `findActiveVideoJob()`) — mọi service người dùng gọi để đổi video (cài đặt, hook, cảnh, giọng đọc, duyệt, render, xoá) đều gọi `assertScriptNotGenerating()` và trả `409 SCRIPT_GENERATION_IN_PROGRESS`; giao diện tắt các control tương ứng (`ScriptLock`). Một yêu cầu trùng đích (cùng cảnh, hoặc cả kịch bản khi tác vụ cả kịch bản đang mở) không bị từ chối mà nhận lại tác vụ đang chạy. Worker ghi kịch bản qua repository nên không bị chính tác vụ của nó chặn.
-- **Thử lại / huỷ:** "Thử lại" tạo tác vụ mới; huỷ khi đang chờ xoá job khỏi BullMQ, khi đang chạy thì ghi `CANCEL_REQUESTED`. Khi tác vụ kết thúc, `job-effects.ts` trả thực thể (chương, render…) về trạng thái phù hợp.
-- **Khởi động / dừng worker:** `lifecycle/reconcile.ts` đối soát JobRecord đang mở với BullMQ (job biến mất → `FAILED` kèm hướng dẫn thử lại); `heartbeat.ts` ghi khoá Redis có TTL để web biết worker còn sống; `shutdown.ts` đóng worker khi nhận SIGINT/SIGTERM, tối đa 15 giây rồi thoát hẳn (job dở được BullMQ coi là stalled và được đối soát ở lần chạy sau).
+Payload chỉ chứa ID và metadata nhỏ (Zod: `jobs/schemas/job-payload.schema.ts`). Ngoài TTS, không loại nào được BullMQ thử lại.
 
-## 4. AI
+### 3.1 Outbox
 
-```mermaid
-sequenceDiagram
-  participant Web
-  participant Worker
-  participant Disk as data/ai-tasks/{jobId}
-  participant User as pnpm ai:run
-  participant Claude as claude -p
-  Web->>Worker: ANALYZE_CHAPTER / GENERATE_VIDEO_SCRIPT (qua Redis)
-  Worker->>Disk: prompt.md, input.json, schema.json, task.json
-  Worker-->>Web: WAITING_FOR_CLI
-  User->>Disk: đọc task
-  User->>Claude: prompt qua stdin, --json-schema, không tool, không MCP, env đã làm sạch
-  Claude-->>User: JSON
-  User->>Disk: output.json (đã kiểm tra Zod) hoặc output.raw.txt
-  User->>Worker: requeue cùng JobRecord
-  Worker->>Disk: đọc output.json, kiểm tra Zod lần nữa
-  Worker->>Worker: lưu bài học / kịch bản
-```
+- `recordJobIntent` ghi `JobRecord(QUEUED)` + `JobDispatch(dispatchedAt = null, availableAt)` trong một giao dịch;
+  `createJobIntentWithin(tx, …)` ghi job **cùng giao dịch** với thay đổi làm nó cần thiết (nhập PDF, tạo/thử lại item, tạo/thử lại
+  archive, thử lại trích xuất).
+- `dispatchJobIntent`: `queue.add(type, payload, { jobId: bullmqJobId })` rồi mới ghi `dispatchedAt`. Chết giữa hai bước → giao lại;
+  BullMQ bỏ qua `jobId` trùng.
+- Web v1.1 (`enqueueTrackedJob`): dùng lại job đang mở của cùng `(jobType, entity)`, ghi outbox, giao ngay; Redis từ chối thì xoá hàng,
+  job `FAILED`, trả `503`. Job v1.2 chỉ ghi outbox, worker giao trong ≤ 5 giây.
+- `sweepDueJobIntents` giao hàng chưa giao đã tới hạn; hàng của job không còn `QUEUED` bị xoá; payload hỏng → `FAILED`
+  (`DISPATCH_FAILED`); Redis lỗi → ghi `lastError`, thử lượt sau.
+- Ngoại lệ duy nhất gọi `queue.add` trực tiếp: `pnpm ai:run` requeue sau khi lưu `output.json`.
 
-- Giao diện `AiProvider` (`src/server/ai/ai-provider.ts`) có ba bản, chọn bằng `AI_MODE`: `MockAiProvider` (`mock`, tất định, không mạng), `LocalCliTaskProvider` (`cli-task`, sơ đồ trên) và `AutomatedCliProvider` (`cli-auto`, tuỳ chọn): kế thừa `LocalCliTaskProvider`, vẫn ghi đủ tệp tác vụ, nhưng worker gọi `askClaude()` ngay thay vì chờ `pnpm ai:run`. Cả hai đường CLI dùng chung `cli-task/ask-claude.ts` (cùng cờ, cùng env đã làm sạch, cùng phân loại lỗi); `AbortSignal` của tác vụ được truyền tới tiến trình `claude` để **Huỷ** dừng được nó.
-- Prompt có phiên bản (`chapter-analysis-v1`, `video-script-v1`). Văn bản sách được bọc trong khối dữ liệu không đáng tin (`prompts/untrusted-text.ts`), và mỗi lần chỉ gửi một chương hoặc các bài học đã chọn — không bao giờ cả cuốn sách.
-- Đầu ra luôn qua Zod (`contracts/`); JSON Schema gửi cho Claude được sinh từ chính các schema đó (draft-7). Sai schema → `FAILED`, không lưu gì.
-- Lỗi Claude CLI được phân loại thành mã ổn định (`AI_CLI_AUTH`, `AI_QUOTA_EXCEEDED`, `AI_CLI_TIMEOUT`, `AI_CLI_MISSING`, `AI_CLI_ERROR`) và không tự thử lại.
-
-## 5. Giọng đọc
-
-`GENERATE_SCENE_TTS` → `features/videos/services/tts-runner.ts`: tính khoá cache `hash(TTS_ENGINE_VERSION, giọng, tốc độ, lời dẫn)`; nếu chưa có thì chạy `edge-tts` bằng mảng tham số (lời dẫn đi qua tệp, không qua dòng lệnh), cắt khoảng lặng đầu/cuối bằng ffmpeg, đo thời lượng bằng ffprobe, lưu `MediaAsset(VOICEOVER)` rồi gắn vào cảnh. Âm thanh tải lên đi qua `audio.service.ts` (kiểm tra kích thước và chữ ký tệp MP3/WAV) và chỉ được đo, không bị sửa. Độ dài cảnh = thời lượng âm thanh + `SCENE_AUDIO_PADDING_MS`.
-
-## 6. Xem trước và render
-
-- Trình biên tập video (`EditorWorkspace`) ghim khung xem trước bên phải khi viewport ≥ 1280 px và chỉ mount **một** Player (`useMediaQuery`); dưới ngưỡng đó Player là tab cuối. Nó phụ thuộc `<main>` dùng `overflow-x: clip`: `overflow-x: hidden` biến `<main>` thành scroll container và làm `position: sticky` mất tác dụng.
-- Giao diện sáng/tối: `next-themes` (`ThemeProvider`, lưu ở `localStorage[studio-theme]`, mặc định theo hệ thống) bật class `dark` trên `<html>`; mọi màu đi qua token trong `globals.css`. Poster video và màu thanh trạng thái là màu cố định vì đại diện cho video thật.
-- `toCompositionProps()` (`features/videos/domain/composition-props.ts`) là nơi duy nhất biến video thành props cho composition `ShortVideo`. Remotion Player trong trình duyệt và bản render trong worker dùng chung hàm này, nên hai bên luôn giống nhau.
-- Code trong `src/remotion/` là React thuần: chỉ nhận props đã kiểm tra bằng Zod, không đọc `process.env`, DB hay mạng. Font Be Vietnam Pro được đóng gói trong `public/fonts`.
-- Render (`render-runner.ts` → `server/render/render-short-video.ts`): 0. dùng **snapshot bất biến** chụp lúc yêu cầu render (`RenderRecord.snapshotJson`, xem §11), không đọc video hiện tại;
-  1. kiểm tra trước (`domain/preflight.ts`, chạy trên snapshot) — bản cuối bị chặn nếu còn lỗi;
-  2. mở một asset server tạm ở `127.0.0.1:<cổng ngẫu nhiên>` chỉ phục vụ các tệp giọng đọc của video;
-  3. bundle composition (một lần mỗi tiến trình worker, có alias `@/` qua `webpack-override.ts`);
-  4. `renderMedia` H.264 + AAC, BT.709, `concurrency = RENDER_CONCURRENCY`; bản nháp dùng `scale = 720/1080` trên cùng composition 1080×1920;
-  5. ghi ra tệp tạm rồi đổi tên; ffprobe kiểm tra codec, kích thước, FPS và thời lượng (bản cuối không được vượt preset);
-  6. lỗi hoặc huỷ **trước khi ghi hoàn tất** → xoá tệp dở, `RenderRecord` thành `FAILED` / `CANCELLED`; sau khi bản ghi đã `COMPLETED` thì không còn gì được phép xoá MP4 hay đổi trạng thái (xem §11, D11).
-- Vùng an toàn chỉ là lớp phủ trong editor (`domain/safe-zones.ts`); nội dung được đặt trong vùng an toàn chặt nhất của cả ba nền tảng nên một bản render dùng được cho mọi nơi.
-
-## 7. Phân lớp mã
+### 3.2 Dispatcher, hoãn, đối soát, huỷ
 
 ```
-app (page, route)  →  features/*/services  →  features/*/repositories  →  server/db
-                             │
-                             └→ features/*/domain (thuần, không I/O — dùng được ở client, worker, Remotion)
-worker/processors  →  features/*/services (*-runner.ts)  →  server/{ai,tts,media,render,storage}
+QUEUED ─► RUNNING ─┬─► COMPLETED | FAILED
+                   ├─► WAITING_FOR_CLI ──(pnpm ai:run)──► QUEUED
+                   ├─(deferred)──────────────────────────► QUEUED (bullmqJobId mới, availableAt)
+                   └─► CANCEL_REQUESTED ──(AbortSignal)──► CANCELLED
+QUEUED (còn trong outbox hoặc chờ trong BullMQ), WAITING_FOR_CLI ──huỷ──► CANCELLED
 ```
 
-- `server-only` ném lỗi ngoài bundler của Next, nên chỉ module **chỉ dành cho web** (producer hàng đợi, `job-service`, `job-control.service`, route helpers, các `*-request.service.ts`) được import nó. Mọi thứ worker và `scripts/` dùng phải không có `server-only`.
-- `@remotion/bundler` / `@remotion/renderer` chỉ xuất hiện trong module của worker.
-- ESLint (`eslint.config.mjs`) chặn component client import Prisma, Redis, `node:*` hay `@/server`, và chặn Remotion đọc `process.env` hoặc import service.
+- `createJobDispatcher`: bỏ qua job đã huỷ, đánh `RUNNING`, chép tiến độ sang BullMQ và SQLite, thăm dò `CANCEL_REQUESTED` mỗi 2 giây để
+  tạo `AbortSignal`. Lỗi → `FAILED` với mã ổn định (`AppError.code`, `INVALID_PAYLOAD`, `PROCESSOR_ERROR`).
+- **Hoãn:** processor chờ việc từ xa trả `deferred(retryAfterMs)` thay vì ngủ. `rescheduleRunningJob` (một giao dịch) đưa job về `QUEUED`
+  với **`bullmqJobId` mới** (BullMQ nuốt `add` trùng id của job đã xong) và đặt `availableAt`. Lịch nằm trong SQLite nên sống qua restart
+  và Redis bị xoá. Job đã bị yêu cầu huỷ thì kết thúc huỷ thay vì đặt lịch.
+- **Đối soát** (`reconcileJobRecords`): job chưa kết thúc, không còn hàng outbox chưa giao, mà mất khỏi Redis → `FAILED` (`JOB_LOST`) hoặc
+  `CANCELLED` nếu đang chờ huỷ; BullMQ báo `completed`/`failed` → chép lại.
+- `releaseJobEntity`: job huỷ/mất trả chương về trạng thái trước và đánh render đang chạy `FAILED`/`CANCELLED`. Archive, trích xuất và
+  item sản xuất chỉ đổi khi **huỷ**; job mất thì sweep/reconcile cấp job mới và việc tiếp tục từ checkpoint.
+- **Thử lại** (`retryJob`, chỉ `FAILED`/`CANCELLED`) luôn tạo tác vụ mới từ thực thể theo đường riêng của từng loại, giữ lịch sử lần lỗi.
 
-## 8. Lưu trữ và bảo mật
+### 3.3 Idempotency, khoá, thử lại tự động
 
-- Mọi đường dẫn đi qua `server/storage/safe-path.ts`: chặn `..`, symlink thoát khỏi `DATA_DIR` và vị trí dưới `/mnt/`. Thư mục đặt theo ID, không theo tên sách.
-- Ghi tệp theo kiểu tạm-rồi-đổi-tên; tệp gốc của sách ở chế độ chỉ đọc.
-- Tiến trình con luôn chạy bằng `spawn`/`execFile` với mảng tham số, không bao giờ ghép chuỗi shell. `pnpm ai:run` loại bỏ biến môi trường phiên Claude Code và mọi biến kiểu API key trước khi gọi `claude`, không bao giờ dùng `--dangerously-skip-permissions`.
-- Log là JSON, chỉ chứa ID và hash — không chứa văn bản chương hay bí mật. Chỉ lắng nghe `127.0.0.1`; không có xác thực nên không được mở ra mạng.
+BullMQ giao ít nhất một lần, nên mỗi processor bắt đầu từ trạng thái đã lưu: phân tích chương bỏ qua khi cùng hash đầu vào + prompt đã
+xong (trừ `force`) và thay bài nháp AI cũ thay vì nhân; tác vụ CLI dùng lại `output.json`; TTS cache theo hash; render `COMPLETED` là
+no-op; trích xuất, sản xuất và archive đi từ checkpoint; mọi đối tượng từ xa có khoá idempotency, dấu tiêu đề hoặc ID cấp trước.
 
-## 9. Kiểm thử
+`assertScriptNotGenerating()` được mọi service người dùng gọi để đổi video: `409 VIDEO_IN_PRODUCTION` khi video thuộc item chưa kết
+thúc; `409 SCRIPT_GENERATION_IN_PROGRESS` khi còn job tạo kịch bản/viết lại cảnh của video (yêu cầu trùng đích nhận lại job đang chạy).
+Worker ghi qua repository nên không bị khoá này chặn.
 
-| Lớp         | Công cụ                      | Phạm vi                                                                                            |
-| ----------- | ---------------------------- | -------------------------------------------------------------------------------------------------- |
-| Unit        | Vitest (`tests/unit`)        | Parser chương, đường dẫn an toàn, env, domain bài học/video/audio/render, phân loại đầu ra Claude  |
-| Integration | Vitest (`tests/integration`) | Service + repository trên SQLite tạm với migration thật; provider CLI; các tình huống lỗi          |
-| E2E         | Playwright (`tests/e2e`)     | Stack riêng (DB tạm, Redis DB 14, worker, `next start` cổng 3100) chạy trọn E2E-01 tới ffprobe MP4 |
+Lỗi tạm (`QUOTA`/`TRANSIENT`/`UNKNOWN_OUTCOME`) được hoãn theo `Retry-After`, nếu không thì 30 giây nhân đôi tới trần: trích xuất 30 phút,
+tối đa 8 lần liên tiếp; sản xuất 10 phút, 5 lần; archive 30 phút, 8 lần. Bộ đếm về 0 khi có tiến triển; hết lượt thì dừng kèm lý do.
+`AUTH`/`REJECTED` và mọi lỗi AI v1.1 không bao giờ tự thử lại.
 
-## 10. Các quyết định chính
+## 4. AI và Claude
 
-| Quyết định                                                | Lý do                                                                                                                                      |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Hai tiến trình (web + worker), một queue                  | Render và TTS chiếm CPU/RAM nhiều phút; tách khỏi web để UI luôn phản hồi. Một queue với concurrency 1 đủ cho một người dùng trên máy yếu. |
-| SQLite + WAL                                              | Một người dùng, cục bộ, sao lưu chỉ là sao chép một thư mục.                                                                               |
-| BullMQ là nguồn sự thật thực thi, JobRecord là read model | UI đọc nhanh từ SQLite; đối soát khi khởi động xử lý mất đồng bộ (Redis bị xoá, worker chết giữa chừng).                                   |
-| AI qua tác vụ do người dùng chạy                          | Không dùng API key; mọi lần gọi Claude do người dùng chủ động, đúng tinh thần dùng cá nhân của Claude Code.                                |
-| Trạng thái kiểu `String` cho vài trường                   | Tập giá trị sống trong domain TypeScript; thêm giá trị không cần migration SQLite.                                                         |
-| Asset server cục bộ khi render                            | Remotion render trong Chromium cần URL cho âm thanh; phục vụ đúng các tệp của video qua `127.0.0.1` tránh lộ toàn bộ `data/`.              |
-| Composition dùng chung Player và render                   | Bản xem trước là bản sẽ được render — không có hai bộ layout lệch nhau.                                                                    |
+- `AiProvider` theo `AI_MODE`: `mock` (`MockAiProvider`, tất định, không mạng); `cli-task` (mặc định; `LocalCliTaskProvider` ghi tác vụ
+  vào `ai-tasks/<taskId>/`, job `WAITING_FOR_CLI`, người dùng chạy `pnpm ai:run --job <id>`); `cli-auto` (tuỳ chọn;
+  `AutomatedCliProvider` vẫn ghi đủ tệp nhưng worker gọi `askClaude()` ngay).
+- Thư mục tác vụ: `input.json`, `prompt.md`, `schema.json` (JSON Schema draft-7 sinh từ chính schema Zod của đầu ra), `task.json`, rồi
+  `output.json` (đã qua Zod) hoặc `output.raw.txt`. Loại: `chapter-analysis`, `video-script`, `scene-regeneration`, `scene-plan`.
+- `askClaude()` là đường duy nhất tới Claude (dùng bởi `pnpm ai:run`, `AutomatedCliProvider`, `ClaudeScenePlanCompiler`): kiểm
+  `claude auth status`; chạy `claude -p --output-format json --tools "" --strict-mcp-config --no-session-persistence --json-schema …` từ
+  mảng đối số, prompt qua stdin; env bỏ `CLAUDECODE*`/`CLAUDE_CODE_*` (không lồng phiên) và `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN`;
+  timeout và huỷ → `SIGTERM`. Lỗi có mã ổn định (`AI_CLI_AUTH`, `AI_QUOTA_EXCEEDED`, `AI_CLI_TIMEOUT`, `INVALID_AI_OUTPUT`…).
 
-## 11. Kiến trúc v1.2 (có trong mã, chưa nghiệm thu với tài khoản thật)
+Prompt có phiên bản; đổi chữ là tăng phiên bản:
 
-> §1–§10 mô tả luồng v1.1, vẫn chạy nguyên. Mục này mô tả luồng v1.2 của `plan.md` (đặc tả: [§23](../BOOK_VIDEO_STUDIO_REQUIREMENTS_VI_v1.1.md)): toàn bộ đã có trong mã và được kiểm thử với fake cục bộ (OCR, NotebookLM, Claude, Drive), nhưng **chưa chạy với tài khoản Mistral/NotebookLM/Google thật** (G07, G08). Bảng hiện trạng ở §23.7 của đặc tả, nhật ký task ở `plan.md` §5, vận hành ở [`runbook.md`](./runbook.md) (cài đặt, đổi nhà cung cấp — gồm cách thêm OCR provider bằng adapter + bộ contract —, hạn mức, lỗi, khôi phục, giới hạn đã biết).
-
-```mermaid
-flowchart TD
-  A["Upload PDF"] --> B["Worker: kiểm tra PDF, trích text local theo trang"]
-  B --> C{"Trang cần OCR?"}
-  C -- có --> D["OcrProvider (Mistral Batch)"]
-  C -- không --> E["Văn bản theo trang"]
-  D --> E
-  E --> F["Markdown chuẩn + bản đồ trang"]
-  F --> G["ScriptStudioProvider (NotebookLM, MCP stdio): chương + bài học"]
-  G --> H["Người dùng chọn bài học"]
-  H --> I["ScriptStudioProvider: bản thảo kịch bản"]
-  I --> J["ScenePlanCompiler (Claude qua askClaude): JSON cảnh"]
-  J --> K["TTS → kiểm tra tự động → Remotion"]
-  K --> L["MP4 local đã xác minh"]
-  L --> M["Job archive độc lập"]
-  M --> N["VideoArchiveProvider (Google Drive)"]
+```
+chapter-analysis-v1               phân tích chương v1.1 (Claude)
+video-script-v4                   kịch bản và viết lại cảnh v1.1 (Claude)
+scene-plan-v4                     biên dịch kế hoạch cảnh khi sản xuất (Claude)
+notebooklm-chapter-detection-v1   xác định chương sách PDF
+notebooklm-lesson-extraction-v2   danh mục bài học sách PDF
+notebooklm-script-draft-v3        bản thảo khi sản xuất; cũng là draftVersion của cache
 ```
 
-| Port                   | Việc của port                                   | Điều adapter giữ kín (không lộ ra service)                      |
-| ---------------------- | ----------------------------------------------- | --------------------------------------------------------------- |
-| `OcrProvider`          | Bắt đầu xử lý, đọc trạng thái, lấy kết quả, hủy | Trạng thái Batch, file ID, giới hạn Mistral, định dạng phản hồi |
-| `ScriptStudioProvider` | Phân tích nguồn, rút bài học, viết bản thảo     | Tên tool MCP, notebook/source ID, envelope lỗi của NotebookLM   |
-| `ScenePlanCompiler`    | Chuyển bản thảo thành JSON cảnh hợp lệ          | Prompt, cờ CLI, cách phân loại lỗi Claude                       |
-| `VideoArchiveProvider` | Chuẩn bị đích, upload, đối soát, xác minh       | OAuth, session upload, folder/file ID, quota của Google         |
+**Kiểm soát nội dung:**
 
-- **Service nhận port qua tham số**, factory chọn implementation; hợp đồng OCR cho phép cả "xong ngay" lẫn "cần chờ" nên provider không dùng Batch vẫn khớp.
-- **Một queue, một worker, concurrency 1.** Submit / poll / collect của OCR là các job ngắn, không giữ worker chờ Batch nhiều giờ; worker không enqueue job con rồi đứng chờ. Cơ chế outbox và job trì hoãn được thiết kế ở A05–A06 và sẽ được mô tả ở đây khi có code.
-- **Năm loại dữ liệu khác nhau:** PDF gốc (bất biến) → bản trích xuất (dẫn xuất) → catalogue (chương, bài học, nguồn) → bản thảo NotebookLM → kế hoạch cảnh Claude (đầu vào duy nhất của Remotion) → snapshot render (bất biến, nguồn của manifest Drive). Bản thảo không bao giờ được ghi vào chỗ chứa kết quả Claude.
-- **Tải PDF (B02, `POST /api/books/import/pdf`):** thân request chính là PDF thô (không multipart); route đọc `ReadableStream` rồi `server/storage/stream-to-file.ts` ghi từng chunk ra `data/imports/<id>/` đồng thời băm SHA-256 và đếm byte, nên sách 500 MiB không bao giờ nằm trong RAM. Chữ ký `%PDF-` được kiểm tra trên chính các byte (tên tệp và Content-Type chỉ là lời khai), vượt `MAX_PDF_SIZE_MB` thì dừng đọc ngay, và huỷ upload hay lỗi giữa chừng xoá sạch tệp dở. Thành công thì tệp được đổi tên nguyên bản sang `data/books/<bookId>/original.pdf` (chỉ đọc), tạo `Book` (`sourceFormat: pdf`) cùng `BookExtraction(QUEUED)` trong một giao dịch và trả `202`. Job `EXTRACT_PDF` của lần trích xuất được ghi trong **cùng giao dịch** đó (B13) và outbox giao cho worker; PDF trùng hash với sách đang có bị từ chối `409 DUPLICATE_BOOK`.
-- **Output OCR đã hết hạn (G02):** port `OcrProvider` có trạng thái `expired` cho lô đã chạy nhưng nhà cung cấp không còn giữ output (Mistral: job hoặc tệp output trả 404). Lô được chốt là đã tính tiền, các trang của nó thành `FAILED` (`OCR_OUTPUT_EXPIRED`) và lần trích xuất về `PARTIAL`; "Thử lại" gửi lại đúng các trang đó trong lô mới. Trước đây 404 bị coi là lỗi bị từ chối nên lần chạy bị giữ và thử lại gặp lại cùng 404 mãi.
-- **Điều phối trích xuất (B13, job `EXTRACT_PDF`, `runExtraction`):** một job đi hết những bước làm được mà không phải chờ, mỗi bước bắt đầu từ dữ liệu đã lưu nên chạy lại sau sự cố, sau hoãn hay khi thử lại không bao giờ đọc, gửi hay trả tiền cho một trang hai lần: `QUEUED…EXTRACTING` → đọc lớp chữ (B04); `OCR_PENDING` → nếu có lô đang mở thì đi tiếp lô đó, nếu không thì gom các trang `NEEDS_OCR` thành chunk (B05), dự trù chi phí với khoá `<extractionId>-ocr-<n>` (n = số lô đã có, nên bước chạy lại sau sự cố dùng lại khoá) và **lưu bản đồ chunk vào `OcrOperation.chunkPlanJson`**, rồi gửi (B11); lô đang chờ → job `deferred` (60 giây đầu, sau đó theo provider); xong thì quay lại vòng lặp; khi mọi trang có kết quả: còn trang lỗi → `PARTIAL` nêu số trang, không thì `ASSEMBLING` → ghép `canonical.md` (B12) → tách chương bằng **cùng parser cục bộ** với sách Markdown (offset chương là offset trong tài liệu chuẩn, đổi về trang PDF bằng bản đồ trang) → `COMPLETED`; tạo chương và chuyển `COMPLETED` nằm trong một giao dịch mà câu lệnh đầu là chuyển trạng thái, nên bước chạy lại không tạo chương hai lần. Parser không thấy ranh giới chương nào → `NEEDS_CHAPTERS` (không bao giờ lấy cả sách làm một chương; C05 xử lý tiếp). Dừng mà người dùng phải quyết định (thiếu `MISTRAL_API_KEY`, vượt trần, khoá bị từ chối, lô bị huỷ ở phía nhà cung cấp, model khác lô đang mở, thiếu Poppler khi dựng chunk) → **giữ** ở `OCR_PENDING` kèm lý do, job lỗi với cùng lý do, lô đang mở và khoản giữ chỗ còn nguyên. Lỗi tạm thời (`TRANSIENT`/`QUOTA`/mất phản hồi) → hoãn theo `Retry-After` hoặc 30 giây nhân đôi tới 30 phút, tối đa 8 lần liên tiếp (đếm ở `transientFailures`, về 0 khi có tiến triển). Một trang đơn vượt giới hạn byte → `FAILED` (`OCR_PAGE_TOO_LARGE`) thay vì bị bỏ qua. Tệp chunk nằm ở `extractions/<id>/ocr/<requestKey>/`, được dựng lại từ bản đồ đã lưu khi thiếu (ghi `.part` rồi đổi tên nên tệp đã có luôn đầy đủ) và bị xoá khi lô xong. Thử lại (`retryExtraction`, cũng là thử lại job ở trang Tác vụ) xoá lý do, đưa trang OCR lỗi về hàng đợi và ghi job mới cùng giao dịch; huỷ job → `CANCELLED`; worker khởi động cấp job mới cho lần chạy dở đã mất job (`reconcileExtractions`), không chạy định kỳ.
-- **Chia trang OCR thành chunk PDF (B05, `groupOcrPages`, `buildOcrChunks`):** các trang cần OCR (có thể không liên tiếp) được sắp xếp, bỏ trùng và gom thành nhóm tối đa `limits.maxPages` của provider (Mistral: 50 trang, 40 MiB); mỗi nhóm được dựng thành một PDF riêng (`buildPagesPdf`) và **mang theo danh sách số trang gốc theo đúng thứ tự** — trang thứ _i_ của chunk là trang `pageNumbers[i]` của PDF gốc, đúng như B10 dùng để ghép kết quả. Giới hạn byte chỉ biết được sau khi dựng: chunk vượt giới hạn bị xoá và chia đôi (nửa đầu nhận trang lẻ) rồi dựng lại cho tới khi vừa; một trang đơn vẫn vượt giới hạn được **báo lại** (`oversizedPages`) chứ không gửi đi. Mã chunk là `<tiền tố>-<n>` theo thứ tự xuất, nên cùng đầu vào cho cùng chunk; thư mục trang tạm được dọn.
-- **Trích lớp chữ và phân loại trang (B04, `classifyPage`, `extractPdfPages`):** đọc PDF **một lần**: kiểm tra mở được và không vượt `MAX_PDF_PAGES`, đọc lớp chữ mọi trang và đếm hình mỗi trang, rồi phân loại (hàm thuần): còn chữ đọc đúng → `TEXT` (kể cả trang ngắn như tiêu đề chương; chữ được chuẩn hoá NFC); không chữ cái và không hình → `EMPTY`; ít hơn 20 chữ cái mà có hình → OCR "không có lớp chữ (trang scan hoặc ảnh)"; chữ dùng **font tiếng Việt cũ TCVN3/VNI** (nhận ra bằng các ký tự không bao giờ có trong tiếng Việt Unicode như `¸ ® µ ø ï ä`, quá 2% số chữ cái) → OCR; quá 5% ký tự thay thế/riêng tư → OCR "lỗi mã hoá". Lý do OCR được lưu bằng tiếng Việt trên từng trang, vì OCR tốn tiền. Chạy lại sau sự cố **không bao giờ** đặt lại trang đã gửi OCR, đã có kết quả OCR hay OCR thất bại; các trang này vẫn được tính là việc OCR còn lại. Lần trích xuất chuyển `INSPECTING → EXTRACTING → OCR_PENDING` (còn trang cần OCR) hoặc `ASSEMBLING`; PDF có mật khẩu, hỏng, quá dài hay thiếu Poppler → `FAILED` kèm mã và lời giải thích **trước khi** gọi bất kỳ dịch vụ trả phí nào (thiếu Poppler thì thử lại được sau khi cài). Sửa lỗi tìm ra khi viết test: `pdftotext` ghi vào thư mục của lần trích xuất chưa tồn tại và lỗi I/O bị báo nhầm là "PDF hỏng" — nay thư mục được tạo trước.
-- **Bọc Poppler (B03, `server/pdf/poppler.ts`):** mọi công cụ (`pdfinfo`, `pdftotext`, `pdfimages`, `pdfseparate`, `pdfunite`) chạy từ **mảng đối số** (không shell), chỉ nhận **đường dẫn tuyệt đối** (không tên tệp nào bị hiểu nhầm là tùy chọn), môi trường tối thiểu (`PATH`, locale UTF-8), giới hạn thời gian (`PDF_TOOL_TIMEOUT_SEC`) và huỷ được; khi bị dừng, lời gọi kết thúc ngay lúc tiến trình thoát dù có tiến trình con còn giữ ống ra. Lỗi rõ ràng mà không chép thông điệp của Poppler (có thể chứa đường dẫn): `PDF_ENCRYPTED` (cần mật khẩu), `PDF_CORRUPT` (hỏng, không có số trang đọc được), `PDF_TOOL_MISSING` (kèm lệnh cài), `PDF_TOOL_TIMEOUT`. PDF chỉ giới hạn quyền (không cần mật khẩu) vẫn đọc được và được ghi `encrypted: true`. `extractTextLayer` chạy `pdftotext` **một lần** cho cả sách vào tệp tạm rồi tách trang theo ký tự form feed; `countPageImages` đọc `pdfimages -list`; `buildPagesPdf` cắt từng trang rồi ghép theo đúng thứ tự cho trước. Test dùng PDF dựng tay (`tests/helpers/pdf-fixtures.ts`: chữ, ảnh như trang scan, trang trống, font tiếng Việt cũ, mật khẩu RC4 40-bit, giới hạn quyền); các bộ test cần Poppler bị bỏ qua khi chưa cài (như các bộ cần Redis) và chạy với `TEST_POPPLER_BIN_DIR`.
-- **Client Mistral (B07, `server/ocr/mistral/mistral-client.ts`):** REST có kiểu, mọi phản hồi qua Zod, upload tệp **bằng `file_id`** (`purpose: ocr` cho tài liệu, `batch` cho JSONL; không bao giờ cần URL công khai) và stream từ đĩa (`openAsBlob`). Lỗi quy về `IntegrationError`: 401/403 `AUTH`, 429 `QUOTA` (giữ `Retry-After`), 5xx/timeout/ngắt kết nối/phản hồi hỏng của một thao tác **ghi** là `UNKNOWN_OUTCOME` (có thể đã thực hiện), của thao tác đọc là `TRANSIENT`/`REJECTED`. Khóa API chỉ ở trong đối tượng client, không vào lỗi/log. Signal đã huỷ thì không gửi gì (còn tránh lỗi undici: `fetch` với `FormData` và signal đã abort để lại unhandled rejection làm sập worker). **Giả định chưa được tài liệu công khai xác nhận, phải kiểm chứng ở G07:** model `mistral-ocr-4-1` có tồn tại (các nguồn chỉ nói tới `mistral-ocr-4-0`/alias), đơn giá batch $2/1.000 trang, cách `/v1/ocr` tham chiếu tệp đã upload, dạng một dòng JSONL kết quả, và cơ số của chỉ số trang trong phản hồi.
-- **Cài đặt tích hợp (F05):** mục **Tích hợp** ở đầu trang Cài đặt có thẻ Google Drive: trạng thái (chưa cấu hình kèm cách tạo OAuth client Desktop app / chưa kết nối / đã kết nối / cần kết nối lại kèm nguyên nhân thường gặp), tài khoản, nút kết nối (gọi `POST /api/integrations/drive/connect` rồi chuyển trình duyệt sang Google) và ngắt kết nối (có xác nhận; báo khi không thu hồi được ở Google và chỉ chỗ gỡ quyền trong tài khoản Google), mức dùng **của ứng dụng** trong 24 giờ so với giới hạn của nó, dung lượng Drive theo lần đọc gần nhất (ghi rõ đó là dung lượng, không phải quota API), và số bản lưu Drive bị lỗi — tất cả đọc từ trạng thái local (`getDriveOverview`), không gọi Google. Kết quả đăng nhập Google hiện thành thông báo (`drive=connected` hoặc lý do theo mã lỗi, mã lạ thì thông điệp chung, không lặp lại mã). Bốn kiểm tra mới trong chẩn đoán (cũng có trong `pnpm diagnose` và `/api/health`): **Poppler** (phiên bản hoặc lệnh cài), **Mistral OCR** (đã đặt khoá hay chưa — không bao giờ hiện khoá —, model, đơn giá, trần), **NotebookLM** (lệnh `uvx` chạy được, profile đã đặt; việc còn đăng nhập hay không chỉ biết khi worker mở phiên vì web không bao giờ khởi động máy chủ MCP), **Google Drive** (không hiện token). `formatBytes` thêm bậc GB. Hiển thị mức dùng NotebookLM (`usage_get`) chờ C09.
-- **Trình biên tập và lịch sử render với sản xuất và Drive (F04, F06):** video thuộc một đợt sản xuất hiện thông báo ở đầu trình biên tập (trạng thái, bước tiếp theo, lượt sửa AI đã dùng, liên kết tới trang tiến độ); trong lúc item còn chạy (`PENDING`/`RUNNING`/`WAITING`), trình biên tập và trang render **khoá** các thao tác giống như API đã khoá (`409 VIDEO_IN_PRODUCTION`, D06): tạo/duyệt kịch bản, cài đặt, render, xoá, sửa cảnh và giọng đọc. Tab **Nguồn kịch bản** (`getVideoProduction`) hiện bản thảo đã lưu theo từng nhịp kể: lời dẫn, trích đoạn sách kèm số trang, đánh dấu **tình huống minh hoạ** hoặc "không trích sách", và phiên bản kế hoạch cảnh — chỉ khi artifact còn khớp fingerprint. Mọi giới hạn hook trên giao diện đều lấy từ `HOOK_MAX_SECONDS` (4 giây); README sửa "Xem 4 giây đầu". Lịch sử render có cột **Google Drive** cho bản cuối đã xong: trạng thái lưu trữ, số tệp đã xác minh trên 3, lý do khi lỗi, liên kết thư mục **chỉ khi đã xác minh**, nút "Lưu lên Drive"/"Thử lại lưu Drive" (gọi `POST /api/renders/:id/archive`, chỉ upload, không render lại), hoặc lời nhắc kết nối Drive trong Cài đặt; bản nháp ghi "Chỉ lưu bản cuối". Trang tự làm mới khi có archive đang chạy. Xem thật bằng Chromium (1280/390 px, sáng/tối).
-- **Tải PDF và theo dõi trích xuất trên giao diện (F01):** trang Nhập sách có tab "Sách PDF": tệp được gửi nguyên làm thân request bằng `XMLHttpRequest` (chỉ nó báo tiến độ upload), thanh tiến độ là **số byte thực đã gửi**, có nút huỷ; tệp vượt `MAX_PDF_SIZE_MB` bị chặn ngay ở trình duyệt (máy chủ vẫn kiểm tra lại); `202` thì chuyển tới trang sách. Trang sách PDF có thẻ "Trích xuất PDF" (`getBookExtraction`, chỉ đọc DB): bốn bước (đọc PDF → OCR trang cần thiết → ghép văn bản → tạo chương) với trạng thái xong/đang làm/đang dừng/chưa tới, **không có phần trăm** (thời gian OCR phụ thuộc hàng đợi lô của nhà cung cấp), số trang thật theo từng trạng thái (có chữ sẵn, đã OCR, trống, chờ gửi, đang OCR, lỗi), chi phí OCR (đã chi, đang giữ chỗ, trần) và lô đang mở (gửi lúc, kiểm tra gần nhất). Lần chạy có lý do dừng mà không còn job là "Cần xử lý" (ví dụ thiếu `MISTRAL_API_KEY`); còn job (đang hoãn) thì lý do hiện như ghi chú "sẽ thử lại tự động". Nút "Thử lại" (`POST /api/extractions/:id/retry`, 202) chỉ có khi không còn job và lỗi có thể khắc phục — PDF có mật khẩu/hỏng thì không, vì tệp gốc không đổi (service cũng từ chối `409`); "Trần chi phí OCR" (`PUT /api/extractions/:id/ocr-ceiling`, 0–100 USD, không thấp hơn khoản đã chi/giữ chỗ) chỉ có khi còn có thể cần OCR. Trang tự làm mới mỗi 3 giây khi còn job. Thẻ sách trong thư viện có nhãn "PDF · <trạng thái>" cho tới khi xong, và "Cần xử lý" khi lần chạy đang mang lý do lỗi. `NEEDS_CHAPTERS` giải thích rằng bước xác định chương với NotebookLM chưa có. Đã xem thật bằng Chromium (1280 px và 390 px, sáng/tối) và tải một PDF thật qua trình duyệt rồi để worker thật xử lý (đọc lớp chữ, giữ lại ở OCR vì không có khoá).
-- **Chọn bài học và theo dõi sản xuất trên giao diện (F02, F03):** trang `/books/:bookId/produce` liệt kê mọi bài học **chưa lưu trữ** của sách (đã duyệt hay chưa — chọn không phải duyệt), mỗi bài kèm các trích đoạn nguồn theo thứ tự chương (rút gọn 280 ký tự); bài không có trích đoạn nào vẫn hiện nhưng không chọn được, kèm lý do. Chọn nhiều bài + preset (30/45/60, 90 phải bật Extended) rồi gửi `POST /api/productions` với một khoá chống gửi trùng sinh **một lần cho mỗi lần mở trang**, thứ tự item theo thứ tự danh mục; xong chuyển tới trang tiến độ. `/productions` liệt kê các đợt (mới nhất trước, số video xong). `/productions/:id` chỉ đọc DB (không hỏi worker hay dịch vụ ngoài) và tự làm mới mỗi 3 giây khi còn video chưa xong: mỗi video có trạng thái, thanh tiến độ 6 bước (viết bản thảo → biên tập cảnh → áp dụng → lồng tiếng → kiểm tra tự động → render), **lý do** chờ hay lỗi (lỗi tạm thời gần nhất kèm số lần đã thử — nay được ghi cùng bộ đếm và xoá khi item tiến lên —, chờ render, hay lý do thất bại), lượt sửa AI đã dùng, trạng thái render và lưu Drive (liên kết thư mục Drive **chỉ khi archive đã xác minh**, `archiveFolderUrl` dùng chung với API), cùng nút thử lại/huỷ cho từng video và cả đợt (huỷ có hộp xác nhận tiếng Việt). Trang được xem thật bằng Chromium ở 1280 px và 390 px, sáng và tối.
-- **Hoạt cảnh SVG (H03, `src/remotion/illustration/`):** mỗi cảnh có một hoạt cảnh kiểu hoạt hình phẳng vẽ bằng SVG thuần: 7 bối cảnh (`HOME`, `OFFICE`, `STREET`, `PARK`, `CAFE`, `CLASSROOM`, `NIGHT_ROOM` — cửa sổ có mây trôi, đồng hồ chạy, đèn đung đưa, hơi cà phê, sao nhấp nháy, phố/cây trôi khi đi bộ…) và một nhân vật có 8 hành động (`THINKING`, `WORRIED`, `WORKING`, `TALKING`, `WALKING`, `PHONE`, `IDEA`, `CELEBRATING`: thở, chớp mắt, cử chỉ khuỷu tay, bước chân, bong bóng suy nghĩ/lời nói, giọt mồ hôi, bóng đèn ý tưởng, hoa giấy). Mọi chuyển động là hàm của frame nên preview, bản nháp và bản cuối giống hệt; không `filter`/blur (chậm khi rasterise trong Chromium headless), không ảnh, không ngẫu nhiên (test kiểm). Một video có **một nhân vật** (màu da, tóc, kiểu tóc, áo chọn theo tiêu đề video, `CharacterLookContext`). Bố cục: hoạt cảnh tràn toàn khung (trang trí, được phép ra ngoài vùng an toàn), "sân khấu" dời xuống nửa dưới và nhân vật phóng 1,25×; chữ của cảnh nằm trên thẻ trắng đặc ở **đầu** vùng an toàn nên luôn đọc rõ và đọc trước, phụ đề không che chữ. Props cảnh có `illustration` (Zod, danh sách cố định); cảnh chưa có lựa chọn riêng dùng mặc định theo loại cảnh (`DEFAULT_ILLUSTRATION`: hook = phố + suy nghĩ, tình huống = ở nhà + lướt điện thoại, sai lầm = văn phòng + lo lắng, bài học = lớp học + nảy ra ý tưởng, cách làm = công viên + đi bộ, hành động = ở nhà + vui mừng). `RENDER_TEMPLATE_VERSION` = `short-video-template-v2`. Đo trên máy dev: 480 frame bản nháp 720×1280, concurrency 1: 36,8 giây so với 37,3 giây khi chưa có hoạt cảnh (không tốn thêm đáng kể); MP4 lớn hơn (2,3 MB so với 0,66 MB).
-- **Claude chọn hoạt cảnh (H04):** prompt `scene-plan-v4` và `video-script-v4` yêu cầu hook và mỗi cảnh có `illustration: {setting, action}` lấy từ hai danh sách cố định (danh sách trong prompt sinh từ `features/videos/domain/illustration.ts`, nên prompt và renderer không lệch nhau), giữ cùng bối cảnh khi câu chuyện còn ở một nơi. Hợp đồng Zod nhận cảnh không có `illustration` (dùng mặc định theo loại cảnh) và từ chối giá trị lạ. Lựa chọn lưu ở `VideoScene.illustrationJson` (null = mặc định); `sceneContentHash` chỉ tính hoạt cảnh khi có lựa chọn, nên cảnh cũ giữ nguyên hash và render cũ không bị coi là lỗi thời vô cớ; đổi hoạt cảnh thì tăng phiên bản cảnh và đánh dấu render cũ lỗi thời nhưng giữ giọng đọc (lời dẫn không đổi). Trình biên tập có "Hoạt cảnh" (bối cảnh + nhân vật đang…) và "Về mặc định"; PATCH không gửi `illustration` thì giữ nguyên, gửi `null` thì về mặc định. "Viết lại cảnh này" chỉ viết lại lời, giữ hoạt cảnh (prompt viết lại không hỏi hoạt cảnh, và nếu AI vẫn trả về thì bỏ qua). Phương án hook mang theo hoạt cảnh của nó khi được chọn. Snapshot render lưu `illustration` của từng cảnh; snapshot cũ (chưa có trường này) vẫn đọc được và có cùng fingerprint.
-- **Video tới 5 phút (H02):** preset 30/45/60 giây (mặc định 60) và preset dài 90, 120, 180, 240, 300 giây (`DURATION_PRESETS_SEC`); preset dài chỉ nhận khi chọn rõ "Video dài" (`extended`, suy ra từ thời lượng khi đọc video — không lưu riêng) và chỉ hiện tới `MAX_VIDEO_DURATION_SEC` (mặc định 300). Bộ chọn preset dùng chung (`DurationPresetPicker`) cho tạo video, cài đặt video và trang sản xuất. Kiểm tra trước render chặn quá 300 giây (`OVER_MAX`); hook vẫn ≤ 4 giây/120 frame; không tự nâng preset. Hợp đồng kịch bản, kế hoạch cảnh và bản thảo cho tới `MAX_STORY_SCENES` = 30 cảnh/nhịp sau hook; prompt `video-script-v3`, `scene-plan-v3`, `notebooklm-script-draft-v3` hướng dẫn video dài kể sâu hơn (nhiều cảnh 8–15 giây mỗi phần, tình huống chi tiết, nhiều bước hành động) chứ không thêm bài học. Đợt sản xuất vẫn một bài học mỗi video.
-- **Kịch bản luôn tiếng Việt (H01):** sách có thể bằng tiếng Anh hoặc tiếng Việt (OCR trả đúng ngôn ngữ của sách). Prompt `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v2` và `scene-plan-v2` nói rõ: các trường bài học, lời dẫn và chữ trên màn hình luôn bằng tiếng Việt tự nhiên (dịch ý, không chèn câu tiếng Anh trừ tên riêng/tên sách), còn trích đoạn nguồn chép **nguyên văn đúng ngôn ngữ gốc** để vẫn đối chiếu được với sách (`locateExcerpt`) và trang. Bộ chặn khẳng định không có căn cứ của Claude vẫn so trích dẫn trên màn hình với lời dẫn tiếng Việt của bản thảo. Đổi phiên bản prompt bản thảo cũng đổi `draftVersion`, nên cache bản thảo không trả lại bản viết theo prompt cũ.
-- **Cache bản thảo, mức dùng và phục hồi (C09):** bản thảo **đã qua kiểm tra** được lưu ở bảng `ScriptDraftCache` (migration `script_draft_cache`, chỉ `CREATE TABLE`) theo khoá SHA-256 của mọi thứ có thể đổi câu trả lời: provider và `draftVersion` của nó (với NotebookLM là phiên bản prompt bản thảo; thêm vào port), bài học + hash nội dung, preset, **tập** remote ID của nguồn (đổi khi văn bản nguồn có phiên bản mới; không phụ thuộc thứ tự) và ghi chú lượt sửa. Bước bản thảo hỏi cache trước: trúng thì dùng nguyên (worker chết sau khi NotebookLM trả lời nhưng trước khi lưu artifact, hoặc một đợt sau sản xuất lại cùng bài học cùng preset), trượt thì gọi script studio rồi lưu ngay trước khi lưu artifact. Bản lưu không còn qua hợp đồng bản thảo bị bỏ qua (không vá); lượt sửa có ghi chú là yêu cầu khác nên luôn hỏi lại. Quota/kết quả chưa rõ không gây vòng lặp: pipeline sản xuất hoãn tối đa 5 lần rồi lỗi kèm lý do, trích xuất tối đa 8 lần, phân tích chương lỗi ngay. Mức dùng: khi một phiên NotebookLM kết thúc (`close()`), worker đọc `usage_get` (cửa sổ ngắn hạn/tuần: phần trăm đã dùng — vắng mặt là **không rõ**, không phải 0 —, thời điểm đặt lại, gói) và ghi `data/integrations/notebooklm-status.json` (không cookie/token, chỉ lời của ứng dụng); phiên không mở được vì đăng nhập → `NEEDS_LOGIN`. Job chẩn đoán có thêm loại `notebooklm` (worker đăng nhập bằng profile, đọc hạn mức, đóng); Cài đặt → Tích hợp có thẻ NotebookLM (trạng thái, profile, lần kiểm tra, gói, thanh hạn mức, hướng dẫn `nlm login`, nút "Kiểm tra NotebookLM" tự làm mới khi xong); quan sát của profile khác không được hiện.
-- **Bản thảo bằng NotebookLM (C08, `NotebookLmScriptStudio`):** adapter thật của port `ScriptStudioProvider`. Một tiến trình MCP mở ở lần gọi đầu và giữ cho cả lần chạy (`close()`; processor sản xuất đóng nó trong `finally`, mở lại được sau khi đóng); mỗi sách một notebook, mỗi nguồn tải một lần mỗi phiên bản văn bản; `SourceRef.remoteId` là `<notebookId>#<sourceId>` (vẫn mờ đối với bên gọi) nên câu hỏi biết đúng notebook và **chỉ** các nguồn được chọn — nguồn không phải của ứng dụng hoặc lẫn hai notebook bị từ chối (`NOTEBOOKLM_SOURCES_INVALID`). Port được mở rộng kiểu cộng thêm: `ensureSource` nhận `book`, `detectChapters` nhận `bookTitle`/`pageCount`, `extractLessons` nhận `bookTitle`/`partNumber`/`partCount`; bộ xác định chương (C05) và lập danh mục (C06) nay đi qua chính adapter này nên chỉ có một đường gọi NotebookLM. `writeDraft` hỏi với prompt `notebooklm-script-draft-v1` (bài học từ snapshot được trích như dữ liệu; mạch kể HOOK → tình huống → sai lầm → bài học → quay lại tình huống → hành động; hook dưới 4 giây; tên sách/bài học chỉ từ nhịp LESSON; ngân sách số từ theo preset; trích đoạn nguyên văn để riêng với lời dẫn; tình huống tự nghĩ đánh dấu `illustrative`; lượt sửa duy nhất được trích nguyên văn); câu trả lời sai định dạng hoặc sai thứ tự mạch kể → `DRAFT_INVALID` (`REJECTED`), đúng mã mà một lượt sửa AI của video dành cho script studio. Nguồn của bản thảo (`resolveLessonSources`): mọi phần của mọi chương mà bài học trích dẫn, **cùng khoá và cùng văn bản** với lúc lập danh mục (`chapterPartDocuments`) nên không tải lại; chương đã xoá hoặc thuộc sách khác bị bỏ qua. `createPipelineDeps`: `cli-auto` + `NOTEBOOKLM_PROFILE` → NotebookLM + Claude; `cli-auto` thiếu profile → báo thiếu cấu hình ngay (item lỗi kèm lý do); `mock` giữ mock. Bộ contract `ScriptStudioProvider` dùng chung nay chạy cả với adapter thật trên fake MCP (fake trả lời `notebook_query` theo nội dung câu hỏi).
-- **Danh mục bài học bằng NotebookLM (C06, C07, `runNotebookChapterAnalysis`):** job `ANALYZE_CHAPTER` của một chương **sách PDF** dùng NotebookLM khi nó được cấu hình (`cli-auto` + `NOTEBOOKLM_PROFILE`); sách nhập từ `.md/.txt` và mọi chế độ khác giữ nguyên phân tích v1.1. Văn bản chương lấy từ tài liệu chuẩn của lần trích xuất đã xong (`loadChapterSource`: offset → trang PDF qua bản đồ trang; PDF gốc không bao giờ được đọc), cắt thành **các phần tối đa 40.000 ký tự** ở ranh giới đoạn (`splitIntoParts`); mỗi phần là một nguồn NotebookLM riêng (`chapter:<id>:part:<n>`, có dòng `[Trang N]` ở đầu mỗi trang, tải một lần mỗi phiên bản văn bản) và một câu hỏi riêng chỉ với nguồn đó (prompt `notebooklm-lesson-extraction-v1`: liệt kê **mọi** bài học, không giới hạn số lượng, trích nguyên văn, đánh dấu tình huống tự nghĩ ra). Bài học trùng tiêu đề giữa các phần (bỏ qua hoa thường/dấu câu/khoảng trắng) được giữ một lần với bằng chứng của cả hai (`mergeLessonCandidates`); giống nhau ít chắc chắn hơn thì để nguyên. Trích đoạn chỉ được giữ khi tìm thấy thật trong văn bản chương (`locateExcerpt`, không phân biệt khoảng trắng) và **trang lưu là trang nơi tìm thấy**, không phải trang mô hình khai (`sourceLocator = page:<n>;offset:<k>`); bài không còn trích đoạn nào giữ nguồn rỗng như v1.1 và không chọn được ở trang sản xuất. Lần chạy thay các bài nháp AI cũ của chương (lưu trữ chúng) nên chạy lại không nhân bài học; cùng nội dung + phiên bản prompt thì bỏ qua trừ khi ép chạy lại. Phần nào trả `complete: false` → chương ở trạng thái mới `PARTIAL` ("Phân tích chưa hết"), bài học vẫn lưu nhưng chương không bao giờ được coi là đã phân tích xong. Câu trả lời sai định dạng → chương `FAILED`, không lưu gì. Mỗi lần chạy ghi một `AiRun` (`mode: notebooklm`) và đầu ra thô `ai-tasks/<job>/notebooklm-lessons.json`. Trang chọn bài học hiện số trang của từng trích đoạn (`pageFromLocator`).
-- **Xác định chương bằng NotebookLM (C05, `DETECTING_CHAPTERS`, `verifyProposedChapters`):** khi parser cục bộ không thấy ranh giới chương nào trên `canonical.md`, lần trích xuất sang `DETECTING_CHAPTERS` (vẫn do job `EXTRACT_PDF` chạy). NotebookLM **không nhận cả sách**: nó nhận một nguồn "Dàn ý theo trang" (`buildChapterOutline`: mỗi trang có chữ một dòng `[Trang N]` + tối đa 160 ký tự đầu trang) cộng các dòng giống mục lục làm gợi ý, và trả JSON `[{title,startPage,endPage,startAnchor}]` theo prompt có phiên bản `notebooklm-chapter-detection-v1` (văn bản sách được nói rõ là dữ liệu). Câu trả lời không phải JSON đúng lược đồ → từ chối (`NOTEBOOKLM_CHAPTERS_INVALID`), không vá. Đề xuất chỉ được dùng khi **mọi** chương qua kiểm tra thuần: `startAnchor` phải thật sự có trên trang bắt đầu (hoặc trang kế, vì cách đếm ngắt trang có thể lệch; khớp không phân biệt hoa thường, bỏ qua khoảng trắng và dấu nhấn Markdown; anchor dưới 4 ký tự bị từ chối), chương bắt đầu ở đầu dòng của anchor; không chương nào bắt đầu ở **trang mục lục** (trang chứa từ 3 tiêu đề chương trở lên); các chương đi tới theo thứ tự; số trang nằm trong sách; một chương phủ ≥ 90% sách từ 20 trang trở lên bị từ chối như fallback cả sách. **Phần đầu sách** (trước chương đầu) không thuộc chương nào; chương cuối dừng ở trang cuối của nó nên phụ lục/chỉ mục bị loại. Thành công → tạo chương + `COMPLETED` trong cùng giao dịch (như parser cục bộ, dùng chung `createChaptersFromRanges`). Đề xuất không khớp → `NEEDS_CHAPTERS` (`CHAPTER_DETECTION_REJECTED`, kèm lý do), không tạo gì; đăng nhập bị từ chối/NotebookLM từ chối → `NEEDS_CHAPTERS` với lý do; lỗi tạm thời → hoãn như OCR (đếm chung `transientFailures`). Không có NotebookLM (không phải `cli-auto` hoặc chưa đặt `NOTEBOOKLM_PROFILE`) → `NEEDS_CHAPTERS` kèm hướng dẫn. Thử lại từ `NEEDS_CHAPTERS` hỏi lại (về `DETECTING_CHAPTERS`). Mỗi lần hỏi mở một tiến trình MCP riêng và đóng ngay sau đó (`withNotebookLm`).
-- **Tạo notebook/nguồn và đối soát (C04, `ensureNotebook`, `ensureSource`, `queryNotebook`):** hình dạng trả về đọc từ mã của gói đã ghim (`notebook_create` → `notebook_id`; `notebook_list` → `notebooks[{id,title}]`; `notebook_get` → `sources[{id,title}]`; `source_add` → `source_id`; `notebook_query` → `answer`, `conversation_id`, `sources_used`). Notebook được tạo **một lần** (`PENDING → CREATING`, có điều kiện) với tiêu đề `Book Video Studio · <sách> [bvs:<id>]`; mỗi phần sách là nguồn **văn bản** (`source_type: "text"`, `wait: true`) với tiêu đề mang dấu. Lần tạo mất phản hồi → `UNKNOWN_OUTCOME`; lần sau **tìm dấu** trong `notebook_list`/`notebook_get` trước, thấy thì nhận đúng đối tượng đó, không thấy mới tạo lại — nên mất phản hồi không bao giờ sinh notebook hay nguồn thứ hai; bị từ chối rõ ràng thì quay về trạng thái thử lại được. Sửa lỗi tìm ra khi viết test: quá hạn hay tiến trình chết trong một **công cụ thay đổi dữ liệu** trước đây là `TRANSIENT` (lần sau sẽ tạo lại → bản trùng), nay phiên NotebookLM nâng thành `UNKNOWN_OUTCOME`. Câu hỏi luôn truyền **`source_ids` tường minh** trong một hội thoại mới: NotebookLM mặc định dùng _mọi_ nguồn của notebook (kể cả phiên bản đã bị thay), nên hỏi mà không có nguồn bị từ chối (`NOTEBOOKLM_NO_SOURCES`). Trạng thái `"expired"` (từ `refresh_auth`) được hiểu là cần đăng nhập lại.
-- **Ràng buộc notebook và nguồn (C03, `NotebookBinding`, `NotebookSourceBinding`):** mỗi sách có **một** notebook cho mỗi tài khoản NotebookLM (`bookId` + `profile`, khoá duy nhất; gọi đồng thời → một dòng), ID notebook từ xa ghi một lần. Mỗi phần văn bản của sách (`sourceKey`, ví dụ `chapter:<chapterId>`) ở mỗi **phiên bản nội dung** (`contentHash`) là một nguồn: văn bản đổi → dòng mới, các phiên bản cũ được đánh dấu `supersededAt` nhưng **giữ lại** cùng ID nguồn từ xa để còn truy được bài học cũ lấy từ đâu; văn bản quay lại phiên bản cũ → dùng lại đúng dòng đó. Câu hỏi chỉ hỏi trên các phiên bản hiện hành (`listCurrentSources`). Tiêu đề gửi tới NotebookLM mang **dấu `[bvs:<id>]`** của dòng ràng buộc, để sau một lần tạo mất phản hồi ứng dụng nhận ra đúng đối tượng của mình mà không đoán theo tên (C04). ID nguồn từ xa ghi một lần; trạng thái chỉ chuyển từ trạng thái mong đợi.
-- **Phiên NotebookLM, profile và phong bì kết quả (C02, `NotebookLmSession`, `readNotebookLmEnvelope`):** worker chạy `uvx --from notebooklm-mcp-cli==0.15.8 notebooklm-mcp` với **danh sách biến môi trường cho phép** (`PATH`, `HOME`, `LANG`, `LC_ALL`, `TMPDIR`, `XDG_*`, `DBUS_SESSION_BUS_ADDRESS`, `UV_CACHE_DIR`); `NOTEBOOKLM_COOKIES` và mọi khoá của ứng dụng không bao giờ được truyền (cookie đó sẽ ghi đè profile đã chọn). Khi mở phiên: kiểm tra máy chủ có đủ công cụ cần dùng (`NOTEBOOKLM_TOOLS_MISSING` nếu khác phiên bản), chuyển sang `NOTEBOOKLM_PROFILE` **chỉ cho tiến trình này** (`make_default: false`) rồi **đọc lại** profile đang dùng — máy chủ nói đã chuyển mà vẫn chạy tài khoản khác thì từ chối (`NOTEBOOKLM_PROFILE_MISSING`, kèm lệnh `nlm login --profile <tên>`); chưa cấu hình profile → `NOTEBOOKLM_PROFILE_NOT_SET`. Mỗi lời gọi được xét theo **phong bì** `{"status": "success" | "error"}` (đọc `structuredContent`, hoặc JSON trong nội dung văn bản), **không** theo cờ `isError` (máy chủ báo lỗi với `isError: false`); thiếu `status` → `NOTEBOOKLM_BAD_RESPONSE`. Văn bản lỗi chỉ dùng để phân loại — đăng nhập (`NOTEBOOKLM_AUTH_REQUIRED`, `AUTH`), giới hạn sử dụng (`NOTEBOOKLM_QUOTA`, `QUOTA`), quá hạn (`NOTEBOOKLM_TIMEOUT`) — và **không bao giờ** được hiện ra (có thể chứa cookie hay đường dẫn); lỗi khác → `NOTEBOOKLM_TOOL_ERROR`. Với công cụ thay đổi dữ liệu (`notebook_create`, `source_add`, `source_delete`, `profile`), quá hạn hoặc phản hồi không đọc được là `UNKNOWN_OUTCOME` để bên gọi đối soát trước khi gửi lại. Các mẫu văn bản lỗi đăng nhập/giới hạn ngoài câu "No authentication found" (đã thấy thật) là **giả định**, cần kiểm ở G07.
-- **Client MCP qua stdio (C01, `McpStdioClient`):** client JSON-RPC 2.0 tối giản theo từng dòng trên stdin/stdout của một tiến trình con (không thêm SDK): `initialize` với phiên bản giao thức `2025-06-18` (chấp nhận `2025-03-26`; phiên bản khác → `MCP_PROTOCOL_UNSUPPORTED`), `notifications/initialized`, `tools/list` đọc **mọi trang** (`nextCursor`), `tools/call`. Tiến trình được spawn từ mảng đối số, **không shell**, với **đúng môi trường được truyền vào** (không thừa hưởng gì từ worker, nên khoá của worker không bao giờ tới máy chủ MCP). Máy chủ `ping` thì trả lời; mọi yêu cầu khác từ máy chủ bị từ chối (không cung cấp sampling/roots/elicitation); dòng không phải JSON bị bỏ qua; thông điệp quá 32 MiB → tiến trình bị dừng. Gọi quá hạn (`MCP_TIMEOUT`) hoặc bị huỷ thì gửi `notifications/cancelled`; tiến trình chết → mọi lời gọi đang chờ và sau đó thất bại `MCP_PROCESS_EXITED` (tạm thời). Lỗi JSON-RPC chỉ giữ mã số, không giữ lời của máy chủ; stderr được giữ trong bộ đệm có giới hạn và **không bao giờ** nằm trong lỗi hay log. Đóng: đóng stdin, chờ, rồi `SIGTERM`, rồi `SIGKILL`. Đã hỏi máy chủ thật `notebooklm-mcp-cli==0.15.8` (chạy cô lập, `HOME` tạm, không có đăng nhập): máy chủ `gemini-notebook-mcp` 4.1.4, giao thức `2025-06-18`, 53 công cụ; `notebook_query` nhận `source_ids`; lỗi được trả về với **`isError: false`** và `structuredContent.status = "error"` — adapter (C02) không được tin cờ thành công của lời gọi; công cụ `profile` chuyển tài khoản cho cả tiến trình, nên tiến trình riêng của worker chọn được profile mà không đổi mặc định toàn cục.
-- **API trạng thái và thử lại lưu trữ (E11, `GET`/`POST /api/renders/:renderId/archive`):** `GET` trả các archive của bản render (mới nhất trước) với trạng thái, lý do lỗi, số lần thử, và từng tệp (tên trên Drive, trạng thái, số byte, **số byte Google đã xác nhận**, thời điểm xác minh) — **không** có session URI, đường dẫn local, checksum hay ID tài khoản; liên kết thư mục Drive (`https://drive.google.com/drive/folders/<id>`) chỉ có khi archive đã `COMPLETED`. `POST` (`202`) lưu bản render ngay cho tài khoản đang kết nối (chưa kết nối → `409 DRIVE_NOT_CONNECTED`; không phải render FINAL đã xong → `409 ARCHIVE_NOT_ARCHIVABLE`): chưa có archive → tạo cùng job; đang chạy → giữ (hoặc cấp lại) job; đã xong → trả nguyên; `FAILED` → **thử lại đúng phần lỗi** bằng `UPDATE` có điều kiện (`FAILED` → `PENDING`, xoá lỗi, đặt lại bộ đếm) và job mới trong cùng giao dịch (hai lần thử lại đồng thời → một job), **không render lại**, dùng lại thư mục, ID tệp, checkpoint và tệp đã xác minh. Hai ngoại lệ: thư mục render đã bị xoá khỏi Drive (`ARCHIVE_FOLDER_MISSING`) → bỏ ràng buộc thư mục render, xoá ID thư mục/tệp và checkpoint để dựng lại; bản sao không khớp (`ARCHIVE_REMOTE_MISMATCH`) → các tệp chưa xác minh nhận **ID mới** (không thể tạo lại một ID tệp Drive) còn tệp đã xác minh giữ nguyên; bản lỗi cũ vẫn ở Drive vì ứng dụng không bao giờ xoá gì ở đó. Thử lại job lưu trữ ở trang Tác vụ đi cùng đường này.
-- **Processor lưu trữ và quét khi khởi động (E10, `ARCHIVE_RENDER`, `requestRenderArchive`, `sweepRenderArchives`):** khi một render **FINAL** xong (ý định lưu trữ đã ghi cùng lúc với `COMPLETED`, D11), processor render gọi `requestRenderArchive` — lỗi ở bước này chỉ ghi log, không đụng tới bản render. Archive (ba dòng tệp) và job của nó được ghi **cùng giao dịch**, cho tài khoản đang kết nối (`destinationKey` = `permissionId`); chưa kết nối hoặc cần kết nối lại thì không làm gì và ý định vẫn còn đó. `sweepRenderArchives` chạy khi worker khởi động (sau reconcile) và mỗi phút: tạo archive cho các render FINAL đã xong có ý định lưu trữ mà chưa có archive ở tài khoản hiện tại (ví dụ render xong trước khi kết nối Drive), và cấp lại job cho archive dở dang **của tài khoản hiện tại** đã mất job; archive `FAILED` để người dùng thử lại. Processor dựng provider Drive từ credential (token tự làm mới, mọi yêu cầu qua `DriveRequestMeter` dùng chung cả worker, kiểm tra dung lượng) rồi chạy `runRenderArchive`; nó **chỉ upload**, không bao giờ render, lồng tiếng hay gọi AI. Lỗi chờ được (`QUOTA`/`TRANSIENT`/`UNKNOWN_OUTCOME`) → archive `WAITING` kèm lý do và job hoãn qua outbox (theo `Retry-After` nếu có, nếu không thì 30 giây nhân đôi tới tối đa 30 phút), tối đa 8 lần rồi `FAILED` kèm lý do; lỗi chờ không giải quyết được (quyền, Drive đầy, tệp đã đổi) → `FAILED` ngay. Kết nối cần đăng nhập lại → `DRIVE_RECONNECT_REQUIRED`; archive thuộc tài khoản khác tài khoản đang kết nối → `ARCHIVE_DESTINATION_CHANGED` (tài khoản mới nhận archive mới qua sweep). Huỷ job lưu trữ → archive `FAILED` (`ARCHIVE_CANCELLED`), không bao giờ đè lên archive đã xong; job bị mất → sweep cấp job mới. Trang Tác vụ hiện "Lưu Drive · <video>" và dẫn tới trang render.
-- **Sổ quota, nhịp gọi và bộ nhớ đệm dung lượng Drive (E09, `DriveRequestMeter`, `DriveUsageHour`, `DriveCapacityGuard`):** mọi yêu cầu Drive API đi qua `beforeRequest(bytes)` của client (kể cả lần gửi lại sau `401`): `DriveRequestMeter` ghi vào sổ theo giờ (`DriveUsageHour`, theo provider) **chỉ những gì ứng dụng này gửi** — không phải quota của cả Google project hay tài khoản — và từ chối yêu cầu sẽ vượt giới hạn 24 giờ trượt (mặc định 5.000 yêu cầu, 10 GiB dữ liệu gửi; hai lần đặt chỗ đồng thời không thể cùng lấy chỗ cuối vì câu lệnh đầu giao dịch là ghi) bằng lỗi `QUOTA` `DRIVE_APP_DAILY_LIMIT` kèm thời gian tới khi giờ cũ nhất rời cửa sổ, **không** chờ trong worker; giữa hai yêu cầu chỉ giãn tối đa một khoảng (mặc định 1 giây). Phân biệt **dung lượng** với **quota API**: `403 storageQuotaExceeded` là `REJECTED` (chờ không giải quyết được, cũng không phải lỗi quyền — trước đây bị xếp nhầm vào `AUTH`), còn `rateLimitExceeded`/`userRateLimitExceeded`/`dailyLimitExceeded`/`sharingRateLimitExceeded`/429 là `QUOTA`. `DriveCapacityGuard` đọc `about.storageQuota(limit,usage)` (bộ nhớ đệm `DriveCapacity` theo tài khoản, làm mới tối đa mỗi giờ, cộng dồn các upload đã xong) và từ chối **upload mới** không vừa (`DRIVE_STORAGE_FULL`) trước khi gửi byte nào; upload đang tiếp tục thì không bị chặn. Tài khoản không giới hạn dung lượng không bị chặn. UI chỉ đọc các bảng local này, không gọi Google. Gói dung lượng (ví dụ Google One) không nói gì về quota API.
-- **Hồ sơ bản render và một lượt lưu trữ (E08, `archive-record.ts`, `materializeArchiveFiles`, `runRenderArchive`):** `script.json` (lời dẫn, chữ trên màn hình, thời lượng của các cảnh hiện theo thứ tự, và nguồn sách của bài học) và `manifest.json` (render, kích thước, fps, thời lượng, phiên bản template/snapshot, `snapshotHash`, thời điểm chụp snapshot và hoàn tất render, tên + số byte + SHA-256 của MP4 và script, audio theo `contentHash`) được dựng **chỉ từ snapshot đã lưu của bản render** (D10; snapshot thiếu hoặc hash không khớp → `ARCHIVE_SNAPSHOT_MISSING`, `readStoredRenderSnapshot` dùng chung với render), không từ video hiện tại, không chứa đường dẫn local, và là JSON khoá sắp xếp + thụt lề 2 + xuống dòng cuối nên **dựng lại luôn ra cùng byte**. Hai tệp nằm cạnh MP4 (`videos/<videoId>/renders/<renderId>-script.json`, `-manifest.json`). Tên trên Drive: `video_s<scriptVersion>_<renderId>_<width>x<height>.mp4`, `script.json`, `manifest.json`. `runRenderArchive` ghi tệp local vào archive trước khi upload (tệp đã bắt đầu upload mà đổi nội dung → `ARCHIVE_LOCAL_FILE_CHANGED`), dùng lại đích đã lưu hoặc chuẩn bị rồi ghi ID một lần, rồi upload **MP4 → script → manifest** (manifest mô tả hai tệp kia), mỗi tệp tiếp tục từ checkpoint đã lưu, bỏ qua tệp đã xác minh, xác minh với bản local; Drive báo số byte khác hoặc bản sao không khớp → archive `FAILED` kèm lý do; Drive không thấy tệp vừa upload → đặt lại tệp đó và ném lỗi tạm thời để lần sau upload lại vào cùng ID. Chỉ `COMPLETED` khi cả ba tệp đã xác minh; archive đã xong không làm gì thêm (kể cả khi MP4 local đã bị xoá). Không bao giờ render, lồng tiếng hay gọi AI lại.
-- **Đối soát sau khi mất phản hồi và xác minh (E07, `GoogleDriveArchiveProvider`):** adapter Drive của `VideoArchiveProvider` (`prepareDestination` = cây thư mục E05, `upload` = E06, `verify`) và **qua bộ contract test dùng chung** với fake Google. Một chunk mất phản hồi (timeout, mất kết nối, 5xx — với lệnh ghi đều là `UNKNOWN_OUTCOME`) được theo sau bằng một lần hỏi trạng thái rồi gửi tiếp đúng chỗ Google đang đứng: chunk Google đã lưu không bị gửi lại, chunk cuối mất phản hồi được nhận ra là đã hoàn tất tệp; tối đa 3 lần liên tiếp, còn Google mãi không giữ gì thì `DRIVE_UPLOAD_STALLED` dừng trước; mọi trường hợp đều giữ checkpoint để lần sau tiếp tục, và khởi động lại mất phiên vẫn ra **cùng một tệp** (phiên hết hạn → phiên mới cùng ID, hoặc `409` → tệp đã có). Thư mục render bị xoá trong Drive → mở phiên trả `404` → `ARCHIVE_FOLDER_MISSING`. `verify` đọc `files.get?fields=id,size,md5Checksum,sha256Checksum,trashed` và băm tệp local một lượt (stream, SHA-256 + MD5): không có → `missing`; trong thùng rác, khác kích thước, khác SHA-256 (hoặc MD5 khi Drive không có SHA-256) → `mismatch` kèm lý do; Drive chưa có checksum → `DRIVE_CHECKSUM_PENDING` (tạm thời) chứ **không** tin chỉ kích thước. Giả định nhà cung cấp chưa kiểm chứng (G08): tài liệu Drive không ghi mã hoá của `sha256Checksum`/`md5Checksum`; code so sánh dạng hex không phân biệt hoa thường.
-- **Upload MP4 có thể tiếp tục (E06, `DriveResumableUpload`):** theo hướng dẫn upload của Google: mở phiên `uploadType=resumable` vào **ID tệp đã cấp trước** (`X-Upload-Content-Length`/`-Type`, metadata có `id`, `parents`), rồi gửi từng chunk `PUT` với `Content-Range`, chunk là bội số 256 KiB (mặc định 8 MiB, chunk cuối tuỳ ý). Bộ nhớ là **một** buffer cỡ chunk dùng lại cho mọi lần đọc từ đĩa, bất kể tệp lớn bao nhiêu. Tiến độ (`onCheckpoint`) chỉ báo **số byte Google xác nhận** qua header `Range` của `308` (không có `Range` = 0 byte), không phải số byte đã gửi; nếu Google giữ ít hơn, chunk sau bắt đầu đúng chỗ Google đang đứng; ba chunk liền không tiến → `DRIVE_UPLOAD_STALLED` (tạm thời) thay vì gửi mãi. Session URI chỉ nằm trong checkpoint (cho phép ghi vào upload nên coi như credential: không có trong lỗi, log hay UI; `sendGoogleRequest` không chép URL vào lỗi). Lần gọi sau với checkpoint **hỏi Google trước** (`PUT` rỗng, `Content-Range: bytes */<tổng>`): `308` → gửi tiếp từ chỗ đó, `200/201` → đã xong, `404` (phiên hết hạn sau một tuần) → mở phiên mới vào **cùng ID tệp**. Mở phiên bị `409` = tệp đã được tạo bởi lần trước (mất phản hồi) → đọc kích thước tệp từ Drive và coi như xong, không tạo tệp thứ hai; chỉ `409` mới được coi như vậy. Tệp local đổi kích thước so với lúc giao cho archive → từ chối trước khi gọi Google. `fetch` dùng `redirect: "manual"` để `308` không bao giờ bị hiểu là chuyển hướng.
-- **Cây thư mục lưu trữ với ID cấp trước (E05, `ArchiveFolder`, `DriveFolderTree`):** cây trên Drive theo đúng kế hoạch: `Book Video Studio/books/<bookId>/videos/<videoId>/renders/<renderId>/`. Bảng `ArchiveFolder` gắn **đường dẫn** của mỗi thư mục (gốc là `""`) trong một đích (`provider` + `destinationKey` = `permissionId` của tài khoản) với ID từ xa. `prepare` xin ID bằng **một** lời gọi `files.generateIds` (đủ cho các thư mục còn thiếu + 3 tệp), **ghi ID vào bảng trước** (ghi một lần; bên thua cuộc đua nhận ID của bên thắng), rồi mới tạo thư mục với chính ID đó; Drive trả `409` cho lần tạo lặp lại một ID đã dùng (tài liệu Google: thử lại với ID cấp trước an toàn, không tạo bản trùng), nên mất phản hồi giữa chừng không bao giờ sinh thư mục thứ hai. Thư mục đã xác nhận được dùng lại: render thứ hai của cùng video chỉ tạo đúng thư mục của nó. **Không bao giờ tìm kiếm Drive**: chỉ có `generateIds` và tạo thư mục. Nếu ai đó xoá một thư mục trong Drive, lần tạo bên dưới nó trả `404` → bỏ ràng buộc của thư mục đó và mọi thứ bên dưới, dựng lại từ đó, mỗi lần một cấp, tối đa bằng độ sâu cây. (Chuẩn bị lại **cùng** render khi mọi thư mục đã xác nhận không gọi Drive nên không phát hiện được; trường hợp đó do bước upload xử lý.) Client Drive gửi lại **một lần** sau `401` với token mới (`invalidateAccessToken`), không lặp vô hạn; số ID trả về thiếu thì không tạo gì.
-- **Vòng đời quyền truy cập Drive (E04, `DriveAccessToken`, `POST /api/integrations/drive/disconnect`):** worker lấy access token qua `DriveAccessToken.get()`: dùng token đã lưu khi còn hơn 1 phút, nếu không thì làm mới bằng refresh token (nhiều lời gọi cùng lúc chỉ gửi **một** yêu cầu tới Google; `invalidate()` sau khi Drive trả 401 buộc làm mới dù chưa hết hạn; refresh token mới nếu Google cấp thì được giữ). Google trả `invalid_grant` (thu hồi, hết hạn 7 ngày khi để Testing, đổi mật khẩu) → kết nối thành `NEEDS_RECONNECT` (xoá access token) và mọi lần sau báo ngay `DRIVE_RECONNECT_REQUIRED` mà không hỏi Google nữa; lỗi tạm thời không đổi gì. Mọi lần ghi lại credential đi qua `updateDriveCredential(connectedAt, …)`: chỉ ghi nếu vẫn là **cùng lần đăng nhập** đã đọc, nên một lần làm mới xong sau khi người dùng ngắt kết nối hoặc đăng nhập lại không thể làm sống lại kết nối cũ. Ngắt kết nối thu hồi refresh token ở Google (token nằm trong body form như ví dụ Node của Google, không trong URL; token Google không còn biết coi như đã thu hồi), xoá credential local kể cả khi không tới được Google (`revokedAtGoogle: false` để người dùng tự gỡ trong tài khoản Google), và **không bao giờ xoá gì trên Drive**: các archive giữ ID từ xa. Kết nối lại chỉ là đăng nhập lại (E03), ghi đè credential với trạng thái `CONNECTED`. Tệp credential cũ chưa có trạng thái được đọc là `CONNECTED`.
-- **Kết nối Google Drive — callback và đổi mã (E03, `GET /api/integrations/drive/callback`, `completeDriveConnection`):** vì redirect loopback không có path, Google đưa trình duyệt về trang gốc; trang Tổng quan chỉ chuyển tiếp khi có `state` cùng `code` hoặc `error` (`oauthCallbackLocation`, giữ đúng `state`/`code`/`error`/`scope`) tới route callback, và route **luôn** chuyển tiếp sang `/settings?drive=connected` hoặc `?drive_error=<mã>`. `state` được **tiêu trước mọi việc khác** bằng `UPDATE` có điều kiện (chưa dùng, chưa hết hạn) là câu lệnh đầu tiên của giao dịch: sai → `DRIVE_OAUTH_STATE_INVALID`, quá 10 phút → `_EXPIRED`, dùng lại → `_USED`, và hai callback đua nhau cùng state chỉ một cái tới Google. Người dùng từ chối (`error=access_denied`) → `DRIVE_ACCESS_DENIED` và state vẫn bị tiêu. Đổi mã qua token endpoint với verifier đã lưu và đúng redirect URI (client secret chỉ gửi khi có); phải có `drive.file` trong `scope` trả về (người dùng có thể bỏ tick quyền) và có refresh token, rồi đọc tài khoản bằng `about.get?fields=user(permissionId,emailAddress)` (được phép với `drive.file`; `permissionId` là ID bền của tài khoản, email có thể vắng). **Chỉ ghi credential khi mọi bước thành công**; kết nối cũ được giữ nguyên nếu lần mới thất bại. Lỗi Google qua `sendGoogleRequest`: chỉ giữ mã lý do ngắn (`invalid_grant`, `userRateLimitExceeded`, …, đúng dạng định danh) chứ không bao giờ chép phần còn lại của body; `invalid_grant`/`invalid_client`/401/403 → `AUTH`, 429 hoặc 403 vượt tần suất → `QUOTA` (kèm `Retry-After`), 5xx/timeout → `TRANSIENT` hoặc `UNKNOWN_OUTCOME` nếu là lệnh ghi; huỷ thì để lỗi huỷ đi qua nguyên vẹn.
-- **Kết nối Google Drive — bắt đầu OAuth (E02, `POST /api/integrations/drive/connect`, `GET /api/integrations/drive`):** cần OAuth client **Desktop app** của chính người dùng (`GOOGLE_OAUTH_CLIENT_ID`/`_SECRET`; Google coi client desktop là public nên secret không thật sự bí mật nhưng vẫn không bao giờ ghi log). Chỉ xin **một** quyền `drive.file` (tệp do ứng dụng tạo). `startDriveConnection` tạo `state` ngẫu nhiên và cặp PKCE `S256` (verifier 64 ký tự), lưu bảng `OAuthAuthorization` gồm **hash** của state, verifier, redirect URI và hạn 10 phút (dọn các dòng hết hạn/đã dùng mỗi lần bắt đầu), rồi trả URL đăng nhập Google. Redirect URI theo **dạng loopback Google ghi trong tài liệu cho client desktop**: `http://127.0.0.1:<cổng của ứng dụng>` không có path (tài liệu không nói path có được chấp nhận hay không nên không dựa vào nó); yêu cầu không đến từ địa chỉ loopback bị từ chối. Token nằm trong `data/credentials/google-drive.json` (tệp `0600` ghi nguyên tử với quyền ngay từ lúc tạo, thư mục `0700`), **không** trong SQLite, nên bản sao DB, chẩn đoán và DTO không bao giờ chứa token; tệp hỏng báo `DRIVE_CREDENTIAL_INVALID` mà không lặp lại nội dung. DTO trạng thái chỉ có `configured`, `connected`, email và thời điểm kết nối. Lưu ý từ tài liệu Google: dự án OAuth để trạng thái **Testing** nhận refresh token hết hạn sau 7 ngày; mỗi tài khoản có tối đa 100 refresh token cho một client (token cũ nhất bị huỷ khi vượt).
-- **Bảng lưu trữ bản render (E01, `RenderArchive`, `RenderArchiveFile`, `render-archive.repository.ts`):** lưu trữ tách khỏi `RenderRecord`: lỗi lưu trữ không bao giờ đổi bản render hay MP4, và lưu lại không cần render lại. Mỗi `(renderId, provider, destinationKey)` có **đúng một** archive (khoá duy nhất; nhiều lời gọi đua nhau → một bản, bên thua bắt `P2002`), `destinationKey` là tài khoản + thư mục gốc nên kết nối tài khoản khác là archive mới. Mỗi archive có một dòng cho từng tệp `VIDEO`/`SCRIPT`/`MANIFEST` với ID từ xa được **cấp trước và ghi một lần** (`saveRemoteIds` không bao giờ thay ID đã lưu và trả lại ID đã lưu để mọi lần thử lại nhắm cùng đối tượng), tệp local cố định lúc giao cho archive (đường dẫn tương đối, kích thước, sha256), và checkpoint **chỉ gồm** token phiên + số byte: trong một phiên chỉ tiến lên, phiên mới đếm lại, token bị xoá ngay khi tệp upload xong vì nó có thể cấp quyền upload. Tệp chỉ "xong" khi đã đối chiếu bản từ xa với bản local (`VERIFIED`), và archive chỉ `COMPLETED` khi cả ba tệp đã xác minh (kiểm tra và ghi trong một giao dịch); archive đã xong không mở lại.
-- **Điều phối production (D12, `RUN_PRODUCTION_ITEM`, `runProductionPipeline`, `production-control.service.ts`):** mỗi item có **một job** được ghi **cùng giao dịch** với thay đổi làm item chạy được (tạo đợt sản xuất, retry), outbox giao job; web không đụng Redis khi tạo đợt. Processor claim item (lease 10 phút) rồi đi từng bước từ checkpoint: `NONE` viết bản thảo (`ScriptStudioProvider`) → `DRAFTED` biên dịch cảnh → `COMPILED` áp dụng → `APPLIED` lồng tiếng → `VOICED` readiness → `READY` xếp render `FINAL` qua outbox (`queueFinalRender`: chụp snapshot, dùng lại bản render đang chạy hoặc đã xong cùng `scriptVersion`) → `RENDERED`. Bản thảo và kế hoạch cảnh được lưu trên item (`draftArtifactJson`, `scenePlanArtifactJson`) nên chạy lại **không lặp bước đã xong**. Processor **không bao giờ chờ**: render đang chạy (kiểm tra lại sau 15 giây) hay lỗi tạm thời (quota/mất mạng: 30 giây nhân đôi tới 10 phút, tối đa 5 lần rồi `FAILED` kèm lý do) trả `deferred`, item thành `WAITING` và cùng job quay lại qua outbox. Kết quả AI sai (`DRAFT_INVALID`, `INVALID_AI_OUTPUT`, …) dùng lượt sửa duy nhất (D09); lỗi `REJECTED`/`AUTH` khác thất bại ngay. Item còn bị giữ lease (worker trước chết giữa bước) thì job hẹn lại lúc lease hết thay vì bỏ item. **Huỷ** (`POST /api/productions/:id/cancel`, thân `{ itemId? }`, hoặc huỷ job ở trang Tác vụ) đặt item `CANCELLED`, dừng job của item và render đang xếp; bước đang chạy làm xong nhưng **không bước nào sau đó bắt đầu**, và trạng thái huỷ thắng mọi kết quả người giữ báo về. **Thử lại** (`POST /api/productions/:id/retry`, thân `{ itemId? }`, hoặc thử lại job ở trang Tác vụ) đưa item `FAILED`/`CANCELLED` về `PENDING` từ checkpoint cũ (xoá lỗi, bộ đếm lỗi tạm, liên kết render; lượt sửa AI vẫn đã dùng) với một job mới; hai lần thử lại đua nhau chỉ tạo một job. Lỗi bất ngờ ghi item `FAILED` (`PRODUCTION_STEP_ERROR`) để item không bao giờ "đang chạy" mà không có job. Khi worker khởi động, sau `reconcileJobRecords`, `reconcileProductionItems` cấp job mới cho item còn chạy được mà mất job (chỉ lúc khởi động, để lỗi lặp không thành vòng). Trạng thái batch là read model tính lại từ các item mỗi khi một item đổi trạng thái. Chế độ `mock` dùng `MockScriptStudioProvider`; `cli-auto` báo `SCRIPT_STUDIO_NOT_AVAILABLE` cho tới khi có adapter NotebookLM (nhóm C).
-- **Tách lỗi render khỏi hậu xử lý (D11, `runRender`):** `runRender` có hai pha. Pha render (`produceRender`: snapshot → preflight → Remotion → ffprobe → kiểm tra → **ghi `COMPLETED`**) làm trọn hoặc không gì cả: lỗi hay huỷ ở đây xoá tệp dở và đánh `FAILED`/`CANCELLED`. Sau khi bản ghi đã hoàn tất, chỉ còn pha hậu xử lý (báo tiến độ 100%) chạy **ngoài** khối bắt lỗi của pha render: lỗi ở đó (Redis/DB báo tiến độ) chỉ ghi cảnh báo và **không bao giờ xoá MP4 hay lật trạng thái** — trước đây `await run.onProgress(100)` nằm chung khối `try` nên một lỗi báo tiến độ sẽ xoá MP4 vừa render xong. Ý định lưu trữ được ghi **bền trong cùng bản cập nhật hoàn tất**: `RenderRecord.archiveIntentAt` được đặt đồng thời với `status = COMPLETED` cho bản FINAL (nháp thì không), nên dù hàng đợi, Redis hay tiến trình hỏng ngay sau đó ý định vẫn còn; bước lưu trữ (E10) đọc cờ này thay vì phải chờ một job được enqueue đúng lúc, và không bao giờ cần render lại. Bản ghi đã `COMPLETED` chạy lại là no-op (không render lại, không đụng tệp). `renderVideo` và `probe` được truyền qua tham số `RenderDeps` để kiểm thử mà không cần Chromium.
-- **Snapshot render bất biến (D10, `RenderSnapshot`, `captureRenderSnapshot`, `resolveRenderSnapshot`):** lúc yêu cầu render, `requestRender` chụp **mọi thứ bản render được làm từ**: các cảnh theo thứ tự (lời dẫn, chữ, bố cục, thời lượng, ẩn/hiện), các tệp audio theo đường dẫn lưu (tên theo hash nội dung nên byte không đổi) kèm độ lặng đầu, nguồn của từng bài học, kích thước/chất lượng, `scriptVersion`, trạng thái cổng duyệt tại lúc đó (`status`, `autoReady`) và `RENDER_TEMPLATE_VERSION` + id composition; lưu vào `snapshotJson` cùng `snapshotHash` (sha256 JSON có khoá sắp xếp) và **không bao giờ ghi đè** (`saveRenderSnapshotIfMissing` chỉ ghi khi chưa có). `runRender` dựng props Remotion, chạy preflight, phục vụ audio và kiểm tra thời lượng **từ snapshot**, nên sửa kịch bản/audio/tên bài học trong lúc bản render chờ hay chạy không bị trộn vào, và preflight được đánh giá trên đúng dữ kiện lúc yêu cầu (một video đã đổi thành không hợp lệ không làm hỏng bản render đã xếp hàng; bản render vẫn bị đánh dấu _lỗi thời_ theo `scriptVersion`). Một ràng buộc ESLint cấm `render-runner.ts` import `video.service`/`video-mapper`/`video.repository` để nó không quay lại đọc video sống. Snapshot được kiểm khi đọc (đúng schema, hash không đổi: `RENDER_SNAPSHOT_CORRUPT`); cảnh trỏ tới audio đã mất bị từ chối to (`RENDER_AUDIO_MISSING`) thay vì render im lặng, và runner kiểm từng tệp audio còn tồn tại. Bản ghi xếp hàng **trước** khi có snapshot thì được chụp từ video hiện tại lúc chạy rồi lưu lại. `stableStringify` chuyển sang `src/shared/stable-json.ts` vì dùng ở cả handoff và snapshot. Bản manifest Drive (E08) sẽ lấy từ snapshot này.
-- **Một lượt sửa AI mỗi video (D09, `planCorrection`, `requestAiCorrection`):** sau một bước thất bại, mỗi video chỉ có **một** lượt sửa AI chung, và nó đi tới đúng bước sửa được: vấn đề **nội dung/nguồn** (`SOURCE_MISSING`, `DRAFT_INVALID`) về bước bản thảo (NotebookLM, lùi checkpoint về `NONE`); vấn đề **biên dịch/độ dài** (`OVER_TARGET`, `OVER_MAX`, `HOOK_TOO_LONG`, `HOOK_MISSING`, `NO_SCENES`, `EMPTY_TEXT`, `INVALID_AI_OUTPUT`, `SCENE_PLAN_UNSUPPORTED_CLAIM`) về bước biên dịch (Claude, lùi về `DRAFTED`). Có cả hai loại thì chọn bước sớm hơn (biên dịch vẫn chạy lại sau đó), và lời nhắn vẫn nêu mọi vấn đề để bản thảo mới cũng đúng độ dài. Vấn đề AI không sửa được (`AUDIO_NOT_READY`, `SCRIPT_CHANGED`, mã lạ) trả `NOT_CORRECTABLE` và **không tiêu** lượt sửa. Lời nhắn (≤ 600 ký tự, từ chính hệ thống chứ không phải văn bản sách) luôn dặn rút gọn thay vì **tăng preset hay đọc nhanh hơn**; code không bao giờ đụng `targetDurationSec` hay tốc độ TTS, nên video không vừa thì thất bại chứ không bị ép cho vừa. Việc tiêu lượt sửa là **một câu `UPDATE` có điều kiện** (đúng người giữ, `aiCorrectionTarget` còn trống, chỉ lùi hoặc giữ nguyên checkpoint) nên khi nhiều lời gọi đồng thời đúng một cái thắng (`CORRECTION_STARTED`), các cái còn lại `BUDGET_SPENT` (video nên thất bại cùng các vấn đề đó); tiến checkpoint bị từ chối. Điều kiện người giữ nằm cả trong chính câu lệnh để mất khoá sau lúc kiểm tra cũng không tiêu được lượt sửa. Cột `aiCorrectionTarget`/`aiCorrectionNote` đọc bởi bộ điều phối (D12) để truyền `revisionNote` cho `writeDraft` hoặc `compile`.
-- **Readiness tự động thay cho duyệt tay (D08, `assessReadiness`, `markProductionItemReady`):** sau khi mọi cảnh có audio, bước `READY` chạy kiểm tra máy làm thay người duyệt kịch bản. `assessReadiness` áp mọi quy tắc **chặn** của preflight FINAL (HOOK trong 4 giây **theo audio thật**, tổng không vượt preset — không cắt lời, không nâng preset —, có HOOK và chữ trên màn hình) và thêm hai quy tắc chỉ có nghĩa sau khi đã có giọng: mọi cảnh hiển thị có audio (`AUDIO_NOT_READY`) và mọi lesson còn trích đoạn nguồn (`SOURCE_MISSING`); nó báo **tất cả** vấn đề một lượt để một lần sửa xử lý gộp. Đạt thì ghi `Video.autoReadyScriptVersion = scriptVersion` (CAS: nếu kịch bản đã đổi trong lúc kiểm tra thì không ghi, `SCRIPT_CHANGED`) rồi chuyển item `VOICED → READY`. **Không giả duyệt**: trạng thái video vẫn `NEEDS_REVIEW`, `approvedScriptVersion` vẫn `null` vì không ai duyệt. Cổng "chưa duyệt" của preflight FINAL (`SCRIPT_NOT_APPROVED`) giờ chấp nhận _hoặc_ `APPROVED` (người duyệt, luồng cũ giữ nguyên) _hoặc_ `autoReady` (`DTO`: `autoReadyScriptVersion` khớp `scriptVersion` hiện tại); sửa kịch bản hay audio sau đó làm tăng `scriptVersion` nên readiness tự mất hiệu lực và render FINAL lại bị chặn. Không đạt thì item **không đổi gì** và trả danh sách vấn đề cho bước sửa (D09). `requireHeldProductionItem`/`outOfOrder` là kiểm tra chung cho mọi bước (item tồn tại, còn giữ, có video).
-- **Giọng đọc tuần tự có checkpoint (D07, `voiceProductionItem`, `voiceVideoScenes`):** bước `VOICED` lặp **một cảnh một lúc, đúng thứ tự** qua các cảnh hiển thị còn thiếu audio (edge-tts là dịch vụ trực tuyến và worker chạy một tác vụ một lúc, gọi song song chỉ làm chạm giới hạn của nó), dùng nguyên `runSceneTts` nên được cache theo hash `(phiên bản engine, giọng, tốc độ, lời dẫn)`: cảnh có lời dẫn giống một lần đã tổng hợp thì chỉ gắn lại audio, không gọi dịch vụ. Dừng sớm (lỗi hoặc huỷ — kiểm tra `AbortSignal` trước mỗi cảnh) **giữ nguyên audio đã tạo**, và vì checkpoint chỉ chuyển `APPLIED → VOICED` (CAS có điều kiện, đúng một bước và chỉ khi còn giữ item) sau khi **mọi** cảnh có audio, lần chạy lại tự tiếp tục từ cảnh đầu tiên chưa có audio mà không đọc lại các cảnh trước. Item đã `VOICED` trả `ALREADY_VOICED` mà không gọi gì; sai bước hoặc mất khoá bị từ chối. `synthesize` được truyền vào qua tham số (mặc định `runSceneTts`) để kiểm thử; cần `TTS_MODE=edge-tts` (với `upload` thì `TTS_DISABLED`). Test dùng fake edge-tts sinh MP3 thật bằng ffmpeg để chạy cả cắt lặng, đo và lưu.
-- **Áp dụng kế hoạch cảnh đúng một lần (D06, `applyScenePlan`):** `applyScenePlanOnce` chạy trong một giao dịch mà **câu lệnh đầu tiên là `UPDATE` có điều kiện** (item do người gọi giữ, có video, đang ở checkpoint `COMPILED`) nên giao dịch lấy khoá ghi trước khi đọc gì (tránh lỗi nâng cấp khoá của SQLite WAL) và trong nhiều người gọi chỉ một thắng; thắng thì mới ghi cảnh (HOOK + các cảnh theo mạch kể, `hookOptionsJson = [hook]`) qua `replaceScriptWithin` — **cùng một đường ghi** với luồng thủ công (`replaceScript` giờ chỉ bọc nó) — rồi đặt `checkpoint = APPLIED` và `appliedPlanFingerprint`. Các trường hợp còn lại được phân loại **không ghi cảnh nào**: áp dụng lại cùng kế hoạch là `ALREADY_APPLIED` (cảnh, id cảnh và audio đã gắn vẫn nguyên, `scriptVersion` không đổi — đây là cái giữ audio khỏi mất khi replay), mất khoá là `PRODUCTION_CLAIM_LOST`, sai bước hoặc **kế hoạch khác khi đã áp dụng một kế hoạch** là `PRODUCTION_STEP_OUT_OF_ORDER` (muốn áp dụng kế hoạch khác thì phải lùi checkpoint có chủ đích, việc của lượt sửa ở D09). Artifact được kiểm lại fingerprint trước khi áp dụng (`INVALID_SCENE_PLAN_ARTIFACT`). **Khoá chỉnh sửa mở rộng:** `assertScriptNotGenerating` giờ còn chặn (`409 VIDEO_IN_PRODUCTION`) khi video thuộc một item đang `PENDING`/`RUNNING`/`WAITING`; hết khoá khi item `COMPLETED`/`FAILED`/`CANCELLED`. Khoá hiện có cho tác vụ tạo kịch bản/viết lại cảnh giữ nguyên. Bộ điều phối ghi qua repository nên không bị khoá của chính nó; nhưng đường yêu cầu render dành cho người dùng cũng bị khoá này, nên D11/D12 phải enqueue render theo đường riêng. UI chưa hiện khoá này (chỉ trả 409), việc của F04.
-- **Bộ biên dịch cảnh bằng Claude (D05, `ClaudeScenePlanCompiler`, `createScenePlanCompiler(mode)`):** dùng đúng `askClaude()` như mọi tác vụ Claude (không viết runner thứ hai). Tác vụ đặt tên theo **chính đầu vào** (`scene-plan-<sha256 24 ký tự>` của bản thảo + snapshot lesson + độ dài + ghi chú sửa + phiên bản prompt) nên hỏi lại cùng đầu vào thì dùng kết quả đã lưu mà không tốn thêm lượt Claude, còn đổi bất kỳ thứ gì là tác vụ mới. CLI bị siết thêm `--strict-mcp-config` (không nạp MCP server nào từ cấu hình của người dùng) bên cạnh `--tools ""`; prompt `scene-plan-v1` bọc bản thảo và bài học như dữ liệu không đáng tin, cấm thêm trích dẫn/số liệu/khẳng định ngoài nguồn, giữ minh hoạ là minh hoạ và buộc mạch kể + ngân sách âm tiết. Sau khi Claude trả về, `findUnsupportedClaims` chặn **cơ học** mọi số hoặc câu trích dẫn không có trong bản thảo hay bài học (so sánh sau chuẩn hoá NFC/chữ thường/khoảng trắng, dấu thập phân phẩy hay chấm như nhau); đây chỉ là lưới an toàn cho quy tắc của prompt, không chứng minh được sự trung thực (một khẳng định bịa không dùng số hay dấu trích dẫn vẫn lọt), nên kế hoạch bị từ chối (`SCENE_PLAN_UNSUPPORTED_CLAIM`, `REJECTED`, kèm danh sách số/trích dẫn) và **không được lưu**, để lượt sửa duy nhất hỏi lại được. Lỗi CLI quy về `IntegrationError` (`AI_CLI_AUTH`→`AUTH`, `AI_QUOTA_EXCEEDED`→`QUOTA`, `INVALID_AI_OUTPUT`/`AI_CLI_MISSING`→`REJECTED`, timeout/lỗi chung→`TRANSIENT`). `MockScenePlanCompiler` (`AI_MODE=mock`) biến từng beat thành cảnh mà không sửa chữ; `cli-task` bị từ chối (`AI_MODE_UNSUPPORTED`) vì sản xuất hàng loạt không thể chờ người chạy `pnpm ai:run` cho từng video.
-- **Hợp đồng handoff giữa các bước (D04, `server/scene-plan/handoff.ts`):** hai artifact tách biệt, **không bao giờ trộn**: _bản thảo_ do script studio (NotebookLM) viết (`script-draft-v1`) và _kế hoạch cảnh cuối_ do Claude biên dịch (`scene-plan-v1`). Mỗi artifact có `schemaVersion` và `fingerprint` riêng (sha256 của JSON có khoá sắp xếp, chỉ băm đúng các trường tham gia): fingerprint bản thảo gồm nội dung bản thảo, `contentHash` của lesson đã chụp và độ dài đích; fingerprint kế hoạch gồm kế hoạch, **fingerprint của bản thảo nguồn**, phiên bản prompt và độ dài đích — nên đổi bản thảo, prompt hay preset thì kế hoạch cũ không được dùng lại, và NotebookLM thành công / Claude lỗi chỉ chạy lại Claude. Schema tự kiểm tra lại fingerprint khi đọc nên artifact bị sửa tay hoặc hỏng bị từ chối. Loại tác vụ `scene-plan` được thêm vào `TASK_OUTPUT_SCHEMAS` (đầu ra = `scenePlanSchema`, đã gồm contract thứ tự mạch kể) và `scenePlanTaskInputSchema` mô tả `input.json` (bản thảo + snapshot lesson, không kèm fingerprint). Bản thảo không bao giờ được ghi vào `output.json` của tác vụ Claude. Việc lưu hai artifact thuộc D06/C09; bộ biên dịch dùng `askClaude()` thuộc D05.
-- **Chọn bài học để sản xuất (D02, `POST /api/productions`, `GET /api/productions/:id`):** nhận `bookId`, `lessonIds` (thứ tự chọn thành thứ tự item), preset (90 giây vẫn cần `extended: true` như luồng cũ) và `idempotencyKey`. `requestProduction` kiểm tra mọi bài học thuộc cùng sách (`LESSON_NOT_IN_BOOK`), không `ARCHIVED`, và **đủ nguồn** (có ít nhất một trích đoạn không rỗng, `LESSON_SOURCE_MISSING` kèm danh sách), rồi ghi **trong một nested create**: batch + một item + một `Video` (kèm `VideoLesson` snapshot dựng bằng `buildLessonSnapshot`, dùng chung với `createVideo`) cho mỗi lesson — có đủ tất cả hoặc không có gì. **Chọn không phải duyệt**: không cần lesson `APPROVED` và không đổi trạng thái lesson. Chống nhân đôi: cùng khoá + cùng nội dung (`fingerprint` = sha256 của sách, danh sách lesson theo thứ tự, preset) trả lại batch cũ (`reused: true`, vẫn `202`, kể cả khi lesson đã bị lưu trữ từ đó), cùng khoá khác nội dung là `409 IDEMPOTENCY_KEY_REUSED`, và nhiều lần gửi đua nhau cùng khoá chỉ tạo một batch nhờ ràng buộc duy nhất (bên thua bắt `P2002` rồi trả batch của bên thắng). Snapshot không đổi khi sửa lesson sau đó. Mỗi item có job `RUN_PRODUCTION_ITEM` ghi cùng giao dịch (D12).
-- **Production batch (D01):** `ProductionBatch` (một yêu cầu sản xuất trên các lesson người dùng chọn trong **một** sách; `idempotencyKey` duy nhất, `fingerprint` để nhận ra cùng khóa nhưng khác nội dung) và `ProductionItem` (**một lesson = một item = một video**: duy nhất theo `(batchId, lessonId)` và `(batchId, position)`, `videoId` duy nhất và đặt ngay khi tạo item để thử lại dùng lại video, `lessonId` là `Restrict` nên không xoá cứng lesson khi còn production trỏ tới). Item có `status` (`PENDING`/`RUNNING`/`WAITING`/`COMPLETED`/`FAILED`/`CANCELLED`) tách khỏi `checkpoint` (`NONE → DRAFTED → COMPILED → APPLIED → VOICED → READY → RENDERED`, bước cuối đã xong) để khởi động lại tiếp tục sau bước đã làm; trạng thái batch chỉ là read model suy ra từ item (`deriveBatchStatus`). `claimProductionItem` là **lease nguyên tử** (`UPDATE ... WHERE` một câu lệnh): trong nhiều worker đồng thời đúng một người nhận được item, lease hết hạn thì nhận lại được, chỉ người đang giữ mới gia hạn/nhả được, và item đã `COMPLETED`/`FAILED`/`CANCELLED` không bao giờ được trao lại.
-- **Vòng đời một lô OCR (B11, `ocr-operation.service.ts`):** `PLANNED → SUBMITTING → SUBMITTED → COMPLETED/FAILED/CANCELLED`, hoặc `UNKNOWN_OUTCOME`. `submitOcrOperation` ghi ý định (`SUBMITTING`, trang chuyển `OCR_SUBMITTED`) **trước** khi gọi provider; lỗi `UNKNOWN_OUTCOME` giữ nguyên khoản giữ chỗ và lần gọi sau chạy `reconcileOcrOperation` (hỏi provider bằng `requestKey`): thấy thì nhận lại và **không gọi `start` lần nữa**, không thấy thì về `PLANNED` rồi mới gửi lại — không bao giờ gửi lại mù quáng. `REJECTED` là kết thúc (trang `FAILED` kèm mã, nhả giữ chỗ); `AUTH`/`QUOTA`/`TRANSIENT` nghĩa là chưa nhận và chưa tính tiền nên về `PLANNED` kèm `RETRY_LATER` (giữ giữ chỗ); lỗi bất ngờ (kể cả huỷ giữa lệnh gọi) coi là chưa rõ. `collectOcrOperation` là một bước **không chờ**: `PENDING` kèm `retryAfterMs` (processor trả `deferred()`), `COMPLETED` thì lưu chữ → đánh `outputStoredAt` → chốt ngân sách → rồi mới `cleanup` phía provider (dọn lỗi chỉ ghi cảnh báo, `cleanedAt` để trống, không làm hỏng lô đã xong), `FAILED` thì nhả giữ chỗ và đánh lỗi các trang, `CANCELLED` đưa trang về hàng đợi. `resetFailedOcrPagesForRetry` chỉ đưa lại các trang **đã định OCR mà lỗi** về `NEEDS_OCR` (trang lỗi vì lý do khác không bị đụng), và lô mới phải vừa ngân sách còn lại. Giả định cần kiểm chứng ở G07: một lô `FAILED`/`TIMEOUT_EXCEEDED` không bị tính tiền, và danh sách job của Mistral nhất quán ngay sau khi tạo (nếu không, "không thấy" có thể là chưa kịp hiện).
-- **Tài liệu chuẩn và bản đồ offset (B12, `domain/canonical-document.ts`, `assembleExtractionDocument`):** văn bản các trang được ghép theo thứ tự thành một markdown (cách nhau `\n\n`; trang trống không chiếm chỗ và không thêm dòng trống) kèm `pageOffsets` = `[start, end)` của từng trang theo đơn vị UTF-16 — cùng đơn vị với offset chương (`text.slice`) — nên `pageAtOffset`/`pagesInRange` đổi mọi offset về trang PDF gốc. Phải có đủ mọi trang `1..N`, không trùng, không ngoài PDF, mỗi trang đã có kết quả (`EXTRACTED`); thiếu hay đang lỗi thì từ chối (`EXTRACTION_INCOMPLETE` kèm danh sách trang) và không ghi gì, để một trang thiếu không làm mọi trang sau lệch số. Tệp ghi nguyên tử tại `books/<bookId>/extractions/<extractionId>/canonical.md` và đường dẫn tương đối lưu ở `BookExtraction.canonicalPath`; offset không lưu mà tính lại được từ văn bản các trang (không đổi khi mọi trang đã có kết quả). Việc chuyển trạng thái lần trích xuất (`COMPLETED`/`PARTIAL`/`NEEDS_CHAPTERS`) do bộ điều phối B13 làm.
-- **Đối chiếu kết quả OCR với bản đồ trang (B10, `domain/ocr-results.ts`, `recordOcrResults`):** mỗi chunk đã gửi có `pageNumbers[i]` = trang PDF gốc của trang `i` (chunk không cần liên tiếp). `reconcileOcrResults` trả **đúng một kết quả cho mỗi trang đã gửi**, nên không trang nào biến mất: `OK` (có chữ, hoặc `EMPTY` là trang trống hợp lệ) hay `FAILED` kèm mã lý do. Vì chỉ khi đúng những trang đã gửi quay về, mỗi chỉ số một lần, thì danh tính trang mới đáng tin, nên chunk thiếu (`OCR_CHUNK_MISSING`), trả hai lần (`OCR_DUPLICATE_RESULT`), trùng chỉ số (`OCR_DUPLICATE_PAGE`), ngoài phạm vi (`OCR_PAGE_INDEX_OUT_OF_RANGE`) hoặc sai số trang (`OCR_PAGE_COUNT_MISMATCH`) đều làm **cả chunk** thất bại để thử lại, thay vì đoán rồi gán nhầm chữ vào sai trang. Văn bản được chuẩn hoá NFC/LF và bỏ ký tự điều khiển; `confidence` chỉ nhận số trong 0..1, còn lại là `null`. `storeOcrPageOutcomes` chỉ ghi vào trang đang chờ OCR (`NEEDS_OCR`/`OCR_SUBMITTED`/`FAILED`) nên **không bao giờ đè** trang đã có chữ từ lớp văn bản, gọi lại cùng kết quả không đổi gì và lần thử lại có thể thay một lỗi bằng kết quả tốt. Lệch so với plan: "block" không được giữ vì lô OCR yêu cầu `include_blocks: false` (chỉ cần markdown + độ tin cậy trang); nếu sau này cần block thì đổi cả yêu cầu và DTO `OcrPageResult`.
-- **Nhận kết quả OCR (B09, `mistral-batch-collect.ts`, ráp trong `MistralBatchOcrProvider` + `createOcrProvider()`):** `poll` **không bao giờ chờ**: `QUEUED`/`RUNNING`/`CANCELLATION_REQUESTED` trả `pending` (`retryAfterMs` 60 giây, để processor trả `deferred()`), `SUCCESS` tải tệp kết quả + tệp lỗi và trả kết quả **theo từng chunk** (khớp bằng `custom_id`), `FAILED`/`TIMEOUT_EXCEEDED` trả `failed` (hết thời gian thì `retryable`). Một chunk lỗi không làm hỏng chunk khác; chunk Mistral không trả gì thì vắng mặt để service so với những gì đã gửi (B10); hai kết quả cho một chunk bị đánh `OCR_DUPLICATE_RESULT` chứ không chọn bừa; chỉ số trang chỉ được nhận khi liên tục `0..n-1` hoặc `1..n` (rồi đổi về 0-based), còn lại là `OCR_BAD_PAGE_INDEX`; `confidence` là đúng con số cấp trang Mistral báo hoặc `null`, không bao giờ ước lượng. Dòng JSONL hỏng thì báo lỗi to (`MISTRAL_BAD_RESPONSE`, kèm số dòng, không trích nội dung vì đó là văn bản sách). `cleanup` xoá các PDF → tệp kết quả → tệp lỗi → tệp yêu cầu **cuối cùng** (id các PDF chỉ biết được từ tệp yêu cầu nên gọi lại sau khi xoá dở vẫn tìm được phần còn sót), bỏ qua 404, và sau `cleanup` thì `poll` không còn lấy lại được kết quả — vì vậy kết quả phải được lưu bền trước. `cancel` là bất đồng bộ (`CANCELLATION_REQUESTED` rồi `CANCELLED`). Provider chạy qua đúng bộ contract `OcrProvider` dùng chung với fake. `createOcrProvider()` ném `OCR_NOT_CONFIGURED` khi thiếu `MISTRAL_API_KEY`.
-- **Gửi batch OCR (B08, `mistral-batch-submit.ts`):** trước mọi upload, `findBatchJobByRequestKey` duyệt tối đa 5 trang × 100 job mới nhất và lọc `metadata.request_key` phía client (không dùng bộ lọc `metadata` của server vì chưa có tài liệu về cách mã hoá query); thấy job rồi thì dùng lại, không upload và không trả tiền lần nữa. Nếu chưa có: upload từng đoạn PDF (`purpose: ocr`), một tệp JSONL yêu cầu (`purpose: batch`, mỗi dòng `custom_id` = `chunkId`, tài liệu tham chiếu bằng `file_id`, bảng ở dạng markdown, độ tin cậy cấp trang, không ảnh/khối), rồi tạo job với `metadata.request_key`. Nếu tạo job bị mất phản hồi (`UNKNOWN_OUTCOME`) thì **giữ nguyên tệp đã upload** vì job có thể đã tồn tại và đang đọc chúng, và lần gọi lại tìm job theo khóa thay vì gửi mới; mọi lỗi chắc chắn khác thì xoá các tệp đã upload. Đoạn vượt 50 trang / 40 MiB hoặc trùng `chunkId` bị từ chối trước khi upload. Thêm vào danh sách giả định cần kiểm chứng ở G07: cơ số của tham số `page` khi liệt kê job (đang dùng 0) và việc danh sách trả về `metadata`.
-- **Ngân sách và pacing OCR (B06, `ocr-budget.service.ts`):** `planOcrOperation` làm trong **một giao dịch** bốn việc trước khi gửi bất cứ thứ gì: trả lại operation cũ nếu `requestKey` lặp lại (không giữ chỗ hai lần); chỉ cho **một** lô mở mỗi lần trích xuất (`PLANNED`/`SUBMITTING`/`SUBMITTED`/`UNKNOWN_OUTCOME`); chặn nếu `đã chi + đang giữ + ước tính` vượt trần (`OCR_BUDGET_EXCEEDED`); không đổi nhà cung cấp/model giữa chừng. Trần (`OCR_COST_CEILING_USD`, mặc định $3) được chép vào `BookExtraction` lúc tạo nên đổi cấu hình sau đó không nâng trần ngầm; chỉ `setOcrCostCeiling` (quyết định tường minh của người dùng) mới đổi, và không bao giờ xuống dưới khoản đã chi/giữ chỗ. Kết quả chưa rõ giữ nguyên khoản giữ chỗ; `settleOcrOperation` mới nhả: `COMPLETED` tính số provider báo (hoặc chính khoản ước tính nếu không báo, và không ghi nó như số thực), `FAILED`/`CANCELLED` nhả hết, và gọi lại không đổi gì. Tiền tính bằng micro-USD nguyên.
-- **Bảng đã có trong schema (B01):** `BookExtraction` (một lần trích xuất của một PDF, gắn với `sourceHash`, chi phí OCR dự trù/đã dùng tính bằng micro-USD nguyên), `ExtractionPage` (kết quả từng trang, duy nhất theo `(extractionId, pageNumber)`; trang trống hợp lệ là `EXTRACTED` + `EMPTY`, khác `FAILED`; `confidence` chỉ ghi khi provider báo) và `OcrOperation` (batch từ xa, `requestKey` duy nhất, ghi trước khi submit để đối soát được). Chỉ thêm bảng mới; sách `.md`/`.txt` cũ không đổi.
-- **Cache theo bước:** NotebookLM thành công / Claude lỗi chỉ chạy lại Claude; render thành công / Drive lỗi chỉ chạy lại upload.
-- **Chọn lesson không phải duyệt:** người dùng chọn bài học để sản xuất; readiness do máy kiểm tra sau khi audio gắn xong. Hook tối đa 4 giây / 120 frame cho mọi luồng (D03; v1.1 gốc là 3 giây / 90 frame), và mạch kể bắt buộc được kiểm tra thành contract: thứ tự beat của bản thảo (`findNarrativeOrderProblem`) và thứ tự cảnh của kế hoạch (`findStorySceneOrderProblem`, bài học `KEY_TAKEAWAY` trước giải pháp `BETTER_APPROACH`).
-- **Thêm provider OCR mới:** viết adapter thỏa `OcrProvider`, thêm vào factory, chạy bộ contract test dùng chung với fake (`tests/helpers/contracts/ocr-provider-contract.ts`, dùng như `tests/unit/integrations/ocr-provider.contract.test.ts`); chương, bài học, NotebookLM, Claude và Remotion không phải sửa. Lỗi của mọi adapter đi qua `IntegrationError` (`server/integrations/`), trong đó `UNKNOWN_OUTCOME` buộc người gọi đối soát trước khi gửi lại.
+- Văn bản sách là dữ liệu không đáng tin, bọc trong khối dữ liệu (`prompts/untrusted-text.ts`); mỗi lần chỉ gửi một chương, một phần
+  chương hoặc bài học đã chọn, không bao giờ cả sách.
+- Bài học, lời dẫn, chữ trên màn hình luôn tiếng Việt; trích đoạn giữ nguyên ngôn ngữ gốc để còn đối chiếu với sách.
+- Sai schema → `FAILED`, không lưu gì. Trích đoạn chỉ giữ khi tìm thấy thật trong văn bản chương (`verifyExcerpts`, `locateExcerpt`, không
+  phân biệt khoảng trắng).
+- **Bộ chặn khẳng định không có căn cứ** (`findUnsupportedClaims`): con số hay câu trích dẫn trong kế hoạch cảnh mà không có trong bản
+  thảo hoặc bài học (so sau chuẩn hoá NFC, chữ thường, khoảng trắng, dấu thập phân) làm kế hoạch bị từ chối
+  (`SCENE_PLAN_UNSUPPORTED_CLAIM`) và không được lưu. Đây là lưới an toàn cơ học, không chứng minh được sự trung thực.
+- Hoạt cảnh chỉ nhận giá trị từ danh sách cố định, sinh vào prompt từ `videos/domain/illustration.ts`.
+- `ClaudeScenePlanCompiler` đặt tên tác vụ theo hash đầu vào (`scene-plan-<sha256 24 ký tự>` của bản thảo, bài học, độ dài, ghi chú sửa,
+  prompt) nên hỏi lại cùng đầu vào không tốn thêm lượt Claude; lỗi CLI quy về `IntegrationError` (`AUTH`, `QUOTA`, `REJECTED` cho đầu ra
+  sai/thiếu CLI, `TRANSIENT`).
+- Sản xuất hàng loạt chỉ chạy với `mock` hoặc `cli-auto`; `cli-task` bị từ chối (`AI_MODE_UNSUPPORTED`) vì không thể chờ người chạy
+  `pnpm ai:run` cho từng video.
+
+## 5. Luồng thủ công (v1.1)
+
+- Nhập `.md/.txt`: tệp giữ tạm ở `imports/<id>/` để xem trước cách tách chương; xác nhận mới tạo sách. Tệp gốc ghi nguyên byte + SHA-256
+  rồi đặt chỉ đọc. Parser chương dùng chung cho sách PDF.
+- `ANALYZE_CHAPTER` → `AiProvider.analyzeChapter` → Zod → kiểm trích đoạn → thay bài nháp AI cũ; ghi `AiRun` và `output.json`.
+  `GENERATE_VIDEO_SCRIPT` tạo 2–3 phương án hook + các cảnh từ snapshot bài học. Sửa kịch bản đã duyệt → `NEEDS_REVIEW`.
+- `runSceneTts`: khoá `sha256(TTS_ENGINE_VERSION, giọng, tốc độ, lời dẫn)`, trúng thì chỉ gắn lại audio; nếu không, `edge-tts` (lời dẫn qua
+  tệp, không qua dòng lệnh) → cắt lặng đầu/cuối bằng ffmpeg → đo bằng ffprobe → `videos/<videoId>/audio/<hash>.mp3` + `MediaAsset` (kèm
+  `leadingSilenceMs`). Audio tải lên (MP3/WAV nhận bằng chữ ký byte, ≤ 120 giây mỗi cảnh) chỉ được đo, không bị sửa.
+
+## 6. Trích xuất PDF
+
+### 6.1 Nhập
+
+`POST /api/books/import/pdf` nhận PDF thô làm thân request, ghi từng chunk ra `imports/<id>/` đồng thời băm SHA-256 (sách 500 MiB không
+nằm trong RAM); chữ ký `%PDF-` kiểm trên byte thật; vượt `MAX_PDF_SIZE_MB` thì dừng; huỷ/lỗi xoá tệp dở. Thành công: đổi tên sang
+`books/<bookId>/original.pdf` (chỉ đọc), tạo `Book` + `BookExtraction(QUEUED)` + job `EXTRACT_PDF` trong **một giao dịch**, trả `202`.
+Trùng hash với sách có sẵn → `409 DUPLICATE_BOOK`.
+
+### 6.2 Trạng thái
+
+```
+QUEUED → INSPECTING → EXTRACTING ─┬─(không trang nào cần OCR)──────────────► ASSEMBLING
+                                  └─► OCR_PENDING ─┬─(mọi trang có kết quả)─► ASSEMBLING
+                                                   └─(còn trang OCR lỗi)────► PARTIAL
+ASSEMBLING ─┬─(parser cục bộ thấy chương)──────────────────────────────────► COMPLETED
+            └─► DETECTING_CHAPTERS ─┬─(đề xuất NotebookLM qua kiểm tra)─────► COMPLETED
+                                    └─(không có NotebookLM / bị từ chối)────► NEEDS_CHAPTERS
+PDF mật khẩu / hỏng / quá MAX_PDF_PAGES / thiếu Poppler ─► FAILED (trước mọi dịch vụ trả phí); huỷ job ─► CANCELLED
+```
+
+`runExtraction` đi hết những bước làm được mà không phải chờ; mỗi bước đọc trạng thái đã lưu nên chạy lại không bao giờ đọc, gửi hay trả
+tiền cho một trang hai lần. Chuyển trạng thái là `UPDATE` có điều kiện; tạo chương và chuyển `COMPLETED` nằm trong một giao dịch.
+
+### 6.3 Lớp chữ và phân loại trang
+
+Poppler (`server/pdf/poppler.ts`: `pdfinfo`, `pdftotext`, `pdfimages`, `pdfseparate`, `pdfunite`) chạy từ mảng đối số, chỉ với đường dẫn
+tuyệt đối, env tối thiểu, timeout và huỷ được; lỗi được phân loại (`PDF_ENCRYPTED`, `PDF_CORRUPT`, `PDF_TOOL_MISSING`, `PDF_TOOL_TIMEOUT`)
+mà không chép thông điệp của Poppler. `pdftotext` chạy một lần cho cả sách rồi tách trang theo form feed; `pdfimages -list` đếm hình.
+
+`classifyPage` (thuần, chữ chuẩn hoá NFC): không chữ cái, không hình → `EMPTY` (trang trống hợp lệ, khác `FAILED`); < 20 chữ cái mà có
+hình → OCR (scan); > 2 % ký tự chỉ có trong font TCVN3/VNI → OCR (font cũ); > 5 % ký tự thay thế/vùng riêng → OCR (lỗi mã hoá); còn lại
+`TEXT`. Lý do OCR lưu bằng tiếng Việt trên từng trang vì OCR tốn tiền. Chạy lại không đặt lại trang đã gửi OCR, đã có kết quả hay đã lỗi.
+
+### 6.4 OCR: chunk, ngân sách, lô
+
+- **Chunk** (`buildOcrChunks`): trang cần OCR (không cần liên tiếp) được gom tới `limits.maxPages` của provider và dựng thành PDF riêng
+  **kèm danh sách số trang gốc theo thứ tự**. Chunk vượt `limits.maxBytes` bị chia đôi tới khi vừa; một trang đơn vẫn vượt →
+  `OCR_PAGE_TOO_LARGE`. Bản đồ lưu ở `OcrOperation.chunkPlanJson`; tệp chunk tạm dựng lại được từ bản đồ, xoá khi lô xong.
+- **Ngân sách** (`planOcrOperation`, một giao dịch): `requestKey` lặp lại → trả operation cũ; chỉ **một** lô mở mỗi lần trích xuất; chặn
+  khi `đã chi + đang giữ + ước tính > trần`; không đổi provider/model giữa chừng (`OCR_PROVIDER_CHANGED`). Khoá lô
+  `<extractionId>-ocr-<n>` (n = số lô đã có) nên bước chạy lại sau sự cố dùng lại khoá. Trần được chép vào lần trích xuất lúc tạo; chỉ
+  `setOcrCostCeiling` (người dùng) đổi được, không dưới khoản đã chi/giữ. `settleOcrOperation` tính số provider báo (không báo thì giữ
+  khoản ước tính) hoặc nhả hết khi lỗi/huỷ; gọi lại không đổi gì.
+- **Vòng đời lô:**
+
+```
+PLANNED → SUBMITTING → SUBMITTED → COMPLETED | FAILED | CANCELLED
+              └─(mất phản hồi)─► UNKNOWN_OUTCOME ─findOperation(requestKey)─► SUBMITTED | PLANNED
+```
+
+`submitOcrOperation` ghi ý định (trang → `OCR_SUBMITTED`) **trước** khi gọi provider; `UNKNOWN_OUTCOME` giữ khoản giữ chỗ và được đối
+soát trước, không bao giờ gửi lại mù. `AUTH`/`QUOTA`/`TRANSIENT` = chưa nhận, về `PLANNED`; `REJECTED` = trang `FAILED`, nhả giữ chỗ.
+`collectOcrOperation` không chờ: `pending` → hoãn (60 giây đầu, sau đó theo provider); `completed` → lưu chữ → `outputStoredAt` → chốt
+tiền → rồi mới `cleanup` phía provider; `expired` (provider không còn output) → lô coi như đã tính tiền, trang `FAILED` để gửi lại.
+
+- **Gán kết quả** (`reconcileOcrResults`): mỗi trang đã gửi nhận đúng một kết quả qua `pageNumbers[i]` của chunk. Chunk thiếu, trả hai lần,
+  sai/trùng chỉ số hay sai số trang làm **cả chunk** thất bại thay vì đoán rồi gán nhầm trang. Chỉ ghi vào trang đang chờ OCR nên không
+  bao giờ đè trang có lớp chữ; `confidence` chỉ nhận số 0..1 provider báo.
+- **Dừng chờ người dùng:** thiếu `MISTRAL_API_KEY`, vượt trần, khoá bị từ chối, lô bị huỷ phía provider, đổi model → giữ ở `OCR_PENDING`
+  kèm lý do, lô mở và giữ chỗ còn nguyên. `retryExtraction` xoá lý do, đưa trang OCR lỗi về `NEEDS_OCR` và ghi job mới cùng giao dịch;
+  PDF có mật khẩu/hỏng không thử lại được vì tệp gốc không đổi.
+
+### 6.5 Adapter Mistral
+
+`MistralBatchOcrProvider` trên client REST có kiểu (mọi phản hồi qua Zod; khoá API chỉ trong đối tượng client; signal đã huỷ thì không gửi):
+
+- `start`: tìm job theo `metadata.request_key` trước mọi upload (tối đa 5 × 100 job mới nhất); thấy thì dùng lại. Nếu chưa: upload từng
+  chunk (`purpose: ocr`, stream từ đĩa, tham chiếu bằng `file_id` nên không cần URL công khai), một JSONL (`custom_id` = `chunkId`), rồi
+  tạo job. Tạo job mất phản hồi → **giữ** tệp đã upload (job có thể đang đọc chúng); lỗi chắc chắn → xoá.
+- `poll` không chờ; kết quả trả theo chunk (khớp `custom_id`); chỉ số trang chỉ nhận khi liên tục `0..n-1` hoặc `1..n`; dòng JSONL hỏng →
+  lỗi kèm số dòng, không trích nội dung (đó là văn bản sách); 404 → `expired`.
+- `cleanup` xoá tệp yêu cầu **cuối cùng** vì chỉ nó cho biết id các PDF, nên dọn dở vẫn gọi lại được.
+- HTTP 401/403 → `AUTH`, 429 → `QUOTA`, 5xx/timeout của lệnh ghi → `UNKNOWN_OUTCOME`, của lệnh đọc → `TRANSIENT`.
+
+Model id, đơn giá, dạng tham chiếu tệp, dòng JSONL và cơ số trang chưa kiểm chứng: xem [operations.md](operations.md).
+
+### 6.6 Tài liệu chuẩn và chương
+
+- `assembleExtractionDocument` ghép văn bản các trang theo thứ tự (cách nhau `\n\n`, trang trống không chiếm chỗ) thành
+  `extractions/<id>/canonical.md` kèm `pageOffsets` `[start, end)` đơn vị UTF-16 — cùng đơn vị với offset chương — để `pageAtOffset`
+  đổi offset về trang PDF. Thiếu hay lỗi trang nào → `EXTRACTION_INCOMPLETE`, không ghi gì. Offset không lưu mà tính lại từ các trang.
+- Chương: **cùng parser cục bộ** với sách Markdown chạy trên `canonical.md`. Không thấy ranh giới → `DETECTING_CHAPTERS`; không bao giờ lấy
+  cả sách làm một chương.
+- **Xác định chương bằng NotebookLM:** NotebookLM nhận một "dàn ý theo trang" (`buildChapterOutline`: mỗi trang `[Trang N]` + 160 ký tự
+  đầu) cùng các dòng giống mục lục làm gợi ý, trả `[{title, startPage, endPage, startAnchor}]`. `verifyProposedChapters` chỉ chấp nhận khi
+  **mọi** chương qua kiểm tra thuần: anchor (≥ 4 ký tự) có thật ở trang bắt đầu hoặc trang kế, chương bắt đầu ở đầu dòng của anchor;
+  không bắt đầu ở trang mục lục (≥ 3 tiêu đề chương); thứ tự tăng; trong phạm vi sách; không chương nào phủ ≥ 90 % sách từ 20 trang trở
+  lên. Phần đầu sách trước chương đầu không thuộc chương nào. Không đạt → `NEEDS_CHAPTERS` (`CHAPTER_DETECTION_REJECTED`), không tạo gì.
+
+## 7. NotebookLM
+
+### 7.1 Tiến trình và phiên
+
+- Chỉ dùng khi `AI_MODE=cli-auto` và có `NOTEBOOKLM_PROFILE`; phân tích chương bằng NotebookLM chỉ cho sách PDF. Web không bao giờ khởi
+  động máy chủ MCP.
+- Worker chạy `uvx --from notebooklm-mcp-cli==0.15.8 notebooklm-mcp` qua `McpStdioClient` tối giản (JSON-RPC 2.0 theo dòng, không SDK):
+  giao thức `2025-06-18` (nhận `2025-03-26`), `tools/list` đọc mọi trang, chỉ trả lời `ping` của máy chủ, thông điệp > 32 MiB thì dừng
+  tiến trình, quá hạn/huỷ gửi `notifications/cancelled`. stderr giữ trong bộ đệm có giới hạn, không vào lỗi hay log. Env là danh sách cho
+  phép (`PATH`, `HOME`, `LANG`, `LC_ALL`, `TMPDIR`, `XDG_*`, `DBUS_SESSION_BUS_ADDRESS`, `UV_CACHE_DIR`); `NOTEBOOKLM_COOKIES` và khoá của
+  ứng dụng không bao giờ được truyền.
+- `NotebookLmSession.open` kiểm đủ công cụ, chuyển profile **chỉ cho tiến trình này** (`make_default: false`) rồi đọc lại profile đang
+  dùng. Mỗi lời gọi được xét theo phong bì `{status: "success" | "error"}`, **không** theo `isError` (máy chủ báo lỗi với
+  `isError: false`). Văn bản lỗi chỉ dùng để phân loại (`AUTH`, `QUOTA`, timeout, lỗi công cụ), không bao giờ được hiện ra. Công cụ thay
+  đổi dữ liệu (`notebook_create`, `source_add`, `source_delete`, `profile`) quá hạn hay trả lời hỏng → `UNKNOWN_OUTCOME`.
+- Một tiến trình MCP cho một lần chạy job: `NotebookLmScriptStudio` mở phiên ở lời gọi đầu, đóng trong `finally`; lúc đóng đọc `usage_get`
+  và ghi `data/integrations/notebooklm-status.json` (phần trăm — vắng là "không rõ", không phải 0 —, giờ đặt lại, gói; không cookie).
+
+### 7.2 Notebook và nguồn
+
+- Một notebook mỗi `(bookId, profile)`, tạo **một lần** với tiêu đề `Book Video Studio · <sách> [bvs:<bindingId>]`. Mỗi phần văn bản
+  (`sourceKey`) ở mỗi phiên bản (`contentHash`) là một nguồn văn bản có dấu `[bvs:<id>]`; văn bản đổi → dòng mới, bản cũ `supersededAt`
+  nhưng giữ ID từ xa để còn truy nguồn bài học cũ.
+- Tạo mất phản hồi → `UNKNOWN_OUTCOME`; lần sau **tìm dấu** trong `notebook_list`/`notebook_get` trước rồi mới tạo lại, nên không sinh bản
+  thứ hai. ID từ xa ghi một lần.
+- Câu hỏi luôn truyền **`source_ids` tường minh** (chỉ phiên bản hiện hành) trong hội thoại mới, vì NotebookLM mặc định dùng mọi nguồn của
+  notebook. `SourceRef.remoteId` = `<notebookId>#<sourceId>`, mờ với bên gọi. Câu trả lời phải là JSON đúng schema; sai thì từ chối, không vá.
+
+### 7.3 Danh mục bài học theo phần
+
+`runNotebookChapterAnalysis` lấy văn bản chương từ tài liệu chuẩn (PDF gốc không được đọc lại), cắt thành phần ≤ 40.000 ký tự ở ranh giới
+đoạn (`chapterPartDocuments`). Mỗi phần là nguồn `chapter:<id>:part:<n>` có `[Trang N]` đầu mỗi trang và một câu hỏi riêng (liệt kê
+**mọi** bài học, trích nguyên văn, đánh dấu tình huống tự nghĩ). Bài trùng tiêu đề giữa các phần được gộp (`mergeLessonCandidates`).
+Trang lưu cho trích đoạn là trang **nơi tìm thấy** nó (`page:<n>;offset:<k>`), không phải trang mô hình khai. Phần trả `complete: false` →
+chương `PARTIAL`; sai định dạng → `FAILED`, không lưu gì. Mỗi lần chạy thay bài nháp AI cũ của chương và ghi `AiRun(mode=notebooklm)`.
+
+### 7.4 Bản thảo và cache
+
+- `writeDraft` đọc mọi phần của mọi chương bài học trích dẫn (`resolveLessonSources`, cùng khoá với lúc lập danh mục nên không tải lại).
+  Prompt ép mạch kể HOOK → tình huống → sai lầm → bài học → giải quyết → hành động, hook < 4 giây, ngân sách số từ theo preset, trích đoạn
+  tách khỏi lời dẫn, tình huống tự nghĩ đánh dấu `illustrative`. Sai định dạng hay sai thứ tự → `DRAFT_INVALID` (`REJECTED`).
+- `ScriptDraftCache.cacheKey` = sha256(provider, `draftVersion`, bài học + `contentHash`, preset, **tập** remote ID nguồn, ghi chú sửa).
+  Bước bản thảo hỏi cache trước; trượt thì gọi NotebookLM rồi lưu ngay; bản lưu không còn hợp lệ bị bỏ qua.
+
+## 8. Pipeline sản xuất
+
+### 8.1 Yêu cầu
+
+`requestProduction` (`POST /api/productions`): mọi bài học cùng sách, không `ARCHIVED`, có ít nhất một trích đoạn. Một **nested create**
+ghi batch + mỗi bài một item + một `Video` (kèm snapshot `VideoLesson` từ `buildLessonSnapshot`, dùng chung với luồng thủ công) + job
+`RUN_PRODUCTION_ITEM` qua outbox — đủ cả hoặc không gì. Chọn không phải duyệt: không đòi `APPROVED`, không đổi trạng thái bài học. Cùng
+`idempotencyKey` + cùng `fingerprint` (sách, bài học theo thứ tự, preset) → trả batch cũ; cùng khoá khác nội dung → `409`; gửi đua → một
+batch (bên thua bắt `P2002`).
+
+### 8.2 Checkpoint, trạng thái, lease
+
+```
+checkpoint: NONE ─draft─► DRAFTED ─compile─► COMPILED ─apply─► APPLIED ─voice─► VOICED ─readiness─► READY ─render─► RENDERED
+             ▲              ▲                                                     │
+             └──────────────┴── một lượt sửa AI lùi về NONE (nội dung/nguồn) hoặc DRAFTED (biên dịch/độ dài)
+
+status:     PENDING ─claim─► RUNNING ─┬─► COMPLETED
+               ▲                      ├─(deferred)─► WAITING ─► RUNNING (cùng job quay lại)
+               └────── retry ─────────┴─► FAILED | CANCELLED
+```
+
+- `status` tách khỏi `checkpoint` (bước cuối đã xong) nên khởi động lại tiếp tục sau bước đã làm.
+- `claimProductionItem`: lease nguyên tử 10 phút bằng một `UPDATE … WHERE`; chỉ người giữ gia hạn/nhả; lease hết thì nhận lại được; item đã
+  kết thúc không bao giờ được trao lại. Gặp item còn bị giữ (worker trước chết) → hoãn tới lúc lease hết.
+- Một job đi nhiều bước liên tiếp và **không bao giờ chờ**: render đang chạy (kiểm lại sau 15 giây) hay lỗi tạm → `deferred`, item
+  `WAITING`. Mọi bước ghi bằng CAS trên `(itemId, claimToken, checkpoint)`.
+- `createPipelineDeps`: `cli-auto` + profile → `NotebookLmScriptStudio` + `ClaudeScenePlanCompiler`; `mock` → hai bản mock; `cli-auto` thiếu
+  profile → `SCRIPT_STUDIO_NOT_AVAILABLE`.
+
+### 8.3 Các bước
+
+- **Bản thảo** (`NONE`): nguồn → cache → `writeDraft` → artifact `script-draft-v1` trên item. **Biên dịch** (`DRAFTED`):
+  `ScenePlanCompiler.compile` → artifact `scene-plan-v1`. Hai artifact không bao giờ trộn (`server/scene-plan/handoff.ts`), mỗi cái có
+  `schemaVersion` và `fingerprint`: bản thảo = nội dung + `contentHash` bài học + độ dài; kế hoạch = nội dung + **fingerprint bản thảo** +
+  phiên bản prompt + độ dài. Đọc lại luôn kiểm fingerprint. Bản thảo không bao giờ ghi vào `output.json` của tác vụ Claude.
+- **Áp dụng** (`COMPILED`, `applyScenePlan`): giao dịch mà câu lệnh đầu là `UPDATE` có điều kiện (đúng người giữ, ở `COMPILED`) — lấy khoá
+  ghi trước khi đọc (tránh nâng cấp khoá của SQLite WAL) và chỉ một người thắng — rồi ghi cảnh qua `replaceScriptWithin`, **cùng đường
+  ghi** với luồng thủ công, và lưu `appliedPlanFingerprint`. Áp lại cùng kế hoạch → `ALREADY_APPLIED`, giữ nguyên cảnh và audio.
+- **Lồng tiếng** (`APPLIED`): từng cảnh, đúng thứ tự, qua `runSceneTts` (có cache; edge-tts là dịch vụ trực tuyến nên không gọi song
+  song). Dừng sớm giữ audio đã tạo; chỉ chuyển `VOICED` khi mọi cảnh có audio, nên lần sau tiếp tục từ cảnh đầu còn thiếu.
+- **Readiness** (`VOICED`, `assessReadiness`) thay cho duyệt tay: mọi quy tắc chặn của preflight FINAL (§9.3) trên audio thật, cộng
+  `AUDIO_NOT_READY` và `SOURCE_MISSING`; báo mọi vấn đề một lượt. Đạt → ghi `autoReadyScriptVersion = scriptVersion` bằng CAS (kịch bản
+  đổi trong lúc kiểm → `SCRIPT_CHANGED`). Không giả duyệt: `Video.status` vẫn `NEEDS_REVIEW`; sửa sau đó tăng `scriptVersion` nên
+  readiness tự hết hiệu lực.
+- **Render** (`READY`, `queueFinalRender`): chụp snapshot, dùng lại render FINAL đã xong cùng `scriptVersion` hoặc đang chạy; nếu không thì
+  preflight rồi tạo `RenderRecord` + job qua outbox (không qua `requestRender` của web vì nó bị khoá `VIDEO_IN_PRODUCTION`).
+
+### 8.4 Một lượt sửa AI mỗi video
+
+`planCorrection` gửi vấn đề tới đúng bước sửa được: `SOURCE_MISSING`, `DRAFT_INVALID` → script studio (lùi về `NONE`); `OVER_TARGET`,
+`OVER_MAX`, `HOOK_TOO_LONG`, `HOOK_MISSING`, `NO_SCENES`, `EMPTY_TEXT`, `INVALID_AI_OUTPUT`, `SCENE_PLAN_UNSUPPORTED_CLAIM` → compiler
+(lùi về `DRAFTED`); có cả hai thì chọn bước sớm hơn. Mã khác (`AUDIO_NOT_READY`, `SCRIPT_CHANGED`…) không sửa được và không tiêu lượt.
+Ghi chú (≤ 600 ký tự, lời của hệ thống) luôn dặn rút gọn thay vì tăng preset hay đọc nhanh; code không bao giờ đổi `targetDurationSec` hay
+tốc độ TTS. Tiêu lượt là một `UPDATE` có điều kiện (`aiCorrectionTarget` còn trống): đúng một lời gọi thắng, còn lại → item `FAILED`
+(`PRODUCTION_CORRECTION_EXHAUSTED`).
+
+### 8.5 Lỗi, huỷ, thử lại
+
+Lỗi tạm → hoãn (§3.3); `REJECTED` sửa được → lượt sửa; `AUTH`, `REJECTED` khác, `AppError` → `FAILED` kèm mã; lỗi bất ngờ →
+`PRODUCTION_STEP_ERROR` để item không bao giờ "đang chạy" mà không có job. Huỷ (theo đợt hoặc `itemId`, hay huỷ job) → `CANCELLED`, dừng
+job và render đang xếp; bước đang chạy làm xong nhưng không bước nào sau đó bắt đầu. Thử lại đưa item về `PENDING` từ checkpoint cũ (lượt
+sửa AI vẫn đã dùng) với job mới cùng giao dịch. Trạng thái batch tính lại từ item (`deriveBatchStatus`).
+
+## 9. Render
+
+### 9.1 Props, thời lượng, phụ đề
+
+- `toCompositionProps()` là nơi duy nhất biến video thành props cho composition `ShortVideo`; Player trong trình duyệt và render trong
+  worker dùng chung nó và `shortVideoPropsSchema`. `src/remotion/**` là React thuần: không `process.env`, DB hay mạng; 5 bố cục; font Be
+  Vietnam Pro đóng gói trong `public/fonts`.
+- Độ dài cảnh = `ceil((durationMs + SCENE_AUDIO_PADDING_MS) / 1000 × 30)` theo audio thật; tối thiểu 2 giây mỗi cảnh; trước khi có audio,
+  ước lượng 4 âm tiết/giây. Không bao giờ cắt lời hay tăng tốc để vừa preset.
+- Phụ đề (`buildCaptionCues`): tách theo dấu câu, mỗi cụm ≤ 9 từ, thời gian chia theo số âm tiết.
+- Audio được phục vụ cho Chromium bởi asset server tạm ở `127.0.0.1:<cổng ngẫu nhiên>`, chỉ đúng các tệp snapshot nêu.
+- `RENDER_TEMPLATE_VERSION` (hiện `short-video-template-v2`) ghi vào mọi snapshot; tăng khi thay đổi Remotion làm cùng props trông khác.
+- Vùng an toàn chỉ là lớp phủ trong editor, không vào MP4.
+
+### 9.2 Snapshot và `runRender`
+
+- `captureRenderSnapshot` chụp lúc **yêu cầu** render: cảnh (lời dẫn, chữ, bố cục, thời lượng, ẩn/hiện, hoạt cảnh), audio theo đường dẫn lưu
+  (tên theo hash nội dung nên byte không đổi) kèm độ lặng đầu, nguồn bài học, kích thước/chất lượng, `scriptVersion`, cổng duyệt
+  (`status`, `autoReady`), template. Lưu `snapshotJson` + `snapshotHash` (sha256 JSON khoá sắp xếp), **không bao giờ ghi đè**. Khi đọc phải
+  đúng schema và hash (`RENDER_SNAPSHOT_CORRUPT`); audio đã mất → `RENDER_AUDIO_MISSING`. ESLint cấm `render-runner.ts` đọc video sống.
+- **Pha render** (`produceRender`, trọn hoặc không gì): preflight trên snapshot → `renderMedia` → ffprobe kiểm H.264/AAC, kích thước, FPS,
+  thời lượng → `COMPLETED`, cùng câu lệnh đặt `archiveIntentAt` cho FINAL. Lỗi/huỷ trong pha này xoá tệp dở. **Pha sau** chỉ báo tiến độ;
+  lỗi ở đó không bao giờ xoá MP4 hay lật trạng thái. Render đã `COMPLETED` chạy lại là no-op.
+- `renderShortVideo`: bundle một lần mỗi tiến trình worker; H.264 + AAC (track im lặng khi không có lời), `yuv420p`, BT.709,
+  `concurrency = RENDER_CONCURRENCY`; bản nháp dùng `scale = 720/1080` trên cùng composition 1080×1920; ghi `*.part.mp4` rồi đổi tên.
+  MP4 cũ không bao giờ bị xoá tự động.
+
+### 9.3 Preflight
+
+```
+chặn mọi bản        NO_SCENES, HOOK_MISSING (cảnh đầu phải là HOOK hiển thị), EMPTY_TEXT, OVER_MAX (> 300 giây)
+chặn FINAL          HOOK_TOO_LONG (> 120 frame), OVER_TARGET, SCRIPT_NOT_APPROVED (không APPROVED và không autoReady)
+cảnh báo            HOOK_SILENCE (> 500 ms lặng đầu), LONG_TEXT, MISSING_AUDIO
+```
+
+### 9.4 Hoạt cảnh SVG
+
+`src/remotion/illustration/`: 7 bối cảnh × 8 hành động của một nhân vật (danh sách ở `videos/domain/illustration.ts`). Mọi chuyển động là
+hàm của frame nên preview, nháp và bản cuối giống hệt; không `filter`/blur (chậm khi rasterise trong Chromium headless), không ảnh, không
+ngẫu nhiên (có test kiểm). Một nhân vật mỗi video, ngoại hình chọn theo tiêu đề nên render lại vẫn như cũ. `illustrationJson` null = mặc
+định theo loại cảnh; hash cảnh chỉ tính hoạt cảnh khi có lựa chọn nên cảnh và snapshot cũ giữ hash. Đổi hoạt cảnh làm render cũ lỗi thời
+nhưng giữ giọng đọc.
+
+## 10. Lưu trữ lên Google Drive
+
+### 10.1 Luồng
+
+```
+render FINAL COMPLETED + archiveIntentAt ─► requestRenderArchive | sweepRenderArchives (khởi động + mỗi phút)
+  ─► RenderArchive + 3 RenderArchiveFile + job ARCHIVE_RENDER (một giao dịch, tài khoản đang kết nối)
+  ─► dựng script/manifest ─► prepareDestination ─► upload MP4 → script → manifest ─► verify ─► COMPLETED khi cả ba VERIFIED
+```
+
+- Archive tách khỏi render: lỗi lưu trữ không đổi render hay MP4; lưu lại không cần render lại. `destinationKey` = `permissionId` của tài
+  khoản. Chưa kết nối Drive → không làm gì, ý định vẫn nằm trên render. Processor **chỉ upload**, không render, lồng tiếng hay gọi AI.
+- `script.json` và `manifest.json` (thông số render, phiên bản template/snapshot, `snapshotHash`, tên + byte + SHA-256 của MP4 và script,
+  audio theo `contentHash`) dựng **chỉ từ snapshot**, không chứa đường dẫn local, là JSON khoá sắp xếp nên dựng lại ra cùng byte. Tệp
+  local cố định (path, bytes, sha256) khi giao cho archive; đổi nội dung sau khi bắt đầu upload → `ARCHIVE_LOCAL_FILE_CHANGED`.
+- Cây Drive: `Book Video Studio/books/<bookId>/videos/<videoId>/renders/<renderId>/` với
+  `video_s<scriptVersion>_<renderId>_<w>x<h>.mp4`, `script.json`, `manifest.json`.
+- Lỗi chờ được → `WAITING` + hoãn; quyền, Drive đầy, tệp đổi → `FAILED` ngay; kết nối đổi tài khoản → `ARCHIVE_DESTINATION_CHANGED`; huỷ
+  → `FAILED`, không đè archive đã xong. Thử lại (`POST /api/renders/:id/archive`) dùng lại thư mục, ID tệp, checkpoint và tệp đã xác minh;
+  thư mục render bị xoá trên Drive → dựng lại; bản sao không khớp → tệp chưa xác minh nhận ID mới. Ứng dụng không bao giờ xoá gì trên Drive.
+
+### 10.2 OAuth và credential
+
+- OAuth client **Desktop app** của người dùng, chỉ quyền `drive.file`, PKCE `S256`; `OAuthAuthorization` lưu **hash** của state, verifier,
+  redirect URI, hạn 10 phút. Redirect loopback `http://127.0.0.1:<cổng>` không path; Google trả về trang gốc và trang này chuyển tiếp tới
+  `/api/integrations/drive/callback`.
+- Callback **tiêu state trước mọi việc** bằng `UPDATE` có điều kiện ở đầu giao dịch (hai callback đua → chỉ một tới Google), đổi mã với
+  verifier, đòi `drive.file` trong scope trả về và có refresh token, đọc `about.get` (`permissionId`, email). Chỉ ghi credential khi mọi
+  bước thành công.
+- Token chỉ ở `data/credentials/google-drive.json` (`0600`, ghi nguyên tử), không trong SQLite; DTO chỉ có trạng thái, email, thời điểm.
+- `DriveAccessToken`: làm mới khi còn < 1 phút (đồng thời chỉ một yêu cầu), `invalidate()` sau 401; `invalid_grant` → `NEEDS_RECONNECT`
+  và các lần sau báo `DRIVE_RECONNECT_REQUIRED` không hỏi Google. Ghi lại credential chỉ khi vẫn cùng lần đăng nhập (`connectedAt`), nên
+  một lần làm mới muộn không hồi sinh kết nối đã ngắt. Ngắt kết nối thu hồi refresh token, xoá credential local kể cả khi không tới được
+  Google, không xoá gì trên Drive.
+- `sendGoogleRequest` chỉ giữ mã lý do ngắn của Google, không chép body hay URL vào lỗi.
+
+### 10.3 Thư mục, upload, xác minh, hạn mức
+
+- **ID cấp trước:** một `files.generateIds` cho thư mục thiếu + 3 tệp; ID được **ghi vào bảng trước** (ghi một lần; bên thua cuộc đua nhận
+  ID bên thắng) rồi mới tạo thư mục với chính ID đó; Drive trả `409` cho lần tạo lặp nên mất phản hồi không sinh bản thứ hai. Không bao
+  giờ tìm kiếm Drive. Thư mục bị xoá → `404` → bỏ ràng buộc từ đó trở xuống và dựng lại.
+- **Upload có thể tiếp tục** (`DriveResumableUpload`): phiên `uploadType=resumable` vào ID tệp đã cấp, chunk bội 256 KiB (mặc định 8 MiB)
+  bằng một buffer dùng lại. Tiến độ chỉ là số byte Google xác nhận (`Range` của `308`); 3 chunk không tiến → `DRIVE_UPLOAD_STALLED`.
+  Session URI coi như credential: chỉ nằm trong checkpoint, xoá khi tệp xong. Có checkpoint thì hỏi trạng thái trước: `308` → gửi tiếp,
+  `200/201` → xong, `404` → phiên mới cùng ID tệp; mở phiên bị `409` → tệp đã có. `fetch` dùng `redirect: "manual"` để `308` không bị
+  hiểu là chuyển hướng.
+- **Xác minh:** `files.get` (`size`, `md5Checksum`, `sha256Checksum`, `trashed`) so với tệp local băm một lượt; chưa có checksum →
+  `DRIVE_CHECKSUM_PENDING` (tạm) chứ không tin chỉ kích thước.
+- **Hạn mức:** `DriveRequestMeter` ghi sổ theo giờ (`DriveUsageHour`) **chỉ những gì ứng dụng gửi** và từ chối (`QUOTA`,
+  `DRIVE_APP_DAILY_LIMIT`, kèm thời gian chờ) khi vượt cửa sổ 24 giờ trượt (mặc định 5.000 yêu cầu, 10 GiB); giãn tối đa 1 giây giữa hai
+  yêu cầu. Dung lượng ≠ quota API: `storageQuotaExceeded` là `REJECTED`, các lý do rate-limit và 429 là `QUOTA`. `DriveCapacityGuard`
+  (cache `DriveCapacity`, làm mới tối đa mỗi giờ) từ chối upload **mới** không vừa trước khi gửi byte nào. UI chỉ đọc bảng local.
+
+Mã hoá checksum của Drive và redirect loopback không path chưa kiểm chứng: xem [operations.md](operations.md).
+
+## 11. Port, DTO và đổi nhà cung cấp
+
+Bốn port trong `src/server/`; service nhận port qua tham số, factory chọn implementation; không plugin framework, DI container hay workflow DSL.
+
+- **`OcrProvider`** (`ocr/`): `limits`, `estimateCostUsd`, `start` (idempotent theo `requestKey`; xong ngay hoặc operation chờ), `poll` (không
+  chờ: `pending`/`completed`/`failed`/`cancelled`/`expired`), `findOperation`, `cancel`, `cleanup` (chỉ sau khi đã lưu output). Thật:
+  `MistralBatchOcrProvider` qua `createOcrProvider()`.
+- **`ScriptStudioProvider`** (`script-studio/`): `ensureSource`, `detectChapters`, `extractLessons`, `writeDraft`, `draftVersion`. Thật:
+  `NotebookLmScriptStudio`; mock: `MockScriptStudioProvider`.
+- **`ScenePlanCompiler`** (`scene-plan/`): `compile(draft, lesson, preset, revisionNote)` → `ScenePlan` (Zod, gồm thứ tự mạch kể). Thật:
+  `ClaudeScenePlanCompiler` qua `createScenePlanCompiler()`; mock: `MockScenePlanCompiler`.
+- **`VideoArchiveProvider`** (`archive/`): `prepareDestination` (ID cấp trước), `upload` (theo checkpoint, không tạo bản thứ hai), `verify`.
+  Thật: `GoogleDriveArchiveProvider` qua `createDriveArchiveProvider()`.
+
+DTO của port không mang khái niệm nhà cung cấp; `operationRef`, `SourceRef.remoteId`, checkpoint token là chuỗi mờ, lưu được, không chứa
+credential. Mọi lời gọi nhận `signal`; signal đã huỷ phải làm lời gọi thất bại trước khi gây tác dụng từ xa. Lỗi là `IntegrationError`
+(`server/integrations/`):
+
+```
+AUTH             sai hoặc hết đăng nhập                 → dừng, chờ người dùng
+QUOTA            hết hạn mức, có thể kèm retryAfterMs   → hoãn
+TRANSIENT        lỗi tạm, chưa có tác dụng từ xa         → hoãn rồi gửi lại
+REJECTED         bị từ chối, gửi lại vẫn lỗi            → dừng (hoặc lượt sửa AI nếu sửa được)
+UNKNOWN_OUTCOME  có thể đã thực hiện                    → đối soát trước khi gửi lại
+```
+
+Mỗi port có một bộ contract dùng chung (`tests/helpers/contracts/`) chạy với fake (`tests/helpers/fakes/`) và với adapter thật trên fake
+HTTP/MCP. **Đổi nhà cung cấp:**
+
+- _OCR:_ hiện thực `OcrProvider`, chạy bộ contract với nó, chọn trong `createOcrProvider()`. Lần trích xuất đang mở lô của provider cũ dừng
+  với `OCR_PROVIDER_CHANGED` thay vì tự đổi; trang đã có chữ không bị đọc lại.
+- _Script studio:_ hiện thực `ScriptStudioProvider` + contract, chọn trong `createPipelineDeps` và nơi tạo `NotebookLmScriptStudio` (bộ xác
+  định chương, phân tích chương). Đổi `draftVersion` khi prompt đổi để cache không trả bản cũ.
+- _Compiler / nơi lưu trữ:_ hiện thực `ScenePlanCompiler` / `VideoArchiveProvider` + contract; Remotion và pipeline sản xuất không đổi.
+
+## 12. Lưu trữ cục bộ và bảo mật
+
+```
+DATA_DIR/                     mặc định ./data; bị từ chối nếu nằm dưới /mnt/
+  studio.db                   theo DATABASE_URL mặc định
+  imports/<id>/               tệp đang tải hoặc xem trước (tạm)
+  books/<bookId>/             original.<md|txt|pdf> (chỉ đọc), chapters/<chapterId>.md,
+                              extractions/<id>/canonical.md, extractions/<id>/ocr/<requestKey>/ (tạm)
+  ai-tasks/<taskId>/          tệp tác vụ AI và đầu ra thô
+  videos/<videoId>/           audio/<contentHash>.<mp3|wav>, renders/<renderId>-<draft|final>.mp4, -script.json, -manifest.json
+  integrations/               notebooklm-status.json
+  credentials/                google-drive.json (0600, thư mục 0700)
+  diagnostics/
+```
+
+- Mọi đường dẫn đi qua `server/storage/safe-path.ts`: chặn `..`, đường dẫn tuyệt đối và symlink thoát khỏi `DATA_DIR`. Thư mục đặt theo
+  ID, không theo tên sách; DB chỉ lưu đường dẫn tương đối. Ghi tạm rồi đổi tên; tệp gốc của sách ở chế độ chỉ đọc.
+- Upload kiểm đuôi, chữ ký byte và kích thước. Tiến trình con chỉ chạy bằng mảng đối số; env được làm sạch (Claude) hoặc theo danh sách
+  cho phép (MCP, Poppler).
+- Khoá Mistral chỉ trong đối tượng client; token Google chỉ trong tệp credential; session URI chỉ trong checkpoint; cookie NotebookLM
+  không bao giờ được truyền. Thông điệp của nhà cung cấp và công cụ (có thể chứa đường dẫn, cookie, văn bản sách) không vào lỗi hay log;
+  log là JSON chỉ có ID và hash. Chỉ lắng nghe `127.0.0.1`, không xác thực. Quy tắc đầy đủ: [AGENTS.md §10](../AGENTS.md).
+
+## 13. Kiểm thử
+
+- **Unit** (`tests/unit`): domain thuần (parser, phân loại trang, chunk, tài liệu chuẩn, xác định chương, preflight, readiness, mạch kể,
+  sửa AI…), Zod, safe-path, prompt, client Mistral/Google, hoạt cảnh; **contract** của từng port (`tests/unit/integrations/`).
+- **Integration** (`tests/integration`): service + repository trên SQLite tạm với migration thật (`setupTestEnvironment`), processor, outbox
+  với BullMQ thật (Redis DB 13), Poppler thật, các tình huống lỗi và tranh chấp.
+- **E2E** (Playwright, `tests/e2e`): E2E-01 `smoke.spec.ts` (luồng thủ công tới ffprobe MP4) và E2E-02 `pdf-production.spec.ts` (PDF →
+  chương → danh mục → chọn bài → sản xuất → Drive giả, không bước duyệt). Stack riêng (`start-stack.ts`): DB và `DATA_DIR` tạm, Redis DB
+  14 (xoá mỗi lần), worker, `next start` cổng 3100, fake Google đã kết nối sẵn, fake edge-tts; dùng lại Chromium của Remotion.
+- **Không test nào chạm tài khoản thật:** `OFFLINE_INTEGRATIONS_ENV` (`AI_MODE=mock`, xoá khoá Mistral/Google và profile NotebookLM,
+  Mistral trỏ tới cổng không ai nghe) đè `.env` của máy dev; test cần tích hợp tự dựng fake (Mistral, Google, máy chủ MCP, Claude CLI,
+  edge-tts sinh MP3 thật, PDF dựng tay ở `pdf-fixtures.ts`).
+- Bộ cần Redis hoặc Poppler tự báo skipped khi thiếu (`TEST_POPPLER_BIN_DIR` khi Poppler ngoài PATH); `server-only` được alias sang stub.
+
+## 14. Các quyết định chính
+
+- **Hai tiến trình, một queue, concurrency 1** — render, TTS, AI chiếm CPU/RAM hàng phút; tách khỏi web để UI luôn phản hồi; một người dùng
+  trên máy yếu với quota AI hạn chế.
+- **SQLite + WAL** — một người dùng, cục bộ; sao lưu chỉ là sao chép một thư mục.
+- **BullMQ thực thi, `JobRecord` là read model, đối soát khi khởi động** — UI đọc nhanh từ SQLite; Redis bị xoá hay worker chết vẫn được sửa lại.
+- **Outbox `JobDispatch`** — job ghi cùng giao dịch với thay đổi nghiệp vụ; chết giữa SQLite và Redis không làm mất job.
+- **Hoãn qua outbox, không ngủ trong worker** — lô OCR chạy hàng giờ; worker concurrency 1 không được bị giữ; lịch sống qua restart.
+- **Claude chỉ qua CLI của người dùng, `cli-task` mặc định** — không API key; mỗi lần gọi do người dùng chủ động trừ khi họ bật `cli-auto`.
+- **Mỗi tích hợp một port, ngoài `AiProvider`** — đổi nhà cung cấp không đụng nghiệp vụ; chi tiết Batch, MCP, OAuth nằm kín trong adapter.
+- **`UNKNOWN_OUTCOME` + đối soát theo khoá, dấu tiêu đề, ID cấp trước** — mất phản hồi không dẫn tới trả tiền hai lần hay tạo bản trùng.
+- **Lớp chữ trước, OCR chỉ trang cần, lỗi PDF báo trước dịch vụ trả phí** — OCR tốn tiền.
+- **Trần OCR chép vào lần trích xuất, một lô mở, micro-USD** — đổi cấu hình không âm thầm nâng chi tiêu; đối soát đơn giản; so trần không
+  lệch số thực.
+- **Offset UTF-16 + bản đồ trang tính lại** — cùng đơn vị với `text.slice`, không có hai nguồn sự thật.
+- **Không nhận "cả sách là một chương"; đề xuất chương phải khớp anchor** — sách dài thành một chương cho bài học vô nghĩa; mô hình có thể
+  bịa ranh giới.
+- **NotebookLM đọc theo phần với `source_ids` tường minh; trang lấy nơi tìm thấy** — chương dài cần chia; không lẫn nguồn cũ; không tin số
+  trang mô hình khai.
+- **Chọn bài học ≠ duyệt; readiness do máy kiểm sau khi có audio** — sản xuất hàng loạt không có người duyệt; thời lượng thật chỉ biết sau TTS.
+- **Một lượt sửa AI, không nâng preset hay đọc nhanh** — giới hạn chi phí và vòng lặp; video không vừa thì thất bại rõ ràng.
+- **Hai artifact tách có fingerprint, cache bản thảo** — Claude lỗi không tốn lại NotebookLM; nháp không lẫn kết quả cuối.
+- **Snapshot render bất biến** — sửa video trong lúc render chờ không trộn vào; manifest Drive đúng với MP4.
+- **Render hai pha, ý định lưu trữ ghi cùng `COMPLETED`** — lỗi báo tiến độ không xoá được MP4; lưu trữ sống qua mọi sự cố hàng đợi.
+- **Một composition và một hàm props cho Player và render** — bản xem trước là bản sẽ render.
+- **Asset server cục bộ khi render** — Chromium cần URL; chỉ phục vụ đúng tệp của snapshot, không lộ `data/`.
+- **Hoạt cảnh SVG theo frame, không filter/ảnh/ngẫu nhiên** — preview và render giống hệt; nhẹ cho CPU yếu.
+- **Lưu trữ tách khỏi render, ID cấp trước, không tìm kiếm Drive** — lỗi Drive không đụng MP4; thử lại nhắm đúng đối tượng mà không đoán
+  theo tên.
+- **Token Google trong tệp `0600`, không trong SQLite** — bản sao DB, chẩn đoán và DTO không chứa token.
+- **Sổ quota Drive và cache dung lượng cục bộ** — worker không chờ quota; UI không gọi Google; chỉ đếm việc của ứng dụng.
+- **Trạng thái kiểu `String`** — thêm giá trị không cần migration SQLite.

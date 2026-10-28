@@ -5,7 +5,7 @@ import { askClaude } from "./cli-task/ask-claude";
 import { writeTaskOutput, type TaskKind } from "./cli-task/task-files";
 import { LocalCliTaskProvider } from "./local-cli-task-provider";
 
-// Opt-in (AI_MODE=cli-auto, requirements §9.2C): the worker runs the task through the user's own logged-in Claude Code
+// Opt-in (AI_MODE=cli-auto): the worker runs the task through the user's own logged-in Claude Code
 // CLI immediately instead of waiting for `pnpm ai:run`. Same prompt, schema, sanitized env and no-tools flags; one call
 // at a time because the worker runs one job at a time. Personal, localhost use only.
 export class AutomatedCliProvider extends LocalCliTaskProvider {

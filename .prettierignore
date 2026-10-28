@@ -6,4 +6,3 @@ data
 src/generated
 pnpm-lock.yaml
 prisma/migrations
-BOOK_VIDEO_STUDIO_REQUIREMENTS_VI_v1.1.md

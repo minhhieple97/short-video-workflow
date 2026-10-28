@@ -8,7 +8,7 @@ import type {
   VideoScriptOutput,
 } from "./contracts/video-script";
 
-// cli-auto is the opt-in AutomatedCliProvider (requirements §9.2C): the worker runs the user's own Claude Code CLI.
+// cli-auto is the opt-in AutomatedCliProvider: the worker runs the user's own Claude Code CLI.
 export type AiMode = "mock" | "cli-task" | "cli-auto";
 
 export type AiTaskResult<TOutput> =

@@ -63,7 +63,7 @@ model Book {
   sourceFilePath  String
   sourceFileName  String
   sourceHash      String
-  // "md" | "txt" — validated by features/books/domain (String keeps room for new formats without a migration).
+  // "md" | "txt" | "pdf" — validated by features/books/domain (String keeps room for new formats without a migration).
   sourceFormat    String
   sourceSizeBytes Int
   // "ACTIVE" | "DELETED" (soft delete, alongside deletedAt).
@@ -164,7 +164,7 @@ model Video {
   width                  Int                  @default(1080)
   height                 Int                  @default(1920)
   videoProfile           VideoProfile         @default(SHORT_VERTICAL)
-  // Allowed values {30, 45, 60, 90} are enforced by Zod, not by the database.
+  // DURATION_PRESETS_SEC (30 … 300) is enforced by Zod, not by the database.
   targetDurationSec      Int                  @default(60)
   scriptVersion          Int                  @default(1)
   approvedScriptVersion  Int?
