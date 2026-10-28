@@ -34,6 +34,10 @@ const nlmTools = (
 ).split(",");
 const nlmProfiles = (process.env.FAKE_NLM_PROFILES ?? "default").split(",");
 const nlmScript = process.env.FAKE_NLM_SCRIPT ? JSON.parse(fs.readFileSync(process.env.FAKE_NLM_SCRIPT, "utf8")) : {};
+// FAKE_NLM_QUERY_RULES (a JSON file of [{ contains, answer }]) answers notebook_query by what the question asks for.
+const queryRules = process.env.FAKE_NLM_QUERY_RULES
+  ? JSON.parse(fs.readFileSync(process.env.FAKE_NLM_QUERY_RULES, "utf8"))
+  : [];
 let activeProfile = "default";
 
 // FAKE_NLM_STATE (a JSON file) holds notebooks and sources across server processes, like the real account would.
@@ -117,6 +121,10 @@ function notebooklmAnswer(name, args) {
       return { __hang: true };
     }
     return next;
+  }
+  if (name === "notebook_query") {
+    const rule = queryRules.find((candidate) => String(args.query ?? "").includes(candidate.contains));
+    if (rule) return rule.answer;
   }
   if (statePath) {
     const answer = statefulAnswer(name, args);

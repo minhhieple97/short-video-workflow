@@ -181,6 +181,20 @@ describe("processRunProductionItem", () => {
     expect((await batch()).status).toBe("CANCELLED");
   });
 
+  it("closes what the run held open (the NotebookLM process) after every run, deferred or failed", async () => {
+    let closed = 0;
+    pipelineDeps.create = () => ({
+      ...createCountingDeps(db, () => videoId).deps,
+      close: async () => void (closed += 1),
+    });
+
+    await runJob();
+    expect(closed).toBe(1);
+    await finishRender("FAILED", "chromium crashed");
+    await expect(runJob()).rejects.toMatchObject({ code: "RENDER_FAILED" });
+    expect(closed).toBe(2);
+  });
+
   it("records an unexpected error as the item's failure instead of leaving it in progress", async () => {
     pipelineDeps.create = () => {
       throw new Error("provider exploded");

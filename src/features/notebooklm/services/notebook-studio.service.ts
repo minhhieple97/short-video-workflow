@@ -4,10 +4,7 @@ import type { z } from "zod";
 
 import { IntegrationError } from "@/server/integrations/integration-error";
 import type { McpServerCommand } from "@/server/script-studio/notebooklm/mcp-stdio-client";
-import {
-  notebookLmServerForThisProcess,
-  NotebookLmSession,
-} from "@/server/script-studio/notebooklm/notebooklm-session";
+import { notebookLmServerForThisProcess } from "@/server/script-studio/notebooklm/notebooklm-session";
 import { getAppConfig, type AppConfig } from "@/shared/config/env";
 
 import { extractJsonFromAnswer } from "../domain/answer-json";
@@ -34,20 +31,6 @@ export function notebookStudioSettings(config: AppConfig = getAppConfig()): Note
 
 export const NOTEBOOKLM_NOT_CONFIGURED_MESSAGE =
   "NotebookLM chỉ được dùng khi AI_MODE=cli-auto và đã đặt NOTEBOOKLM_PROFILE (profile đã đăng nhập bằng `nlm login`).";
-
-// One NotebookLM server process for the duration of `work`, closed whatever happens.
-export async function withNotebookLm<T>(
-  settings: NotebookStudioSettings,
-  signal: AbortSignal | undefined,
-  work: (caller: NotebookLmCaller) => Promise<T>,
-): Promise<T> {
-  const session = await NotebookLmSession.open({ ...settings, signal });
-  try {
-    return await work(session);
-  } finally {
-    await session.close();
-  }
-}
 
 export interface BookNotebook {
   caller: NotebookLmCaller;
@@ -97,7 +80,7 @@ export async function ensureNotebookDocument(
 // Asks about exactly these sources and reads the JSON the question asked for. An answer that is not that JSON is a
 // refusal under `code`, never stored and never patched up.
 export async function askNotebookForJson<T>(
-  notebook: BookNotebook,
+  notebook: Pick<BookNotebook, "caller" | "notebookId">,
   input: { sourceIds: readonly string[]; query: string; code: string },
   schema: z.ZodType<T>,
   signal?: AbortSignal,

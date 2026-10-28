@@ -1,24 +1,11 @@
-import { z } from "zod";
-
 import type { ChapterDetector } from "@/features/extraction/services/chapter-detector";
-import {
-  buildChapterDetectionPrompt,
-  CHAPTER_DETECTION_PROMPT_VERSION,
-} from "@/server/script-studio/notebooklm/prompts/chapter-detection-prompt";
-import { detectedChapterSchema } from "@/server/script-studio/script-studio-contracts";
+import { CHAPTER_DETECTION_PROMPT_VERSION } from "@/server/script-studio/notebooklm/prompts/chapter-detection-prompt";
 import { createLogger } from "@/shared/logger";
 
-import {
-  askNotebookForJson,
-  ensureNotebookDocument,
-  notebookStudioSettings,
-  openBookNotebook,
-  withNotebookLm,
-  type NotebookStudioSettings,
-} from "./notebook-studio.service";
+import { NotebookLmScriptStudio } from "./notebooklm-script-studio";
+import { notebookStudioSettings, type NotebookStudioSettings } from "./notebook-studio.service";
 
 const logger = createLogger("notebooklm.chapters");
-const MAX_CHAPTERS = 500;
 
 // NotebookLM reads an outline of page heads (never the whole book) as its own source and proposes chapter starts. Null
 // when NotebookLM is not available, so the caller can say why no chapters were found.
@@ -27,27 +14,29 @@ export function createNotebookChapterDetector(
 ): ChapterDetector | null {
   if (!settings) return null;
   return {
-    detect: (input, signal) =>
-      withNotebookLm(settings, signal, async (caller) => {
-        const notebook = await openBookNotebook(caller, settings.profile, input.book, signal);
-        const sourceId = await ensureNotebookDocument(
-          notebook,
-          { key: `outline:${input.extractionId}`, title: "Dàn ý theo trang", markdown: input.outline.markdown },
-          signal,
-        );
-        const chapters = await askNotebookForJson(
-          notebook,
+    detect: async (input, signal) => {
+      const studio = new NotebookLmScriptStudio(settings);
+      try {
+        const source = await studio.ensureSource(
           {
-            sourceIds: [sourceId],
-            query: buildChapterDetectionPrompt({
-              bookTitle: input.book.title,
-              pageCount: input.pageCount,
-              hints: input.outline.hints,
-            }),
-            code: "NOTEBOOKLM_CHAPTERS_INVALID",
+            book: input.book,
+            document: {
+              key: `outline:${input.extractionId}`,
+              title: "Dàn ý theo trang",
+              markdown: input.outline.markdown,
+            },
+            known: null,
           },
-          z.array(detectedChapterSchema).max(MAX_CHAPTERS),
-          signal,
+          { signal },
+        );
+        const chapters = await studio.detectChapters(
+          {
+            sources: [source],
+            outlineHints: input.outline.hints,
+            bookTitle: input.book.title,
+            pageCount: input.pageCount,
+          },
+          { signal },
         );
         logger.info("Chapters proposed", {
           extractionId: input.extractionId,
@@ -55,6 +44,9 @@ export function createNotebookChapterDetector(
           promptVersion: CHAPTER_DETECTION_PROMPT_VERSION,
         });
         return chapters;
-      }),
+      } finally {
+        await studio.close();
+      }
+    },
   };
 }

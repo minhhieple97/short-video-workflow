@@ -105,7 +105,8 @@ src/
     videos/            short-form domain (scene types, layouts, duration budget, snapshots), script generation/editing, editor UI
     jobs/              job payload schemas, JobRecord/AiRun repositories, enqueue/retry/cancel services, jobs dashboard UI
     notebooklm/        v1.2 NotebookLM bindings: one notebook per book and account, one source per part and revision (title marker);
-                       studio helpers (`notebook-studio.service.ts`: session per use, JSON answers) and the chapter detector
+                       `NotebookLmScriptStudio` (the real `ScriptStudioProvider`: one MCP process per run, `notebookId#sourceId` refs,
+                       JSON answers only), chapter part documents shared by cataloguing and drafting, chapter detector
     drive/             v1.2 Google Drive connection: OAuth start/callback state (hashed, one-time), connection status DTO
     archive/           v1.2 render archives (one per render and destination, one entry per uploaded file, resumable checkpoints)
     productions/       v1.2 production batches: lesson selection (`production-request`, catalogue page `/books/:id/produce`), the

@@ -9,6 +9,7 @@ import {
   PRODUCTION_LEASE_MS,
   runProductionPipeline,
   settleProductionRun,
+  type PipelineDeps,
   type RunOutcome,
 } from "@/features/productions/services/production-pipeline.service";
 import { getAppConfig } from "@/shared/config/env";
@@ -34,14 +35,11 @@ export const processRunProductionItem: JobProcessor = async ({ job, signal }) =>
   }
 
   let outcome: RunOutcome;
+  let deps: PipelineDeps | null = null;
   try {
     await refreshBatchOf(itemId);
-    outcome = await runProductionPipeline({
-      itemId,
-      claimToken,
-      signal,
-      deps: createPipelineDeps(getAppConfig().ai.mode),
-    });
+    deps = createPipelineDeps(getAppConfig().ai.mode);
+    outcome = await runProductionPipeline({ itemId, claimToken, signal, deps });
   } catch (error) {
     // Cancelling the job cancels the item. A lost claim means the item is no longer ours to touch. Anything else is
     // recorded as the item's failure, so it never sits in progress without a job.
@@ -58,6 +56,8 @@ export const processRunProductionItem: JobProcessor = async ({ job, signal }) =>
     }
     await settle(itemId, claimToken, outcome);
     throw error;
+  } finally {
+    await deps?.close?.();
   }
 
   await settle(itemId, claimToken, outcome);

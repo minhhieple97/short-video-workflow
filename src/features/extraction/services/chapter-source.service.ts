@@ -1,7 +1,7 @@
 import { readChapterContent } from "@/features/chapters/services/chapter.service";
 import { AppError } from "@/shared/errors";
 
-import { assembleCanonicalMarkdown, pageAtOffset } from "../domain/canonical-document";
+import { assembleCanonicalMarkdown, pageAtOffset, pagesInRange } from "../domain/canonical-document";
 import { withPageMarkers } from "../domain/source-parts";
 import { listExtractionPages } from "../repositories/extraction-page.repository";
 import { findCompletedExtractionForBook } from "../repositories/extraction.repository";
@@ -11,6 +11,8 @@ export interface ChapterSource {
   text: string;
   // The PDF page an offset falls on; null for a book imported from text, which has no pages.
   pageAt(offset: number): number | null;
+  // The first and last PDF page that [start, end) touches; null without pages.
+  pagesIn(start: number, end: number): { first: number; last: number } | null;
   // [start, end) of the text as sent to a reader, with "[Trang N]" lines where pages begin (PDF books only).
   forReading(start: number, end: number): string;
 }
@@ -28,7 +30,7 @@ interface SourceChapter {
 export async function loadChapterSource(chapter: SourceChapter, sourceFormat: string): Promise<ChapterSource> {
   if (sourceFormat !== "pdf") {
     const text = await readChapterContent(chapter);
-    return { text, pageAt: () => null, forReading: (start, end) => text.slice(start, end) };
+    return { text, pageAt: () => null, pagesIn: () => null, forReading: (start, end) => text.slice(start, end) };
   }
   const extraction = await findCompletedExtractionForBook(chapter.bookId);
   const { sourceStartOffset: start, sourceEndOffset: end } = chapter;
@@ -43,6 +45,10 @@ export async function loadChapterSource(chapter: SourceChapter, sourceFormat: st
   return {
     text: document.markdown.slice(start, end),
     pageAt: (offset) => pageAtOffset(document.pageOffsets, start + offset),
+    pagesIn: (from, to) => {
+      const range = pagesInRange(document.pageOffsets, start + from, start + to);
+      return range && { first: range.firstPage, last: range.lastPage };
+    },
     forReading: (from, to) => withPageMarkers(document.markdown, start + from, start + to, document.pageOffsets),
   };
 }

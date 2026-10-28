@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { splitIntoParts } from "@/features/extraction/domain/source-parts";
-import { loadChapterSource, type ChapterSource } from "@/features/extraction/services/chapter-source.service";
+import type { ChapterSource } from "@/features/extraction/services/chapter-source.service";
 import {
   completeAiRun,
   failAiRun,
@@ -16,18 +15,21 @@ import {
   type NewLessonSource,
 } from "@/features/lessons/repositories/lesson.repository";
 import { lessonContentHash } from "@/features/lessons/services/lesson-hash";
-import { extractLessonsWithNotebook } from "@/features/notebooklm/services/notebook-lesson-extractor";
+import {
+  CHAPTER_PART_MAX_CHARS,
+  chapterPartDocuments,
+  type ChapterPartDocument,
+} from "@/features/notebooklm/services/chapter-documents.service";
+import { NotebookLmScriptStudio } from "@/features/notebooklm/services/notebooklm-script-studio";
 import {
   notebookStudioSettings,
-  openBookNotebook,
-  withNotebookLm,
   type NotebookStudioSettings,
 } from "@/features/notebooklm/services/notebook-studio.service";
 import { writeFileAtomic } from "@/server/storage/atomic-write";
 import { dataPath } from "@/server/storage/paths";
 import { LESSON_EXTRACTION_PROMPT_VERSION } from "@/server/script-studio/notebooklm/prompts/lesson-extraction-prompt";
 import type { LessonCandidate, LessonExtraction } from "@/server/script-studio/script-studio-contracts";
-import { NotFoundError } from "@/shared/errors";
+import { AppError, NotFoundError } from "@/shared/errors";
 import { createLogger, toSafeErrorMessage } from "@/shared/logger";
 
 import { mergeLessonCandidates } from "../domain/lesson-candidates";
@@ -36,15 +38,12 @@ import type { ChapterAnalysisResult } from "./chapter-analysis.service";
 
 const logger = createLogger("chapters.notebook-analysis");
 
-// Each part of a chapter is its own NotebookLM source and its own question, so a long chapter is read in bounded pieces.
-export const NOTEBOOK_PART_MAX_CHARS = 40_000;
-
 export function notebookAnalysisInputHash(parts: { contentHash: string; chapterTitle: string; bookTitle: string }) {
   return createHash("sha256")
     .update(
       JSON.stringify({
         promptVersion: LESSON_EXTRACTION_PROMPT_VERSION,
-        partMaxChars: NOTEBOOK_PART_MAX_CHARS,
+        partMaxChars: CHAPTER_PART_MAX_CHARS,
         ...parts,
       }),
     )
@@ -117,45 +116,38 @@ function toDraft(
 
 async function readParts(
   run: NotebookChapterAnalysisRun,
-  chapter: { id: string; bookId: string; title: string; book: { title: string } },
-  source: ChapterSource,
+  chapter: { bookId: string; title: string; book: { title: string } },
+  parts: readonly ChapterPartDocument[],
 ): Promise<LessonExtraction[]> {
-  const parts = splitIntoParts(source.text, NOTEBOOK_PART_MAX_CHARS);
-  return withNotebookLm(run.settings, run.signal, async (caller) => {
-    const notebook = await openBookNotebook(
-      caller,
-      run.settings.profile,
-      { id: chapter.bookId, title: chapter.book.title },
-      run.signal,
-    );
+  const studio = new NotebookLmScriptStudio(run.settings);
+  const book = { id: chapter.bookId, title: chapter.book.title };
+  try {
     const extractions: LessonExtraction[] = [];
-    for (const [index, part] of parts.entries()) {
-      const first = source.pageAt(part.start);
-      const last = source.pageAt(Math.max(part.start, part.end - 1));
+    for (const part of parts) {
+      if (!part.pages) {
+        throw new AppError("CHAPTER_PAGES_MISSING", "Phần chương này không ứng với trang PDF nào.", 409);
+      }
+      const source = await studio.ensureSource({ book, document: part.document, known: null }, { signal: run.signal });
       extractions.push(
-        await extractLessonsWithNotebook(
-          notebook,
+        await studio.extractLessons(
           {
-            document: {
-              key: `chapter:${chapter.id}:part:${index + 1}`,
-              title: `${chapter.title} — phần ${index + 1}/${parts.length}`,
-              markdown: source.forReading(part.start, part.end),
-            },
-            prompt: {
-              bookTitle: chapter.book.title,
-              chapterTitle: chapter.title,
-              partNumber: index + 1,
-              partCount: parts.length,
-              pages: first !== null && last !== null ? { first, last } : null,
-            },
+            sources: [source],
+            bookTitle: book.title,
+            chapterTitle: chapter.title,
+            partNumber: part.partNumber,
+            partCount: part.partCount,
+            startPage: part.pages.first,
+            endPage: part.pages.last,
           },
-          run.signal,
+          { signal: run.signal },
         ),
       );
-      await run.onProgress?.(10 + Math.round(((index + 1) / parts.length) * 70));
+      await run.onProgress?.(10 + Math.round((part.partNumber / part.partCount) * 70));
     }
     return extractions;
-  });
+  } finally {
+    await studio.close();
+  }
 }
 
 // Catalogues one chapter of a PDF book with NotebookLM, part by part, with no fixed number of lessons per chapter. A run
@@ -187,8 +179,8 @@ export async function runNotebookChapterAnalysis(
     inputHash,
   });
   try {
-    const source = await loadChapterSource(chapter, chapter.book.sourceFormat);
-    const extractions = await readParts(run, chapter, source);
+    const { source, parts } = await chapterPartDocuments(chapter, chapter.book.sourceFormat);
+    const extractions = await readParts(run, chapter, parts);
     const partial = extractions.some((extraction) => !extraction.complete);
     const lessons = mergeLessonCandidates(extractions.flatMap((extraction) => extraction.lessons));
 

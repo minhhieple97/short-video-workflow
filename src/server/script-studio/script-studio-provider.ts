@@ -18,6 +18,8 @@ export interface SourceRef {
 }
 
 export interface EnsureSourceRequest {
+  // The book the document belongs to; a provider may keep each book's sources together.
+  book: { id: string; title: string };
   document: SourceDocument;
   // The reference stored by an earlier run; reused when it still exists remotely.
   known: SourceRef | null;
@@ -25,13 +27,19 @@ export interface EnsureSourceRequest {
 
 export interface DetectChaptersRequest {
   sources: SourceRef[];
+  bookTitle: string;
+  pageCount: number;
   // Table-of-contents lines and headings found by the local parser; hints only, never instructions.
   outlineHints: string[];
 }
 
 export interface ExtractLessonsRequest {
   sources: SourceRef[];
+  bookTitle: string;
   chapterTitle: string;
+  // Which bounded part of the chapter the sources hold.
+  partNumber: number;
+  partCount: number;
   startPage: number;
   endPage: number;
 }

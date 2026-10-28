@@ -4,14 +4,15 @@ import { AppError } from "@/shared/errors";
 import { MockScriptStudioProvider } from "./mock-script-studio-provider";
 import type { ScriptStudioProvider } from "./script-studio-provider";
 
-// The real script studio is NotebookLM (not wired up yet), so only the offline mock can answer today. cli-task would wait
-// for a person on every video, which an unattended batch cannot do.
+// The offline mock, or the reason no script studio can run. The real one (NotebookLM) needs the database for its
+// notebook and source bindings, so it is built by the productions feature when AI_MODE=cli-auto and a profile is set.
+// cli-task would wait for a person on every video, which an unattended batch cannot do.
 export function createScriptStudioProvider(mode: AiMode): ScriptStudioProvider {
   if (mode === "mock") return new MockScriptStudioProvider();
   if (mode === "cli-auto") {
     throw new AppError(
       "SCRIPT_STUDIO_NOT_AVAILABLE",
-      "Chưa có nhà cung cấp kịch bản thật (NotebookLM) được nối vào; hiện chỉ chạy được với AI_MODE=mock.",
+      "Sản xuất với AI_MODE=cli-auto viết bản thảo bằng NotebookLM: hãy đặt NOTEBOOKLM_PROFILE (profile đã `nlm login`).",
       409,
     );
   }

@@ -22,6 +22,9 @@ export const SAMPLE_LESSON: LessonSnapshot = {
   capturedAt: "2026-10-28T00:00:00.000Z",
 };
 
+// The contract's book; a provider that keeps sources per book needs it to exist.
+export const CONTRACT_BOOK = { id: "contract-book", title: "Sách mẫu" };
+
 export function describeScriptStudioProviderContract(name: string, createProvider: () => ScriptStudioProvider): void {
   describe(`ScriptStudioProvider contract: ${name}`, () => {
     const document = (key: string) => ({ key, title: "Sách mẫu", markdown: "# Chương 1\n\nNội dung." });
@@ -29,9 +32,21 @@ export function describeScriptStudioProviderContract(name: string, createProvide
     it("reuses the remote source for the same key and creates a new one for a different key", async () => {
       const provider = createProvider();
 
-      const first = await provider.ensureSource({ document: document("book-a:hash-1"), known: null });
-      const replay = await provider.ensureSource({ document: document("book-a:hash-1"), known: null });
-      const other = await provider.ensureSource({ document: document("book-a:hash-2"), known: null });
+      const first = await provider.ensureSource({
+        document: document("book-a:hash-1"),
+        known: null,
+        book: CONTRACT_BOOK,
+      });
+      const replay = await provider.ensureSource({
+        document: document("book-a:hash-1"),
+        known: null,
+        book: CONTRACT_BOOK,
+      });
+      const other = await provider.ensureSource({
+        document: document("book-a:hash-2"),
+        known: null,
+        book: CONTRACT_BOOK,
+      });
 
       expect(replay).toEqual(first);
       expect(other.remoteId).not.toBe(first.remoteId);
@@ -40,18 +55,35 @@ export function describeScriptStudioProviderContract(name: string, createProvide
 
     it("keeps a known reference that still exists remotely", async () => {
       const provider = createProvider();
-      const created = await provider.ensureSource({ document: document("book-a:hash-1"), known: null });
+      const created = await provider.ensureSource({
+        document: document("book-a:hash-1"),
+        known: null,
+        book: CONTRACT_BOOK,
+      });
 
-      const again = await provider.ensureSource({ document: document("book-a:hash-1"), known: created });
+      const again = await provider.ensureSource({
+        document: document("book-a:hash-1"),
+        known: created,
+        book: CONTRACT_BOOK,
+      });
 
       expect(again).toEqual(created);
     });
 
     it("returns chapters that satisfy the detected-chapter contract", async () => {
       const provider = createProvider();
-      const source = await provider.ensureSource({ document: document("book-a:hash-1"), known: null });
+      const source = await provider.ensureSource({
+        document: document("book-a:hash-1"),
+        known: null,
+        book: CONTRACT_BOOK,
+      });
 
-      const chapters = await provider.detectChapters({ sources: [source], outlineHints: ["Chương 1", "Chương 2"] });
+      const chapters = await provider.detectChapters({
+        sources: [source],
+        outlineHints: ["Chương 1", "Chương 2"],
+        bookTitle: CONTRACT_BOOK.title,
+        pageCount: 20,
+      });
 
       expect(chapters.length).toBeGreaterThan(0);
       for (const chapter of chapters) expect(detectedChapterSchema.safeParse(chapter).success).toBe(true);
@@ -59,11 +91,18 @@ export function describeScriptStudioProviderContract(name: string, createProvide
 
     it("returns lessons that satisfy the extraction contract, each with at least one source excerpt", async () => {
       const provider = createProvider();
-      const source = await provider.ensureSource({ document: document("book-a:hash-1"), known: null });
+      const source = await provider.ensureSource({
+        document: document("book-a:hash-1"),
+        known: null,
+        book: CONTRACT_BOOK,
+      });
 
       const extraction = await provider.extractLessons({
         sources: [source],
+        bookTitle: CONTRACT_BOOK.title,
         chapterTitle: "Chương 1",
+        partNumber: 1,
+        partCount: 1,
         startPage: 1,
         endPage: 10,
       });
@@ -74,7 +113,11 @@ export function describeScriptStudioProviderContract(name: string, createProvide
 
     it("writes a draft that opens with the hook and keeps sources separate from narration", async () => {
       const provider = createProvider();
-      const source = await provider.ensureSource({ document: document("book-a:hash-1"), known: null });
+      const source = await provider.ensureSource({
+        document: document("book-a:hash-1"),
+        known: null,
+        book: CONTRACT_BOOK,
+      });
 
       const draft = await provider.writeDraft({
         sources: [source],
@@ -91,7 +134,11 @@ export function describeScriptStudioProviderContract(name: string, createProvide
 
     it("accepts a revision note on the correction pass", async () => {
       const provider = createProvider();
-      const source = await provider.ensureSource({ document: document("book-a:hash-1"), known: null });
+      const source = await provider.ensureSource({
+        document: document("book-a:hash-1"),
+        known: null,
+        book: CONTRACT_BOOK,
+      });
 
       const draft = await provider.writeDraft({
         sources: [source],
@@ -105,17 +152,34 @@ export function describeScriptStudioProviderContract(name: string, createProvide
 
     it("rejects every call when the signal is already aborted", async () => {
       const provider = createProvider();
-      const source = await provider.ensureSource({ document: document("book-a:hash-1"), known: null });
+      const source = await provider.ensureSource({
+        document: document("book-a:hash-1"),
+        known: null,
+        book: CONTRACT_BOOK,
+      });
       const controller = new AbortController();
       controller.abort();
       const options = { signal: controller.signal };
 
       await expect(
-        provider.ensureSource({ document: document("book-a:hash-9"), known: null }, options),
+        provider.ensureSource({ document: document("book-a:hash-9"), known: null, book: CONTRACT_BOOK }, options),
       ).rejects.toThrow();
-      await expect(provider.detectChapters({ sources: [source], outlineHints: [] }, options)).rejects.toThrow();
       await expect(
-        provider.extractLessons({ sources: [source], chapterTitle: "Chương 1", startPage: 1, endPage: 2 }, options),
+        provider.detectChapters({ sources: [source], outlineHints: [], bookTitle: "", pageCount: 1 }, options),
+      ).rejects.toThrow();
+      await expect(
+        provider.extractLessons(
+          {
+            sources: [source],
+            bookTitle: "",
+            chapterTitle: "Chương 1",
+            partNumber: 1,
+            partCount: 1,
+            startPage: 1,
+            endPage: 2,
+          },
+          options,
+        ),
       ).rejects.toThrow();
       await expect(
         provider.writeDraft(

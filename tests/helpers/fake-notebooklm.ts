@@ -9,6 +9,8 @@ export interface FakeNotebookLm {
   settings: NotebookStudioSettings;
   // Queues answers per tool for the next calls (consumed in order, across server processes).
   script(answers: Record<string, unknown[]>): void;
+  // Answers every later notebook_query whose question contains `contains` (when nothing is queued).
+  answerQueries(rules: { contains: string; answer: unknown }[]): void;
   calls(tool: string): Record<string, unknown>[];
   remote(): { notebooks: { id: string; title: string; sources: { id: string; title: string; length: number }[] }[] };
 }
@@ -19,7 +21,9 @@ export function fakeNotebookLm(directory: string): FakeNotebookLm {
   const statePath = path.join(directory, "nlm-state.json");
   const scriptPath = path.join(directory, "nlm-script.json");
   const logPath = path.join(directory, "nlm-log.jsonl");
+  const rulesPath = path.join(directory, "nlm-query-rules.json");
   fs.writeFileSync(scriptPath, "{}");
+  fs.writeFileSync(rulesPath, "[]");
   return {
     settings: {
       profile: "default",
@@ -33,10 +37,12 @@ export function fakeNotebookLm(directory: string): FakeNotebookLm {
           FAKE_MCP_LOG: logPath,
           FAKE_NLM_STATE: statePath,
           FAKE_NLM_SCRIPT: scriptPath,
+          FAKE_NLM_QUERY_RULES: rulesPath,
         },
       },
     },
     script: (answers) => fs.writeFileSync(scriptPath, JSON.stringify(answers)),
+    answerQueries: (rules) => fs.writeFileSync(rulesPath, JSON.stringify(rules)),
     calls: (tool) =>
       fs.existsSync(logPath)
         ? fs

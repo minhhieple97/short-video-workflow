@@ -43,8 +43,10 @@ export interface PipelineDeps {
   scriptStudio: ScriptStudioProvider;
   compiler: ScenePlanCompiler;
   // The sources the script studio reads for a lesson (NotebookLM sources); none for the offline mock.
-  resolveSources: (input: { bookId: string; lesson: LessonSnapshot }) => Promise<SourceRef[]>;
+  resolveSources: (input: { bookId: string; lesson: LessonSnapshot; signal?: AbortSignal }) => Promise<SourceRef[]>;
   synthesize?: SynthesizeScene;
+  // Ends anything the deps hold open for the run (the NotebookLM server process).
+  close?: () => Promise<void>;
 }
 
 export type StepOutcome =
@@ -98,7 +100,7 @@ async function draftStep(
 ): Promise<StepOutcome> {
   const lesson = lessonOf(item);
   const targetDurationSec = targetOf(item);
-  const sources = await deps.resolveSources({ bookId: item.batch.bookId, lesson });
+  const sources = await deps.resolveSources({ bookId: item.batch.bookId, lesson, signal });
   try {
     const draft = await deps.scriptStudio.writeDraft(
       {
