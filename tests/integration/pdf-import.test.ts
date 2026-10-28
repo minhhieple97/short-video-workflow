@@ -86,6 +86,7 @@ describe("importPdfBook", () => {
       id: result.extractionId,
       status: "QUEUED",
       sourceHash: sha256(SMALL_PDF),
+      costCeilingMicroUsd: 3_000_000,
     });
 
     const stored = path.join(env.dataDir, book.sourceFilePath);

@@ -75,14 +75,18 @@ export async function importPdfBook(input: PdfImportInput): Promise<PdfImportRes
     await fs.rename(staged, original);
     await fs.chmod(original, READ_ONLY);
 
-    const { book, extraction } = await createPdfBookWithExtraction({
-      id: bookId,
-      title: input.title ?? titleFromFileName(fileName),
-      sourceFilePath: originalPdfPath(bookId),
-      sourceFileName: fileName,
-      sourceHash: sha256,
-      sourceSizeBytes: bytes,
-    });
+    // The OCR ceiling is copied onto the run now, so changing the setting later cannot silently raise it.
+    const { book, extraction } = await createPdfBookWithExtraction(
+      {
+        id: bookId,
+        title: input.title ?? titleFromFileName(fileName),
+        sourceFilePath: originalPdfPath(bookId),
+        sourceFileName: fileName,
+        sourceHash: sha256,
+        sourceSizeBytes: bytes,
+      },
+      getAppConfig().ocr.costCeilingMicroUsd,
+    );
     logger.info("PDF imported", { bookId: book.id, extractionId: extraction.id, sourceHash: sha256, bytes });
     return { bookId: book.id, extractionId: extraction.id, status: "QUEUED" };
   } catch (error) {

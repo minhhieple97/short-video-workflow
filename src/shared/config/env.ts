@@ -37,6 +37,7 @@ const envSchema = z
 
     MAX_IMPORT_SIZE_MB: z.coerce.number().positive().max(100).default(10),
     MAX_PDF_SIZE_MB: z.coerce.number().positive().max(2048).default(500),
+    OCR_COST_CEILING_USD: z.coerce.number().positive().max(1000).default(3),
     CHAPTER_HEADING_PATTERNS: regexList,
 
     AI_MODE: z.enum(["mock", "cli-task", "cli-auto"]).default("cli-task"),
@@ -85,6 +86,7 @@ export interface AppConfig {
   redisUrl: string;
   import: { maxSizeBytes: number; extraChapterPatterns: string[] };
   pdf: { maxSizeBytes: number };
+  ocr: { costCeilingMicroUsd: number };
   ai: {
     mode: "mock" | "cli-task" | "cli-auto";
     maxConcurrency: number;
@@ -133,6 +135,9 @@ export function parseAppConfig(source: Record<string, string | undefined>): AppC
     },
     pdf: {
       maxSizeBytes: Math.round(env.MAX_PDF_SIZE_MB * 1024 * 1024),
+    },
+    ocr: {
+      costCeilingMicroUsd: Math.round(env.OCR_COST_CEILING_USD * 1_000_000),
     },
     ai: {
       mode: env.AI_MODE,

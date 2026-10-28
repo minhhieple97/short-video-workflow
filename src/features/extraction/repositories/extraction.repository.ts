@@ -11,13 +11,16 @@ interface NewPdfBook {
 }
 
 // The book and its first extraction run are created together: a PDF book without a run would never be processed.
-export function createPdfBookWithExtraction(book: NewPdfBook): Promise<{ book: Book; extraction: BookExtraction }> {
+export function createPdfBookWithExtraction(
+  book: NewPdfBook,
+  costCeilingMicroUsd: number,
+): Promise<{ book: Book; extraction: BookExtraction }> {
   return prisma.$transaction(async (tx) => {
     const created = await tx.book.create({
       data: { ...book, sourceFormat: "pdf", language: "vi", status: "ACTIVE" },
     });
     const extraction = await tx.bookExtraction.create({
-      data: { bookId: created.id, status: "QUEUED", sourceHash: book.sourceHash },
+      data: { bookId: created.id, status: "QUEUED", sourceHash: book.sourceHash, costCeilingMicroUsd },
     });
     return { book: created, extraction };
   });
