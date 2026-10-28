@@ -282,17 +282,66 @@ model RenderRecord {
   // Set in the same update that completes a FINAL render, so "this MP4 should be archived" survives any crash or queue outage
   // after the render; the archive step reads it and never needs the render to be run again.
   archiveIntentAt DateTime?
+  archives        RenderArchive[]
 
   @@index([videoId])
   @@index([status])
   @@index([createdAt])
 }
 
+// One archive of one render to one destination. Kept apart from the render: an archive failure never changes the render
+// or its MP4, and archiving again never needs the render to be made again.
+model RenderArchive {
+  id             String              @id @default(cuid())
+  renderId       String
+  render         RenderRecord        @relation(fields: [renderId], references: [id], onDelete: Cascade)
+  // The VideoArchiveProvider id, e.g. "google-drive".
+  provider       String
+  // Which account and root folder the archive writes to: connecting another account makes a new archive.
+  destinationKey String
+  // PENDING | RUNNING | WAITING | COMPLETED | FAILED.
+  status         String              @default("PENDING")
+  // The render's folder on the remote side, allocated before any file is uploaded and never changed afterwards.
+  remoteFolderId String?
+  errorCode      String?
+  errorMessage   String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  completedAt    DateTime?
+  files          RenderArchiveFile[]
+
+  @@unique([renderId, provider, destinationKey])
+  @@index([status])
+}
+
+model RenderArchiveFile {
+  id              String        @id @default(cuid())
+  archiveId       String
+  archive         RenderArchive @relation(fields: [archiveId], references: [id], onDelete: Cascade)
+  // VIDEO | SCRIPT | MANIFEST.
+  kind            String
+  remoteName      String
+  // Allocated before the upload starts and never changed, so a replay after a lost response targets the same object.
+  remoteFileId    String?
+  // PENDING | UPLOADING | UPLOADED | VERIFIED.
+  status          String        @default("PENDING")
+  // Relative to DATA_DIR, with the size and checksum the file had when it was handed to the archive.
+  localPath       String?
+  bytes           Int?
+  sha256          String?
+  // Only what resuming an interrupted upload needs. The token can grant upload access, so it never leaves the server.
+  checkpointToken String?
+  checkpointBytes Int           @default(0)
+  verifiedAt      DateTime?
+
+  @@unique([archiveId, kind])
+}
+
 model JobRecord {
   id                 String       @id @default(cuid())
   bullmqJobId        String       @unique
   jobType            String
-  // SYSTEM (diagnostics) | CHAPTER | VIDEO | SCENE | RENDER.
+  // SYSTEM (diagnostics) | CHAPTER | VIDEO | SCENE | RENDER | PRODUCTION_ITEM.
   entityType         String
   entityId           String
   status             JobStatus    @default(QUEUED)

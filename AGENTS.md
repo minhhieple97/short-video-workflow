@@ -101,6 +101,7 @@ src/
     lessons/           lesson domain (fields, excerpt verification), repository, review service, library/review UI
     videos/            short-form domain (scene types, layouts, duration budget, snapshots), script generation/editing, editor UI
     jobs/              job payload schemas, JobRecord/AiRun repositories, enqueue/retry/cancel services, jobs dashboard UI
+    archive/           v1.2 render archives (one per render and destination, one entry per uploaded file, resumable checkpoints)
     productions/       v1.2 production batches: lesson selection (`production-request`), the item pipeline (`production-pipeline`,
                        one resumable `RUN_PRODUCTION_ITEM` job per item), correction, readiness, cancel/retry and start-up reconcile
   lib/                 client-safe helpers: utils.ts (shadcn `cn()`), api-client.ts (typed fetch + ApiError), format.ts (vi-VN)
