@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { CHARACTER_ACTIONS, ILLUSTRATION_SETTINGS } from "@/features/videos/domain/illustration";
 import { buildScenePlanPrompt, SCENE_PLAN_PROMPT_VERSION } from "@/server/ai/prompts/scene-plan-prompt";
 import type { ScenePlanTaskInput } from "@/server/scene-plan/handoff";
 
@@ -46,6 +47,13 @@ describe("buildScenePlanPrompt", () => {
     expect(prompt).toContain("KHÔNG thêm trích dẫn");
     expect(prompt).toContain("quay lại đúng tình huống mở đầu");
     expect(prompt).toContain("Tên sách và bài học chỉ được nhắc từ cảnh bài học trở đi");
+  });
+
+  it("asks for a picture for the hook and every scene, from the settings and actions the renderer can draw", () => {
+    const prompt = buildScenePlanPrompt(input());
+
+    expect(prompt).toContain('"illustration":{"setting","action"}');
+    for (const value of [...ILLUSTRATION_SETTINGS, ...CHARACTER_ACTIONS]) expect(prompt).toContain(value);
   });
 
   it("keeps illustrative scenarios illustrative", () => {

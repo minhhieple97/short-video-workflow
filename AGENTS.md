@@ -238,7 +238,7 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - Never add `@anthropic-ai/sdk`, never create `ANTHROPIC_API_KEY`, never read/copy/log Claude tokens, cookies or credentials.
 - Run subprocesses with `spawn`/`execFile` and an argument array — **never** build shell strings from input, never use `exec` with interpolation.
 - Never use `--dangerously-skip-permissions`. When the model only needs to emit JSON, do not grant file-write/shell tools.
-- Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v3`, `scene-plan-v3`, and for NotebookLM `notebooklm-chapter-detection-v1`,
+- Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v4`, `scene-plan-v4`, and for NotebookLM `notebooklm-chapter-detection-v1`,
   `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v3`); changing a prompt's text means bumping its version (the draft version also keys the
   draft cache). Book content is passed as quoted untrusted data.
 - Validate model output with Zod; on schema failure mark the job `FAILED` and store nothing. No unbounded retries (respect quota errors). Timeouts + best-effort cancel.
@@ -265,7 +265,9 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - Safe-zone overlays are editor-only guides (configurable per platform), never rendered into the MP4.
 - Prefer CSS/SVG/text animation; no 3D, no GPU requirement, no network fetches at render time; local assets only. Scene illustrations
   (`src/remotion/illustration/`) are plain SVG driven by the frame: no `filter`/blur (slow in headless Chromium), no images, no randomness
-  (a test enforces it). Settings and actions come from the fixed lists in `features/videos/domain/illustration.ts`.
+  (a test enforces it). Settings and actions come from the fixed lists in `features/videos/domain/illustration.ts`. Claude picks one per
+  hook and scene (`scene-plan`, `video-script`); it is stored on `VideoScene.illustrationJson` (null = the default for the scene type) and is
+  part of the scene's content hash only when chosen, so older scenes keep their hash. Rewriting one scene keeps its picture.
 - Vietnamese diacritics must render correctly (font fallback checked in Chromium on WSL).
 
 ## 12. Testing

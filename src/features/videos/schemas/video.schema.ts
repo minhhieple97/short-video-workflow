@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { DEFAULT_TARGET_SEC, DURATION_PRESETS_SEC, isLongPreset } from "../domain/duration";
+import { illustrationSchema } from "../domain/illustration";
 import { BODY_SCENE_TYPES, VISUAL_VARIANTS } from "../domain/scene-types";
 
 export const durationPresetSchema = z.literal(DURATION_PRESETS_SEC, {
@@ -59,6 +60,8 @@ export const updateSceneSchema = z.object({
     .min(1, "Chữ trên màn hình không được để trống.")
     .max(120, "Chữ trên màn hình tối đa 120 ký tự."),
   visualVariant: z.enum(VISUAL_VARIANTS),
+  // Absent keeps the scene's picture; null goes back to the default one for its type.
+  illustration: illustrationSchema.nullable().optional(),
   hidden: z.boolean().default(false),
 });
 

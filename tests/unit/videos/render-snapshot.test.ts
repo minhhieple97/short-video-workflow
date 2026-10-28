@@ -4,6 +4,7 @@ import { runPreflight } from "@/features/videos/domain/preflight";
 import {
   currentSnapshotIdentity,
   fingerprintRenderSnapshot,
+  readStoredRenderSnapshot,
   renderSnapshotSchema,
   toCompositionSource,
   toPreflightInput,
@@ -87,6 +88,20 @@ describe("render snapshot", () => {
       templateVersion: RENDER_TEMPLATE_VERSION,
       compositionId: "ShortVideo",
     });
+  });
+
+  it("still trusts a snapshot stored before scenes had illustrations, and uses a stored choice when there is one", () => {
+    const old = snapshot();
+    const stored = JSON.parse(JSON.stringify(old)) as unknown;
+    expect(readStoredRenderSnapshot(stored, fingerprintRenderSnapshot(old))).toEqual(old);
+
+    const chosen = snapshot({
+      scenes: [scene({ illustration: { setting: "CAFE", action: "TALKING" } }), scene({ id: "s2", order: 1 })],
+    });
+    const reread = readStoredRenderSnapshot(JSON.parse(JSON.stringify(chosen)), fingerprintRenderSnapshot(chosen));
+    expect(reread).toEqual(chosen);
+    const props = toCompositionProps(toCompositionSource(chosen));
+    expect(props.scenes[0]?.illustration).toEqual({ setting: "CAFE", action: "TALKING" });
   });
 
   it("has a fingerprint that changes with any captured detail", () => {

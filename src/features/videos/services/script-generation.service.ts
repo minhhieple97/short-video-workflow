@@ -21,7 +21,7 @@ import { AppError, NotFoundError } from "@/shared/errors";
 import { toSafeErrorMessage } from "@/shared/logger";
 
 import { replaceScript, updateSceneRecord } from "../repositories/video.repository";
-import { buildSceneRecord } from "./scene-records";
+import { buildSceneRecord, parseIllustration } from "./scene-records";
 import { lessonSnapshotsOf } from "./video-mapper";
 import { requireVideo } from "./video.service";
 
@@ -92,6 +92,7 @@ const toSceneContent = (scene: StoryboardScene) => ({
   onScreenText: scene.onScreenText,
   visualVariant: scene.visualVariant,
   hookVariant: null,
+  illustration: scene.illustration ?? null,
 });
 
 // Builds hook proposals plus the storyboard; the first hook proposal becomes the HOOK scene until the user picks another.
@@ -132,6 +133,7 @@ export async function runScriptGeneration(
         onScreenText: hook.onScreenText,
         visualVariant: hook.visualVariant,
         hookVariant: hook.variant,
+        illustration: hook.illustration ?? null,
       }),
       ...output.scenes.map((scene) => buildSceneRecord(toSceneContent(scene))),
     ];
@@ -179,7 +181,12 @@ export async function runSceneRegeneration(
     if (result.status === "waiting_for_cli") return { kind: "waiting", taskDir: result.taskDir };
     const output = sceneRegenerationOutputSchema.parse(result.output);
     if (output.sceneId !== scene.id) throw new AppError("INVALID_AI_OUTPUT", "Kết quả AI không khớp cảnh.", 422);
-    const record = buildSceneRecord({ ...toSceneContent(output.scene), type: scene.type });
+    // Rewriting changes the words only; the scene keeps its picture.
+    const record = buildSceneRecord({
+      ...toSceneContent(output.scene),
+      type: scene.type,
+      illustration: parseIllustration(scene.illustrationJson),
+    });
     await updateSceneRecord(video.id, scene.id, record, {
       contentChanged: record.contentHash !== scene.contentHash,
       narrationChanged: record.narration !== scene.narration,

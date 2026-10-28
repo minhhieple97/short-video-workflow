@@ -10,6 +10,8 @@ import type * as ScriptEditing from "@/features/videos/services/script-editing.s
 import type * as ScriptGeneration from "@/features/videos/services/script-generation.service";
 import type * as VideoService from "@/features/videos/services/video.service";
 import type * as DbClient from "@/server/db/client";
+import type { SceneRegenerationInput } from "@/server/ai/contracts/video-script";
+import { MockAiProvider } from "@/server/ai/mock-ai-provider";
 
 import { SAMPLE_BOOK_PATH, setupTestEnvironment, type TestEnvironment } from "../helpers/test-environment";
 
@@ -111,6 +113,15 @@ describe("creating videos from lessons", () => {
   });
 });
 
+class PictureSendingAi extends MockAiProvider {
+  override async regenerateScene(input: SceneRegenerationInput) {
+    const result = await super.regenerateScene(input);
+    if (result.status !== "completed") return result;
+    const scene = { ...result.output.scene, illustration: { setting: "PARK", action: "WALKING" } as const };
+    return { ...result, output: { ...result.output, scene } };
+  }
+}
+
 describe("script generation and editing", () => {
   let videoId: string;
 
@@ -135,6 +146,7 @@ describe("script generation and editing", () => {
       hookVariant: "CONTRAST",
       narration: before.hookOptions[2]!.narration,
     });
+    expect(after.scenes[0]!.illustration).toEqual(before.hookOptions[2]!.illustration);
     expect(after.scenes.slice(1)).toEqual(before.scenes.slice(1));
     expect(after.scriptVersion).toBe(before.scriptVersion + 1);
   });
@@ -158,6 +170,36 @@ describe("script generation and editing", () => {
     expect(regenerated.scenes.filter((s) => s.id !== target.id)).toEqual(
       edited.scenes.filter((s) => s.id !== target.id),
     );
+  });
+
+  it("lets the user pick a scene's picture, keeps it through other edits and rewrites, and can go back to the default", async () => {
+    const target = (await videos.getVideo(videoId)).scenes[1]!;
+    expect(target.illustration).toBeNull();
+    const fields = {
+      title: target.title,
+      narration: target.narration,
+      onScreenText: target.onScreenText,
+      visualVariant: target.visualVariant,
+      hidden: false,
+    };
+    const cafe = { setting: "CAFE", action: "TALKING" } as const;
+
+    const picked = await editing.updateScene(videoId, target.id, { ...fields, illustration: cafe });
+    expect(picked.scenes[1]).toMatchObject({ illustration: cafe, version: target.version + 1 });
+
+    const reworded = await editing.updateScene(videoId, target.id, { ...fields, narration: "Một lời dẫn khác." });
+    expect(reworded.scenes[1]!.illustration).toEqual(cafe);
+    // Even an AI that sends a picture back only rewrites the words.
+    await generation.runSceneRegeneration({
+      videoId,
+      sceneId: target.id,
+      jobRecordId: null,
+      provider: new PictureSendingAi(),
+    });
+    expect((await videos.getVideo(videoId)).scenes[1]!.illustration).toEqual(cafe);
+
+    const reset = await editing.updateScene(videoId, target.id, { ...fields, illustration: null });
+    expect(reset.scenes[1]!.illustration).toBeNull();
   });
 
   it("keeps the HOOK first and protected while adding, deleting and reordering scenes", async () => {

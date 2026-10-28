@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { DURATION_PRESETS_SEC, MAX_STORY_SCENES } from "@/features/videos/domain/duration";
+import { illustrationSchema } from "@/features/videos/domain/illustration";
 import { lessonSnapshotSchema } from "@/features/videos/domain/lesson-snapshot";
 import { BODY_SCENE_TYPES, HOOK_VARIANTS, VISUAL_VARIANTS } from "@/features/videos/domain/scene-types";
 
@@ -12,6 +13,8 @@ export const hookOptionSchema = z.object({
   narration: narration.max(120),
   onScreenText: onScreenText.max(60),
   visualVariant: z.enum(VISUAL_VARIANTS),
+  // Optional: without it the scene gets the default cartoon for its type.
+  illustration: illustrationSchema.optional(),
 });
 
 export const storyboardSceneSchema = z.object({
@@ -20,6 +23,7 @@ export const storyboardSceneSchema = z.object({
   narration,
   onScreenText,
   visualVariant: z.enum(VISUAL_VARIANTS),
+  illustration: illustrationSchema.optional(),
 });
 
 export const videoScriptInputSchema = z.object({

@@ -11,7 +11,7 @@ import {
 } from "../repositories/video.repository";
 import type { VideoDetail } from "../schemas/video.dto";
 import type { AddSceneInput, UpdateSceneInput } from "../schemas/video.schema";
-import { buildSceneRecord } from "./scene-records";
+import { buildSceneRecord, parseIllustration } from "./scene-records";
 import { lessonSnapshotsOf, toVideoDetail } from "./video-mapper";
 import { assertScriptNotGenerating, getVideo, requireVideo } from "./video.service";
 
@@ -34,6 +34,7 @@ export async function selectHookOption(videoId: string, optionIndex: number): Pr
     onScreenText: option.onScreenText,
     visualVariant: option.visualVariant,
     hookVariant: option.variant,
+    illustration: option.illustration ?? null,
   });
   const existing = video.scenes.find((scene) => scene.type === "HOOK");
   if (existing) {
@@ -54,7 +55,9 @@ export async function updateScene(videoId: string, sceneId: string, input: Updat
   const scene = requireScene(video, sceneId);
   if (scene.type === "HOOK" && input.hidden) throw new AppError("HOOK_REQUIRED", "Không thể ẩn cảnh HOOK.", 409);
 
-  const record = buildSceneRecord({ ...input, type: scene.type, hookVariant: scene.hookVariant });
+  const illustration =
+    input.illustration === undefined ? parseIllustration(scene.illustrationJson) : input.illustration;
+  const record = buildSceneRecord({ ...input, illustration, type: scene.type, hookVariant: scene.hookVariant });
   const narrationChanged = record.narration !== scene.narration;
   // Keep the audio-based length while the narration (and therefore its audio) is unchanged.
   const timing =

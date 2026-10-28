@@ -38,6 +38,7 @@ const scene = (overrides: Partial<SceneDto> = {}): SceneDto => ({
   onScreenText: "VÌ SAO?",
   visualVariant: "HOOK_QUESTION",
   hookVariant: "QUESTION",
+  illustration: null,
   estimatedSeconds: 2,
   durationFrames: 60,
   hidden: false,

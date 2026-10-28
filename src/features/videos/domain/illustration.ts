@@ -57,3 +57,7 @@ export const DEFAULT_ILLUSTRATION: Record<SceneType, Illustration> = {
   ACTION_STEP: { setting: "HOME", action: "CELEBRATING" },
   SUMMARY: { setting: "CAFE", action: "TALKING" },
 };
+
+export function sameIllustration(a: Illustration | null, b: Illustration | null): boolean {
+  return a?.setting === b?.setting && a?.action === b?.action;
+}

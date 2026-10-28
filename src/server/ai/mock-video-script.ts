@@ -16,18 +16,21 @@ const MOCK_HOOKS: HookOption[] = [
     narration: "Vì sao bạn luôn bỏ cuộc sau ba ngày?",
     onScreenText: "VÌ SAO BẠN LUÔN BỎ CUỘC?",
     visualVariant: "HOOK_QUESTION",
+    illustration: { setting: "NIGHT_ROOM", action: "THINKING" },
   },
   {
     variant: "MISTAKE",
     narration: "Sai lầm này khiến bạn mãi giậm chân.",
     onScreenText: "SAI LẦM AI CŨNG MẮC",
     visualVariant: "SPLIT_MISTAKE_SOLUTION",
+    illustration: { setting: "OFFICE", action: "WORRIED" },
   },
   {
     variant: "CONTRAST",
     narration: "Hai phút mỗi ngày, một năm khác hẳn.",
     onScreenText: "2 PHÚT → 1 NĂM KHÁC BIỆT",
     visualVariant: "BIG_TAKEAWAY",
+    illustration: { setting: "PARK", action: "CELEBRATING" },
   },
 ];
 

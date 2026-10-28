@@ -1,3 +1,4 @@
+import type { CharacterAction } from "@/features/videos/domain/illustration";
 import type { NarrativeBeat } from "@/features/videos/domain/narrative-beats";
 import type { BodySceneType } from "@/features/videos/domain/scene-types";
 import type { CallOptions } from "@/server/integrations/call-options";
@@ -11,7 +12,17 @@ const SCENE_TYPE_FOR_BEAT: Record<Exclude<NarrativeBeat, "HOOK">, BodySceneType>
   ACTION: "ACTION_STEP",
 };
 
-// Deterministic and offline (AI_MODE=mock): turns each draft beat into its scene without rewording anything.
+const ACTION_FOR_BEAT: Record<NarrativeBeat, CharacterAction> = {
+  HOOK: "THINKING",
+  SITUATION: "PHONE",
+  MISTAKE: "WORRIED",
+  LESSON: "IDEA",
+  RESOLUTION: "TALKING",
+  ACTION: "WORKING",
+};
+
+// Deterministic and offline (AI_MODE=mock): turns each draft beat into its scene without rewording anything, the
+// whole story in one office.
 export class MockScenePlanCompiler implements ScenePlanCompiler {
   readonly id = "mock-scene-plan-compiler";
 
@@ -26,6 +37,7 @@ export class MockScenePlanCompiler implements ScenePlanCompiler {
         narration: hookBeat.narration.slice(0, 120),
         onScreenText: hookBeat.narration.slice(0, 60),
         visualVariant: "HOOK_QUESTION",
+        illustration: { setting: "OFFICE", action: ACTION_FOR_BEAT.HOOK },
       },
       scenes: bodyBeats.map((beat) => {
         if (beat.beat === "HOOK") throw new Error("Only the first beat may be a HOOK.");
@@ -34,6 +46,7 @@ export class MockScenePlanCompiler implements ScenePlanCompiler {
           narration: beat.narration,
           onScreenText: beat.narration.slice(0, 120),
           visualVariant: "SCENARIO_CARD" as const,
+          illustration: { setting: "OFFICE" as const, action: ACTION_FOR_BEAT[beat.beat] },
         };
       }),
     };

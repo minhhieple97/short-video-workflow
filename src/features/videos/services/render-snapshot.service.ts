@@ -72,6 +72,7 @@ export async function captureRenderSnapshot(
       durationFrames: scene.durationFrames,
       hidden: scene.hidden,
       audioAssetId: scene.audioAssetId,
+      illustration: scene.illustration,
     })),
     audio: audioIds.flatMap((assetId) => {
       const asset = assets.get(assetId);

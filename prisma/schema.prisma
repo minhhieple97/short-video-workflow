@@ -226,6 +226,8 @@ model VideoScene {
   version          Int      @default(1)
   // Hidden scenes stay in the script but are skipped in preview and render.
   hidden           Boolean  @default(false)
+  // JSON {setting, action} of the scene's animated cartoon; null means the default picture for its type.
+  illustrationJson String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

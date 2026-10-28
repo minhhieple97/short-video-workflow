@@ -15,6 +15,7 @@ import { toSceneType, toVisualVariant, HOOK_VARIANTS, type HookVariant } from ".
 import { toVideoStatus } from "../domain/video-status";
 import type { VideoDetailRecord } from "../repositories/video.repository";
 import type { SceneAudioDto, SceneDto, VideoDetail } from "../schemas/video.dto";
+import { parseIllustration } from "./scene-records";
 
 const hookOptionsSchema = z.array(hookOptionSchema).catch([]);
 
@@ -38,6 +39,7 @@ function toSceneDto(scene: VideoDetailRecord["scenes"][number]): SceneDto {
     version: scene.version,
     audioAssetId: scene.audioAssetId,
     audio: toSceneAudio(scene),
+    illustration: parseIllustration(scene.illustrationJson),
   };
 }
 

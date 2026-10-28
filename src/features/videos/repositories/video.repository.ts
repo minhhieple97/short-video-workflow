@@ -32,6 +32,7 @@ export interface NewSceneRecord {
   estimatedSeconds: number;
   durationFrames: number;
   contentHash: string;
+  illustrationJson: string | null;
 }
 
 export function findVideoDetail(id: string) {

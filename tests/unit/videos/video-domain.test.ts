@@ -9,9 +9,15 @@ import {
 } from "@/features/videos/domain/duration";
 import type { LessonSnapshot } from "@/features/videos/domain/lesson-snapshot";
 import { createVideoSchema } from "@/features/videos/schemas/video.schema";
-import { videoScriptOutputSchema } from "@/server/ai/contracts/video-script";
+import { CHARACTER_ACTIONS, ILLUSTRATION_SETTINGS } from "@/features/videos/domain/illustration";
+import { sceneContentHash } from "@/features/videos/services/scene-records";
+import { hookOptionSchema, storyboardSceneSchema, videoScriptOutputSchema } from "@/server/ai/contracts/video-script";
 import { mockSceneRegeneration, mockVideoScript } from "@/server/ai/mock-video-script";
-import { buildVideoScriptPrompt, VIDEO_SCRIPT_PROMPT_VERSION } from "@/server/ai/prompts/video-script-prompt";
+import {
+  buildSceneRegenerationPrompt,
+  buildVideoScriptPrompt,
+  VIDEO_SCRIPT_PROMPT_VERSION,
+} from "@/server/ai/prompts/video-script-prompt";
 
 const LESSON: LessonSnapshot = {
   lessonId: "lesson-1",
@@ -127,5 +133,62 @@ describe("mock video script", () => {
     expect(prompt).toContain(VIDEO_SCRIPT_PROMPT_VERSION);
     expect(prompt).toContain("<<<BEGIN_UNTRUSTED_SOURCE_TEXT>>>");
     expect(prompt).toContain("Bắt đầu thật nhỏ");
+  });
+
+  it("asks for a picture per hook and scene when writing a script, but not when rewriting one scene's words", () => {
+    const script = buildVideoScriptPrompt(input);
+    expect(script).toContain('"illustration":{"setting","action"}');
+    for (const value of [...ILLUSTRATION_SETTINGS, ...CHARACTER_ACTIONS]) expect(script).toContain(value);
+
+    const rewrite = buildSceneRegenerationPrompt({
+      videoId: "video-1",
+      sceneId: "scene-2",
+      attempt: 1,
+      targetDurationSec: 60,
+      lessons: [LESSON],
+      scene: mockVideoScript(input).scenes[0]!,
+      promptVersion: VIDEO_SCRIPT_PROMPT_VERSION,
+    });
+    expect(rewrite).not.toContain("illustration");
+  });
+});
+
+describe("scene illustrations from the AI", () => {
+  const scene = { type: "SITUATION", narration: "Lời dẫn.", onScreenText: "CHỮ", visualVariant: "SCENARIO_CARD" };
+  const hook = { variant: "QUESTION", narration: "Vì sao?", onScreenText: "VÌ SAO?", visualVariant: "HOOK_QUESTION" };
+
+  it("accepts a scene or hook without a picture, or with one the renderer can draw", () => {
+    expect(storyboardSceneSchema.safeParse(scene).success).toBe(true);
+    expect(
+      storyboardSceneSchema.parse({ ...scene, illustration: { setting: "CAFE", action: "TALKING" } }),
+    ).toMatchObject({ illustration: { setting: "CAFE", action: "TALKING" } });
+    expect(hookOptionSchema.parse({ ...hook, illustration: { setting: "STREET", action: "WALKING" } })).toMatchObject({
+      illustration: { setting: "STREET", action: "WALKING" },
+    });
+  });
+
+  it("rejects a setting or action the renderer does not know", () => {
+    expect(
+      storyboardSceneSchema.safeParse({ ...scene, illustration: { setting: "BEACH", action: "TALKING" } }).success,
+    ).toBe(false);
+    expect(hookOptionSchema.safeParse({ ...hook, illustration: { setting: "CAFE", action: "DANCING" } }).success).toBe(
+      false,
+    );
+  });
+
+  it("keeps the content hash of scenes saved before pictures existed, and changes it when a picture is chosen", () => {
+    const content = {
+      type: "SITUATION" as const,
+      narration: "Lời.",
+      onScreenText: "CHỮ",
+      visualVariant: "SCENARIO_CARD" as const,
+    };
+    const plain = sceneContentHash(content);
+
+    expect(sceneContentHash({ ...content, illustration: null })).toBe(plain);
+    expect(sceneContentHash({ ...content, illustration: { setting: "CAFE", action: "TALKING" } })).not.toBe(plain);
+    expect(sceneContentHash({ ...content, illustration: { setting: "CAFE", action: "TALKING" } })).not.toBe(
+      sceneContentHash({ ...content, illustration: { setting: "CAFE", action: "WORRIED" } }),
+    );
   });
 });

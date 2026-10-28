@@ -36,6 +36,7 @@ export async function applyScenePlan(input: {
           onScreenText: plan.hook.onScreenText,
           visualVariant: plan.hook.visualVariant,
           hookVariant: plan.hook.variant,
+          illustration: plan.hook.illustration ?? null,
         }),
         ...plan.scenes.map((scene) =>
           buildSceneRecord({
@@ -45,6 +46,7 @@ export async function applyScenePlan(input: {
             onScreenText: scene.onScreenText,
             visualVariant: scene.visualVariant,
             hookVariant: null,
+            illustration: scene.illustration ?? null,
           }),
         ),
       ],

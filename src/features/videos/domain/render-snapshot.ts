@@ -6,6 +6,7 @@ import { stableStringify } from "@/shared/stable-json";
 
 import { RENDER_TEMPLATE_VERSION, SHORT_VIDEO_COMPOSITION_ID, type CompositionSource } from "./composition-props";
 import type { PreflightInput } from "./preflight";
+import { illustrationSchema } from "./illustration";
 import { HOOK_VARIANTS, SCENE_TYPES, VISUAL_VARIANTS } from "./scene-types";
 
 export const RENDER_SNAPSHOT_VERSION = "render-snapshot-v1";
@@ -46,6 +47,9 @@ export const renderSnapshotSchema = z.object({
       durationFrames: z.number().int().nonnegative(),
       hidden: z.boolean(),
       audioAssetId: z.string().nullable(),
+      // Optional without a default: a snapshot stored before illustrations existed must parse back to the same bytes, or
+      // its fingerprint would no longer match and the render would stop being trusted.
+      illustration: illustrationSchema.nullable().optional(),
     }),
   ),
   // The audio files the scenes use, by the path they were stored under (named by content, so the bytes cannot change).

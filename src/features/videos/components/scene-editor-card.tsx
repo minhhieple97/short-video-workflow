@@ -14,8 +14,10 @@ import { sendJson } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
 import { estimateNarrationSeconds, HOOK_MAX_SECONDS } from "../domain/duration";
+import { sameIllustration } from "../domain/illustration";
 import { SCENE_TYPE_LABELS, VISUAL_VARIANT_LABELS, VISUAL_VARIANTS, toVisualVariant } from "../domain/scene-types";
 import type { SceneDto } from "../schemas/video.dto";
+import { SceneIllustrationPicker } from "./scene-illustration-picker";
 import { SCENE_TONE } from "./scene-tone";
 import { useScriptLocked } from "./script-lock-context";
 import { useVideoAction } from "./use-video-action";
@@ -33,6 +35,7 @@ export function SceneEditorCard({ videoId, scene, sceneIds }: Readonly<SceneEdit
   const [narration, setNarration] = useState(scene.narration);
   const [onScreenText, setOnScreenText] = useState(scene.onScreenText);
   const [visualVariant, setVisualVariant] = useState(scene.visualVariant);
+  const [illustration, setIllustration] = useState(scene.illustration);
 
   const isHook = scene.type === "HOOK";
   const index = sceneIds.indexOf(scene.id);
@@ -41,10 +44,14 @@ export function SceneEditorCard({ videoId, scene, sceneIds }: Readonly<SceneEdit
     title !== (scene.title ?? "") ||
     narration !== scene.narration ||
     onScreenText !== scene.onScreenText ||
-    visualVariant !== scene.visualVariant;
+    visualVariant !== scene.visualVariant ||
+    !sameIllustration(illustration, scene.illustration);
   const url = `/api/videos/${videoId}/scenes/${scene.id}`;
   const save = (hidden = scene.hidden) =>
-    run(() => sendJson(url, "PATCH", { title, narration, onScreenText, visualVariant, hidden }), "Đã lưu cảnh.");
+    run(
+      () => sendJson(url, "PATCH", { title, narration, onScreenText, visualVariant, illustration, hidden }),
+      "Đã lưu cảnh.",
+    );
 
   function move(direction: -1 | 1): void {
     const order = [...sceneIds];
@@ -113,6 +120,13 @@ export function SceneEditorCard({ videoId, scene, sceneIds }: Readonly<SceneEdit
             </SelectContent>
           </Select>
         </div>
+        <SceneIllustrationPicker
+          id={scene.id}
+          sceneType={scene.type}
+          value={illustration}
+          onChange={setIllustration}
+          disabled={locked}
+        />
 
         <div className="flex flex-wrap items-center gap-1">
           <Button

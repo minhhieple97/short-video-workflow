@@ -1,12 +1,14 @@
 import type { DurationBudget } from "../domain/duration";
 import type { HookVariant, SceneType, VisualVariant } from "../domain/scene-types";
 import type { VideoStatus } from "../domain/video-status";
+import type { Illustration } from "../domain/illustration";
 
 export interface HookOptionDto {
   variant: HookVariant;
   narration: string;
   onScreenText: string;
   visualVariant: VisualVariant;
+  illustration?: Illustration;
   estimatedSeconds: number;
 }
 
@@ -25,6 +27,8 @@ export interface SceneDto {
   version: number;
   audioAssetId: string | null;
   audio: SceneAudioDto | null;
+  // The scene's own cartoon; null means the default picture for its type.
+  illustration: Illustration | null;
 }
 
 export interface SceneAudioDto {

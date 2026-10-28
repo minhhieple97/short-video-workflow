@@ -128,6 +128,10 @@ describe("applyScenePlan", () => {
       hookVariant: artifact.plan.hook.variant,
       narration: artifact.plan.hook.narration,
     });
+    expect((await videos.getVideo(videoId)).scenes.map((scene) => scene.illustration)).toEqual([
+      artifact.plan.hook.illustration,
+      ...artifact.plan.scenes.map((scene) => scene.illustration),
+    ]);
     const video = await db.prisma.video.findUniqueOrThrow({ where: { id: videoId } });
     expect(video.hookOptionsJson).toEqual([artifact.plan.hook]);
     expect(video).toMatchObject({ scriptVersion: 2, status: "NEEDS_REVIEW" });
