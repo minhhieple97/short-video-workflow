@@ -8,19 +8,19 @@
 
 ## Tính năng
 
-| Phần      | Bạn làm được gì                                                                                                                                                         |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tổng quan | Tác vụ đang chờ/đang chạy (tự cập nhật), video và sách gần đây                                                                                                          |
-| Thư viện  | Nhập `.md`/`.txt` (tải lên hoặc dán), tìm kiếm không phân biệt dấu, sửa thông tin sách, xoá mềm                                                                         |
-| Chương    | Nhận diện chương tự động (heading Markdown hoặc dòng "Chương 1 / CHƯƠNG IV / Chapter One / Phần 2"), bỏ mục lục/lời nói đầu, đổi tên, tách, gộp, sắp xếp trước khi nhập |
-| Bài học   | AI rút bài học từ từng chương kèm trích đoạn đã kiểm chứng; sửa, duyệt, lưu trữ, gộp, tạo thủ công                                                                      |
-| Video     | Tạo video từ 1–N bài học đã duyệt (khuyên 1), preset 30 / 45 / **60** giây hoặc Extended 90 giây, lưu snapshot bài học                                                  |
-| Kịch bản  | 2–3 phương án hook ≤ 4 giây; các cảnh tình huống → sai lầm → cách xử lý → điều cần nhớ → hành động; sửa, ẩn, thêm, xoá, sắp xếp, viết lại một cảnh, duyệt               |
-| Giọng đọc | edge-tts tiếng Việt hoặc tải lên MP3/WAV; thời lượng cảnh theo âm thanh thật                                                                                            |
-| Xem trước | Khung điện thoại 9:16, lớp vùng an toàn TikTok / Shorts / Reels, nút "Xem 4 giây đầu"                                                                                   |
-| Render    | Nháp 720×1280 và bản cuối 1080×1920, 30 FPS, H.264 + AAC; kiểm tra trước khi render; ffprobe xác nhận MP4; lịch sử và tải về                                            |
-| Tác vụ    | Theo dõi, thử lại, huỷ mọi tác vụ nền; lệnh `pnpm ai:run` cho tác vụ chờ Claude                                                                                         |
-| Chẩn đoán | Node, Redis, SQLite, worker, ffmpeg, Claude CLI, edge-tts, Chromium, tài nguyên WSL; chạy tác vụ thử và kiểm tra AI mẫu; hướng dẫn khởi động                            |
+| Phần      | Bạn làm được gì                                                                                                                                                                                                         |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tổng quan | Tác vụ đang chờ/đang chạy (tự cập nhật), video và sách gần đây                                                                                                                                                          |
+| Thư viện  | Nhập `.md`/`.txt` (tải lên hoặc dán), tìm kiếm không phân biệt dấu, sửa thông tin sách, xoá mềm                                                                                                                         |
+| Chương    | Nhận diện chương tự động (heading Markdown hoặc dòng "Chương 1 / CHƯƠNG IV / Chapter One / Phần 2"), bỏ mục lục/lời nói đầu, đổi tên, tách, gộp, sắp xếp trước khi nhập                                                 |
+| Bài học   | AI rút bài học từ từng chương kèm trích đoạn đã kiểm chứng; sửa, duyệt, lưu trữ, gộp, tạo thủ công                                                                                                                      |
+| Video     | Tạo video từ 1–N bài học đã duyệt (khuyên 1), preset 30 / 45 / **60** giây, hoặc video dài 90 giây – 5 phút khi chọn rõ "Video dài"; lưu snapshot bài học                                                               |
+| Kịch bản  | 2–3 phương án hook ≤ 4 giây; các cảnh tình huống → sai lầm → cách xử lý → điều cần nhớ → hành động, luôn bằng tiếng Việt kể cả khi sách tiếng Anh; sửa, ẩn, thêm, xoá, sắp xếp, viết lại một cảnh, đổi hoạt cảnh, duyệt |
+| Giọng đọc | edge-tts tiếng Việt hoặc tải lên MP3/WAV; thời lượng cảnh theo âm thanh thật                                                                                                                                            |
+| Xem trước | Khung điện thoại 9:16 với hoạt cảnh hoạt hình (nhân vật + bối cảnh chuyển động), lớp vùng an toàn TikTok / Shorts / Reels, nút "Xem 4 giây đầu"                                                                         |
+| Render    | Nháp 720×1280 và bản cuối 1080×1920, 30 FPS, H.264 + AAC; kiểm tra trước khi render; ffprobe xác nhận MP4; lịch sử và tải về                                                                                            |
+| Tác vụ    | Theo dõi, thử lại, huỷ mọi tác vụ nền; lệnh `pnpm ai:run` cho tác vụ chờ Claude                                                                                                                                         |
+| Chẩn đoán | Node, Redis, SQLite, worker, ffmpeg, Claude CLI, edge-tts, Chromium, tài nguyên WSL; chạy tác vụ thử và kiểm tra AI mẫu; hướng dẫn khởi động                                                                            |
 
 ## Yêu cầu
 
@@ -65,8 +65,8 @@ Bản production: `pnpm build && pnpm start`, kèm `pnpm worker:start` ở termi
 1. **Sách → Nhập sách**: tải tệp lên hoặc dán văn bản, kiểm tra danh sách chương (bỏ chọn mục lục, đổi tên, **Tách**, **Gộp**, sắp xếp), **Xác nhận nhập**. Tệp gốc được lưu nguyên byte, chỉ đọc; nhập lại tệp trùng nội dung sẽ được cảnh báo.
 2. Tab **Chương** → **Phân tích tất cả chương** (worker chạy lần lượt). Bài học tạo ra ở trạng thái nháp.
 3. Tab **Bài học**: mở từng bài, đối chiếu trích đoạn nguồn, sửa rồi **Duyệt**. Tình huống do AI sáng tác luôn được ghi rõ là minh họa.
-4. Tab **Video** → **Tạo video**: chọn bài học đã duyệt và preset (mặc định 60 giây; 90 giây chỉ khi tích **Extended Short**).
-5. Trong video: **Tạo kịch bản** → tab **Hook** chọn phương án (HOOK luôn ở frame 0 và ≤ 4 giây) → tab **Kịch bản** chỉnh từng cảnh → **Duyệt kịch bản**. Sửa sau khi duyệt sẽ cần duyệt lại.
+4. Tab **Video** → **Tạo video**: chọn bài học đã duyệt và preset (mặc định 60 giây; 90 giây tới 5 phút chỉ khi tích **Video dài** — video dài kể sâu hơn, vẫn một bài học).
+5. Trong video: **Tạo kịch bản** → tab **Hook** chọn phương án (HOOK luôn ở frame 0 và ≤ 4 giây) → tab **Kịch bản** chỉnh từng cảnh (lời dẫn, chữ, bố cục và **Hoạt cảnh**: bối cảnh + việc nhân vật đang làm do Claude chọn, đổi được hoặc "Về mặc định") → **Duyệt kịch bản**. Sửa sau khi duyệt sẽ cần duyệt lại.
 6. Tab **Giọng đọc**: tạo bằng edge-tts hoặc tải âm thanh lên. Thanh thời lượng so tổng thời lượng với preset; nếu vượt, hãy rút gọn lời dẫn hoặc đổi preset — ứng dụng không tự cắt lời hay tăng tốc.
 7. **Xem trước**: trên màn hình rộng (từ 1280 px) khung điện thoại luôn nằm bên phải trình biên tập và đứng yên khi cuộn, nên sửa cảnh nào xem được ngay cảnh đó; màn hình hẹp hơn có thêm tab **Xem trước**. Phát trong khung, bật vùng an toàn, **Xem 4 giây đầu**.
 8. **Render**: render nháp để duyệt nhanh, rồi render bản cuối và tải MP4 trong lịch sử render.
@@ -101,7 +101,8 @@ Nội dung sách luôn được bọc như **dữ liệu không đáng tin**: c�
 
 - Preview và render dùng **cùng một composition** Remotion và cùng font Be Vietnam Pro (OFL, trong `public/fonts`), nên dấu tiếng Việt hiển thị giống nhau.
 - Vùng an toàn là **giá trị ước lượng có thể chỉnh** (`src/features/videos/domain/safe-zones.ts`), không phải thông số chính thức của nền tảng, và không bao giờ được render vào MP4.
-- Kiểm tra trước khi render: HOOK ở frame 0 và ≤ 120 frame (4 giây), có chữ trên màn hình, không vượt preset và ≤ 90 giây, kịch bản đã duyệt (bắt buộc với bản cuối), cảnh báo cảnh chưa có giọng đọc / hook im lặng.
+- Kiểm tra trước khi render: HOOK ở frame 0 và ≤ 120 frame (4 giây), có chữ trên màn hình, không vượt preset và ≤ `MAX_VIDEO_DURATION_SEC` (tối đa 300 giây), kịch bản đã duyệt (bắt buộc với bản cuối), cảnh báo cảnh chưa có giọng đọc / hook im lặng.
+- Mỗi cảnh có một hoạt cảnh hoạt hình phẳng vẽ bằng SVG (7 bối cảnh, một nhân vật với 8 hành động; một nhân vật cho cả video), chuyển động theo frame nên xem trước và MP4 giống hệt. Không dùng GPU, ảnh hay mạng; thời gian render gần như không đổi (đo: 36,8 giây so với 37,3 giây cho 16 giây bản nháp), còn MP4 lớn hơn khoảng 3,5 lần.
 - Worker render lần lượt (`WORKER_CONCURRENCY=1`, `RENDER_CONCURRENCY=1`), ghi tệp tạm rồi đổi tên; sau đó ffprobe xác nhận H.264 + AAC, kích thước, 30 FPS và thời lượng. Lần render đầu cần bundle composition (vài chục giây).
 - Tự kiểm tra một tệp: `ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate:format=duration -of compact <tệp.mp4>`
 
@@ -234,6 +235,7 @@ Chi tiết luồng dữ liệu và trách nhiệm từng tiến trình: [`docs/a
 
 - Sách PDF (Poppler + OCR Mistral Batch, tab "Sách PDF" ở trang Nhập sách) chưa được thử với tài khoản Mistral thật; sách không tìm thấy tiêu đề chương dừng ở "Chưa xác định chương". Chưa hỗ trợ EPUB.
 - Phụ đề hiển thị theo cụm từ, căn theo số âm tiết — không đồng bộ chính xác từng từ.
+- Hoạt cảnh chỉ có các bối cảnh và hành động cố định (không phải hoạt hình vẽ riêng cho từng câu chuyện). Video dài hơn 60 giây có thể không còn được tính là Shorts/Reels trên một số nền tảng.
 - Chưa có nhạc nền. Studio chỉ tự gọi Claude khi bạn bật `AI_MODE=cli-auto`.
 - Vùng an toàn là ước lượng; hãy kiểm tra lại trên ứng dụng thật trước khi đăng.
 - Không có đăng nhập/phân quyền: chỉ dùng trên `127.0.0.1`. Nếu mở ra mạng LAN/Internet phải bổ sung xác thực, CSRF và giới hạn tần suất trước.
