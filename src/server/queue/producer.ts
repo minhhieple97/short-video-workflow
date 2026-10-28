@@ -27,6 +27,16 @@ async function assertRedisReachable(): Promise<void> {
   }
 }
 
+// BullMQ ignores an add whose jobId already exists, which is what makes redelivering an outbox row safe.
+export async function addJobToQueue(
+  queue: Queue,
+  jobType: JobType,
+  data: Record<string, unknown>,
+  bullmqJobId: string,
+): Promise<void> {
+  await queue.add(jobType, data, { jobId: bullmqJobId, ...JOB_OPTIONS_BY_TYPE[jobType] });
+}
+
 export async function addStudioJob(
   queue: Queue,
   jobType: JobType,
@@ -34,7 +44,7 @@ export async function addStudioJob(
   bullmqJobId: string,
 ): Promise<void> {
   await assertRedisReachable();
-  await queue.add(jobType, data, { jobId: bullmqJobId, ...JOB_OPTIONS_BY_TYPE[jobType] });
+  await addJobToQueue(queue, jobType, data, bullmqJobId);
 }
 
 // Removes a job that has not started yet; returns false when it is already running or gone.

@@ -4,41 +4,25 @@ import { randomUUID } from "node:crypto";
 
 import { enqueueJob } from "@/server/queue/queue";
 import { AppError, NotFoundError } from "@/shared/errors";
-import type { JobDto, JobType } from "@/shared/types/job";
+import type { JobDto } from "@/shared/types/job";
 
-import {
-  createJobRecord,
-  findActiveJobForEntity,
-  findJobRecordById,
-  markJobFailed,
-} from "../repositories/job-record.repository";
+import { findActiveJobForEntity, findJobRecordById } from "../repositories/job-record.repository";
+import { dispatchJobIntent, failJobIntent, recordJobIntent, type TrackedJobRequest } from "./job-dispatch.service";
 import { toJobDto } from "./job-dto";
 
-interface TrackedJobRequest {
-  jobType: JobType;
-  entityType: string;
-  entityId: string;
-  payload: Record<string, unknown>;
-  requestFingerprint?: string;
-}
-
-// Creates the JobRecord read model first, then enqueues IDs only. An identical job still in flight is reused.
+// Stores the job and its outbox row first, then enqueues IDs only. If this process dies in between, the worker's
+// sweep delivers the row. An identical job still in flight is reused.
 export async function enqueueTrackedJob(request: TrackedJobRequest): Promise<{ job: JobDto; reused: boolean }> {
   const active = await findActiveJobForEntity(request.jobType, request.entityType, request.entityId);
   if (active) return { job: toJobDto(active), reused: true };
 
-  const record = await createJobRecord({
-    bullmqJobId: randomUUID(),
-    jobType: request.jobType,
-    entityType: request.entityType,
-    entityId: request.entityId,
-    requestFingerprint: request.requestFingerprint,
-  });
+  const intent = await recordJobIntent(request);
+  const record = intent.jobRecord;
 
   try {
-    await enqueueJob(request.jobType, { ...request.payload, jobRecordId: record.id }, record.bullmqJobId);
+    await dispatchJobIntent(intent, enqueueJob);
   } catch (error) {
-    await markJobFailed(record.id, "QUEUE_UNAVAILABLE", "Không thể đưa tác vụ vào hàng đợi Redis.");
+    await failJobIntent(intent, "QUEUE_UNAVAILABLE", "Không thể đưa tác vụ vào hàng đợi Redis.");
     if (error instanceof AppError) throw error;
     throw new AppError(
       "QUEUE_UNAVAILABLE",

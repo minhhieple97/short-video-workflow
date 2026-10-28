@@ -1297,7 +1297,8 @@ Phần hook 4 giây và bỏ bước duyệt lesson/script chỉ áp dụng cho 
 | ------------------------------------------------ | -------------------- | -------------------- |
 | Nhập `.txt`/`.md`, chương, lesson, video, render | Đã triển khai (v1.1) | —                    |
 | Bốn port, DTO và contract test (chỉ có fake)     | Một phần: chưa có adapter thật | A04        |
-| Outbox bền vững và job trì hoãn                  | Chưa triển khai      | A05–A06              |
+| Outbox bền vững giữa SQLite và Redis             | Đã triển khai        | A05                  |
+| Kết quả "trì hoãn" của processor trong worker    | Chưa triển khai      | A06                  |
 | Nhập PDF, trích text, OCR Mistral Batch          | Chưa triển khai      | B01–B13              |
 | NotebookLM MCP, catalogue, bản thảo              | Chưa triển khai      | C01–C09              |
 | Chọn lesson, production batch, Claude compiler   | Chưa triển khai      | D01–D12              |

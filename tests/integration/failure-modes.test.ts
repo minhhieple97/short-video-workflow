@@ -100,6 +100,7 @@ describe("Redis unavailable", () => {
     expect(Date.now() - startedAt).toBeLessThan(5_000);
     const record = await db.prisma.jobRecord.findFirstOrThrow({ where: { entityId: chapterIds[0] } });
     expect(record).toMatchObject({ status: "FAILED", errorCode: "QUEUE_UNAVAILABLE" });
+    expect(await db.prisma.jobDispatch.count({ where: { jobRecordId: record.id } })).toBe(0);
   });
 });
 

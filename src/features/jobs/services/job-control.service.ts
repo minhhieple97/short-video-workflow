@@ -11,6 +11,7 @@ import { AppError, NotFoundError } from "@/shared/errors";
 import type { JobDto } from "@/shared/types/job";
 
 import { failWaitingAiRuns } from "../repositories/ai-run.repository";
+import { deleteUndeliveredIntent } from "../repositories/job-dispatch.repository";
 import { findJobRecordById, markJobCancelled, markJobCancelRequested } from "../repositories/job-record.repository";
 import { releaseJobEntity } from "./job-effects";
 import { enqueueDiagnosticPingJob, getJob } from "./job-service";
@@ -22,11 +23,13 @@ async function requireJob(id: string) {
 }
 
 // Queued and CLI-waiting jobs stop immediately; a running job is asked to stop and the worker finishes the cancel.
+// A queued job still in the outbox is cancelled without touching Redis.
 export async function cancelJob(id: string): Promise<JobDto> {
   const record = await requireJob(id);
   if (
     record.status === "WAITING_FOR_CLI" ||
-    (record.status === "QUEUED" && (await cancelWaitingJob(record.bullmqJobId)))
+    (record.status === "QUEUED" &&
+      ((await deleteUndeliveredIntent(id)) || (await cancelWaitingJob(record.bullmqJobId))))
   ) {
     await markJobCancelled(id);
     await failWaitingAiRuns(id, "Đã huỷ theo yêu cầu.");

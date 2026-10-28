@@ -1,5 +1,6 @@
 import { Job, type Queue } from "bullmq";
 
+import { listUndeliveredJobRecordIds } from "@/features/jobs/repositories/job-dispatch.repository";
 import {
   listUnsettledJobRecords,
   markJobCancelled,
@@ -13,9 +14,12 @@ const logger = createLogger("worker.reconcile");
 const LOST_MESSAGE = "Tác vụ không còn trong hàng đợi (Redis đã bị xoá hoặc dọn dẹp). Hãy thử lại.";
 
 // JobRecord is only a read model: on start-up it is re-aligned with what BullMQ actually holds.
+// A job whose outbox row is still undelivered (or delayed) is not in Redis yet by design, so it is not lost.
 export async function reconcileJobRecords(queue: Queue): Promise<number> {
+  const undelivered = await listUndeliveredJobRecordIds();
   let fixed = 0;
   for (const record of await listUnsettledJobRecords()) {
+    if (undelivered.has(record.id)) continue;
     const job = await Job.fromId(queue, record.bullmqJobId);
     const state = job ? await job.getState() : "missing";
 

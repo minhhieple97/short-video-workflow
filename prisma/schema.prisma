@@ -293,10 +293,28 @@ model JobRecord {
   updatedAt          DateTime     @updatedAt
   requestFingerprint String?
   createdBy          JobCreatedBy @default(LOCAL_USER)
+  dispatch           JobDispatch?
 
   @@index([status])
   @@index([createdAt])
   @@index([entityType, entityId])
+}
+
+// Outbox row created in the same transaction as its JobRecord. dispatchedAt stays null until the BullMQ job exists,
+// so a crash between the SQLite write and the Redis add cannot lose the job; availableAt holds delayed jobs back.
+model JobDispatch {
+  id           String    @id @default(cuid())
+  jobRecordId  String    @unique
+  jobRecord    JobRecord @relation(fields: [jobRecordId], references: [id], onDelete: Cascade)
+  // IDs and small metadata only, without jobRecordId (added when the job is dispatched).
+  payloadJson  String
+  availableAt  DateTime  @default(now())
+  attempts     Int       @default(0)
+  lastError    String?
+  createdAt    DateTime  @default(now())
+  dispatchedAt DateTime?
+
+  @@index([dispatchedAt, availableAt])
 }
 
 model AiRun {
