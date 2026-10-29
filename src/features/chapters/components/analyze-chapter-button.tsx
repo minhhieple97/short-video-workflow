@@ -14,7 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/layout/icon-button";
 import { ApiError, sendJson } from "@/lib/api-client";
 
 import type { ChapterAnalysisStatus } from "../domain/analysis-status";
@@ -23,12 +23,11 @@ import { useAnalysisRunner } from "./use-analysis-runner";
 interface AnalyzeChapterButtonProps {
   chapterId: string;
   status: ChapterAnalysisStatus;
-  compact?: boolean;
 }
 
 const IN_PROGRESS: readonly ChapterAnalysisStatus[] = ["QUEUED", "ANALYZING", "WAITING_FOR_CLI"];
 
-export function AnalyzeChapterButton({ chapterId, status, compact = false }: Readonly<AnalyzeChapterButtonProps>) {
+export function AnalyzeChapterButton({ chapterId, status }: Readonly<AnalyzeChapterButtonProps>) {
   const { running, run } = useAnalysisRunner();
   const [confirming, setConfirming] = useState(false);
   const busy = running || IN_PROGRESS.includes(status);
@@ -52,15 +51,15 @@ export function AnalyzeChapterButton({ chapterId, status, compact = false }: Rea
 
   return (
     <>
-      <Button
-        size={compact ? "sm" : "default"}
+      <IconButton
+        label={busy ? "Đang phân tích…" : status === "ANALYZED" ? "Phân tích lại" : "Phân tích"}
         variant={status === "ANALYZED" ? "outline" : "default"}
         disabled={busy}
+        aria-busy={busy}
         onClick={() => (status === "ANALYZED" ? setConfirming(true) : analyze(false))}
       >
         {busy ? <Loader2 className="animate-spin" aria-hidden /> : <Sparkles aria-hidden />}
-        {busy ? "Đang phân tích…" : status === "ANALYZED" ? "Phân tích lại" : "Phân tích"}
-      </Button>
+      </IconButton>
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
         <AlertDialogContent>
           <AlertDialogHeader>

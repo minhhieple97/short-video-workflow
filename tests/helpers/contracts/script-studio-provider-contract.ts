@@ -126,6 +126,7 @@ export function describeScriptStudioProviderContract(name: string, createProvide
         sources: [source],
         lesson: SAMPLE_LESSON,
         range: { minDurationSec: 30, maxDurationSec: 60 },
+        pace: "STANDARD" as const,
         revisionNote: null,
       });
 
@@ -150,6 +151,7 @@ export function describeScriptStudioProviderContract(name: string, createProvide
         sources: [source],
         lesson: SAMPLE_LESSON,
         range: { minDurationSec: 30, maxDurationSec: 60 },
+        pace: "STANDARD" as const,
         revisionNote: "Giữ đúng trích đoạn trong sách.",
       });
 
@@ -193,6 +195,7 @@ export function describeScriptStudioProviderContract(name: string, createProvide
             sources: [source],
             lesson: SAMPLE_LESSON,
             range: { minDurationSec: 30, maxDurationSec: 60 },
+            pace: "STANDARD" as const,
             revisionNote: null,
           },
           options,

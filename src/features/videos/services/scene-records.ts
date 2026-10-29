@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import { estimateNarrationSeconds, secondsToFrames } from "../domain/duration";
 import { illustrationSchema, type Illustration } from "../domain/illustration";
+import { syllablesPerSecond, toPace } from "../domain/pace";
 import type { NewSceneRecord } from "../repositories/video.repository";
 
 export interface SceneContent {
@@ -45,9 +46,12 @@ export function parseIllustration(json: string | null): Illustration | null {
   }
 }
 
+// How fast the video's narration will be voiced, for estimating scene lengths before there is any audio.
+export const narrationRateOf = (video: { pace: string }): number => syllablesPerSecond(toPace(video.pace));
+
 // Fields are copied explicitly so callers passing richer objects (DTOs, form state) never leak extra keys into Prisma.
-export function buildSceneRecord(scene: SceneContent): NewSceneRecord {
-  const estimatedSeconds = estimateNarrationSeconds(scene.narration);
+export function buildSceneRecord(scene: SceneContent, syllablesPerSecond?: number): NewSceneRecord {
+  const estimatedSeconds = estimateNarrationSeconds(scene.narration, syllablesPerSecond);
   return {
     type: scene.type,
     title: scene.title,

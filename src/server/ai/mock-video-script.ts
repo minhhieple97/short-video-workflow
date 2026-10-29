@@ -1,4 +1,5 @@
 import { estimateNarrationSeconds, fitToRange } from "@/features/videos/domain/duration";
+import { syllablesPerSecond } from "@/features/videos/domain/pace";
 import type { LessonSnapshot } from "@/features/videos/domain/lesson-snapshot";
 import { DEFAULT_VISUAL_VARIANT, type BodySceneType } from "@/features/videos/domain/scene-types";
 
@@ -65,7 +66,7 @@ export function mockVideoScript(input: VideoScriptInput): VideoScriptOutput {
   ];
   const [hook] = MOCK_HOOKS;
   const seconds = [hook?.narration ?? "", ...scenes.map((scene) => scene.narration)]
-    .map(estimateNarrationSeconds)
+    .map((text) => estimateNarrationSeconds(text, syllablesPerSecond(input.pace)))
     .reduce((sum, value) => sum + value, 0);
   return {
     videoId: input.videoId,

@@ -28,6 +28,7 @@ export async function seedVoicedVideo(deps: {
     sources: [],
     lesson: SAMPLE_LESSON,
     range: { minDurationSec: 30, maxDurationSec: 60 },
+    pace: "STANDARD" as const,
     revisionNote: null,
   });
   const plan = await new MockScenePlanCompiler().compile({
@@ -36,6 +37,7 @@ export async function seedVoicedVideo(deps: {
     book: SAMPLE_BOOK,
     targetDurationSec: 60,
     range: { minDurationSec: 30, maxDurationSec: 60 },
+    pace: "STANDARD" as const,
     revisionNote: null,
   });
   await apply.applyScenePlan({

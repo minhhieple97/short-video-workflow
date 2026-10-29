@@ -1,5 +1,6 @@
 import type { DurationBudget } from "../domain/duration";
 import type { PublishOrigin } from "../domain/publish-metadata";
+import type { Pace } from "../domain/pace";
 import type { HookVariant, SceneType, VisualVariant } from "../domain/scene-types";
 import type { VideoStatus } from "../domain/video-status";
 import type { Illustration } from "../domain/illustration";
@@ -37,6 +38,8 @@ export interface SceneAudioDto {
   provider: string;
   durationMs: number;
   leadingSilenceMs: number;
+  // The speed the voice was made at, relative to normal; null for an uploaded clip.
+  speedPercent: number | null;
   url: string;
 }
 
@@ -86,6 +89,9 @@ export interface VideoDetail {
   targetDurationSec: number;
   minDurationSec: number;
   maxDurationSec: number;
+  pace: Pace;
+  // Visible scenes whose voice was made at another speed than this video's pace asks for.
+  staleVoiceSceneCount: number;
   durationReason: string | null;
   width: number;
   height: number;

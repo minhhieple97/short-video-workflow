@@ -119,6 +119,7 @@ describe("captureRenderSnapshot", () => {
       sources: [],
       lesson: SAMPLE_LESSON,
       range: { minDurationSec: 30, maxDurationSec: 60 },
+      pace: "STANDARD" as const,
       revisionNote: null,
     });
     const storeDraft = (illustrative: string[]) =>

@@ -30,6 +30,7 @@ import { VideoSettingsDialog } from "@/features/videos/components/video-settings
 import { VideoStatusBadge } from "@/features/videos/components/video-status-badge";
 import { toCompositionProps } from "@/features/videos/domain/composition-props";
 import { durationLabel, HOOK_MAX_SECONDS } from "@/features/videos/domain/duration";
+import { syllablesPerSecond } from "@/features/videos/domain/pace";
 import { toPlatformPreviewMode } from "@/features/videos/domain/safe-zones";
 import { mediaAssetUrl } from "@/features/videos/services/video-mapper";
 import { findActivePublishJob } from "@/features/videos/services/publish-request.service";
@@ -65,6 +66,7 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
     : null;
   const hookScene = video.scenes.find((scene) => scene.type === "HOOK");
   const sceneIds = video.scenes.map((scene) => scene.id);
+  const rate = syllablesPerSecond(video.pace);
   const active = TABS.find((value) => value === tab) ?? "hook";
 
   return (
@@ -209,6 +211,7 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
                       videoId={video.id}
                       scene={hookScene}
                       sceneIds={sceneIds}
+                      syllablesPerSecond={rate}
                     />
                   ) : null}
                 </div>
@@ -230,6 +233,7 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
                         videoId={video.id}
                         scene={scene}
                         sceneIds={sceneIds}
+                        syllablesPerSecond={rate}
                       />
                     ))}
                     <AddSceneControl videoId={video.id} />
@@ -251,8 +255,9 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
                   tts={{
                     mode: getAppConfig().tts.mode,
                     voice: getAppConfig().tts.voice,
-                    speed: getAppConfig().tts.speed,
                   }}
+                  pace={video.pace}
+                  staleCount={video.staleVoiceSceneCount}
                 />
               </ScriptLock>
             ),

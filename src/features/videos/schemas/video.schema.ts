@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { DURATION_PRESETS_SEC } from "../domain/duration";
 import { illustrationSchema } from "../domain/illustration";
+import { PACES } from "../domain/pace";
 import { BODY_SCENE_TYPES, VISUAL_VARIANTS } from "../domain/scene-types";
 
 export const durationPresetSchema = z.literal(DURATION_PRESETS_SEC, {
@@ -19,6 +20,11 @@ const optionalText = (max: number) =>
 export const durationRangeFields = {
   minDurationSec: durationPresetSchema,
   maxDurationSec: durationPresetSchema,
+};
+
+// Absent means the default for a new video and "keep the current one" for an update.
+export const paceFields = {
+  pace: z.enum(PACES, { error: "Nhịp độ phải là Chuẩn, Nhanh hoặc Rất nhanh." }).optional(),
 };
 
 export function enforceRange(value: { minDurationSec: number; maxDurationSec: number }, ctx: z.RefinementCtx): void {
@@ -41,6 +47,7 @@ export const createVideoSchema = z
       .min(1, "Chọn ít nhất một bài học đã duyệt.")
       .max(5, "Tối đa 5 bài học cho một video."),
     ...durationRangeFields,
+    ...paceFields,
   })
   .superRefine(enforceRange);
 
@@ -50,6 +57,7 @@ export const updateVideoSchema = z
     description: optionalText(500),
     platformPreviewMode: z.enum(["TIKTOK", "YOUTUBE_SHORTS", "FACEBOOK_REELS"]).nullable().default(null),
     ...durationRangeFields,
+    ...paceFields,
   })
   .superRefine(enforceRange);
 

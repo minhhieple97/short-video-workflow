@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { ConfigError, parseAppConfig } from "@/shared/config/env";
+import { ConfigError, PACES, parseAppConfig } from "@/shared/config/env";
 import { DURATION_PRESETS_SEC } from "@/features/videos/domain/duration";
+import { PACES as MIRRORED_PACES } from "@/features/videos/domain/pace";
 
 const VALID_ENV = {
   DATABASE_URL: "file:./data/studio.db",
@@ -53,6 +54,13 @@ describe("parseAppConfig", () => {
     expect(parseAppConfig({ ...VALID_ENV, DEFAULT_MIN_VIDEO_DURATION_SEC: "300" }).video.defaultMinDurationSec).toBe(
       300,
     );
+  });
+
+  it("offers exactly the paces the video rules know, starting from STANDARD", () => {
+    expect(PACES).toEqual(MIRRORED_PACES);
+    expect(parseAppConfig(VALID_ENV).video.defaultPace).toBe("STANDARD");
+    expect(parseAppConfig({ ...VALID_ENV, DEFAULT_PACE: "FASTER" }).video.defaultPace).toBe("FASTER");
+    expect(() => parseAppConfig({ ...VALID_ENV, DEFAULT_PACE: "WARP" })).toThrow(ConfigError);
   });
 
   it("reads import limits and extra chapter patterns", () => {

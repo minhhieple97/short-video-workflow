@@ -3,6 +3,7 @@ import { z } from "zod";
 import { buildCaptionCues } from "./captions";
 import { effectiveSceneFrames, VIDEO_FPS } from "./duration";
 import { DEFAULT_ILLUSTRATION, illustrationSchema, type Illustration } from "./illustration";
+import { paceProfile, toPace } from "./pace";
 import { SCENE_TYPE_LABELS, SCENE_TYPES, VISUAL_VARIANTS, type SceneType, type VisualVariant } from "./scene-types";
 
 export const compositionSceneSchema = z.object({
@@ -21,6 +22,8 @@ export const shortVideoPropsSchema = z.object({
   title: z.string(),
   bookTitle: z.string(),
   showCaptions: z.boolean(),
+  // How much faster scene animation plays (1 = as designed); only the pictures speed up, never the voice or the captions.
+  paceFactor: z.number().min(0.5).max(2).default(1),
   scenes: z.array(compositionSceneSchema).min(1),
 });
 
@@ -30,6 +33,8 @@ export type ShortVideoProps = z.infer<typeof shortVideoPropsSchema>;
 export interface CompositionSource {
   title: string;
   book: { title: string };
+  // The video's pace; absent for a render captured before paces existed, which reads as the default.
+  pace?: string;
   scenes: readonly {
     id: string;
     type: SceneType;
@@ -48,7 +53,7 @@ export const SHORT_VIDEO_COMPOSITION_ID = "ShortVideo";
 
 // Recorded in every render snapshot. Bump it whenever a change to the Remotion composition or its scenes would make the
 // same props look different, so an old render can be told apart from what the code produces today.
-export const RENDER_TEMPLATE_VERSION = "short-video-template-v3";
+export const RENDER_TEMPLATE_VERSION = "short-video-template-v4";
 
 // Single mapping used by the browser Player and the worker render, so preview and output never diverge.
 export function toCompositionProps(
@@ -59,6 +64,7 @@ export function toCompositionProps(
     title: source.title,
     bookTitle: source.book.title,
     showCaptions: true,
+    paceFactor: paceProfile(toPace(source.pace)).animationFactor,
     scenes: source.scenes
       .filter((scene) => !scene.hidden)
       .map((scene) => {

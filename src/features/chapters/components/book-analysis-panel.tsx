@@ -127,13 +127,22 @@ export function BookAnalysisPanel({
       ) : null}
 
       {running ? (
-        <p className="flex items-center gap-2 text-sm" role="status">
-          <Loader2 className="text-primary size-4 animate-spin" aria-hidden />
-          {overview.currentChapter
-            ? `Đang phân tích: ${overview.currentChapter}`
-            : "Đang chờ worker nhận chương tiếp theo…"}
-          <span className="text-muted-foreground">· trang tự cập nhật, bạn có thể rời trang.</span>
-        </p>
+        <div className="flex min-w-0 flex-col gap-0.5 text-sm" role="status">
+          <p className="flex min-w-0 items-center gap-2">
+            <Loader2 className="text-primary size-4 shrink-0 animate-spin" aria-hidden />
+            {overview.currentChapter ? (
+              <>
+                <span className="shrink-0">Đang phân tích:</span>
+                <span className="min-w-0 truncate font-medium" title={overview.currentChapter}>
+                  {overview.currentChapter}
+                </span>
+              </>
+            ) : (
+              "Đang chờ worker nhận chương tiếp theo…"
+            )}
+          </p>
+          <p className="text-muted-foreground pl-6 text-xs">Trang tự cập nhật, bạn có thể rời trang.</p>
+        </div>
       ) : null}
       <JobsAutoRefresh active={running || overview.waitingForCli > 0} />
     </div>

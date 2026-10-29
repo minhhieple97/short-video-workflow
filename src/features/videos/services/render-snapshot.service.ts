@@ -72,6 +72,7 @@ export async function captureRenderSnapshot(
       targetDurationSec: video.targetDurationSec,
       minDurationSec: video.minDurationSec,
       maxDurationSec: video.maxDurationSec,
+      pace: video.pace,
       scriptVersion: video.scriptVersion,
       status: video.status,
       autoReady: video.autoReady,

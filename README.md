@@ -379,17 +379,30 @@ pnpm diagnose                 # checks your environment
 
 ### Run
 
-Use one WSL terminal per command, from the project folder:
+From the project folder in a WSL terminal, start Redis, then the web app and the worker together:
 
 ```bash
 docker compose up -d          # 1) Redis (skip if it is already running)
-pnpm worker:dev               # 2) worker: analysis, scripts, voice, render, OCR, Drive archive
-pnpm dev                      # 3) web app at http://127.0.0.1:3000
+pnpm dev:all                  # 2) web app at http://127.0.0.1:3000 + worker, one log tagged [web] / [worker]
+```
+
+Ctrl+C stops both. Or use one terminal per process:
+
+```bash
+pnpm worker:dev               # worker: analysis, scripts, voice, render, OCR, Drive archive
+pnpm dev                      # web app at http://127.0.0.1:3000
 ```
 
 Open <http://127.0.0.1:3000> in your Windows browser. The web app still opens when Redis or the worker is down: **Settings**
 reports a degraded state, and queued jobs continue once the worker is back. For production, use `pnpm build && pnpm start`
 together with `pnpm worker:start`.
+
+Only one worker runs per Redis database. When one is already running, `pnpm worker:dev` and `pnpm worker:start` refuse to start
+another and print its status (PID, start time, last heartbeat, queue counts), and `pnpm dev:all` starts only what is missing: it
+skips the worker when one runs, and the web app when its port (3000, or `PORT`) is already taken.
+`pnpm worker:status` prints that status on demand (exit code 0 when a worker is running, 1 when none is). A worker that was killed
+is detected at once, so a new one starts without waiting. If you keep several checkouts of the project, give each its own Redis
+database in `.env` (for example `REDIS_URL=redis://127.0.0.1:6379/1`).
 
 ## Make your first video
 
@@ -417,15 +430,16 @@ The interface is Vietnamese; the Vietnamese label of each action is given in par
 Everything lives in `.env` (validated by Zod at start-up; a wrong value stops the process with a clear message). The most
 useful settings:
 
-| Variable                                               | Default                                | Purpose                                                             |
-| ------------------------------------------------------ | -------------------------------------- | ------------------------------------------------------------------- |
-| `AI_MODE`                                              | `cli-task`                             | `mock`, `cli-task` or `cli-auto` ([AI modes](#ai-modes))            |
-| `TTS_MODE`, `TTS_VOICE`, `TTS_SPEED`                   | `edge-tts`, `vi-VN-NamMinhNeural`, `0` | Voice-over engine, voice and speed                                  |
-| `WORKER_CONCURRENCY`, `RENDER_CONCURRENCY`             | `1`, `1`                               | Keep at 1 until you have benchmarked your machine                   |
-| `MAX_PDF_SIZE_MB`, `MAX_PDF_PAGES`                     | `500`, `1000`                          | PDF upload limits                                                   |
-| `OCR_COST_CEILING_USD`, `MISTRAL_API_KEY`              | `3`, _(empty)_                         | Per-book OCR budget and your own Mistral key                        |
-| `NOTEBOOKLM_PROFILE`                                   | _(empty)_                              | Logged-in NotebookLM profile, needed for PDF batch with real AI     |
-| `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` | _(empty)_                              | Your own Desktop-app OAuth client; leave empty to keep videos local |
+| Variable                                               | Default                           | Purpose                                                             |
+| ------------------------------------------------------ | --------------------------------- | ------------------------------------------------------------------- |
+| `AI_MODE`                                              | `cli-task`                        | `mock`, `cli-task` or `cli-auto` ([AI modes](#ai-modes))            |
+| `TTS_MODE`, `TTS_VOICE`                                | `edge-tts`, `vi-VN-NamMinhNeural` | Voice-over engine and voice                                         |
+| `DEFAULT_PACE`                                         | `STANDARD`                        | Reading pace new videos start with: `STANDARD`, `FAST`, `FASTER`    |
+| `WORKER_CONCURRENCY`, `RENDER_CONCURRENCY`             | `1`, `1`                          | Keep at 1 until you have benchmarked your machine                   |
+| `MAX_PDF_SIZE_MB`, `MAX_PDF_PAGES`                     | `500`, `1000`                     | PDF upload limits                                                   |
+| `OCR_COST_CEILING_USD`, `MISTRAL_API_KEY`              | `3`, _(empty)_                    | Per-book OCR budget and your own Mistral key                        |
+| `NOTEBOOKLM_PROFILE`                                   | _(empty)_                         | Logged-in NotebookLM profile, needed for PDF batch with real AI     |
+| `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` | _(empty)_                         | Your own Desktop-app OAuth client; leave empty to keep videos local |
 
 The full table, with limits and troubleshooting, is in [`docs/operations.md`](docs/operations.md).
 
@@ -435,6 +449,7 @@ The full table, with limits and troubleshooting, is in [`docs/operations.md`](do
 | Symptom                           | What to do                                                                                  |
 | --------------------------------- | ------------------------------------------------------------------------------------------- |
 | The app reports a degraded state  | Start Redis (`docker compose up -d`) and the worker (`pnpm worker:dev`). Queued jobs resume |
+| Worker is already running         | The refusal ("Worker đã chạy rồi…") shows its PID. Stop that worker first, or keep using it |
 | A job sits in **Waiting for CLI** | You are in `cli-task` mode: run the command shown on the job, `pnpm ai:run --job <id>`      |
 | edge-tts returns no audio         | It is an unofficial service and can be flaky. Retry, or upload audio for the scene          |
 | Render cannot find a browser      | `pnpm exec remotion browser ensure`                                                         |
@@ -457,11 +472,11 @@ src/
     notebooklm/ drive/ archive/ productions/
   server/         Infrastructure, never imported by client code or Remotion
     db/ queue/ storage/ ai/ tts/ render/ media/ pdf/ ocr/ script-studio/ scene-plan/ archive/ diagnostics/
-  worker/         Standalone process: dispatcher, one processor per job type, heartbeat, shutdown
+  worker/         Standalone process: dispatcher, one processor per job type, heartbeat and lock, shutdown
   remotion/       Pure React video code: composition, scenes, captions, SVG illustrations
   shared/         Validated env, logger, typed errors
 prisma/           schema.prisma, committed migrations, seed
-scripts/          CLI entry points: run-claude-task.ts, diagnose.ts
+scripts/          CLI entry points: run-claude-task.ts, diagnose.ts, worker-status.ts, dev-all.ts
 tests/            unit + integration (Vitest), e2e (Playwright on an isolated stack)
 docs/             requirements.md, architecture.md, operations.md, assets/
 data/             Runtime data (gitignored): SQLite file, books, audio, renders, AI tasks
@@ -479,6 +494,8 @@ The detailed code map and "where does new code go?" table are in [`AGENTS.md`](A
 | Start Redis                                  | `docker compose up -d`                                         |
 | Apply migrations · seed demo data            | `pnpm db:migrate` · `pnpm db:seed`                             |
 | Web dev server · worker (watch)              | `pnpm dev` · `pnpm worker:dev`                                 |
+| Web dev server and worker in one terminal    | `pnpm dev:all`                                                 |
+| Is a worker running? (exit code 0 or 1)      | `pnpm worker:status`                                           |
 | List / run Claude CLI tasks                  | `pnpm ai:run --list` · `pnpm ai:run --job <jobId> [--dry-run]` |
 | Environment diagnostics                      | `pnpm diagnose`                                                |
 | Inspect video compositions                   | `pnpm remotion:studio`                                         |

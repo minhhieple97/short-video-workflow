@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { detectAudioFormat, formatEdgeTtsRate, framesForAudio } from "@/features/videos/domain/audio";
+import { detectAudioFormat, framesForAudio, sceneIdsToRevoice } from "@/features/videos/domain/audio";
 import { HOOK_MAX_FRAMES } from "@/features/videos/domain/duration";
 import { runPreflight } from "@/features/videos/domain/preflight";
 import type { SceneDto } from "@/features/videos/schemas/video.dto";
@@ -10,12 +10,6 @@ const bytes = (...values: number[]) => new Uint8Array(values);
 const ascii = (text: string) => new TextEncoder().encode(text);
 
 describe("audio helpers", () => {
-  it("formats edge-tts rates with an explicit sign", () => {
-    expect(formatEdgeTtsRate(0)).toBe("+0%");
-    expect(formatEdgeTtsRate(10)).toBe("+10%");
-    expect(formatEdgeTtsRate(-15)).toBe("-15%");
-  });
-
   it("recognises MP3 and WAV by their bytes, not their names", () => {
     expect(detectAudioFormat(ascii("ID3\u0004\u0000"))).toBe("mp3");
     expect(detectAudioFormat(bytes(0xff, 0xfb, 0x90, 0x64))).toBe("mp3");
@@ -49,7 +43,14 @@ const scene = (overrides: Partial<SceneDto> = {}): SceneDto => ({
 });
 
 describe("hook checks with narration", () => {
-  const audio = { assetId: "a", provider: "upload", durationMs: 3024, leadingSilenceMs: 0, url: "/x" };
+  const audio = {
+    assetId: "a",
+    provider: "upload",
+    durationMs: 3024,
+    leadingSilenceMs: 0,
+    speedPercent: null,
+    url: "/x",
+  };
 
   it("uses the real clip length once audio is attached", () => {
     expect(hookIssues([scene()])).toEqual([]);
@@ -70,5 +71,41 @@ describe("hook checks with narration", () => {
       "DRAFT",
     );
     expect(report.warnings.map((warning) => warning.code)).toContain("HOOK_SILENCE");
+  });
+});
+
+describe("sceneIdsToRevoice", () => {
+  it("covers scenes with narration, whatever voice they have, but never a clip the user uploaded", () => {
+    expect(
+      sceneIdsToRevoice([
+        { id: "none", narration: "Lời dẫn", audioProvider: null },
+        { id: "tts", narration: "Lời dẫn", audioProvider: "edge-tts" },
+        { id: "upload", narration: "Lời dẫn", audioProvider: "upload" },
+        { id: "empty", narration: "   ", audioProvider: null },
+      ]),
+    ).toEqual(["none", "tts"]);
+  });
+});
+
+describe("preflight and the video's pace", () => {
+  const base = {
+    status: "APPROVED",
+    maxDurationSec: 60,
+    minDurationSec: null,
+    scenes: [scene({ audioAssetId: "a", durationFrames: 80 })],
+  };
+
+  it("warns, without blocking, when voices were made at another pace", () => {
+    const report = runPreflight({ ...base, staleVoiceSceneCount: 2 }, "FINAL");
+
+    expect(report.warnings.map((warning) => warning.code)).toContain("VOICE_PACE_MISMATCH");
+    expect(report.blocking.map((issue) => issue.code)).not.toContain("VOICE_PACE_MISMATCH");
+  });
+
+  it("says nothing when every voice matches, or when the pace of a stored render is unknown", () => {
+    expect(runPreflight({ ...base, staleVoiceSceneCount: 0 }, "FINAL").warnings.map((w) => w.code)).not.toContain(
+      "VOICE_PACE_MISMATCH",
+    );
+    expect(runPreflight(base, "FINAL").warnings.map((w) => w.code)).not.toContain("VOICE_PACE_MISMATCH");
   });
 });

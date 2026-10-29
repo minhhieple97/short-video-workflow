@@ -22,6 +22,8 @@ export interface PreflightInput {
   // The final render may not be longer than the maximum; null minimum for a render captured before ranges existed.
   maxDurationSec: number;
   minDurationSec: number | null;
+  // Visible scenes whose voice was made at another speed than the video's pace asks for; unknown (absent) for a stored render.
+  staleVoiceSceneCount?: number;
   scenes: readonly {
     type: SceneType;
     onScreenText: string;
@@ -79,6 +81,13 @@ export function runPreflight(input: PreflightInput, quality: RenderQuality): Pre
     warnings.push({
       code: "UNDER_MIN",
       message: `Tổng thời lượng ${totalSeconds}s ngắn hơn mức tối thiểu ${input.minDurationSec}s.`,
+    });
+  }
+
+  if (input.staleVoiceSceneCount) {
+    warnings.push({
+      code: "VOICE_PACE_MISMATCH",
+      message: `${input.staleVoiceSceneCount} cảnh có giọng đọc tạo ở nhịp khác nhịp độ hiện tại của video. Tạo lại giọng ở tab Giọng đọc để khớp.`,
     });
   }
 

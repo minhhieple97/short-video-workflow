@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { DURATION_PRESETS_SEC } from "@/features/videos/domain/duration";
 import { lessonSnapshotSchema } from "@/features/videos/domain/lesson-snapshot";
+import { PACES } from "@/features/videos/domain/pace";
 import { stableStringify } from "@/shared/stable-json";
 import { publishBookSchema } from "@/server/ai/contracts/publish-metadata";
 import { scriptDraftSchema, type ScriptDraft } from "@/server/script-studio/script-studio-contracts";
@@ -121,6 +122,7 @@ export const scenePlanTaskInputSchema = z.object({
   targetDurationSec: z.literal(DURATION_PRESETS_SEC),
   minDurationSec: z.literal(DURATION_PRESETS_SEC),
   maxDurationSec: z.literal(DURATION_PRESETS_SEC),
+  pace: z.enum(PACES).default("STANDARD"),
   revisionNote: z.string().nullable(),
   promptVersion: z.string().min(1),
 });

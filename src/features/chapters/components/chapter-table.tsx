@@ -17,23 +17,27 @@ export function ChapterTable({
   }
 
   return (
-    <Table>
+    <Table className="min-w-4xl table-fixed">
       <TableHeader>
         <TableRow>
           <TableHead className="w-12">#</TableHead>
           <TableHead>Chương</TableHead>
-          <TableHead className="text-right">Độ dài</TableHead>
-          <TableHead>Phân tích</TableHead>
-          <TableHead className="text-right">Bài học</TableHead>
-          <TableHead className="w-40 text-right">Thao tác</TableHead>
+          <TableHead className="w-32 text-right">Độ dài</TableHead>
+          <TableHead className="w-44">Phân tích</TableHead>
+          <TableHead className="w-24 text-right">Bài học</TableHead>
+          <TableHead className="w-24 text-right">Thao tác</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {chapters.map((chapter) => (
           <TableRow key={chapter.id}>
             <TableCell className="text-muted-foreground">{chapter.order}</TableCell>
-            <TableCell className="max-w-md whitespace-normal">
-              <Link href={`/books/${chapter.bookId}/chapters/${chapter.id}`} className="font-medium hover:underline">
+            <TableCell className="whitespace-normal">
+              <Link
+                href={`/books/${chapter.bookId}/chapters/${chapter.id}`}
+                title={chapter.title}
+                className="line-clamp-2 font-medium wrap-break-word hover:underline"
+              >
                 {chapter.title}
               </Link>
             </TableCell>
@@ -43,7 +47,7 @@ export function ChapterTable({
             </TableCell>
             <TableCell className="text-right tabular-nums">{chapter.lessonCount}</TableCell>
             <TableCell className="text-right">
-              <AnalyzeChapterButton chapterId={chapter.id} status={chapter.analysisStatus} compact />
+              <AnalyzeChapterButton chapterId={chapter.id} status={chapter.analysisStatus} />
             </TableCell>
           </TableRow>
         ))}

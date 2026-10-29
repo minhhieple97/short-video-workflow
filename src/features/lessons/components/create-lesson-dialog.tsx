@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { IconButton } from "@/components/layout/icon-button";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -56,10 +57,14 @@ export function CreateLessonDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" disabled={chapters.length === 0}>
+        <IconButton
+          label="Tạo bài học thủ công"
+          note={chapters.length === 0 ? "Sách chưa có chương nào" : undefined}
+          variant="outline"
+          disabled={chapters.length === 0}
+        >
           <Plus aria-hidden />
-          Tạo bài học thủ công
-        </Button>
+        </IconButton>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
@@ -80,7 +85,9 @@ export function CreateLessonDialog({
                   )
                 }
               />
-              {chapter.order}. {chapter.title}
+              <span title={chapter.title} className="line-clamp-2 min-w-0 wrap-break-word">
+                {chapter.order}. {chapter.title}
+              </span>
             </label>
           ))}
         </fieldset>

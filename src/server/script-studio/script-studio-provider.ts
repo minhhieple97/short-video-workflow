@@ -1,5 +1,6 @@
 import type { DurationRange } from "@/features/videos/domain/duration";
 import type { LessonSnapshot } from "@/features/videos/domain/lesson-snapshot";
+import type { Pace } from "@/features/videos/domain/pace";
 import type { CallOptions } from "@/server/integrations/call-options";
 
 import type { DetectedChapter, LessonExtraction, ScriptDraft } from "./script-studio-contracts";
@@ -49,6 +50,8 @@ export interface WriteDraftRequest {
   sources: SourceRef[];
   lesson: LessonSnapshot;
   range: DurationRange;
+  // How fast the narration will be voiced: the draft is written to the words that fit its length at that speed.
+  pace: Pace;
   // The single content correction allowed per video; null on the first pass.
   revisionNote: string | null;
 }

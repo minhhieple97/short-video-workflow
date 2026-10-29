@@ -24,6 +24,7 @@ const input = (overrides: Partial<ScenePlanTaskInput> = {}): ScenePlanTaskInput 
   targetDurationSec: 60,
   minDurationSec: 30,
   maxDurationSec: 90,
+  pace: "STANDARD",
   revisionNote: null,
   promptVersion: SCENE_PLAN_PROMPT_VERSION,
   ...overrides,
@@ -53,6 +54,17 @@ describe("buildScenePlanPrompt", () => {
     expect(prompt).toContain("trong 30–90 giây");
     expect(prompt).toContain("khoảng ~240 âm tiết, không dưới ~120 và không quá ~360");
     expect(prompt).toContain("~15 âm tiết");
+  });
+
+  it("budgets the words at the speed the voice speaks for the chosen pace, and no longer tells the model not to speak faster", () => {
+    const standard = buildScenePlanPrompt(input());
+    const faster = buildScenePlanPrompt(input({ pace: "FASTER" }));
+
+    expect(standard).toContain("nhịp chuẩn (khoảng 4 âm tiết/giây)");
+    expect(faster).toContain("nhịp rất nhanh (khoảng 5,2 âm tiết/giây)");
+    expect(faster).toContain("khoảng ~312 âm tiết, không dưới ~156 và không quá ~468");
+    expect(faster).toContain("~19 âm tiết");
+    expect(faster).not.toContain("Không nói nhanh để vừa");
   });
 
   it("states the mandatory story order and forbids inventing quotes, numbers or claims", () => {

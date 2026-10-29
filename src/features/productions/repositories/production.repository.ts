@@ -102,6 +102,7 @@ export function createProduction(input: {
   idempotencyKey: string;
   fingerprint: string;
   range: { minDurationSec: number; maxDurationSec: number };
+  pace: string;
   items: readonly NewProductionItem[];
 }): Promise<ProductionRecord> {
   return prisma.$transaction(async (tx) => {
@@ -111,6 +112,7 @@ export function createProduction(input: {
         idempotencyKey: input.idempotencyKey,
         fingerprint: input.fingerprint,
         ...input.range,
+        pace: input.pace,
         targetDurationSec: input.range.maxDurationSec,
         status: "QUEUED",
         items: {
@@ -123,6 +125,7 @@ export function createProduction(input: {
                 bookId: input.bookId,
                 title: item.videoTitle,
                 ...input.range,
+                pace: input.pace,
                 // NotebookLM proposes the length when it writes the draft; until then the plan is the maximum.
                 targetDurationSec: input.range.maxDurationSec,
                 status: "DRAFT",

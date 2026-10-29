@@ -11,6 +11,7 @@ import {
 } from "../domain/duration";
 import { lessonSnapshotSchema } from "../domain/lesson-snapshot";
 import { toPublishOrigin } from "../domain/publish-metadata";
+import { isVoiceStale, paceProfile, syllablesPerSecond, toPace } from "../domain/pace";
 import { toSceneType, toVisualVariant, HOOK_VARIANTS, type HookVariant } from "../domain/scene-types";
 import { toVideoStatus } from "../domain/video-status";
 import type { VideoDetailRecord } from "../repositories/video.repository";
@@ -24,7 +25,7 @@ function toHookVariant(value: string | null): HookVariant | null {
   return HOOK_VARIANTS.find((variant) => variant === value) ?? null;
 }
 
-function toSceneDto(scene: VideoDetailRecord["scenes"][number]): SceneDto {
+function toSceneDto(scene: VideoDetailRecord["scenes"][number], rate: number): SceneDto {
   return {
     id: scene.id,
     order: scene.order,
@@ -34,7 +35,7 @@ function toSceneDto(scene: VideoDetailRecord["scenes"][number]): SceneDto {
     onScreenText: scene.onScreenText,
     visualVariant: toVisualVariant(scene.visualVariant),
     hookVariant: toHookVariant(scene.hookVariant),
-    estimatedSeconds: scene.estimatedSeconds ?? estimateNarrationSeconds(scene.narration),
+    estimatedSeconds: scene.estimatedSeconds ?? estimateNarrationSeconds(scene.narration, rate),
     durationFrames: scene.durationFrames ?? 0,
     hidden: scene.hidden,
     version: scene.version,
@@ -44,16 +45,20 @@ function toSceneDto(scene: VideoDetailRecord["scenes"][number]): SceneDto {
   };
 }
 
-const audioSettingsSchema = z.object({ leadingSilenceMs: z.number().default(0) }).catch({ leadingSilenceMs: 0 });
+const audioSettingsSchema = z
+  .object({ leadingSilenceMs: z.number().default(0), speed: z.number().optional() })
+  .catch({ leadingSilenceMs: 0 });
 
 function toSceneAudio(scene: VideoDetailRecord["scenes"][number]): SceneAudioDto | null {
   const asset = scene.mediaAssets.find((candidate) => candidate.id === scene.audioAssetId);
   if (!asset) return null;
+  const settings = audioSettingsSchema.parse(asset.generationSettingsJson ?? {});
   return {
     assetId: asset.id,
     provider: asset.provider ?? "upload",
     durationMs: asset.durationMs ?? 0,
-    leadingSilenceMs: audioSettingsSchema.parse(asset.generationSettingsJson ?? {}).leadingSilenceMs,
+    leadingSilenceMs: settings.leadingSilenceMs,
+    speedPercent: settings.speed ?? null,
     url: mediaAssetUrl(asset.id),
   };
 }
@@ -91,7 +96,9 @@ export function hookIssues(scenes: readonly SceneDto[]): string[] {
 }
 
 export function toVideoDetail(video: VideoDetailRecord): VideoDetail {
-  const scenes = video.scenes.map(toSceneDto);
+  const pace = toPace(video.pace);
+  const rate = syllablesPerSecond(pace);
+  const scenes = video.scenes.map((scene) => toSceneDto(scene, rate));
   const visibleSeconds =
     scenes
       .filter((scene) => !scene.hidden)
@@ -105,6 +112,10 @@ export function toVideoDetail(video: VideoDetailRecord): VideoDetail {
     targetDurationSec: video.targetDurationSec,
     minDurationSec: video.minDurationSec,
     maxDurationSec: video.maxDurationSec,
+    pace,
+    staleVoiceSceneCount: scenes.filter(
+      (scene) => !scene.hidden && scene.audio && isVoiceStale(scene.audio, paceProfile(pace).speedPercent),
+    ).length,
     durationReason: video.durationReason,
     width: video.width,
     height: video.height,
@@ -116,7 +127,7 @@ export function toVideoDetail(video: VideoDetailRecord): VideoDetail {
     autoReady: video.autoReadyScriptVersion !== null && video.autoReadyScriptVersion === video.scriptVersion,
     hookOptions: hookOptionsSchema
       .parse(video.hookOptionsJson ?? [])
-      .map((option) => ({ ...option, estimatedSeconds: estimateNarrationSeconds(option.narration) })),
+      .map((option) => ({ ...option, estimatedSeconds: estimateNarrationSeconds(option.narration, rate) })),
     lessons: video.videoLessons.map((videoLesson) => {
       const snapshot = lessonSnapshotSchema.safeParse(videoLesson.lessonSnapshotJson);
       return {

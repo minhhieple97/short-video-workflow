@@ -8,6 +8,7 @@ const request = {
   lessonContentHash: "hash-1",
   minDurationSec: 30,
   maxDurationSec: 60,
+  pace: "STANDARD",
   sourceRemoteIds: ["nb#a", "nb#b"],
   revisionNote: null,
 };
@@ -30,6 +31,7 @@ describe("draftCacheKey", () => {
       draftCacheKey(studio, { ...request, sourceRemoteIds: ["nb#a", "nb#c"] }),
       draftCacheKey(studio, { ...request, revisionNote: "Rút gọn." }),
       draftCacheKey(studio, { ...request, lessonId: "lesson-2" }),
+      draftCacheKey(studio, { ...request, pace: "FASTER" }),
     ];
     expect(new Set([base, ...variants]).size).toBe(variants.length + 1);
   });

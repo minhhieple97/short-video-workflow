@@ -9,7 +9,11 @@ export function LessonSources({ bookId, sources }: Readonly<{ bookId: string; so
     <ul className="flex flex-col gap-3">
       {sources.map((source) => (
         <li key={source.id} className="flex flex-col gap-1 text-sm">
-          <Link href={`/books/${bookId}/chapters/${source.chapter.id}`} className="font-medium hover:underline">
+          <Link
+            href={`/books/${bookId}/chapters/${source.chapter.id}`}
+            title={source.chapter.title}
+            className="line-clamp-2 font-medium wrap-break-word hover:underline"
+          >
             {chapterLabel(source.chapter.order, source.chapter.title)}
           </Link>
           {source.excerpt ? (

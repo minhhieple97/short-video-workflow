@@ -47,11 +47,17 @@ export function JobTable({ jobs }: Readonly<{ jobs: readonly JobListItem[] }>) {
             </TableCell>
             <TableCell className="max-w-xs whitespace-normal">
               {job.entityHref ? (
-                <Link href={job.entityHref} className="hover:underline">
+                <Link
+                  href={job.entityHref}
+                  title={job.entityLabel}
+                  className="line-clamp-2 wrap-break-word hover:underline"
+                >
                   {job.entityLabel}
                 </Link>
               ) : (
-                job.entityLabel
+                <span title={job.entityLabel} className="line-clamp-2 wrap-break-word">
+                  {job.entityLabel}
+                </span>
               )}
             </TableCell>
             <TableCell className="max-w-xs whitespace-normal">

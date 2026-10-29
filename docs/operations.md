@@ -104,12 +104,11 @@ Ba giới hạn `DRIVE_*` là của riêng ứng dụng, không phải quota Goo
 | `AI_TASK_TIMEOUT_SEC`            | `600`                 | Thời gian tối đa một lần gọi Claude                                                |
 | `TTS_MODE`                       | `edge-tts`            | `edge-tts`, hoặc `upload` (chỉ âm thanh tải lên)                                   |
 | `TTS_VOICE`                      | `vi-VN-NamMinhNeural` | Giọng edge-tts                                                                     |
-| `TTS_SPEED`                      | `0`                   | Tốc độ theo phần trăm, −50..50 (0 = tự nhiên)                                      |
 | `EDGE_TTS_COMMAND`               | `edge-tts`            | Lệnh edge-tts (đường dẫn tuyệt đối cũng được)                                      |
-| `SCENE_AUDIO_PADDING_MS`         | `300`                 | Khoảng nghỉ sau mỗi đoạn đọc (0–2000)                                              |
 | `MAX_AUDIO_UPLOAD_MB`            | `20`                  | Giới hạn âm thanh tải lên (tối đa 100)                                             |
 | `VIDEO_PROFILE`                  | `SHORT_VERTICAL`      | Giá trị duy nhất được nhận                                                         |
 | `DEFAULT_MIN_VIDEO_DURATION_SEC` | `30`                  | Mức ngắn nhất mặc định của khoảng (30, 45, 60, 90, 120, 180, 240, 300)             |
+| `DEFAULT_PACE`                   | `STANDARD`            | Nhịp độ video và lô mới: `STANDARD`, `FAST` (+15%) hoặc `FASTER` (+30%)            |
 | `MAX_VIDEO_DURATION_SEC`         | `300`                 | Mức dài nhất mặc định và trần của mọi khoảng (cùng các mức trên); server cũng kiểm |
 | `RENDER_WIDTH`                   | `1080`                | Chiều rộng bản cuối                                                                |
 | `RENDER_HEIGHT`                  | `1920`                | Chiều cao bản cuối; tỉ lệ phải đúng 9:16                                           |
@@ -203,14 +202,26 @@ Gói được ghim (`NOTEBOOKLM_MCP_PACKAGE`) vì dùng API không chính thức
   (sau 2, 5, 10 giây). Lỗi 403 nghĩa là bản edge-tts đã cũ.
 - Tải lên MP3/WAV (≤ `MAX_AUDIO_UPLOAD_MB`): giữ nguyên tệp, chỉ đo; cảnh báo nếu khoảng lặng đầu quá 0,5 giây.
   `TTS_MODE=upload` tắt hẳn TTS; sản xuất hàng loạt luôn lồng tiếng bằng edge-tts nên cần `TTS_MODE=edge-tts`.
-- Độ dài cảnh = âm thanh thật + `SCENE_AUDIO_PADDING_MS`; Studio không cắt lời hay đổi tốc độ đọc cho vừa khoảng thời lượng. Sửa chữ trên
+- Độ dài cảnh = âm thanh thật + khoảng nghỉ của nhịp độ video; Studio không cắt lời hay tự đổi nhịp độ cho vừa khoảng thời lượng. `TTS_SPEED` và
+  `SCENE_AUDIO_PADDING_MS` đã bỏ: tốc độ giọng và khoảng nghỉ nay theo nhịp độ chọn cho từng video (giá trị lạ trong `.env` bị bỏ qua). Sửa chữ trên
   màn hình giữ audio; sửa lời dẫn gỡ audio cũ.
 
 ## 4. Vận hành hằng ngày
 
-Chạy Redis, `pnpm worker:dev`, `pnpm dev`, mở `http://127.0.0.1:3000`. Bản production: `pnpm build && pnpm start` kèm
-`pnpm worker:start`. Web vẫn mở khi Redis hoặc worker tắt (Cài đặt báo "suy giảm"); worker thoát mã 1 nếu không tới
+Chạy Redis rồi `pnpm dev:all` (web và worker trong một terminal, log gắn nhãn `[web]` / `[worker]`, Ctrl+C dừng cả hai), mở
+`http://127.0.0.1:3000`. Hoặc mỗi tiến trình một terminal: `pnpm worker:dev`, `pnpm dev`. Bản production: `pnpm build && pnpm start`
+kèm `pnpm worker:start`. Web vẫn mở khi Redis hoặc worker tắt (Cài đặt báo "suy giảm"); worker thoát mã 1 nếu không tới
 được Redis.
+
+**Chỉ một worker mỗi Redis DB.** Hai worker sẽ cùng nhận tác vụ và phá giới hạn "một việc AI, một lượt render một lúc", nên worker
+giữ khoá `studio:worker:lock` (PID, máy, giờ khởi động, thư mục dữ liệu; hết hạn sau 30 giây nếu heartbeat không gia hạn). Nếu đã có
+worker khác thì **từ chối chạy, in trạng thái của worker đó** rồi thoát mã 1: `pnpm worker:dev` và `pnpm worker:start` làm việc này ngay
+từ đầu (không để `tsx watch` treo chờ), còn `pnpm dev:all` chỉ khởi động thứ còn thiếu: bỏ qua worker nếu đã có, bỏ qua web nếu cổng
+web (3000, hoặc `PORT`) đã có tiến trình (Next sẽ tự nhảy sang cổng kế tiếp và để hai dev server cùng một thư mục). `pnpm worker:status` in cùng trạng thái đó
+(mã thoát 0 khi có worker, 1 khi không có, 2 khi không tới được Redis). Worker bị giết đột ngột (`kill -9`, đóng terminal, `tsx watch`
+buộc dừng khi nạp lại code) được nhận ra ngay vì tiến trình giữ khoá không còn, nên chạy lại được liền; khoá ghi từ máy khác thì phải
+đợi hết hạn. Mỗi bản checkout hoặc worktree của dự án cần một Redis DB riêng (ví dụ `REDIS_URL=redis://127.0.0.1:6379/1`), nếu không
+worker của bản này bị worker của bản kia từ chối.
 
 **Tác vụ (`/jobs`).** **Thử lại** tạo tác vụ mới; **Huỷ** dừng ngay tác vụ đang chờ, còn tác vụ đang chạy thì được yêu
 cầu dừng (render dừng giữa chừng và xoá tệp dở); **Chi tiết** kèm lệnh `pnpm ai:run`. Worker tắt thì tác vụ vẫn nằm
@@ -255,7 +266,8 @@ pnpm, không phải chẩn đoán này.
 | Dấu hiệu / mã                           | Nghĩa                                   | Làm gì                                                                   |
 | --------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------ |
 | "Không thể kết nối Redis…" (503)        | Web không tới được Redis                | `docker compose up -d` (không Docker: §1)                                |
-| "Worker không chạy"                     | Worker chưa chạy                        | `pnpm worker:dev`; tác vụ đã xếp hàng tự chạy tiếp                       |
+| "Worker không chạy"                     | Worker chưa chạy                        | `pnpm worker:dev` hoặc `pnpm dev:all`; tác vụ đã xếp hàng tự chạy tiếp   |
+| "Worker đã chạy rồi…"                   | Đã có worker trên Redis DB này          | Dùng tiếp worker đó, hoặc dừng nó (`kill <PID>`) rồi chạy lại            |
 | Worker thoát ngay, mã 1                 | Redis chưa chạy hoặc `REDIS_URL` sai    | Xem log, bật Redis, kiểm tra `REDIS_URL`                                 |
 | `Invalid environment configuration`     | `.env` có giá trị sai                   | Đọc tên biến và lý do trong thông báo, đối chiếu §2                      |
 | `DATA_DIR resolves to /mnt/...`         | Dữ liệu nằm trên ổ Windows              | Đưa dự án và dữ liệu về filesystem Linux                                 |

@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/layout/icon-button";
 import { errorMessage, sendJson } from "@/lib/api-client";
 
 import type { BookSummary } from "../schemas/book.dto";
@@ -42,10 +42,9 @@ export function DeleteBookButton({ book }: Readonly<{ book: BookSummary }>) {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="outline" className="text-destructive">
+        <IconButton label="Xoá sách" variant="outline" className="text-destructive">
           <Trash2 aria-hidden />
-          Xoá sách
-        </Button>
+        </IconButton>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>

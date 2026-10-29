@@ -10,6 +10,7 @@ import { configureDatabase, prisma } from "@/server/db/client";
 import { QUEUE_NAME } from "@/server/queue/constants";
 import { addJobToQueue } from "@/server/queue/producer";
 import { createWorkerConnection, redactRedisUrl, withProbeConnection } from "@/server/queue/redis-connection";
+import { acquireWorkerLock } from "@/server/queue/worker-lock";
 import { ensureDataDirs } from "@/server/storage/paths";
 import { getAppConfig } from "@/shared/config/env";
 import { createLogger, toSafeErrorMessage } from "@/shared/logger";
@@ -36,9 +37,23 @@ async function main(): Promise<void> {
     });
     process.exit(1);
   }
-  await configureDatabase();
 
   const connection = createWorkerConnection();
+  // Before anything that changes state: a second worker must not even reconcile or sweep.
+  const attempt = await acquireWorkerLock(connection, dataDir);
+  if (!attempt.acquired) {
+    const { state, worker, heartbeatAgeMs } = attempt.holder;
+    logger.error("A worker is already running; not starting another", { state, heartbeatAgeMs, ...worker });
+    connection.disconnect();
+    process.exit(1);
+  }
+  const { lock } = attempt;
+  const stopHeartbeat = startHeartbeat(connection, lock, () => {
+    logger.error("Another worker holds the lock now; shutting this one down");
+    process.kill(process.pid, "SIGTERM");
+  });
+  await configureDatabase();
+
   const queue = new Queue(QUEUE_NAME, { connection });
   const enqueue: EnqueueJob = (jobType, data, bullmqJobId) => addJobToQueue(queue, jobType, data, bullmqJobId);
   // Deliver stranded outbox rows first so reconcile only judges jobs that really are (or should be) in Redis.
@@ -51,7 +66,6 @@ async function main(): Promise<void> {
   const worker = new Worker(QUEUE_NAME, processJob, { connection, concurrency: config.concurrency.worker });
   worker.on("error", (error) => logger.error("Worker error", { error: toSafeErrorMessage(error) }));
 
-  const stopHeartbeat = startHeartbeat(connection);
   const stopDispatchSweeper = startDispatchSweeper(enqueue);
   const stopArchiveSweeper = startArchiveSweeper();
   registerShutdown(async () => {
@@ -59,6 +73,7 @@ async function main(): Promise<void> {
     await stopDispatchSweeper();
     await stopArchiveSweeper();
     await worker.close();
+    await lock.release();
     await queue.close();
     await connection.quit();
     await prisma.$disconnect();

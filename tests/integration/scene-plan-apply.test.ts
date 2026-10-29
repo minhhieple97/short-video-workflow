@@ -30,6 +30,7 @@ async function planFor(variant = "") {
     sources: [],
     lesson: { ...SAMPLE_LESSON, title: `${SAMPLE_LESSON.title}${variant}` },
     range: { minDurationSec: 30, maxDurationSec: 60 },
+    pace: "STANDARD" as const,
     revisionNote: null,
   });
   const plan: ScenePlan = await new MockScenePlanCompiler().compile({
@@ -38,6 +39,7 @@ async function planFor(variant = "") {
     book: SAMPLE_BOOK,
     targetDurationSec: 60,
     range: { minDurationSec: 30, maxDurationSec: 60 },
+    pace: "STANDARD" as const,
     revisionNote: null,
   });
   return createScenePlanArtifact({
@@ -129,7 +131,7 @@ describe("applyScenePlan", () => {
     const legacy = createScenePlanArtifact({
       plan: { ...plan, publish: undefined },
       draftFingerprint: "a".repeat(64),
-      promptVersion: "scene-plan-v5",
+      promptVersion: "scene-plan-v6",
       targetDurationSec: 60,
     });
 
@@ -148,7 +150,7 @@ describe("applyScenePlan", () => {
         publish: { title: "Một tiêu đề", caption: "90% người bỏ lỡ điều này.", hashtags: ["a", "b", "c"] },
       },
       draftFingerprint: "a".repeat(64),
-      promptVersion: "scene-plan-v6",
+      promptVersion: "scene-plan-v7",
       targetDurationSec: 60,
     });
 

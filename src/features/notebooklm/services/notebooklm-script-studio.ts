@@ -119,7 +119,12 @@ export class NotebookLmScriptStudio implements ScriptStudioProvider {
   async writeDraft(request: WriteDraftRequest, options?: CallOptions): Promise<ScriptDraft> {
     const answer = await this.ask(
       request.sources,
-      buildScriptDraftPrompt({ lesson: request.lesson, range: request.range, revisionNote: request.revisionNote }),
+      buildScriptDraftPrompt({
+        lesson: request.lesson,
+        range: request.range,
+        pace: request.pace,
+        revisionNote: request.revisionNote,
+      }),
       "DRAFT_INVALID",
       draftAnswerSchema,
       options,

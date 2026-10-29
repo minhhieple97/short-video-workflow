@@ -1,4 +1,5 @@
-import { HOOK_MAX_SECONDS, MAX_STORY_SCENES, SYLLABLES_PER_SECOND } from "@/features/videos/domain/duration";
+import { HOOK_MAX_SECONDS, MAX_STORY_SCENES } from "@/features/videos/domain/duration";
+import { formatSyllablesPerSecond, paceProfile, syllablesPerSecond } from "@/features/videos/domain/pace";
 import { STORY_SCENE_ORDER } from "@/features/videos/domain/narrative-beats";
 import type { ScenePlanTaskInput } from "@/server/scene-plan/handoff";
 
@@ -6,11 +7,12 @@ import { ILLUSTRATION_JSON, ILLUSTRATION_RULE } from "./illustration-rule";
 import { PUBLISH_JSON, PUBLISH_RULE } from "./publish-rule";
 import { fenceUntrustedText, UNTRUSTED_TEXT_RULE } from "./untrusted-text";
 
-export const SCENE_PLAN_PROMPT_VERSION = "scene-plan-v6";
+export const SCENE_PLAN_PROMPT_VERSION = "scene-plan-v7";
 
 export function buildScenePlanPrompt(input: ScenePlanTaskInput): string {
-  const hookSyllables = HOOK_MAX_SECONDS * SYLLABLES_PER_SECOND - 1;
-  const syllables = (seconds: number) => seconds * SYLLABLES_PER_SECOND;
+  const rate = syllablesPerSecond(input.pace);
+  const hookSyllables = Math.floor(HOOK_MAX_SECONDS * rate) - 1;
+  const syllables = (seconds: number) => Math.floor(seconds * rate);
 
   return [
     `# Biên tập bản thảo thành cảnh video (${SCENE_PLAN_PROMPT_VERSION})`,
@@ -27,7 +29,7 @@ export function buildScenePlanPrompt(input: ScenePlanTaskInput): string {
     `- hook: lời dẫn tối đa ~${hookSyllables} âm tiết (đọc xong trong ${HOOK_MAX_SECONDS} giây), có chữ trên màn hình ngay từ frame 0, không lời chào, không logo.`,
     `- scenes: đúng thứ tự ${STORY_SCENE_ORDER.join(" → ")}; mỗi loại ít nhất một cảnh, không dùng loại cảnh nào khác. Tương ứng bản thảo: SITUATION ← SITUATION, COMMON_MISTAKE ← MISTAKE, KEY_TAKEAWAY ← LESSON, BETTER_APPROACH ← RESOLUTION, ACTION_STEP ← ACTION.`,
     `- Video dài hơn 60 giây: kể sâu hơn chứ không thêm bài học — mỗi phần có thể gồm nhiều cảnh (mỗi cảnh khoảng 8–15 giây), tình huống chi tiết hơn, nhiều bước hành động hơn; tối đa ${MAX_STORY_SCENES} cảnh sau hook.`,
-    `- Lời dẫn đọc khoảng ${SYLLABLES_PER_SECOND} âm tiết/giây; tổng lời dẫn (hook + các cảnh) khoảng ~${syllables(input.targetDurationSec)} âm tiết, không dưới ~${syllables(input.minDurationSec)} và không quá ~${syllables(input.maxDurationSec)}. Không nói nhanh để vừa: hãy rút gọn; không thêm ý ngoài bản thảo để cho dài.`,
+    `- Lời dẫn sẽ được đọc ở nhịp ${paceProfile(input.pace).label.toLowerCase()} (khoảng ${formatSyllablesPerSecond(input.pace)} âm tiết/giây); tổng lời dẫn (hook + các cảnh) khoảng ~${syllables(input.targetDurationSec)} âm tiết, không dưới ~${syllables(input.minDurationSec)} và không quá ~${syllables(input.maxDurationSec)}. Quá ngân sách thì rút gọn, đừng nhồi chữ; không thêm ý ngoài bản thảo để cho dài.`,
     "- Lời dẫn và chữ trên màn hình LUÔN bằng tiếng Việt tự nhiên, có dấu, kể cả khi trích đoạn nguồn bằng tiếng Anh (không chép câu tiếng Anh lên màn hình, trừ tên riêng, tên sách). onScreenText cô đọng (từ khoá, tối đa 120 ký tự; hook tối đa 60 ký tự), không phải đoạn văn.",
     "- visualVariant thuộc: HOOK_QUESTION, SPLIT_MISTAKE_SOLUTION, SCENARIO_CARD, BIG_TAKEAWAY, ACTION_CHECKLIST.",
     ILLUSTRATION_RULE,

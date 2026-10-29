@@ -5,7 +5,15 @@ import { getAppConfig } from "@/shared/config/env";
 import { AppError, NotFoundError } from "@/shared/errors";
 import type { JobDto } from "@/shared/types/job";
 
-import { assessLessonLoad, clampToRange, formatPreset, type DurationRange } from "../domain/duration";
+import {
+  assessLessonLoad,
+  clampToRange,
+  estimateNarrationSeconds,
+  formatPreset,
+  secondsToFrames,
+  type DurationRange,
+} from "../domain/duration";
+import { syllablesPerSecond, toPace } from "../domain/pace";
 import { toVideoStatus } from "../domain/video-status";
 import {
   createVideoRecord,
@@ -16,6 +24,7 @@ import {
   listSceneIds,
   listVideoRecords,
   markScriptApproved,
+  setSceneEstimates,
   setPreviewMode,
   updateVideoMetadata,
   type VideoDetailRecord,
@@ -90,6 +99,7 @@ export async function createVideo(input: CreateVideoInput): Promise<{ video: Vid
     title: input.title,
     description: input.description,
     range: { minDurationSec: input.minDurationSec, maxDurationSec: input.maxDurationSec },
+    pace: input.pace ?? getAppConfig().video.defaultPace,
     lessons: ordered.map((lesson) => ({ lessonId: lesson.id, snapshot: buildLessonSnapshot(lesson, capturedAt) })),
   });
 
@@ -103,14 +113,32 @@ export async function updateVideo(id: string, input: UpdateVideoInput): Promise<
   const video = await requireVideo(id);
   await assertScriptNotGenerating(id);
   const range = { minDurationSec: input.minDurationSec, maxDurationSec: input.maxDurationSec };
+  const pace = input.pace ?? toPace(video.pace);
   await updateVideoMetadata(id, {
     title: input.title,
     description: input.description,
     ...range,
+    pace,
     targetDurationSec: clampToRange(video.targetDurationSec, range),
     platformPreviewMode: input.platformPreviewMode,
   });
+  if (pace !== toPace(video.pace)) await reestimateScenesWithoutAudio(id, video.scenes, syllablesPerSecond(pace));
   return getVideo(id);
+}
+
+// A scene without audio is as long as its narration is estimated to take, which depends on how fast it will be voiced.
+async function reestimateScenesWithoutAudio(
+  videoId: string,
+  scenes: readonly { id: string; narration: string; audioAssetId: string | null }[],
+  rate: number,
+): Promise<void> {
+  const estimates = scenes
+    .filter((scene) => scene.audioAssetId === null)
+    .map((scene) => {
+      const estimatedSeconds = estimateNarrationSeconds(scene.narration, rate);
+      return { sceneId: scene.id, estimatedSeconds, durationFrames: secondsToFrames(estimatedSeconds) };
+    });
+  if (estimates.length > 0) await setSceneEstimates(videoId, estimates);
 }
 
 export async function updatePreviewMode(

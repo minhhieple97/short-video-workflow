@@ -1,16 +1,11 @@
 import { VIDEO_FPS } from "./duration";
 
-export const TTS_ENGINE_VERSION = "edge-tts-trimmed-v1";
 export const MAX_AUDIO_SECONDS = 120;
 export const LEADING_SILENCE_WARNING_MS = 500;
 
 export type AudioFormat = "mp3" | "wav";
 
 export const AUDIO_MIME_TYPES: Record<AudioFormat, string> = { mp3: "audio/mpeg", wav: "audio/wav" };
-
-export function formatEdgeTtsRate(speedPercent: number): string {
-  return `${speedPercent >= 0 ? "+" : ""}${speedPercent}%`;
-}
 
 // Recognises audio by its bytes, not its name: MP3 (ID3 tag or MPEG frame sync) or RIFF/WAVE.
 export function detectAudioFormat(bytes: Uint8Array): AudioFormat | null {
@@ -19,6 +14,16 @@ export function detectAudioFormat(bytes: Uint8Array): AudioFormat | null {
   if (bytes[0] === 0xff && ((bytes[1] ?? 0) & 0xe0) === 0xe0) return "mp3";
   if (ascii(0, 4) === "RIFF" && ascii(8, 12) === "WAVE") return "wav";
   return null;
+}
+
+// The scenes "voice everything again" covers: those with narration, except a clip the user uploaded, which a new voice
+// must not replace.
+export function sceneIdsToRevoice(
+  scenes: readonly { id: string; narration: string; audioProvider: string | null }[],
+): string[] {
+  return scenes
+    .filter((scene) => scene.narration.trim().length > 0 && scene.audioProvider !== "upload")
+    .map((scene) => scene.id);
 }
 
 // Scene length follows the real narration: audio duration plus a short configurable pause.

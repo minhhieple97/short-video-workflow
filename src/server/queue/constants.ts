@@ -4,8 +4,11 @@ import type { JobType } from "@/shared/types/job";
 
 export const QUEUE_NAME = "studio-jobs";
 export const WORKER_HEARTBEAT_KEY = "studio:worker:heartbeat";
+export const WORKER_LOCK_KEY = "studio:worker:lock";
 export const WORKER_HEARTBEAT_INTERVAL_MS = 5_000;
 export const WORKER_HEARTBEAT_STALE_AFTER_MS = 15_000;
+// How long the heartbeat and the lock outlive their last refresh: a few missed beats must not cost the worker its place.
+export const WORKER_LIVENESS_TTL_MS = WORKER_HEARTBEAT_INTERVAL_MS * 6;
 
 export const DEFAULT_JOB_OPTIONS: JobsOptions = {
   attempts: 1,

@@ -26,7 +26,11 @@ export function LessonTable({
         {lessons.map((lesson) => (
           <TableRow key={lesson.id}>
             <TableCell className="max-w-md whitespace-normal">
-              <Link href={`/books/${lesson.bookId}/lessons/${lesson.id}`} className="font-medium hover:underline">
+              <Link
+                href={`/books/${lesson.bookId}/lessons/${lesson.id}`}
+                title={lesson.title}
+                className="line-clamp-2 font-medium wrap-break-word hover:underline"
+              >
                 {lesson.title}
               </Link>
               <p className="text-muted-foreground line-clamp-2 text-xs">{lesson.summary}</p>

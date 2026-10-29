@@ -37,6 +37,7 @@ export function describeScenePlanCompilerContract(name: string, createCompiler: 
       book: SAMPLE_BOOK,
       targetDurationSec: 60 as const,
       range: { minDurationSec: 30, maxDurationSec: 60 },
+      pace: "STANDARD" as const,
       revisionNote: null,
     };
 

@@ -33,6 +33,8 @@ const STARTUP_STEPS = [
   { label: "Redis", command: "docker compose up -d" },
   { label: "Worker", command: "pnpm worker:dev" },
   { label: "Web (http://127.0.0.1:3000)", command: "pnpm dev" },
+  { label: "Web và worker, một terminal", command: "pnpm dev:all" },
+  { label: "Trạng thái worker", command: "pnpm worker:status" },
   { label: "Tác vụ chờ Claude CLI", command: "pnpm ai:run --list" },
   { label: "Chẩn đoán trong terminal", command: "pnpm diagnose" },
 ];

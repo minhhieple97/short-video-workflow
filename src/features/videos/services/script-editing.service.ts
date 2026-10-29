@@ -11,7 +11,7 @@ import {
 } from "../repositories/video.repository";
 import type { VideoDetail } from "../schemas/video.dto";
 import type { AddSceneInput, UpdateSceneInput } from "../schemas/video.schema";
-import { buildSceneRecord, parseIllustration } from "./scene-records";
+import { buildSceneRecord, narrationRateOf, parseIllustration } from "./scene-records";
 import { lessonSnapshotsOf, toVideoDetail } from "./video-mapper";
 import { assertScriptNotGenerating, getVideo, requireVideo } from "./video.service";
 
@@ -27,15 +27,18 @@ export async function selectHookOption(videoId: string, optionIndex: number): Pr
   const option = toVideoDetail(video).hookOptions[optionIndex];
   if (!option) throw new AppError("HOOK_OPTION_NOT_FOUND", "Không có phương án hook này.", 404);
 
-  const hookScene = buildSceneRecord({
-    type: "HOOK",
-    title: "Hook",
-    narration: option.narration,
-    onScreenText: option.onScreenText,
-    visualVariant: option.visualVariant,
-    hookVariant: option.variant,
-    illustration: option.illustration ?? null,
-  });
+  const hookScene = buildSceneRecord(
+    {
+      type: "HOOK",
+      title: "Hook",
+      narration: option.narration,
+      onScreenText: option.onScreenText,
+      visualVariant: option.visualVariant,
+      hookVariant: option.variant,
+      illustration: option.illustration ?? null,
+    },
+    narrationRateOf(video),
+  );
   const existing = video.scenes.find((scene) => scene.type === "HOOK");
   if (existing) {
     const narrationChanged = existing.narration !== hookScene.narration;
@@ -57,7 +60,10 @@ export async function updateScene(videoId: string, sceneId: string, input: Updat
 
   const illustration =
     input.illustration === undefined ? parseIllustration(scene.illustrationJson) : input.illustration;
-  const record = buildSceneRecord({ ...input, illustration, type: scene.type, hookVariant: scene.hookVariant });
+  const record = buildSceneRecord(
+    { ...input, illustration, type: scene.type, hookVariant: scene.hookVariant },
+    narrationRateOf(video),
+  );
   const narrationChanged = record.narration !== scene.narration;
   // Keep the audio-based length while the narration (and therefore its audio) is unchanged.
   const timing =
@@ -100,14 +106,17 @@ export async function addScene(videoId: string, input: AddSceneInput): Promise<V
   await insertSceneAfter(
     videoId,
     afterSceneId,
-    buildSceneRecord({
-      type,
-      title: SCENE_TYPE_LABELS[type],
-      narration,
-      onScreenText: SCENE_TYPE_LABELS[type].toUpperCase(),
-      visualVariant: DEFAULT_VISUAL_VARIANT[type],
-      hookVariant: null,
-    }),
+    buildSceneRecord(
+      {
+        type,
+        title: SCENE_TYPE_LABELS[type],
+        narration,
+        onScreenText: SCENE_TYPE_LABELS[type].toUpperCase(),
+        visualVariant: DEFAULT_VISUAL_VARIANT[type],
+        hookVariant: null,
+      },
+      narrationRateOf(video),
+    ),
   );
   return getVideo(videoId);
 }

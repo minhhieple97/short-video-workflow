@@ -35,7 +35,7 @@ export function SceneVoiceRow({ scene, ttsEnabled }: Readonly<{ scene: SceneDto;
         <Badge variant={SCENE_TONE[scene.type].badge}>{SCENE_TYPE_LABELS[scene.type]}</Badge>
         {scene.audio ? (
           <>
-            <Badge variant="slate">{scene.audio.provider === "edge-tts" ? "edge-tts" : "Tải lên"}</Badge>
+            <Badge variant="slate">{scene.audio.provider === "upload" ? "Tải lên" : scene.audio.provider}</Badge>
             <Badge variant="mint">{(scene.audio.durationMs / 1000).toFixed(1)}s</Badge>
             {scene.audio.leadingSilenceMs > LEADING_SILENCE_WARNING_MS ? (
               <Badge variant="rose">Im lặng đầu {scene.audio.leadingSilenceMs} ms</Badge>

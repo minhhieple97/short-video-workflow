@@ -61,7 +61,8 @@ export function fitToRange(seconds: number, range: DurationRange): TargetDuratio
   return allowed.find((preset) => preset >= seconds) ?? allowed.at(-1) ?? MAX_TARGET_SEC;
 }
 
-// Natural Vietnamese narration is roughly four syllables a second; real audio length replaces this estimate later.
+// Natural Vietnamese narration is roughly four syllables a second at the standard pace (a faster pace speaks faster: see
+// syllablesPerSecond in pace.ts); real audio length replaces this estimate later.
 export const SYLLABLES_PER_SECOND = 4;
 const SCENE_PAUSE_SECONDS = 0.4;
 
@@ -69,10 +70,10 @@ export function countSyllables(text: string): number {
   return text.split(/\s+/).filter((token) => /[\p{L}\p{N}]/u.test(token)).length;
 }
 
-export function estimateNarrationSeconds(text: string): number {
+export function estimateNarrationSeconds(text: string, syllablesPerSecond = SYLLABLES_PER_SECOND): number {
   const syllables = countSyllables(text);
   if (syllables === 0) return 0;
-  return Math.round((syllables / SYLLABLES_PER_SECOND + SCENE_PAUSE_SECONDS) * 10) / 10;
+  return Math.round((syllables / syllablesPerSecond + SCENE_PAUSE_SECONDS) * 10) / 10;
 }
 
 export function secondsToFrames(seconds: number, fps = VIDEO_FPS): number {

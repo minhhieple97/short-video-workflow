@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { IconButton } from "@/components/layout/icon-button";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -24,7 +25,9 @@ import { errorMessage, sendJson } from "@/lib/api-client";
 
 import { assessLessonLoad, type DurationRange } from "../domain/duration";
 import type { VideoDetail } from "../schemas/video.dto";
+import type { Pace } from "../domain/pace";
 import { DurationRangePicker } from "./duration-range-picker";
+import { PaceSelect } from "./pace-select";
 
 export interface SelectableLesson {
   id: string;
@@ -36,11 +39,13 @@ export function CreateVideoDialog({
   bookId,
   lessons,
   defaultRange,
+  defaultPace,
   ceilingSec,
 }: Readonly<{
   bookId: string;
   lessons: readonly SelectableLesson[];
   defaultRange: DurationRange;
+  defaultPace: Pace;
   ceilingSec: number;
 }>) {
   const router = useRouter();
@@ -49,6 +54,7 @@ export function CreateVideoDialog({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [duration, setDuration] = useState<DurationRange>(defaultRange);
+  const [pace, setPace] = useState<Pace>(defaultPace);
   const [pending, setPending] = useState(false);
 
   const load = assessLessonLoad(selected.length, duration.maxDurationSec);
@@ -68,6 +74,7 @@ export function CreateVideoDialog({
         description,
         lessonIds: selected,
         ...duration,
+        pace,
       });
       toast.success("Đã tạo video. Hãy tạo kịch bản.");
       warnings.forEach((warning) => toast.warning(warning));
@@ -82,13 +89,13 @@ export function CreateVideoDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button
+        <IconButton
+          label="Tạo video"
+          note={lessons.length === 0 ? "Cần ít nhất một bài học đã duyệt" : undefined}
           disabled={lessons.length === 0}
-          title={lessons.length === 0 ? "Cần ít nhất một bài học đã duyệt" : undefined}
         >
           <Clapperboard aria-hidden />
-          Tạo video
-        </Button>
+        </IconButton>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
@@ -145,6 +152,10 @@ export function CreateVideoDialog({
             onChange={setDuration}
             ceilingSec={ceilingSec}
           />
+        </div>
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium">Nhịp độ đọc</span>
+          <PaceSelect id="new-video-pace" value={pace} onChange={setPace} />
         </div>
 
         {selected.length > 0 ? (

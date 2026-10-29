@@ -45,13 +45,20 @@ async function open(page: Page, url: string): Promise<void> {
 }
 
 // The video may run from 30 seconds up to `longest`; the AI picks its length inside that range with the script.
-async function createVideo(page: Page, bookUrl: string, lessonIndexes: number[], longest: string): Promise<string> {
+async function createVideo(
+  page: Page,
+  bookUrl: string,
+  lessonIndexes: number[],
+  longest: string,
+  pace: "Chuẩn" | "Nhanh" | "Rất nhanh" = "Chuẩn",
+): Promise<string> {
   await open(page, `${bookUrl}?tab=videos`);
   await page.getByRole("button", { name: "Tạo video" }).click();
   const dialog = page.getByRole("dialog");
   for (const index of lessonIndexes) await dialog.getByRole("checkbox").nth(index).click();
   await dialog.getByLabel("Dài nhất").click();
   await page.getByRole("option", { name: longest, exact: true }).click();
+  await dialog.getByText(pace, { exact: true }).click();
   await dialog.getByRole("button", { name: "Tạo video" }).click();
   await page.waitForURL(/\/videos\/[a-z0-9]+$/);
   return page.url();
@@ -98,8 +105,12 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
     return hrefs;
   });
 
-  const videoA = await test.step("create video A (one lesson, up to 60 s) and pick a hook", async () => {
-    const url = await createVideo(page, bookUrl, [0], "60 giây");
+  const videoA = await test.step("create video A (one lesson, up to 60 s, fastest pace) and pick a hook", async () => {
+    const url = await createVideo(page, bookUrl, [0], "60 giây", "Rất nhanh");
+    const created = (await (await request.get(`/api/videos/${url.split("/").at(-1) ?? ""}`)).json()) as {
+      pace: string;
+    };
+    expect(created.pace).toBe("FASTER");
     await expect(page.getByText("Khoảng 30 giây – 60 giây")).toBeVisible();
     await generateScript(page);
     await expect(page.getByText(/^AI đề xuất (30|45|60) giây · 30 giây – 60 giây$/)).toBeVisible();
@@ -173,6 +184,7 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
       wav,
     ]);
     await open(page, `${videoA}?tab=voice`);
+    await expect(page.getByText(/nhịp Rất nhanh \(giọng \+30%\)/)).toBeVisible();
     await page.locator("input[type=file]").first().setInputFiles(wav);
     await expect(page.getByText("Đã tải âm thanh lên cho cảnh.")).toBeVisible();
     // Remotion's docked Player keeps its own pool of <audio> tags, so look only inside the voice tab.

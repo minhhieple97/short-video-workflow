@@ -4,7 +4,6 @@ import type * as Claim from "@/features/productions/repositories/production-clai
 import type * as Correction from "@/features/productions/services/ai-correction.service";
 import type * as ProductionRequest from "@/features/productions/services/production-request.service";
 import type * as DbClient from "@/server/db/client";
-import { getAppConfig } from "@/shared/config/env";
 
 import { seedProduction } from "../helpers/production-fixture";
 import { setupTestEnvironment, type TestEnvironment } from "../helpers/test-environment";
@@ -64,13 +63,13 @@ describe("requestAiCorrection", () => {
     expect(await item()).toMatchObject({ aiCorrectionTarget: "SCRIPT_STUDIO", checkpoint: "NONE" });
   });
 
-  it("never touches the preset or the narration speed, however the video overran", async () => {
-    const speedBefore = getAppConfig().tts.speed;
+  it("never touches the preset or the reading pace, however the video overran", async () => {
+    await db.prisma.video.update({ where: { id: videoId }, data: { pace: "FAST" } });
 
     await request(["OVER_TARGET", "OVER_MAX", "HOOK_TOO_LONG"]);
 
     expect((await db.prisma.video.findUniqueOrThrow({ where: { id: videoId } })).targetDurationSec).toBe(60);
-    expect(getAppConfig().tts.speed).toBe(speedBefore);
+    expect((await db.prisma.video.findUniqueOrThrow({ where: { id: videoId } })).pace).toBe("FAST");
   });
 
   it("allows only one correction per video: the second request is refused and changes nothing", async () => {

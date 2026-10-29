@@ -2,8 +2,8 @@ import { Clapperboard } from "lucide-react";
 import Link from "next/link";
 
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
+import { IconButton } from "@/components/layout/icon-button";
 import { PageHeader } from "@/components/layout/page-header";
-import { Button } from "@/components/ui/button";
 import { toBookTab } from "@/features/books/components/book-tab-values";
 import { BookTabs } from "@/features/books/components/book-tabs";
 import { DeleteBookButton } from "@/features/books/components/delete-book-button";
@@ -73,27 +73,24 @@ export default async function BookDetailPage({ params, searchParams }: Readonly<
         actions={
           <>
             {produceBlocked ? (
-              // A disabled button gets no pointer events, so the wrapper carries the tooltip.
-              <span title={produceBlocked} className="inline-flex">
-                <Button disabled aria-label={`Sản xuất video — ${produceBlocked}`}>
-                  <Clapperboard aria-hidden />
-                  Sản xuất video
-                </Button>
-              </span>
+              <IconButton disabled label="Sản xuất video" note={produceBlocked}>
+                <Clapperboard aria-hidden />
+              </IconButton>
             ) : (
-              <Button asChild>
+              <IconButton asChild label="Sản xuất video">
                 <Link href={`/books/${book.id}/produce`}>
                   <Clapperboard aria-hidden />
-                  Sản xuất video
                 </Link>
-              </Button>
+              </IconButton>
             )}
             <EditBookDialog book={book} />
             <DeleteBookButton book={book} />
           </>
         }
       />
-      {book.description ? <p className="text-sm whitespace-pre-line">{book.description}</p> : null}
+      {book.description ? (
+        <p className="max-w-3xl text-sm wrap-break-word whitespace-pre-line">{book.description}</p>
+      ) : null}
       {extraction ? <ExtractionPanel extraction={extraction} /> : null}
 
       <BookTabs
@@ -142,6 +139,7 @@ export default async function BookDetailPage({ params, searchParams }: Readonly<
                   bookId={book.id}
                   lessons={approvedLessons.map(({ id, title, usedInVideoCount }) => ({ id, title, usedInVideoCount }))}
                   defaultRange={defaultDurationRange()}
+                  defaultPace={getAppConfig().video.defaultPace}
                   ceilingSec={getAppConfig().video.maxDurationSec}
                 />
               </div>

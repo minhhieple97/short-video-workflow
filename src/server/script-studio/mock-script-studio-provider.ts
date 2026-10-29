@@ -1,4 +1,5 @@
 import { estimateNarrationSeconds, fitToRange } from "@/features/videos/domain/duration";
+import { syllablesPerSecond } from "@/features/videos/domain/pace";
 import { NARRATIVE_BEATS, type NarrativeBeat } from "@/features/videos/domain/narrative-beats";
 import type { CallOptions } from "@/server/integrations/call-options";
 import type { DetectedChapter, LessonExtraction, ScriptDraft } from "@/server/script-studio/script-studio-contracts";
@@ -88,8 +89,10 @@ export class MockScriptStudioProvider implements ScriptStudioProvider {
 
     // Like a real studio, it writes about as much as the length it proposes: short lesson fields are told again, beat
     // after beat, until the narration reaches the range's minimum.
+    const rate = syllablesPerSecond(request.pace);
     const retold = [lesson.summary, lesson.principle, lesson.betterApproach, lesson.actionableStep].filter(Boolean);
-    const told = () => NARRATIVE_BEATS.reduce((sum, beat) => sum + estimateNarrationSeconds(narrationFor[beat]), 0);
+    const told = () =>
+      NARRATIVE_BEATS.reduce((sum, beat) => sum + estimateNarrationSeconds(narrationFor[beat], rate), 0);
     for (let turn = 0; told() < request.range.minDurationSec && retold.length > 0 && turn < 40; turn += 1) {
       const beat = RETOLD_BEATS[turn % RETOLD_BEATS.length] ?? "SITUATION";
       narrationFor[beat] = `${narrationFor[beat]} ${retold[turn % retold.length] ?? ""}`;

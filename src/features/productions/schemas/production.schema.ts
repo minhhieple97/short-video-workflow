@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { durationRangeFields, enforceRange } from "@/features/videos/schemas/video.schema";
+import { durationRangeFields, enforceRange, paceFields } from "@/features/videos/schemas/video.schema";
 
 export const MAX_LESSONS_PER_PRODUCTION = 100;
 
@@ -15,6 +15,7 @@ export const createProductionSchema = z
     // Chosen by the caller for one submit, so a double click or a replay is recognised and not made twice.
     idempotencyKey: z.string().trim().min(8, "Khoá chống gửi trùng quá ngắn.").max(100),
     ...durationRangeFields,
+    ...paceFields,
   })
   .superRefine(enforceRange);
 

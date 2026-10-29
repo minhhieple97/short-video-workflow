@@ -68,6 +68,7 @@ export function createVideoRecord(input: {
   title: string;
   description: string | null;
   range: { minDurationSec: number; maxDurationSec: number };
+  pace: string;
   lessons: { lessonId: string; snapshot: Prisma.InputJsonObject }[];
 }): Promise<Video> {
   return prisma.video.create({
@@ -76,6 +77,7 @@ export function createVideoRecord(input: {
       title: input.title,
       description: input.description,
       ...input.range,
+      pace: input.pace,
       // Until a script proposes a length, the plan is the longest the user allows.
       targetDurationSec: input.range.maxDurationSec,
       status: "DRAFT",
@@ -97,6 +99,7 @@ export function updateVideoMetadata(
     description: string | null;
     minDurationSec: number;
     maxDurationSec: number;
+    pace: string;
     targetDurationSec: number;
     platformPreviewMode: "TIKTOK" | "YOUTUBE_SHORTS" | "FACEBOOK_REELS" | null;
   },
@@ -266,6 +269,17 @@ export function setSceneAudio(
     const scene = await tx.videoScene.update({ where: { id: sceneId, videoId }, data: audio });
     await bumpContentVersion(tx, videoId);
     return scene;
+  });
+}
+
+// New length estimates for scenes that have no audio yet; they change what a render would show, so earlier renders go outdated.
+export function setSceneEstimates(
+  videoId: string,
+  estimates: readonly { sceneId: string; estimatedSeconds: number; durationFrames: number }[],
+): Promise<void> {
+  return prisma.$transaction(async (tx) => {
+    for (const { sceneId, ...data } of estimates) await tx.videoScene.update({ where: { id: sceneId, videoId }, data });
+    await bumpContentVersion(tx, videoId);
   });
 }
 
