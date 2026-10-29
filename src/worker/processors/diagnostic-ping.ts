@@ -44,6 +44,7 @@ async function runMockAiCheck(taskId: string) {
       minDurationSec: 30,
       maxDurationSec: 60,
       videoProfile: "SHORT_VERTICAL",
+      book: { title: "Kiểm tra", author: null },
       lessons: [
         { lessonId: "diagnostic", ...lesson, contentHash: null, sources: [], capturedAt: new Date().toISOString() },
       ],

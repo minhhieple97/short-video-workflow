@@ -23,6 +23,7 @@ import { toSafeErrorMessage } from "@/shared/logger";
 import { formatRange, isWithinRange } from "../domain/duration";
 import { describeStoryOrderProblem, findStorySceneOrderProblem } from "../domain/narrative-beats";
 import { replaceScript, updateSceneRecord } from "../repositories/video.repository";
+import { publishWriteFor } from "./publish-proposal";
 import { buildSceneRecord, parseIllustration } from "./scene-records";
 import { lessonSnapshotsOf } from "./video-mapper";
 import { requireVideo } from "./video.service";
@@ -109,6 +110,7 @@ export async function runScriptGeneration(
     minDurationSec: video.minDurationSec,
     maxDurationSec: video.maxDurationSec,
     videoProfile: "SHORT_VERTICAL",
+    book: { title: video.book.title, author: video.book.author },
     lessons: lessonSnapshotsOf(video),
     promptVersion: VIDEO_SCRIPT_PROMPT_VERSION,
   });
@@ -159,6 +161,13 @@ export async function runScriptGeneration(
       hookOptions: output.hookOptions,
       scenes,
       duration: { targetDurationSec: output.targetDurationSec, durationReason: output.durationReason },
+      publish: publishWriteFor(output.publish, {
+        videoId: video.id,
+        promptVersion: VIDEO_SCRIPT_PROMPT_VERSION,
+        book: input.book,
+        lessons: input.lessons,
+        scenes,
+      }),
     });
     return { kind: "done", value: { scenes: scenes.length, hookOptions: output.hookOptions.length }, output };
   });

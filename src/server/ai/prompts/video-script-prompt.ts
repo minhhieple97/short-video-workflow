@@ -4,9 +4,10 @@ import { STORY_SCENE_ORDER } from "@/features/videos/domain/narrative-beats";
 import type { SceneRegenerationInput, VideoScriptInput } from "../contracts/video-script";
 import { DURATION_CHOICE_RULE, durationChoices } from "./duration-choice";
 import { ILLUSTRATION_JSON, ILLUSTRATION_RULE } from "./illustration-rule";
+import { PUBLISH_JSON, PUBLISH_RULE } from "./publish-rule";
 import { fenceUntrustedText, UNTRUSTED_TEXT_RULE } from "./untrusted-text";
 
-export const VIDEO_SCRIPT_PROMPT_VERSION = "video-script-v6";
+export const VIDEO_SCRIPT_PROMPT_VERSION = "video-script-v7";
 
 const SHARED_RULES = [
   `- ${UNTRUSTED_TEXT_RULE}`,
@@ -31,12 +32,13 @@ export function buildVideoScriptPrompt(input: VideoScriptInput): string {
     `- Video dài hơn 60 giây: kể sâu hơn chứ không thêm bài học — mỗi phần có thể gồm nhiều cảnh (mỗi cảnh khoảng 8–15 giây), tình huống chi tiết hơn, nhiều bước hành động hơn; tối đa ${MAX_STORY_SCENES} cảnh.`,
     `- visualVariant thuộc: HOOK_QUESTION, SPLIT_MISTAKE_SOLUTION, SCENARIO_CARD, BIG_TAKEAWAY, ACTION_CHECKLIST.`,
     ILLUSTRATION_RULE,
+    PUBLISH_RULE,
     "",
     "## Định dạng đầu ra",
-    `Chỉ trả về JSON: {"videoId": "${input.videoId}", "targetDurationSec", "durationReason", "hookOptions": [{"variant","narration","onScreenText","visualVariant",${ILLUSTRATION_JSON}}], "scenes": [{"type","title","narration","onScreenText","visualVariant",${ILLUSTRATION_JSON}}]}`,
+    `Chỉ trả về JSON: {"videoId": "${input.videoId}", "targetDurationSec", "durationReason", "hookOptions": [{"variant","narration","onScreenText","visualVariant",${ILLUSTRATION_JSON}}], "scenes": [{"type","title","narration","onScreenText","visualVariant",${ILLUSTRATION_JSON}}], ${PUBLISH_JSON}}`,
     "",
-    "## Bài học nguồn (snapshot)",
-    fenceUntrustedText(JSON.stringify(input.lessons, null, 2)),
+    "## Sách và bài học nguồn (snapshot)",
+    fenceUntrustedText(JSON.stringify({ book: input.book, lessons: input.lessons }, null, 2)),
   ].join("\n");
 }
 

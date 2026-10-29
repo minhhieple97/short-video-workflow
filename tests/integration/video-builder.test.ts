@@ -135,6 +135,15 @@ class OutOfRangeAi extends MockAiProvider {
   }
 }
 
+class MadeUpCaptionAi extends MockAiProvider {
+  override async generateVideoScript(input: VideoScriptInput) {
+    const result = await super.generateVideoScript(input);
+    if (result.status !== "completed" || !result.output.publish) return result;
+    const publish = { ...result.output.publish, caption: "90% người đọc bỏ lỡ điều này." };
+    return { ...result, output: { ...result.output, publish } };
+  }
+}
+
 class PictureSendingAi extends MockAiProvider {
   override async regenerateScene(input: SceneRegenerationInput) {
     const result = await super.regenerateScene(input);
@@ -300,5 +309,29 @@ describe("script generation and editing", () => {
       narration: "Đây là một câu hook quá dài, kéo dài hơn ba giây rất nhiều nên sẽ bị chặn khi duyệt kịch bản.",
     });
     await expect(videos.approveScript(videoId)).rejects.toMatchObject({ code: "HOOK_INVALID" });
+  });
+});
+
+describe("title, caption and hashtags written with the script", () => {
+  it("stores the AI's set with the script, normalized and current", async () => {
+    const { video } = await create([approved[0]!], 60);
+    await generation.runScriptGeneration({ videoId: video.id, jobRecordId: null });
+    const generated = await videos.getVideo(video.id);
+    expect(generated.publish).toMatchObject({ origin: "AI", outdated: false });
+    expect(generated.publish?.caption).toContain("Sách: Sách mẫu");
+    expect(generated.publish?.hashtags).toEqual(expect.arrayContaining(["sachhay", "booktok"]));
+    expect(generated.publish?.hashtags.every((tag) => /^[a-z0-9_]+$/.test(tag))).toBe(true);
+
+    const scene = generated.scenes[1]!;
+    const edited = await editing.updateScene(video.id, scene.id, { ...scene, narration: "Một lời dẫn khác hẳn." });
+    expect(edited.publish).toMatchObject({ title: generated.publish?.title, outdated: true });
+  });
+
+  it("keeps the script but drops a caption with a number found in no source", async () => {
+    const { video } = await create([approved[0]!], 60);
+    await generation.runScriptGeneration({ videoId: video.id, jobRecordId: null, provider: new MadeUpCaptionAi() });
+    const generated = await videos.getVideo(video.id);
+    expect(generated.scenes.length).toBeGreaterThan(0);
+    expect(generated.publish).toBeNull();
   });
 });

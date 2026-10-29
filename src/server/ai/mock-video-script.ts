@@ -10,6 +10,7 @@ import type {
   VideoScriptInput,
   VideoScriptOutput,
 } from "./contracts/video-script";
+import { mockPublishMetadata } from "./mock-publish-metadata";
 
 const MOCK_HOOKS: HookOption[] = [
   {
@@ -72,6 +73,7 @@ export function mockVideoScript(input: VideoScriptInput): VideoScriptOutput {
     durationReason: `Lời mẫu đọc khoảng ${Math.ceil(seconds)} giây.`,
     hookOptions: MOCK_HOOKS,
     scenes,
+    publish: mockPublishMetadata({ book: input.book, lessons: input.lessons, hook: hook?.narration ?? "" }),
   };
 }
 

@@ -14,11 +14,13 @@ import {
 } from "@/features/videos/domain/duration";
 import type { LessonSnapshot } from "@/features/videos/domain/lesson-snapshot";
 import { findStorySceneOrderProblem } from "@/features/videos/domain/narrative-beats";
+import { acceptPublishMetadata, publishClaimSources } from "@/features/videos/domain/publish-metadata";
 import { createVideoSchema } from "@/features/videos/schemas/video.schema";
 import { CHARACTER_ACTIONS, ILLUSTRATION_SETTINGS } from "@/features/videos/domain/illustration";
 import { sceneContentHash } from "@/features/videos/services/scene-records";
 import { hookOptionSchema, storyboardSceneSchema, videoScriptOutputSchema } from "@/server/ai/contracts/video-script";
 import { mockSceneRegeneration, mockVideoScript } from "@/server/ai/mock-video-script";
+import { PUBLISH_RULE } from "@/server/ai/prompts/publish-rule";
 import {
   buildSceneRegenerationPrompt,
   buildVideoScriptPrompt,
@@ -108,6 +110,7 @@ describe("mock video script", () => {
     minDurationSec: 30 as const,
     maxDurationSec: 120 as const,
     videoProfile: "SHORT_VERTICAL" as const,
+    book: { title: "Thói quen nguyên tử", author: "James Clear" },
     lessons: [LESSON],
     promptVersion: VIDEO_SCRIPT_PROMPT_VERSION,
   };
@@ -178,11 +181,27 @@ describe("mock video script", () => {
     expect(regenerate(1).type).toBe(scene.type);
   });
 
-  it("builds a versioned prompt with the lessons fenced as data", () => {
+  it("builds a versioned prompt with the book and lessons fenced as data", () => {
     const prompt = buildVideoScriptPrompt(input);
     expect(prompt).toContain(VIDEO_SCRIPT_PROMPT_VERSION);
     expect(prompt).toContain("<<<BEGIN_UNTRUSTED_SOURCE_TEXT>>>");
     expect(prompt).toContain("Bắt đầu thật nhỏ");
+    const data = prompt.slice(prompt.indexOf("<<<BEGIN_UNTRUSTED_SOURCE_TEXT>>>"));
+    expect(data).toContain("Thói quen nguyên tử");
+  });
+
+  it("asks for a title, caption and hashtags with the script, and the mock's pass the publish rules", () => {
+    expect(buildVideoScriptPrompt(input)).toContain(PUBLISH_RULE);
+    expect(buildVideoScriptPrompt(input)).toContain('"publish":{"title","caption","hashtags":[]}');
+    const output = mockVideoScript(input);
+    const scenes = output.scenes.map((scene) => ({ ...scene, title: scene.title ?? null }));
+    const sources = publishClaimSources({ book: input.book, lessons: input.lessons, scenes });
+    expect(
+      acceptPublishMetadata(output.publish ?? { title: "", caption: "", hashtags: [] }, [
+        ...sources,
+        output.hookOptions[0]?.narration ?? "",
+      ]).issue,
+    ).toBeNull();
   });
 
   it("asks for a picture per hook and scene when writing a script, but not when rewriting one scene's words", () => {

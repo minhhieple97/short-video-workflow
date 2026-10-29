@@ -5,6 +5,8 @@ import { illustrationSchema } from "@/features/videos/domain/illustration";
 import { lessonSnapshotSchema } from "@/features/videos/domain/lesson-snapshot";
 import { BODY_SCENE_TYPES, HOOK_VARIANTS, VISUAL_VARIANTS } from "@/features/videos/domain/scene-types";
 
+import { publishBookSchema, publishMetadataDraftSchema } from "./publish-metadata";
+
 const narration = z.string().trim().min(1).max(600);
 const onScreenText = z.string().trim().min(1).max(120);
 
@@ -35,6 +37,7 @@ export const videoScriptInputSchema = z.object({
   minDurationSec: durationPreset,
   maxDurationSec: durationPreset,
   videoProfile: z.literal("SHORT_VERTICAL"),
+  book: publishBookSchema,
   lessons: z.array(lessonSnapshotSchema).min(1),
   promptVersion: z.string(),
 });
@@ -46,6 +49,8 @@ export const videoScriptOutputSchema = z.object({
   hookOptions: z.array(hookOptionSchema).min(2).max(3),
   // A five-minute video tells each part of the story in several scenes.
   scenes: z.array(storyboardSceneSchema).min(1).max(MAX_STORY_SCENES),
+  // Optional and loosely typed so that a caption breaking a rule is dropped on its own instead of failing the script.
+  publish: publishMetadataDraftSchema.optional(),
 });
 
 export const sceneRegenerationInputSchema = z.object({
