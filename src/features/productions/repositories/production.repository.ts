@@ -1,5 +1,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
+import { AppError } from "@/shared/errors";
 
 import { startItemJobWithin } from "./production-jobs.repository";
 
@@ -104,10 +105,19 @@ export function createProduction(input: {
   range: { minDurationSec: number; maxDurationSec: number };
   pace: string;
   items: readonly NewProductionItem[];
+  importItemId?: string;
 }): Promise<ProductionRecord> {
   return prisma.$transaction(async (tx) => {
+    if (input.importItemId) {
+      const active = await tx.bookImportItem.updateMany({
+        where: { id: input.importItemId, bookId: input.bookId, batch: { status: { in: ["QUEUED", "RUNNING"] } } },
+        data: { updatedAt: new Date() },
+      });
+      if (!active.count) throw new AppError("BOOK_IMPORT_STOPPED", "Đợt nhập đã dừng.", 409);
+    }
     const batch = await tx.productionBatch.create({
       data: {
+        importItemId: input.importItemId,
         bookId: input.bookId,
         idempotencyKey: input.idempotencyKey,
         fingerprint: input.fingerprint,

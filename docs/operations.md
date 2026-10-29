@@ -400,6 +400,30 @@ Drive; không mất tiến độ khi khởi động lại, không chạy lại c
 - [ ] Archive Drive hoàn tất: thư mục có MP4, `script.json`, `manifest.json`, checksum khớp bản local.
 - [ ] Dừng rồi chạy lại worker giữa một đợt sản xuất: tiến độ không mất, không có video hay tệp Drive trùng.
 
+### Nhập tự động tối đa 15 PDF
+
+1. Giữ `WORKER_CONCURRENCY=1`, `MAX_AI_CONCURRENCY=1`, `RENDER_CONCURRENCY=1`. Với tài khoản thật, dùng `AI_MODE=cli-auto`,
+   NotebookLM đã đăng nhập, edge-tts hoạt động; kết nối Drive nếu muốn lưu từ xa. Mistral chỉ cần khi có trang phải OCR.
+2. Sau khi cập nhật mã, chạy `pnpm db:migrate` rồi `pnpm db:generate`, khởi động lại web và worker. Không chạy hai worker
+   chung Redis database. Các migration bổ sung giữ nguyên sách, video và checkpoint cũ.
+3. Vào **Nhập sách → Nhập nhiều PDF tự động** (`/books/import/batch`), chọn 1–15 PDF, khoảng thời lượng và nhịp độ.
+   Bấm tải lên. Trang chỉ chuyển sang tiến độ sau khi tệp hợp lệ đã lưu và đợt được xếp hàng; sau đó có thể đóng trang.
+4. Xem lại tại `/book-imports`. Một sách làm xong mới chuyển sách sau. Lỗi từng sách có lý do và liên kết tới sách hoặc
+   đợt video; sau khi xử lý nguyên nhân, bấm **Thử lại các sách lỗi**. Video đã hoàn tất không được tạo lại.
+
+Hết quota Claude: worker không thất bại vì phải chờ nhiều giờ. Lịch chờ nằm trong SQLite và giữ qua restart. Có giờ
+reset hoặc thông báo còn 30 phút / 1 giờ thì job được xếp chạy lại từ đúng mốc đó, không thức dậy kiểm tra mỗi phút.
+Trong lúc chờ, bản thảo NotebookLM và checkpoint được giữ nguyên. Không có giờ reset thì thử lại tối đa một tác vụ thực mỗi
+phút. Đây là cơ chế phản hồi từ CLI và chờ, **không phải** số phần trăm quota lấy từ tài khoản. Giới hạn tuần có thể
+chặn lâu hơn 5 giờ. Không tự mua lượt dùng, đổi tài khoản, đổi API key hay bật trả phí vượt hạn mức.
+
+Nghiệm thu tài khoản thật vẫn cần kiểm tra thông báo quota thực tế của bản Claude Code đang cài, giờ reset, và một đợt
+nhỏ hai sách trước khi chạy 15 sách. Kiểm thử tự động chỉ dùng Claude/NotebookLM/Mistral/Google giả.
+
+Khi kiểm thử ở worktree trong lúc checkout khác đang hoạt động, có thể đặt `E2E_PORT`, `E2E_DATA_DIR` và `E2E_REDIS_URL`
+cho `pnpm test:e2e`; chúng chỉ điều khiển stack Playwright. Redis database đó bị xoá ở đầu mỗi lần E2E. Unit/integration
+queue tests dùng `TEST_REDIS_URL` và queue có tên riêng.
+
 ## 10. Bản quyền và điều khoản
 
 - Chỉ nhập nội dung sách bạn có quyền xử lý; đầu ra hướng tới tóm lược, diễn giải và ví dụ mới thay vì sao chép.

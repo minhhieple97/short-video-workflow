@@ -1,4 +1,5 @@
 export const EXTRACTION_STATUSES = [
+  "STAGED",
   "QUEUED",
   "INSPECTING",
   "EXTRACTING",

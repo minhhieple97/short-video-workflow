@@ -4,6 +4,7 @@ import { toPace, type Pace } from "@/features/videos/domain/pace";
 import { findRenderRecord } from "@/features/videos/repositories/render.repository";
 import { SCENE_PLAN_PROMPT_VERSION } from "@/server/ai/prompts/scene-plan-prompt";
 import { IntegrationError } from "@/server/integrations/integration-error";
+import { withProviderCooldown } from "@/features/jobs/services/provider-cooldown.service";
 import { createDraftArtifact, createScenePlanArtifact, scriptDraftArtifactSchema } from "@/server/scene-plan/handoff";
 import type { ScenePlanCompiler } from "@/server/scene-plan/scene-plan-compiler";
 import type { ScriptStudioProvider, SourceRef } from "@/server/script-studio/script-studio-provider";
@@ -15,6 +16,7 @@ import {
   clearTransientRetries,
   findProductionItemForRun,
   recordTransientFailure,
+  recordQuotaWait,
   saveDraftArtifact,
   saveScenePlanArtifact,
   setItemRender,
@@ -265,6 +267,10 @@ async function executeStep(
 // A failure that waiting may cure is retried with a growing pause, a few times; anything else ends the item with its reason.
 async function classifyFailure(itemId: string, claimToken: string, error: unknown): Promise<StepOutcome> {
   if (error instanceof JobCancelledError) throw error;
+  if (error instanceof IntegrationError && error.kind === "QUOTA") {
+    await recordQuotaWait(itemId, claimToken, error);
+    return { kind: "DEFER", retryAfterMs: Math.max(1, error.retryAfterMs ?? 60_000) };
+  }
   if (error instanceof IntegrationError && error.kind !== "REJECTED" && error.kind !== "AUTH") {
     const retries = await recordTransientFailure(itemId, claimToken, { code: error.code, message: error.message });
     if (retries > MAX_TRANSIENT_RETRIES) {
@@ -293,13 +299,14 @@ export async function runProductionStep(input: {
   if (input.signal?.aborted) throw new JobCancelledError();
 
   try {
-    const outcome = await executeStep(
-      item,
-      input.claimToken,
-      input.signal,
-      input.deps,
-      input.renew ?? (async () => undefined),
-    );
+    const execute = () =>
+      executeStep(item, input.claimToken, input.signal, input.deps, input.renew ?? (async () => undefined));
+    const outcome =
+      item.checkpoint === "NONE"
+        ? await withProviderCooldown("notebooklm", execute)
+        : item.checkpoint === "APPLIED"
+          ? await withProviderCooldown("edge-tts", execute)
+          : await execute();
     if (outcome.kind === "CONTINUE") await clearTransientRetries(input.itemId, input.claimToken);
     return outcome;
   } catch (error) {

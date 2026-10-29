@@ -461,6 +461,29 @@ video** → video hoàn tất, **Đã lưu Drive** kèm liên kết thư mục �
 Chưa thực hiện: OCR với Mistral thật (đầu ra và chi phí trên bộ trang đại diện), rồi một video mẫu từ NotebookLM thật tới Google
 Drive thật (mạch kể, âm thanh, ffprobe, checksum Drive). Danh sách kiểm tra: [operations.md](operations.md).
 
+### 10.5. Nhập nhiều sách và sản xuất tự động
+
+- Một đợt nhận 1–15 PDF, mỗi PDF là một sách. Tải lần lượt từng tệp, giữ nguyên giới hạn dung lượng và trần chi phí OCR
+  của từng sách. Tải đủ tệp trước khi bắt đầu xử lý; tệp không hợp lệ được báo lỗi riêng, sách hợp lệ vẫn được làm tiếp.
+- Người dùng chọn khoảng thời lượng và nhịp độ cho cả đợt. Luồng tự động mới tạo **một video cho mỗi bài học**
+  tìm được trong mỗi sách, theo quyết định của chủ dự án. Luồng chọn bài học hiện có vẫn dùng được riêng.
+- Xử lý một sách tại một thời điểm, kể cả giữa nhiều đợt. OCR → phân tích lần lượt từng chương bằng NotebookLM →
+  bản thảo NotebookLM → cảnh JSON Claude Code → giọng đọc → Remotion. Không thêm bước duyệt kịch bản.
+- Có thể chạy hàng giờ và đóng trình duyệt sau khi tải đủ tệp. Lịch chờ, tiến độ, các bản đã tạo được giữ qua restart.
+- Quota là trạng thái chờ, không tiêu lượt retry lỗi tạm thời. Lịch chờ dùng chung theo provider; chỉ một worker, không
+  gọi provider cho mỗi video đang chờ. Claude có thể bị giới hạn theo phiên hoặc tuần; dùng giờ reset thực được báo,
+  không giả định luôn được mở lại sau 5 giờ.
+- Khi Claude báo giờ reset hoặc còn bao lâu nữa reset, đặt lịch job chạy lại từ mốc đó, không đánh thức job mỗi phút
+  hay gọi Claude trong lúc chờ. Ví dụ còn 30 phút hoặc 1 giờ thì job chờ đủ khoảng đó rồi tiếp tục từ checkpoint.
+  Nếu không biết giờ reset, tối đa một tác vụ Claude đang chờ được thử mỗi phút. Không gửi prompt chỉ để thăm dò quota,
+  không đọc token/cookie để gọi API quota riêng.
+- Lỗi tạm thời retry hữu hạn với khoảng nghỉ tăng dần. Lỗi đăng nhập, quyền, đầu vào sai hoặc hết ngân sách cần người
+  xử lý. Mất phản hồi OCR/Drive vẫn phải đối soát checkpoint trước khi gửi lại.
+- Một sách lỗi không ngăn sách sau. Trang tiến độ báo sách lỗi và liên kết tới video/Drive. Thử lại sách lỗi tiếp tục
+  bước chưa xong, không nhân đôi sách, bài học đã hoàn tất hoặc video. Huỷ giữ nguyên dữ liệu và media đã có.
+- Drive giữ luồng lưu trữ riêng. Khi có kết nối, đợi upload của sách hiện tại kết thúc trước khi chuyển sách tiếp;
+  khi chưa kết nối, video giữ trên máy và archive intent hiện có vẫn chờ kết nối.
+
 ## 11. Thứ tự ưu tiên khi đánh đổi
 
 1. Đúng đắn của dữ liệu Sách–Chương–Bài học–Video và nguồn gốc bài học.

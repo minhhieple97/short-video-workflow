@@ -75,7 +75,9 @@ beforeAll(async () => {
   goodPlan = await new MockScenePlanCompiler().compile(REQUEST);
 }, 60_000);
 
-beforeEach(() => {
+beforeEach(async () => {
+  const { prisma } = await import("@/server/db/client");
+  await prisma.providerCooldown.deleteMany();
   compiler = new ClaudeScenePlanCompiler();
   process.env.FAKE_CLAUDE_LOG = log();
   claudeReturns(goodPlan);
@@ -164,6 +166,8 @@ describe("ClaudeScenePlanCompiler", () => {
   it("maps CLI failures to integration failure kinds", async () => {
     process.env.FAKE_CLAUDE_MODE = "quota";
     expect(await failureOf(compiler.compile(REQUEST))).toMatchObject({ code: "AI_QUOTA_EXCEEDED", kind: "QUOTA" });
+    const { prisma } = await import("@/server/db/client");
+    await prisma.providerCooldown.deleteMany();
 
     process.env.FAKE_CLAUDE_MODE = "logged-out";
     expect(await failureOf(compiler.compile(REQUEST))).toMatchObject({ code: "AI_CLI_AUTH", kind: "AUTH" });

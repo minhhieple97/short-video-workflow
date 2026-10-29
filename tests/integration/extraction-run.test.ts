@@ -109,6 +109,7 @@ beforeAll(async () => {
 }, 60_000);
 
 beforeEach(async () => {
+  await db.prisma.providerCooldown.deleteMany();
   provider = new FakeOcrProvider({ mode: "batch", usdPerPage: 0.001 });
   await db.prisma.book.deleteMany();
   await db.prisma.jobRecord.deleteMany();
@@ -609,7 +610,8 @@ describe.skipIf(!poppler)("runExtraction (needs poppler-utils)", () => {
       kind: "WAITING",
       retryAfterMs: 90_000,
     });
-    expect(await extraction(extractionId)).toMatchObject({ status: "DETECTING_CHAPTERS", transientFailures: 1 });
+    expect(await extraction(extractionId)).toMatchObject({ status: "DETECTING_CHAPTERS", transientFailures: 0 });
+    await db.prisma.providerCooldown.updateMany({ data: { blockedUntil: new Date(0) } });
 
     const signedOut = detector(async () => {
       throw new IntegrationError("NOTEBOOKLM_AUTH_REQUIRED", "Cần đăng nhập NotebookLM.", "AUTH");
