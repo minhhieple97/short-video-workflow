@@ -8,6 +8,7 @@ import { dataPath } from "@/server/storage/paths";
 import { JOB_TYPES } from "@/shared/types/job";
 
 import { chapterAnalysisOutputSchema } from "../contracts/chapter-analysis";
+import { publishMetadataOutputSchema } from "../contracts/publish-metadata";
 import { scenePlanSchema } from "@/server/scene-plan/scene-plan-compiler";
 
 import { sceneRegenerationOutputSchema, videoScriptOutputSchema } from "../contracts/video-script";
@@ -17,6 +18,7 @@ export const TASK_OUTPUT_SCHEMAS = {
   "video-script": videoScriptOutputSchema,
   "scene-regeneration": sceneRegenerationOutputSchema,
   "scene-plan": scenePlanSchema,
+  "publish-metadata": publishMetadataOutputSchema,
 } as const;
 export type TaskKind = keyof typeof TASK_OUTPUT_SCHEMAS;
 export const TASK_KINDS = Object.keys(TASK_OUTPUT_SCHEMAS) as [TaskKind, ...TaskKind[]];

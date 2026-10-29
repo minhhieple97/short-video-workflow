@@ -1,11 +1,13 @@
 import type { AiProvider, AiTaskResult } from "./ai-provider";
 import type { ChapterAnalysisInput, ChapterAnalysisOutput, LessonDraft } from "./contracts/chapter-analysis";
+import type { PublishMetadataInput, PublishMetadataOutput } from "./contracts/publish-metadata";
 import type {
   SceneRegenerationInput,
   SceneRegenerationOutput,
   VideoScriptInput,
   VideoScriptOutput,
 } from "./contracts/video-script";
+import { mockPublishMetadata } from "./mock-publish-metadata";
 import { mockSceneRegeneration, mockVideoScript } from "./mock-video-script";
 
 const MAX_EXCERPT_LENGTH = 220;
@@ -73,5 +75,11 @@ export class MockAiProvider implements AiProvider {
 
   regenerateScene(input: SceneRegenerationInput): Promise<AiTaskResult<SceneRegenerationOutput>> {
     return Promise.resolve({ status: "completed", output: mockSceneRegeneration(input) });
+  }
+
+  generatePublishMetadata(input: PublishMetadataInput): Promise<AiTaskResult<PublishMetadataOutput>> {
+    const hook = input.scenes[0]?.narration ?? "";
+    const publish = mockPublishMetadata({ book: input.book, lessons: input.lessons, hook });
+    return Promise.resolve({ status: "completed", output: { videoId: input.videoId, publish } });
   }
 }

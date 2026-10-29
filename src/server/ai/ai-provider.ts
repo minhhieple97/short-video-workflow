@@ -1,6 +1,7 @@
 import type { JobType } from "@/shared/types/job";
 
 import type { ChapterAnalysisInput, ChapterAnalysisOutput } from "./contracts/chapter-analysis";
+import type { PublishMetadataInput, PublishMetadataOutput } from "./contracts/publish-metadata";
 import type {
   SceneRegenerationInput,
   SceneRegenerationOutput,
@@ -30,4 +31,8 @@ export interface AiProvider {
     input: SceneRegenerationInput,
     context: AiTaskContext,
   ): Promise<AiTaskResult<SceneRegenerationOutput>>;
+  generatePublishMetadata(
+    input: PublishMetadataInput,
+    context: AiTaskContext,
+  ): Promise<AiTaskResult<PublishMetadataOutput>>;
 }

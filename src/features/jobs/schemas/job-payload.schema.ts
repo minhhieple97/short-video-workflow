@@ -28,6 +28,8 @@ export const generateScriptPayloadSchema = baseJobPayloadSchema.extend({
   sceneId: z.string().min(1).optional(),
 });
 
+export const generatePublishMetadataPayloadSchema = baseJobPayloadSchema.extend({ videoId: z.string().min(1) });
+
 export const archiveRenderPayloadSchema = baseJobPayloadSchema.extend({ archiveId: z.string().min(1) });
 
 export const extractPdfPayloadSchema = baseJobPayloadSchema.extend({ extractionId: z.string().min(1) });

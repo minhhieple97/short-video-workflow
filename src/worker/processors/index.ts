@@ -5,6 +5,7 @@ import { processArchiveRender } from "./archive-render";
 import { createJobDispatcher } from "./dispatcher";
 import { processDiagnosticPing } from "./diagnostic-ping";
 import { processExtractPdf } from "./extract-pdf";
+import { processGeneratePublishMetadata } from "./generate-publish-metadata";
 import { processGenerateScript } from "./generate-script";
 import { processGenerateTts } from "./generate-tts";
 import { processRenderVideo } from "./render-video";
@@ -15,6 +16,7 @@ const PROCESSORS: Record<JobType, JobProcessor> = {
   DIAGNOSTIC_PING: processDiagnosticPing,
   ANALYZE_CHAPTER: processAnalyzeChapter,
   GENERATE_VIDEO_SCRIPT: processGenerateScript,
+  GENERATE_PUBLISH_METADATA: processGeneratePublishMetadata,
   GENERATE_SCENE_TTS: processGenerateTts,
   RENDER_VIDEO: processRenderVideo,
   RUN_PRODUCTION_ITEM: processRunProductionItem,

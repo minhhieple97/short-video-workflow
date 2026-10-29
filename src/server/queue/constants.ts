@@ -18,6 +18,7 @@ export const JOB_OPTIONS_BY_TYPE: Record<JobType, JobsOptions> = {
   DIAGNOSTIC_PING: {},
   ANALYZE_CHAPTER: {},
   GENERATE_VIDEO_SCRIPT: {},
+  GENERATE_PUBLISH_METADATA: {},
   GENERATE_SCENE_TTS: { attempts: 2, backoff: { type: "exponential", delay: 5_000 } },
   RENDER_VIDEO: {},
   // A production item resumes from its checkpoint by itself, and waits through deferral rather than BullMQ retries.

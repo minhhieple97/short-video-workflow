@@ -1,8 +1,3 @@
-import { createHash } from "node:crypto";
-
-import { ZodError } from "zod";
-
-import { completeAiRun, failAiRun, markAiRunWaiting, startAiRun } from "@/features/jobs/repositories/ai-run.repository";
 import { createAiProvider } from "@/server/ai";
 import type { AiProvider, AiTaskContext } from "@/server/ai/ai-provider";
 import {
@@ -14,15 +9,13 @@ import {
   type StoryboardScene,
 } from "@/server/ai/contracts/video-script";
 import { VIDEO_SCRIPT_PROMPT_VERSION } from "@/server/ai/prompts/video-script-prompt";
-import { writeFileAtomic } from "@/server/storage/atomic-write";
-import { dataPath } from "@/server/storage/paths";
 import { getAppConfig } from "@/shared/config/env";
 import { AppError, NotFoundError } from "@/shared/errors";
-import { toSafeErrorMessage } from "@/shared/logger";
 
 import { formatRange, isWithinRange } from "../domain/duration";
 import { describeStoryOrderProblem, findStorySceneOrderProblem } from "../domain/narrative-beats";
 import { replaceScript, updateSceneRecord } from "../repositories/video.repository";
+import { inputHash, withAiRun, type AiWaitingForCli } from "./ai-run";
 import { publishWriteFor } from "./publish-proposal";
 import { buildSceneRecord, parseIllustration } from "./scene-records";
 import { lessonSnapshotsOf } from "./video-mapper";
@@ -36,57 +29,7 @@ interface ScriptRun {
   signal?: AbortSignal;
 }
 
-export interface ScriptWaitingForCli {
-  waitingForCli: true;
-  taskDir: string;
-}
-
-type WorkResult<T> = { kind: "waiting"; taskDir: string } | { kind: "done"; value: T; output: unknown };
-
-const inputHash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
-
-function asAiFailure(error: unknown): unknown {
-  return error instanceof ZodError
-    ? new AppError("INVALID_AI_OUTPUT", "Kết quả AI không đúng định dạng kịch bản; không thay đổi gì.", 422, {
-        cause: error,
-      })
-    : error;
-}
-
-async function withAiRun<T>(
-  meta: {
-    jobRecordId: string | null;
-    mode: string;
-    hash: string;
-    resume?: AiTaskContext["resume"];
-    signal?: AbortSignal;
-  },
-  work: (context: AiTaskContext) => Promise<WorkResult<T>>,
-): Promise<T | ScriptWaitingForCli> {
-  const aiRun = await startAiRun({
-    jobRecordId: meta.jobRecordId,
-    mode: meta.mode,
-    promptVersion: VIDEO_SCRIPT_PROMPT_VERSION,
-    inputHash: meta.hash,
-  });
-  const taskId = meta.jobRecordId ?? aiRun.id;
-  try {
-    const result = await work({ taskId, resume: meta.resume, signal: meta.signal });
-    if (result.kind === "waiting") {
-      await markAiRunWaiting(aiRun.id);
-      return { waitingForCli: true, taskDir: result.taskDir };
-    }
-    const { value, output } = result;
-    const outputPath = `ai-tasks/${taskId}/output.json`;
-    await writeFileAtomic(dataPath(outputPath), `${JSON.stringify(output, null, 2)}\n`);
-    await completeAiRun(aiRun.id, outputPath);
-    return value;
-  } catch (error) {
-    const failure = asAiFailure(error);
-    await failAiRun(aiRun.id, toSafeErrorMessage(failure));
-    throw failure;
-  }
-}
+const INVALID_SCRIPT_OUTPUT = "Kết quả AI không đúng định dạng kịch bản; không thay đổi gì.";
 
 const toSceneContent = (scene: StoryboardScene) => ({
   type: scene.type,
@@ -101,7 +44,7 @@ const toSceneContent = (scene: StoryboardScene) => ({
 // Builds hook proposals plus the storyboard; the first hook proposal becomes the HOOK scene until the user picks another.
 export async function runScriptGeneration(
   run: ScriptRun,
-): Promise<{ scenes: number; hookOptions: number } | ScriptWaitingForCli> {
+): Promise<{ scenes: number; hookOptions: number } | AiWaitingForCli> {
   const video = await requireVideo(run.videoId);
   const provider = run.provider ?? createAiProvider(getAppConfig().ai.mode);
   const input = videoScriptInputSchema.parse({
@@ -118,7 +61,9 @@ export async function runScriptGeneration(
   const meta = {
     jobRecordId: run.jobRecordId,
     mode: provider.mode,
+    promptVersion: VIDEO_SCRIPT_PROMPT_VERSION,
     hash: inputHash(input),
+    invalidOutputMessage: INVALID_SCRIPT_OUTPUT,
     resume: run.resume,
     signal: run.signal,
   };
@@ -176,7 +121,7 @@ export async function runScriptGeneration(
 // Rewrites one scene only; every other scene is left exactly as it was.
 export async function runSceneRegeneration(
   run: ScriptRun & { sceneId: string },
-): Promise<{ sceneId: string } | ScriptWaitingForCli> {
+): Promise<{ sceneId: string } | AiWaitingForCli> {
   const video = await requireVideo(run.videoId);
   const scene = video.scenes.find((candidate) => candidate.id === run.sceneId);
   if (!scene) throw new NotFoundError("SCENE_NOT_FOUND", "Không tìm thấy cảnh.");
@@ -203,7 +148,9 @@ export async function runSceneRegeneration(
   const meta = {
     jobRecordId: run.jobRecordId,
     mode: provider.mode,
+    promptVersion: VIDEO_SCRIPT_PROMPT_VERSION,
     hash: inputHash(input),
+    invalidOutputMessage: INVALID_SCRIPT_OUTPUT,
     resume: run.resume,
     signal: run.signal,
   };

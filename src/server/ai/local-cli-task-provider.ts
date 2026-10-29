@@ -3,6 +3,7 @@ import type { z } from "zod";
 import type { AiMode, AiProvider, AiTaskContext, AiTaskResult } from "./ai-provider";
 import { TASK_OUTPUT_SCHEMAS, readTaskOutput, writeTaskFiles, type TaskKind } from "./cli-task/task-files";
 import type { ChapterAnalysisInput, ChapterAnalysisOutput } from "./contracts/chapter-analysis";
+import type { PublishMetadataInput, PublishMetadataOutput } from "./contracts/publish-metadata";
 import type {
   SceneRegenerationInput,
   SceneRegenerationOutput,
@@ -10,6 +11,7 @@ import type {
   VideoScriptOutput,
 } from "./contracts/video-script";
 import { buildChapterAnalysisPrompt } from "./prompts/chapter-analysis-prompt";
+import { buildPublishMetadataPrompt } from "./prompts/publish-metadata-prompt";
 import { buildSceneRegenerationPrompt, buildVideoScriptPrompt } from "./prompts/video-script-prompt";
 
 // The Studio never calls Claude itself: it writes a task, waits, and the user runs `pnpm ai:run --job <id>` in their terminal.
@@ -39,6 +41,14 @@ export class LocalCliTaskProvider implements AiProvider {
       buildSceneRegenerationPrompt(input),
       context,
     );
+  }
+
+  generatePublishMetadata(
+    input: PublishMetadataInput,
+    context: AiTaskContext,
+  ): Promise<AiTaskResult<PublishMetadataOutput>> {
+    const schema = TASK_OUTPUT_SCHEMAS["publish-metadata"];
+    return this.run("publish-metadata", schema, input, input.promptVersion, buildPublishMetadataPrompt(input), context);
   }
 
   private async run<T>(

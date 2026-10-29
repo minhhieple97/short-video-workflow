@@ -10,6 +10,7 @@ import { findRenderRecord } from "@/features/videos/repositories/render.reposito
 import { requestSceneTts } from "@/features/videos/services/audio-request.service";
 import { requestRender } from "@/features/videos/services/render-request.service";
 import { requestSceneRegeneration, requestScriptGeneration } from "@/features/videos/services/script-request.service";
+import { requestPublishMetadataGeneration } from "@/features/videos/services/publish-request.service";
 import { cancelWaitingJob } from "@/server/queue/queue";
 import { AppError, NotFoundError } from "@/shared/errors";
 import type { JobDto } from "@/shared/types/job";
@@ -69,6 +70,8 @@ export async function retryJob(id: string): Promise<JobDto> {
       if (!scene) throw new NotFoundError("SCENE_NOT_FOUND", "Cảnh không còn tồn tại.");
       return requestSceneRegeneration(scene.video.id, scene.id);
     }
+    case "GENERATE_PUBLISH_METADATA":
+      return requestPublishMetadataGeneration(record.entityId);
     case "GENERATE_SCENE_TTS":
       return requestSceneTts(record.entityId);
     case "RENDER_VIDEO": {

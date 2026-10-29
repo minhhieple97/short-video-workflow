@@ -145,6 +145,7 @@ describe.skipIf(!redisAvailable)("job outbox against real BullMQ", () => {
       },
       ANALYZE_CHAPTER: unused,
       GENERATE_VIDEO_SCRIPT: unused,
+      GENERATE_PUBLISH_METADATA: unused,
       GENERATE_SCENE_TTS: async () => {
         order.push("tts");
         return order.filter((entry) => entry === "tts").length === 1 ? processorTypes.deferred(1_500) : { done: true };
