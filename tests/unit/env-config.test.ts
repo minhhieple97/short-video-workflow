@@ -29,6 +29,14 @@ describe("parseAppConfig", () => {
     expect(config.concurrency.worker).toBe(2);
   });
 
+  it("allows larger Drive batches by default while keeping explicitly configured limits", () => {
+    expect(parseAppConfig(VALID_ENV).drive.maxUploadBytesPerDay).toBe(750 * 1024 ** 3);
+    expect(parseAppConfig({ ...VALID_ENV, DRIVE_MAX_UPLOAD_GIB_PER_DAY: "10" }).drive.maxUploadBytesPerDay).toBe(
+      10 * 1024 ** 3,
+    );
+    expect(() => parseAppConfig({ ...VALID_ENV, DRIVE_MAX_UPLOAD_GIB_PER_DAY: "751" })).toThrow(ConfigError);
+  });
+
   it("rejects a final render size that is not 9:16", () => {
     expect(() => parseAppConfig({ ...VALID_ENV, RENDER_WIDTH: "1920", RENDER_HEIGHT: "1080" })).toThrow(ConfigError);
   });

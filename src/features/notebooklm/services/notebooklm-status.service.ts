@@ -1,7 +1,6 @@
-import { z } from "zod";
-
 import { IntegrationError } from "@/server/integrations/integration-error";
 import { NotebookLmSession } from "@/server/script-studio/notebooklm/notebooklm-session";
+import { notebookLmUsageSchema } from "@/server/script-studio/notebooklm/notebooklm-usage";
 import { createLogger, toSafeErrorMessage } from "@/shared/logger";
 
 import { writeNotebookLmStatus } from "../repositories/notebooklm-status.store";
@@ -11,28 +10,13 @@ import type { NotebookStudioSettings } from "./notebook-studio.service";
 
 const logger = createLogger("notebooklm.status");
 
-// notebooklm-mcp-cli 0.15.8 `usage_get`: windows of measured allowance; a missing percentage means unknown, not zero.
-const usageSchema = z.looseObject({
-  tier: z.string().nullish(),
-  windows: z
-    .array(
-      z.looseObject({
-        window: z.string(),
-        percent_used: z.number().nullish(),
-        percent_remaining: z.number().nullish(),
-        resets_at: z.string().nullish(),
-      }),
-    )
-    .default([]),
-});
-
 // Asks NotebookLM how much of the plan's allowance is left and keeps that as the account's latest status.
 export async function recordNotebookLmUsage(
   caller: NotebookLmCaller,
   profile: string,
   signal?: AbortSignal,
 ): Promise<NotebookLmStatusDto> {
-  const usage = usageSchema.parse(await caller.call("usage_get", {}, signal));
+  const usage = notebookLmUsageSchema.parse(await caller.call("usage_get", {}, signal));
   const status: NotebookLmStatusDto = {
     checkedAt: new Date().toISOString(),
     profile,
@@ -73,7 +57,7 @@ export async function checkNotebookLm(
 ): Promise<NotebookLmStatusDto> {
   let session: NotebookLmSession | null = null;
   try {
-    session = await NotebookLmSession.open({ ...settings, signal });
+    session = await NotebookLmSession.open({ ...settings, signal, checkQuota: false });
     return await recordNotebookLmUsage(session, settings.profile, signal);
   } catch (error) {
     if (signal?.aborted) throw error;

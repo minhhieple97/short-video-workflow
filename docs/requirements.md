@@ -505,6 +505,11 @@ Drive thật (mạch kể, âm thanh, ffprobe, checksum Drive). Danh sách kiể
   hay gọi Claude trong lúc chờ. Ví dụ còn 30 phút hoặc 1 giờ thì job chờ đủ khoảng đó rồi tiếp tục từ checkpoint.
   Nếu không biết giờ reset, tối đa một tác vụ Claude đang chờ được thử mỗi phút. Không gửi prompt chỉ để thăm dò quota,
   không đọc token/cookie để gọi API quota riêng.
+- NotebookLM dùng `usage_get` của MCP để đọc hạn mức khi mở phiên và khi gặp lỗi quota. Chờ tới mốc reset muộn nhất
+  của các cửa sổ đã cạn (ngắn hạn/tuần), không gọi lại trong lúc chờ. Không biết giờ reset thì nghỉ 15 phút; không suy
+  hạn mức từ tên gói và không coi số phần trăm chưa biết là đã hết. Cài đặt vẫn hiển thị được hạn mức đã cạn.
+- Drive kiểm tra dung lượng thật bằng API chính thức với cache tối đa một giờ. Trần upload nội bộ mặc định
+  750 GiB/24 giờ, độc lập với dung lượng gói Google và quota API; giữ giãn nhịp gọi và xử lý rate limit.
 - Lỗi tạm thời retry hữu hạn với khoảng nghỉ tăng dần. Lỗi đăng nhập, quyền, đầu vào sai hoặc hết ngân sách cần người
   xử lý. Mất phản hồi OCR/Drive vẫn phải đối soát checkpoint trước khi gửi lại.
 - Một sách lỗi không ngăn sách sau. Trang tiến độ báo sách lỗi và liên kết tới video/Drive. Thử lại sách lỗi tiếp tục

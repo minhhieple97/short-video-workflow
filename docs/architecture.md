@@ -271,7 +271,7 @@ theo số dòng, không trích nội dung. `cleanup` xoá tệp yêu cầu **cu�
 - `NotebookLmSession.open` kiểm đủ công cụ, chuyển profile **chỉ cho tiến trình này** (`make_default: false`) rồi đọc lại profile đang
   dùng. Mỗi lời gọi được xét theo phong bì `{status: "success" | "error"}`, **không** theo `isError` (máy chủ báo lỗi với `isError: false`);
   văn bản lỗi chỉ dùng để phân loại, không bao giờ được hiện ra. Công cụ thay đổi dữ liệu quá hạn hay trả lời hỏng → `UNKNOWN_OUTCOME`.
-- Một tiến trình MCP cho một lần chạy job: mở ở lời gọi đầu, đóng trong `finally`; lúc đóng đọc `usage_get` và ghi
+- Một tiến trình MCP cho một lần chạy job: mở ở lời gọi đầu, kiểm tra `usage_get` trước khi xử lý, đóng trong `finally`; lúc đóng đọc `usage_get` và ghi
   `data/integrations/notebooklm-status.json` (phần trăm — vắng là "không rõ", không phải 0 —, giờ đặt lại, gói; không cookie).
 
 ### 7.2 Notebook và nguồn
@@ -463,7 +463,7 @@ render FINAL COMPLETED + archiveIntentAt ─► requestRenderArchive | sweepRend
   `308` → gửi tiếp, `200/201` → xong, `404` → phiên mới cùng ID tệp; mở phiên bị `409` → tệp đã có.
 - **Xác minh:** kích thước và checksum Drive so với tệp local; Drive chưa có checksum → lỗi tạm, không tin chỉ kích thước.
 - **Hạn mức:** `DriveRequestMeter` ghi sổ theo giờ **chỉ những gì ứng dụng gửi** và từ chối (`QUOTA`, kèm thời gian chờ) khi vượt cửa sổ 24
-  giờ (mặc định 5.000 yêu cầu, 10 GiB), giãn tối đa 1 giây giữa hai yêu cầu. Dung lượng ≠ quota API: `storageQuotaExceeded` là `REJECTED`.
+  giờ (mặc định 5.000 yêu cầu, 750 GiB), giãn tối đa 1 giây giữa hai yêu cầu. Dung lượng ≠ quota API: `storageQuotaExceeded` là `REJECTED`.
   `DriveCapacityGuard` (cache dung lượng theo giờ) từ chối upload mới không vừa trước khi gửi byte nào. UI chỉ đọc bảng local.
 
 Mã hoá checksum của Drive và redirect loopback không path chưa kiểm chứng: xem [operations.md](operations.md).
@@ -548,7 +548,11 @@ lỗi tạm thời; job hoãn bằng outbox với `availableAt` từ mốc reset
 `resetsAt`/`resets_at`/`reset_at`, khoảng tương đối hoặc giờ kèm múi giờ thì dùng thông tin đó; khi không có giờ reset,
 một tác vụ thực đang chờ là lần thử tiếp theo sau ít nhất một phút. Scheduler chung chỉ lấy job đến hạn, không có vòng
 poll quota riêng cho job đang chờ 30 phút hay 1 giờ. Không gọi `/usage` như một prompt và không truy cập
-credential Claude. NotebookLM không báo giờ reset thì nghỉ 15 phút; Mistral nghỉ 5 phút; mọi `Retry-After` được tôn trọng.
+credential Claude. NotebookLM đọc `usage_get` khi mở phiên và sau lỗi quota: chỉ các cửa sổ cạn hạn mức mới chặn;
+nhiều cửa sổ cùng cạn thì dùng mốc reset muộn nhất. Trạng thái không rõ không bị hiểu là hết hạn mức; lỗi đọc usage
+tạm thời không chặn việc xử lý, nhưng lỗi đăng nhập hoặc quota của chính usage vẫn được phân loại. Kiểm tra trong Cài
+đặt bỏ qua bước chặn để vẫn hiển thị quota đã cạn. NotebookLM không báo giờ reset thì nghỉ 15 phút; Mistral nghỉ 5 phút;
+mọi `Retry-After` được tôn trọng.
 Outage cũng mở khoảng nghỉ dùng chung; chỉ lỗi tạm thời thực tế tăng bộ đếm retry. `UNKNOWN_OUTCOME` vẫn qua đối soát
 của adapter hiện có. Job phân tích chương có bộ đếm lỗi tạm thời riêng để quota dài không làm hết lượt retry.
 

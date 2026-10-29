@@ -196,9 +196,14 @@ describe.skipIf(!redisAvailable)("job outbox against real BullMQ", () => {
     }
   }, 40_000);
 
-  it.each([30, 60])(
-    "waits %i minutes for Claude reset through a worker restart without polling",
-    async (minutes) => {
+  it.each([
+    { provider: "claude" as const, minutes: 30 },
+    { provider: "claude" as const, minutes: 60 },
+    { provider: "notebooklm" as const, minutes: 30 },
+    { provider: "notebooklm" as const, minutes: 7 * 24 * 60 },
+  ])(
+    "waits $minutes minutes for $provider reset through a worker restart without polling",
+    async ({ provider, minutes }) => {
       const { withProviderCooldown } = await import("@/features/jobs/services/provider-cooldown.service");
       await db.prisma.providerCooldown.deleteMany();
       let calls = 0;
@@ -208,7 +213,7 @@ describe.skipIf(!redisAvailable)("job outbox against real BullMQ", () => {
       const processors = {
         DIAGNOSTIC_PING: async () => ({ pong: true }),
         ANALYZE_CHAPTER: async () =>
-          withProviderCooldown("claude", async () => {
+          withProviderCooldown(provider, async () => {
             calls += 1;
             if (calls === 1)
               throw new IntegrationError("AI_QUOTA_EXCEEDED", "quota", "QUOTA", { retryAfterMs: minutes * 60_000 });
@@ -254,7 +259,7 @@ describe.skipIf(!redisAvailable)("job outbox against real BullMQ", () => {
         );
         expect(await record()).toMatchObject({ status: "QUEUED", transientFailures: 0 });
         expect(calls).toBe(1);
-        const reset = await db.prisma.providerCooldown.findUniqueOrThrow({ where: { provider: "claude" } });
+        const reset = await db.prisma.providerCooldown.findUniqueOrThrow({ where: { provider } });
         const schedule = await db.prisma.jobDispatch.findUniqueOrThrow({ where: { jobRecordId: waiting.jobRecordId } });
         expect(schedule.availableAt.getTime()).toBeGreaterThanOrEqual(reset.blockedUntil.getTime());
         expect(schedule.availableAt.getTime() - reset.blockedUntil.getTime()).toBeLessThan(10_000);
@@ -268,7 +273,7 @@ describe.skipIf(!redisAvailable)("job outbox against real BullMQ", () => {
         expect(await dispatch.sweepDueJobIntents(enqueue, beforeReset)).toBe(0);
         expect(await record()).toMatchObject({ status: "QUEUED", attempts: 1, transientFailures: 0 });
         expect(calls).toBe(1);
-        await db.prisma.providerCooldown.update({ where: { provider: "claude" }, data: { blockedUntil: new Date(0) } });
+        await db.prisma.providerCooldown.update({ where: { provider }, data: { blockedUntil: new Date(0) } });
         await makeDue();
         await dispatch.sweepDueJobIntents(enqueue);
         await waitFor(async () => (await record()).status === "COMPLETED", 10_000);

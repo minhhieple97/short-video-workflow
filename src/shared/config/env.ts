@@ -70,7 +70,7 @@ const envSchema = z
     NOTEBOOKLM_CALL_TIMEOUT_SEC: positiveInt(180),
     DRIVE_MIN_REQUEST_INTERVAL_MS: z.coerce.number().int().min(0).max(60_000).default(1000),
     DRIVE_MAX_REQUESTS_PER_DAY: z.coerce.number().int().positive().max(1_000_000).default(5000),
-    DRIVE_MAX_UPLOAD_GIB_PER_DAY: z.coerce.number().positive().max(750).default(10),
+    DRIVE_MAX_UPLOAD_GIB_PER_DAY: z.coerce.number().positive().max(750).default(750),
     CHAPTER_HEADING_PATTERNS: regexList,
 
     AI_MODE: z.enum(["mock", "cli-task", "cli-auto"]).default("cli-task"),

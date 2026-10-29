@@ -90,9 +90,11 @@ worker.
 | `GOOGLE_API_BASE_URL`            | _(trống)_                    | Chỉ cho kiểm thử: API Google từ fake cục bộ         |
 | `DRIVE_MIN_REQUEST_INTERVAL_MS`  | `1000`                       | Khoảng tối thiểu giữa hai yêu cầu Drive (0–60000)   |
 | `DRIVE_MAX_REQUESTS_PER_DAY`     | `5000`                       | Số yêu cầu Drive tối đa mỗi 24 giờ trượt            |
-| `DRIVE_MAX_UPLOAD_GIB_PER_DAY`   | `10`                         | GiB tải lên Drive tối đa mỗi 24 giờ trượt (≤ 750)   |
+| `DRIVE_MAX_UPLOAD_GIB_PER_DAY`   | `750`                        | GiB tải lên Drive tối đa mỗi 24 giờ trượt (≤ 750)   |
 
 Ba giới hạn `DRIVE_*` là của riêng ứng dụng, không phải quota Google Cloud và không liên quan gói dung lượng Drive.
+Trần upload mặc định cao để đợt nhiều sách không bị chặn ở 10 GiB. Nếu `.env` cũ đã đặt
+`DRIVE_MAX_UPLOAD_GIB_PER_DAY=10`, đổi thành `750` để áp dụng mức mới; giá trị đặt riêng vẫn được giữ.
 
 **AI, giọng đọc, video**
 
@@ -421,6 +423,14 @@ chặn lâu hơn 5 giờ. Không tự mua lượt dùng, đổi tài khoản, đ
 
 Nghiệm thu tài khoản thật vẫn cần kiểm tra thông báo quota thực tế của bản Claude Code đang cài, giờ reset, và một đợt
 nhỏ hai sách trước khi chạy 15 sách. Kiểm thử tự động chỉ dùng Claude/NotebookLM/Mistral/Google giả.
+
+NotebookLM: mỗi phiên kiểm tra `usage_get` trước khi xử lý và đọc lại nếu một lời gọi chạm quota. Hạn mức ngắn hạn
+và tuần cùng cạn thì chờ đến mốc reset muộn nhất, lưu lịch qua restart và không gọi lại trong lúc chờ. Không đọc được
+giờ reset thì nghỉ 15 phút. Lỗi đăng nhập vẫn yêu cầu đăng nhập lại; số phần trăm không được báo là chưa biết, không
+phải đã hết quota. Nút kiểm tra trong Cài đặt vẫn đọc được hạn mức khi tài khoản đã cạn. Lệnh kiểm tra trong terminal:
+`uvx --from notebooklm-mcp-cli==0.15.8 nlm usage --profile <tên> --json`. Đây là API nội bộ mà CLI sử dụng, không phải
+API quota công khai được Google hỗ trợ. Drive vẫn đọc dung lượng thật bằng `about.get`, cache tối đa một giờ và xử lý
+rate limit riêng với dung lượng lưu trữ.
 
 Khi kiểm thử ở worktree trong lúc checkout khác đang hoạt động, có thể đặt `E2E_PORT`, `E2E_DATA_DIR` và `E2E_REDIS_URL`
 cho `pnpm test:e2e`; chúng chỉ điều khiển stack Playwright. Redis database đó bị xoá ở đầu mỗi lần E2E. Unit/integration

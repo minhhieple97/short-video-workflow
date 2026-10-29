@@ -31,7 +31,9 @@ export async function withProviderCooldown<T>(provider: QuotaProvider, call: () 
   } catch (error) {
     if (error instanceof IntegrationError && (error.kind === "QUOTA" || error.kind === "TRANSIENT")) {
       const delay = Math.max(
-        provider === "claude" && error.kind === "QUOTA" && error.retryAfterMs !== undefined
+        (provider === "claude" || provider === "notebooklm") &&
+          error.kind === "QUOTA" &&
+          error.retryAfterMs !== undefined
           ? 1
           : QUOTA_CHECK_INTERVAL_MS,
         error.retryAfterMs ?? (error.kind === "QUOTA" ? QUOTA_FALLBACK_MS[provider] : QUOTA_CHECK_INTERVAL_MS),

@@ -76,7 +76,7 @@ describe("NotebookLM status", () => {
   });
 
   it("reads the allowance when a studio run ends, and records a failed sign-in when it cannot start", async () => {
-    nlm.script({ usage_get: [USAGE] });
+    nlm.script({ usage_get: [USAGE, USAGE] });
     const studio = new studios.NotebookLmScriptStudio(nlm.settings);
     await studio
       .ensureSource({
@@ -111,6 +111,24 @@ describe("NotebookLM status", () => {
       }),
     ).rejects.toMatchObject({ kind: "AUTH" });
     expect(await store.readNotebookLmStatus()).toMatchObject({ profile: "work", state: "NEEDS_LOGIN" });
+  });
+
+  it("still displays allowance when the account is exhausted", async () => {
+    nlm.script({
+      usage_get: [
+        {
+          ...USAGE,
+          windows: [{ window: "weekly", percent_used: 100, percent_remaining: 0, resets_at: "2027-01-01T00:00:00Z" }],
+        },
+      ],
+    });
+    const checked = await status.checkNotebookLm(nlm.settings);
+    expect(checked).toMatchObject({
+      state: "OK",
+      windows: [{ window: "weekly", percentRemaining: 0, resetsAt: "2027-01-01T00:00:00Z" }],
+    });
+    expect(nlm.calls("usage_get")).toHaveLength(1);
+    expect(nlm.calls("notebook_query")).toHaveLength(0);
   });
 
   it("shows Settings the last observation of the configured profile only", async () => {

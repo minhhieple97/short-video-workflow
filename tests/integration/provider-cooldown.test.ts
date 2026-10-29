@@ -51,23 +51,23 @@ describe("durable provider cooldown", () => {
     expect(await db.prisma.providerCooldown.count()).toBe(0);
   });
 
-  it.each([30 * 60_000, 60 * 60_000, 15_000])(
-    "waits the full known Claude reset interval of %i ms",
-    async (retryAfterMs) => {
+  it.each(["claude", "notebooklm"] as const)("honours full reset intervals for %s", async (provider) => {
+    for (const retryAfterMs of [30 * 60_000, 60 * 60_000, 15_000]) {
+      await db.prisma.providerCooldown.deleteMany();
       let calls = 0;
       const call = async () => {
         calls += 1;
         throw new IntegrationError("AI_QUOTA_EXCEEDED", "quota", "QUOTA", { retryAfterMs });
       };
-      await expect(cooldown.withProviderCooldown("claude", call)).rejects.toMatchObject({ retryAfterMs });
-      const error: unknown = await cooldown.withProviderCooldown("claude", call).catch((failure: unknown) => failure);
+      await expect(cooldown.withProviderCooldown(provider, call)).rejects.toMatchObject({ retryAfterMs });
+      const error: unknown = await cooldown.withProviderCooldown(provider, call).catch((failure: unknown) => failure);
       expect(error).toBeInstanceOf(IntegrationError);
       if (!(error instanceof IntegrationError)) throw new Error("Expected quota failure");
       expect(error.retryAfterMs).toBeGreaterThan(retryAfterMs - 5_000);
       expect(error.retryAfterMs).toBeLessThanOrEqual(retryAfterMs);
       expect(calls).toBe(1);
-    },
-  );
+    }
+  });
 
   it("uses at most one real pending Claude task per minute when reset time is unknown", async () => {
     let calls = 0;

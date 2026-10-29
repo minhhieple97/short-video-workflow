@@ -115,7 +115,7 @@ describe("getDriveOverview", () => {
       connection: { connected: false },
       capacity: null,
       failedArchives: 0,
-      usage: { requests: 0, bytesSent: 0, maxRequests: 5000, maxBytes: 10 * 1024 ** 3 },
+      usage: { requests: 0, bytesSent: 0, maxRequests: 5000, maxBytes: 750 * 1024 ** 3 },
     });
   });
 

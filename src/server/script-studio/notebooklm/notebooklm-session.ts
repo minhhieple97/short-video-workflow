@@ -1,9 +1,13 @@
 import { z } from "zod";
 
 import { IntegrationError } from "@/server/integrations/integration-error";
+import { createLogger, toSafeErrorMessage } from "@/shared/logger";
 
 import { McpStdioClient, type McpServerCommand } from "./mcp-stdio-client";
 import { readNotebookLmEnvelope, type NotebookLmPayload } from "./notebooklm-envelope";
+import { notebookLmQuotaError } from "./notebooklm-usage";
+
+const logger = createLogger("notebooklm.session");
 
 // The tools the script studio relies on; a server without them is a version this app was not built against.
 export const REQUIRED_NOTEBOOKLM_TOOLS = [
@@ -77,6 +81,7 @@ export class NotebookLmSession {
     profile: string | undefined;
     callTimeoutMs: number;
     signal?: AbortSignal;
+    checkQuota?: boolean;
   }): Promise<NotebookLmSession> {
     const { profile } = options;
     if (!profile) {
@@ -101,6 +106,10 @@ export class NotebookLmSession {
         );
       }
       await session.useProfile(profile, options.signal);
+      if (options.checkQuota !== false) {
+        const quota = await session.readQuotaError(options.signal);
+        if (quota) throw quota;
+      }
       return session;
     } catch (error) {
       await client.close();
@@ -123,7 +132,32 @@ export class NotebookLmSession {
       }
       throw error;
     }
-    return readNotebookLmEnvelope(tool, result, mutating);
+    try {
+      return readNotebookLmEnvelope(tool, result, mutating);
+    } catch (error) {
+      if (error instanceof IntegrationError && error.kind === "QUOTA" && tool !== "usage_get") {
+        const quota = await this.readQuotaError(signal);
+        if (quota?.retryAfterMs !== undefined) {
+          throw new IntegrationError(error.code, error.message, "QUOTA", {
+            cause: error,
+            details: error.details,
+            retryAfterMs: quota.retryAfterMs,
+          });
+        }
+      }
+      throw error;
+    }
+  }
+
+  private async readQuotaError(signal: AbortSignal | undefined): Promise<IntegrationError | null> {
+    try {
+      return notebookLmQuotaError(await this.call("usage_get", {}, signal));
+    } catch (error) {
+      if (signal?.aborted || (error instanceof IntegrationError && (error.kind === "AUTH" || error.kind === "QUOTA")))
+        throw error;
+      logger.warn("NotebookLM usage could not be read", { error: toSafeErrorMessage(error) });
+      return null;
+    }
   }
 
   close(): Promise<void> {

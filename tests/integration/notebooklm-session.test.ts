@@ -88,6 +88,7 @@ describe("NotebookLmSession", () => {
     expect(calls()).toEqual([
       { tool: "profile", args: { action: "switch", name: "work", make_default: false } },
       { tool: "profile", args: { action: "list" } },
+      { tool: "usage_get", args: {} },
     ]);
     expect(await session?.call("notebook_get", { notebook_id: "n1" })).toMatchObject({
       status: "success",
@@ -100,6 +101,75 @@ describe("NotebookLmSession", () => {
       code: "NOTEBOOKLM_PROFILE_NOT_SET",
       kind: "AUTH",
     });
+  });
+
+  it("stops before creating or querying a notebook when the account is exhausted", async () => {
+    await expect(
+      open({
+        script: {
+          usage_get: [
+            {
+              status: "success",
+              windows: [
+                { window: "rolling", percent_remaining: 0, resets_at: new Date(Date.now() + 3_600_000).toISOString() },
+              ],
+            },
+          ],
+        },
+      }),
+    ).rejects.toMatchObject({ code: "NOTEBOOKLM_QUOTA", kind: "QUOTA", retryAfterMs: expect.any(Number) });
+    expect(calls().map((call) => call.tool)).toEqual(["profile", "profile", "usage_get"]);
+  });
+
+  it("reads the weekly reset after a quota error that happened during a query", async () => {
+    const deadline = Date.now() + 7 * 24 * 3_600_000;
+    await open({
+      script: {
+        usage_get: [
+          { status: "success", windows: [{ window: "rolling", percent_remaining: 90 }] },
+          {
+            status: "success",
+            windows: [{ window: "weekly", percent_remaining: 0, resets_at: new Date(deadline).toISOString() }],
+          },
+        ],
+        notebook_query: [{ status: "error", error: "Weekly usage limit reached" }],
+      },
+    });
+    const error: unknown = await session
+      ?.call("notebook_query", { notebook_id: "n", query: "q" })
+      .catch((failure: unknown) => failure);
+    expect(error).toMatchObject({ code: "NOTEBOOKLM_QUOTA", kind: "QUOTA" });
+    expect((error as { retryAfterMs: number }).retryAfterMs).toBeGreaterThan(deadline - Date.now() - 1000);
+    expect((error as { retryAfterMs: number }).retryAfterMs).toBeLessThanOrEqual(7 * 24 * 3_600_000);
+    expect(calls().filter((call) => call.tool === "usage_get")).toHaveLength(2);
+    expect(calls().filter((call) => call.tool === "notebook_query")).toHaveLength(1);
+  });
+
+  it("allows work with unknown allowance and keeps quota fallback when the usage endpoint is unavailable", async () => {
+    await open({
+      script: {
+        usage_get: [
+          { status: "error", error: "Request timed out" },
+          { status: "error", error: "Request timed out" },
+        ],
+        notebook_query: [{ status: "error", error: "Rate limit exceeded" }],
+      },
+    });
+    await expect(session?.call("notebook_query", { notebook_id: "n", query: "q" })).rejects.toMatchObject({
+      kind: "QUOTA",
+      retryAfterMs: undefined,
+    });
+    expect(calls().filter((call) => call.tool === "usage_get")).toHaveLength(2);
+  });
+
+  it.each([
+    ["Session expired", "AUTH"],
+    ["Rate limit exceeded", "QUOTA"],
+  ])("does not bypass %s from the usage endpoint or recursively retry it", async (message, kind) => {
+    await expect(open({ script: { usage_get: [{ status: "error", error: message }] } })).rejects.toMatchObject({
+      kind,
+    });
+    expect(calls().filter((call) => call.tool === "usage_get")).toHaveLength(1);
   });
 
   it("tells the user to sign in when the profile does not exist", async () => {
