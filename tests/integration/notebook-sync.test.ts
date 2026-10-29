@@ -7,6 +7,10 @@ import type * as BindingRepository from "@/features/notebooklm/repositories/note
 import type * as NotebookSync from "@/features/notebooklm/services/notebook-sync.service";
 import type * as DbClient from "@/server/db/client";
 import { NotebookLmSession } from "@/server/script-studio/notebooklm/notebooklm-session";
+import {
+  CHAT_PERSONA_PROMPT,
+  CHAT_PERSONA_VERSION,
+} from "@/server/script-studio/notebooklm/prompts/chat-persona-prompt";
 
 import { setupTestEnvironment, type TestEnvironment } from "../helpers/test-environment";
 
@@ -26,7 +30,12 @@ const scriptPath = () => path.join(directory, "nlm-script.json");
 const logPath = () => path.join(directory, "nlm-log.jsonl");
 const remote = () =>
   JSON.parse(fs.readFileSync(statePath(), "utf8")) as {
-    notebooks: { id: string; title: string; sources: { id: string; title: string; length: number }[] }[];
+    notebooks: {
+      id: string;
+      title: string;
+      sources: { id: string; title: string; length: number }[];
+      chat?: { goal: string; custom_prompt: string | null; response_length: string };
+    }[];
   };
 const toolCalls = (tool: string) =>
   fs
@@ -154,6 +163,75 @@ describe("ensureNotebook", () => {
 
     await expect(sync.ensureNotebook(caller, notebookBindingId, "Sách")).rejects.toMatchObject({ kind: "REJECTED" });
     expect(await repo.findNotebookBinding(notebookBindingId)).toMatchObject({ status: "PENDING" });
+  });
+});
+
+describe("ensureChatPersona", () => {
+  const savedVersion = async () => (await repo.findNotebookBinding(notebookBindingId))?.chatPersonaVersion;
+
+  it("gives the notebook its persona and longer answers once, then leaves it while the version holds", async () => {
+    const caller = await open();
+    const notebookId = await sync.ensureNotebook(caller, notebookBindingId, "Sách");
+
+    await sync.ensureChatPersona(caller, notebookBindingId, notebookId);
+    await sync.ensureChatPersona(caller, notebookBindingId, notebookId);
+
+    const settings = { goal: "custom", custom_prompt: CHAT_PERSONA_PROMPT, response_length: "longer" };
+    expect(toolCalls("chat_configure")).toEqual([{ notebook_id: notebookId, ...settings }]);
+    expect(remote().notebooks[0]?.chat).toEqual(settings);
+    expect(await savedVersion()).toBe(CHAT_PERSONA_VERSION);
+  });
+
+  it("applies the persona again to a notebook set up under an earlier version", async () => {
+    const caller = await open();
+    const notebookId = await sync.ensureNotebook(caller, notebookBindingId, "Sách");
+    await db.prisma.notebookBinding.update({
+      where: { id: notebookBindingId },
+      data: { chatPersonaVersion: "notebooklm-chat-persona-v0" },
+    });
+
+    await sync.ensureChatPersona(caller, notebookBindingId, notebookId);
+
+    expect(toolCalls("chat_configure")).toHaveLength(1);
+    expect(await savedVersion()).toBe(CHAT_PERSONA_VERSION);
+  });
+
+  it("saves nothing while NotebookLM refuses or does not confirm the settings, so the next use tries again", async () => {
+    const caller = await open({
+      chat_configure: [
+        { status: "error", error: "Something odd" },
+        { status: "success", goal: "default", response_length: "default" },
+      ],
+    });
+    const notebookId = await sync.ensureNotebook(caller, notebookBindingId, "Sách");
+
+    await expect(sync.ensureChatPersona(caller, notebookBindingId, notebookId)).rejects.toMatchObject({
+      code: "NOTEBOOKLM_TOOL_ERROR",
+      kind: "REJECTED",
+    });
+    await expect(sync.ensureChatPersona(caller, notebookBindingId, notebookId)).rejects.toMatchObject({
+      code: "NOTEBOOKLM_BAD_RESPONSE",
+      kind: "REJECTED",
+    });
+    expect(await savedVersion()).toBeNull();
+
+    await sync.ensureChatPersona(caller, notebookBindingId, notebookId);
+    expect(await savedVersion()).toBe(CHAT_PERSONA_VERSION);
+  });
+
+  it("treats a lost answer as temporary, since setting the same persona again is harmless", async () => {
+    const caller = await open({ chat_configure: [{ __applyThenHang: true }] });
+    const notebookId = await sync.ensureNotebook(caller, notebookBindingId, "Sách");
+
+    await expect(sync.ensureChatPersona(caller, notebookBindingId, notebookId)).rejects.toMatchObject({
+      code: "MCP_TIMEOUT",
+      kind: "TRANSIENT",
+    });
+    expect(await savedVersion()).toBeNull();
+
+    await sync.ensureChatPersona(await open(), notebookBindingId, notebookId);
+    expect(toolCalls("chat_configure")).toHaveLength(2);
+    expect(await savedVersion()).toBe(CHAT_PERSONA_VERSION);
   });
 });
 

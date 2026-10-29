@@ -135,8 +135,8 @@ tối đa 8 lần liên tiếp; sản xuất 10 phút, 5 lần; archive 30 phút
   mảng đối số, prompt qua stdin; env bỏ `CLAUDECODE*`/`CLAUDE_CODE_*` (không lồng phiên) và `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN`;
   timeout và huỷ → `SIGTERM`. Lỗi có mã ổn định (`AI_CLI_AUTH`, `AI_QUOTA_EXCEEDED`, `AI_CLI_TIMEOUT`, `INVALID_AI_OUTPUT`…).
 - Prompt có phiên bản; đổi chữ là tăng phiên bản: `chapter-analysis-v1`, `video-script-v6` (v1.1, cùng khung kể với sản xuất, đề xuất độ dài); `scene-plan-v5`
-  (biên dịch cảnh); `notebooklm-chapter-detection-v2`, `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v4` (đề xuất độ dài;
-  cũng là `draftVersion` của cache). Danh sách độ dài được chọn và ngân sách lời của từng mức sinh từ `prompts/duration-choice.ts`.
+  (biên dịch cảnh); `notebooklm-chapter-detection-v2`, `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v4` (đề xuất độ dài),
+  `notebooklm-chat-persona-v1` (vai trò của notebook); `draftVersion` của cache = phiên bản bản thảo + phiên bản vai trò. Danh sách độ dài được chọn và ngân sách lời của từng mức sinh từ `prompts/duration-choice.ts`.
 
 **Kiểm soát nội dung:**
 
@@ -257,6 +257,11 @@ theo số dòng, không trích nội dung. `cleanup` xoá tệp yêu cầu **cu�
   phiên bản (`contentHash`) là một nguồn văn bản mang dấu `[bvs:<id>]`; văn bản đổi → dòng mới, bản cũ `supersededAt` nhưng giữ ID từ xa
   để còn truy nguồn bài học cũ.
 - Tạo mất phản hồi → `UNKNOWN_OUTCOME`; lần sau **tìm dấu** trong `notebook_list`/`notebook_get` trước rồi mới tạo lại.
+- Trước câu hỏi đầu tiên (`openBookNotebook`, lối vào của mọi nguồn), notebook được đặt "Configure chat" qua `chat_configure`: vai trò
+  tuỳ chỉnh `notebooklm-chat-persona-v1` (phân tích sách + biên kịch video dọc, bám nguồn, câu hỏi đòi định dạng nào trả đúng định dạng
+  đó) và câu trả lời `longer`. Phiên bản đã áp lưu ở `NotebookBinding.chatPersonaVersion` — chỉ ghi khi NotebookLM xác nhận; notebook
+  cũ hơn phiên bản hiện hành được áp lại ở lần dùng sau. Đặt lại cùng cấu hình vô hại nên mất phản hồi là `TRANSIENT`, không
+  `UNKNOWN_OUTCOME`.
 - Câu hỏi luôn truyền **`source_ids` tường minh** (chỉ phiên bản hiện hành) trong hội thoại mới, vì NotebookLM mặc định dùng mọi nguồn.
   Câu trả lời phải là JSON đúng schema; sai thì từ chối, không vá.
 

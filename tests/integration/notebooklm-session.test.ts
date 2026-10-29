@@ -135,6 +135,7 @@ describe("NotebookLmSession", () => {
           "notebook_list",
           "notebook_create",
           "notebook_query",
+          "chat_configure",
           "source_add",
           "source_get_content",
           "source_delete",

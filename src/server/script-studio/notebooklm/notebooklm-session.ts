@@ -12,6 +12,7 @@ export const REQUIRED_NOTEBOOKLM_TOOLS = [
   "notebook_create",
   "notebook_get",
   "notebook_query",
+  "chat_configure",
   "source_add",
   "source_get_content",
   "source_delete",
@@ -20,7 +21,8 @@ export const REQUIRED_NOTEBOOKLM_TOOLS = [
 
 export type NotebookLmTool = (typeof REQUIRED_NOTEBOOKLM_TOOLS)[number];
 
-// Tools that change something in NotebookLM: a lost answer means the change may have happened.
+// Tools that change something in NotebookLM: a lost answer means the change may have happened. chat_configure is not one
+// of them: setting the same chat settings again is harmless, so its lost answer is simply asked again.
 const MUTATING_TOOLS: ReadonlySet<NotebookLmTool> = new Set([
   "profile",
   "notebook_create",

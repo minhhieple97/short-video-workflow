@@ -628,16 +628,18 @@ model DriveCapacity {
 // The NotebookLM notebook this app made for one book in one NotebookLM account (profile); every later step of that book
 // reuses it. The remote ID is written once.
 model NotebookBinding {
-  id         String                  @id @default(cuid())
-  bookId     String
-  book       Book                    @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  profile    String
+  id                 String                  @id @default(cuid())
+  bookId             String
+  book               Book                    @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  profile            String
   // PENDING | CREATING | UNKNOWN_OUTCOME | READY. UNKNOWN_OUTCOME: the create was sent but its answer was lost.
-  status     String                  @default("PENDING")
-  notebookId String?
-  createdAt  DateTime                @default(now())
-  updatedAt  DateTime                @updatedAt
-  sources    NotebookSourceBinding[]
+  status             String                  @default("PENDING")
+  notebookId         String?
+  // The chat persona (prompt version) last applied to the notebook; a notebook behind the current version gets it again.
+  chatPersonaVersion String?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  sources            NotebookSourceBinding[]
 
   @@unique([bookId, profile])
 }

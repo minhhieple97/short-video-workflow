@@ -12,7 +12,14 @@ export interface FakeNotebookLm {
   // Answers every later notebook_query whose question contains `contains` (when nothing is queued).
   answerQueries(rules: { contains: string; answer: unknown }[]): void;
   calls(tool: string): Record<string, unknown>[];
-  remote(): { notebooks: { id: string; title: string; sources: { id: string; title: string; length: number }[] }[] };
+  remote(): {
+    notebooks: {
+      id: string;
+      title: string;
+      sources: { id: string; title: string; length: number }[];
+      chat?: { goal: string; custom_prompt: string | null; response_length: string };
+    }[];
+  };
 }
 
 // The fake MCP server in its NotebookLM role, with notebooks and sources kept in a file like a real account would.

@@ -242,8 +242,9 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - Run subprocesses with `spawn`/`execFile` and an argument array — **never** build shell strings from input, never use `exec` with interpolation.
 - Never use `--dangerously-skip-permissions`. When the model only needs to emit JSON, do not grant file-write/shell tools.
 - Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v6`, `scene-plan-v5`, and for NotebookLM `notebooklm-chapter-detection-v2`,
-  `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v4`); changing a prompt's text means bumping its version (the draft version also keys the
-  draft cache). Book content is passed as quoted untrusted data.
+  `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v4`, and the notebook's chat persona `notebooklm-chat-persona-v1`, applied once per
+  notebook through `chat_configure` and re-applied when its version changes); changing a prompt's text means bumping its version (the draft and
+  persona versions also key the draft cache). Book content is passed as quoted untrusted data.
 - Validate model output with Zod; on schema failure mark the job `FAILED` and store nothing. No unbounded retries (respect quota errors). Timeouts + best-effort cancel.
 
 ## 10. Storage & security

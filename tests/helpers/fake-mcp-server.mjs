@@ -30,7 +30,7 @@ const send = (message) => {
 const notebooklm = process.env.FAKE_MCP_PERSONA === "notebooklm";
 const nlmTools = (
   process.env.FAKE_NLM_TOOLS ??
-  "profile,notebook_list,notebook_create,notebook_get,notebook_query,source_add,source_get_content,source_delete,usage_get,server_info"
+  "profile,notebook_list,notebook_create,notebook_get,notebook_query,chat_configure,source_add,source_get_content,source_delete,usage_get,server_info"
 ).split(",");
 const nlmProfiles = (process.env.FAKE_NLM_PROFILES ?? "default").split(",");
 const nlmScript = process.env.FAKE_NLM_SCRIPT ? JSON.parse(fs.readFileSync(process.env.FAKE_NLM_SCRIPT, "utf8")) : {};
@@ -83,6 +83,23 @@ function statefulAnswer(name, args) {
       source_type: args.source_type,
       source_id: source.id,
       title: source.title,
+    };
+  }
+  if (name === "chat_configure") {
+    const notebook = notebookOf(args.notebook_id);
+    if (!notebook) return { status: "error", error: "Notebook not found" };
+    notebook.chat = {
+      goal: args.goal,
+      custom_prompt: args.custom_prompt ?? null,
+      response_length: args.response_length,
+    };
+    saveState(state);
+    return {
+      status: "success",
+      notebook_id: notebook.id,
+      goal: args.goal,
+      response_length: args.response_length,
+      message: "Chat settings updated.",
     };
   }
   if (name === "notebook_query") {

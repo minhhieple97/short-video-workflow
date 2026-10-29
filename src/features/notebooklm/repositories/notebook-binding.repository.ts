@@ -39,6 +39,10 @@ export async function saveNotebookId(id: string, notebookId: string): Promise<No
   return prisma.notebookBinding.findUniqueOrThrow({ where: { id } });
 }
 
+export async function saveChatPersonaVersion(id: string, version: string): Promise<void> {
+  await prisma.notebookBinding.update({ where: { id }, data: { chatPersonaVersion: version } });
+}
+
 // The binding for this part of the book at this revision. Text that changed gets a new binding and the earlier revision
 // is marked superseded (kept, with its remote ID); text that went back to an earlier revision reuses that binding.
 export function ensureSourceBinding(input: {

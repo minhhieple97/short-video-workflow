@@ -387,7 +387,8 @@ Chỉ các dịch vụ dưới đây được phép, mỗi dịch vụ sau một
   phí không tự nâng, không tự đổi nhà cung cấp; tệp phía Mistral bị xoá sau khi kết quả đã lưu.
 - **NotebookLM** (MCP stdio, tiến trình con của worker, chỉ khi `cli-auto`): qua công cụ không chính thức `notebooklm-mcp-cli` với
   profile đã đăng nhập của người dùng và hạn mức gói của họ. Một notebook mỗi sách, một nguồn mỗi phần chương; mỗi câu hỏi chỉ rõ
-  nguồn được dùng.
+  nguồn được dùng. Notebook của mỗi sách được cấu hình trò chuyện (vai trò phân tích sách + biên kịch video, câu trả lời dài hơn)
+  trước câu hỏi đầu tiên; vai trò không bao giờ thắng định dạng JSON và độ dài mà từng câu hỏi yêu cầu.
 - **Google Drive** (OAuth `drive.file`): quyền tối thiểu, ứng dụng chỉ thấy tệp nó tạo. Token chỉ ở máy cục bộ, không trong cơ sở
   dữ liệu, giao diện hay log. Ngắt kết nối thu hồi quyền, không xoá gì trên Drive. Ứng dụng tự giới hạn nhịp và lượng gửi mỗi 24
   giờ, kiểm tra dung lượng trước khi upload.

@@ -9,7 +9,13 @@ import { getAppConfig, type AppConfig } from "@/shared/config/env";
 
 import { extractJsonFromAnswer } from "../domain/answer-json";
 import { ensureNotebookBinding, ensureSourceBinding } from "../repositories/notebook-binding.repository";
-import { ensureNotebook, ensureSource, queryNotebook, type NotebookLmCaller } from "./notebook-sync.service";
+import {
+  ensureChatPersona,
+  ensureNotebook,
+  ensureSource,
+  queryNotebook,
+  type NotebookLmCaller,
+} from "./notebook-sync.service";
 
 export interface NotebookStudioSettings {
   profile: string;
@@ -38,6 +44,7 @@ export interface BookNotebook {
   notebookId: string;
 }
 
+// Every question is preceded by its sources being ensured through here, so the chat persona is in place before any of them.
 export async function openBookNotebook(
   caller: NotebookLmCaller,
   profile: string,
@@ -46,6 +53,7 @@ export async function openBookNotebook(
 ): Promise<BookNotebook> {
   const binding = await ensureNotebookBinding(book.id, profile);
   const notebookId = await ensureNotebook(caller, binding.id, book.title, signal);
+  await ensureChatPersona(caller, binding.id, notebookId, signal);
   return { caller, bindingId: binding.id, notebookId };
 }
 

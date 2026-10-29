@@ -5,6 +5,7 @@ import type { CallOptions } from "@/server/integrations/call-options";
 import { IntegrationError } from "@/server/integrations/integration-error";
 import { NotebookLmSession } from "@/server/script-studio/notebooklm/notebooklm-session";
 import { buildChapterDetectionPrompt } from "@/server/script-studio/notebooklm/prompts/chapter-detection-prompt";
+import { CHAT_PERSONA_VERSION } from "@/server/script-studio/notebooklm/prompts/chat-persona-prompt";
 import { buildLessonExtractionPrompt } from "@/server/script-studio/notebooklm/prompts/lesson-extraction-prompt";
 import {
   buildScriptDraftPrompt,
@@ -68,7 +69,8 @@ function splitRefs(sources: readonly SourceRef[]): { notebookId: string; sourceI
 // sources it is about, and its answer must be the JSON asked for.
 export class NotebookLmScriptStudio implements ScriptStudioProvider {
   readonly id = "notebooklm";
-  readonly draftVersion = SCRIPT_DRAFT_PROMPT_VERSION;
+  // The notebook's chat persona shapes the draft as much as the question does, so both versions key the draft cache.
+  readonly draftVersion = `${SCRIPT_DRAFT_PROMPT_VERSION}+${CHAT_PERSONA_VERSION}`;
   private session: Promise<NotebookLmSession> | null = null;
 
   constructor(private readonly settings: NotebookStudioSettings) {}

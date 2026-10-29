@@ -7,6 +7,8 @@ import type * as Studio from "@/features/notebooklm/services/notebooklm-script-s
 import type * as PipelineDepsModule from "@/features/productions/services/pipeline-deps";
 import type { LessonSnapshot } from "@/features/videos/domain/lesson-snapshot";
 import type * as DbClient from "@/server/db/client";
+import { CHAT_PERSONA_VERSION } from "@/server/script-studio/notebooklm/prompts/chat-persona-prompt";
+import { SCRIPT_DRAFT_PROMPT_VERSION } from "@/server/script-studio/notebooklm/prompts/script-draft-prompt";
 
 import {
   CONTRACT_BOOK,
@@ -135,6 +137,30 @@ describe("NotebookLmScriptStudio", () => {
     expect(String(query?.query)).toContain("45 (45 giây) ≈ 162 từ");
     expect(String(query?.query)).not.toContain("60 (60 giây)");
     expect(String(query?.query)).toContain('"Giữ đúng trích đoạn."');
+  });
+
+  it("gives the book's notebook its chat persona once, before its first question, and keys drafts on it", async () => {
+    const provider = studio();
+    const document = (part: number) => ({
+      key: `chapter:c1:part:${part}`,
+      title: "Chương 1",
+      markdown: `Phần ${part}.`,
+    });
+    const first = await provider.ensureSource({ book: CONTRACT_BOOK, document: document(1), known: null });
+    const second = await provider.ensureSource({ book: CONTRACT_BOOK, document: document(2), known: null });
+
+    await provider.writeDraft({
+      sources: [first, second],
+      lesson: SAMPLE_LESSON,
+      range: { minDurationSec: 30, maxDurationSec: 45 },
+      revisionNote: null,
+    });
+
+    expect(nlm.calls("chat_configure")).toHaveLength(1);
+    expect(nlm.remote().notebooks[0]?.chat).toMatchObject({ goal: "custom", response_length: "longer" });
+    const binding = await db.prisma.notebookBinding.findFirstOrThrow({ where: { bookId: CONTRACT_BOOK.id } });
+    expect(binding.chatPersonaVersion).toBe(CHAT_PERSONA_VERSION);
+    expect(provider.draftVersion).toBe(`${SCRIPT_DRAFT_PROMPT_VERSION}+${CHAT_PERSONA_VERSION}`);
   });
 
   it("refuses a proposed length outside the range, which the one correction can fix", async () => {

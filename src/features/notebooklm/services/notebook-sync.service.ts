@@ -4,6 +4,11 @@ import type { NotebookBinding, NotebookSourceBinding } from "@/generated/prisma/
 import { IntegrationError } from "@/server/integrations/integration-error";
 import type { NotebookLmPayload } from "@/server/script-studio/notebooklm/notebooklm-envelope";
 import type { NotebookLmTool } from "@/server/script-studio/notebooklm/notebooklm-session";
+import {
+  CHAT_PERSONA_PROMPT,
+  CHAT_PERSONA_VERSION,
+  CHAT_RESPONSE_LENGTH,
+} from "@/server/script-studio/notebooklm/prompts/chat-persona-prompt";
 import { createLogger } from "@/shared/logger";
 
 import { hasBindingMarker, titleWithMarker } from "../domain/binding-marker";
@@ -12,6 +17,7 @@ import {
   findSourceBinding,
   moveNotebookStatus,
   moveSourceStatus,
+  saveChatPersonaVersion,
   saveNotebookId,
   saveRemoteSourceId,
 } from "../repositories/notebook-binding.repository";
@@ -28,6 +34,10 @@ const createdNotebookSchema = z.looseObject({ notebook_id: z.string().min(1) });
 const notebookListSchema = z.looseObject({ notebooks: z.array(z.looseObject({ id: z.string(), title: z.string() })) });
 const notebookSourcesSchema = z.looseObject({ sources: z.array(z.looseObject({ id: z.string(), title: z.string() })) });
 const addedSourceSchema = z.looseObject({ source_id: z.string().min(1) });
+const chatConfiguredSchema = z.looseObject({
+  goal: z.literal("custom"),
+  response_length: z.literal(CHAT_RESPONSE_LENGTH),
+});
 const answerSchema = z.looseObject({
   answer: z.string(),
   conversation_id: z.string().nullish(),
@@ -96,6 +106,35 @@ export async function ensureNotebook(
     await moveNotebookStatus(binding.id, ["CREATING"], isUnknownOutcome(error) ? "UNKNOWN_OUTCOME" : "PENDING");
     throw error;
   }
+}
+
+// The notebook's chat persona and answer length, set before its first question and again whenever the persona's version
+// changes. It is saved only once NotebookLM confirms it, so a failed attempt is made again on the next use.
+export async function ensureChatPersona(
+  caller: NotebookLmCaller,
+  bindingId: string,
+  notebookId: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const binding = await requireNotebook(bindingId);
+  if (binding.chatPersonaVersion === CHAT_PERSONA_VERSION) return;
+  parse(
+    chatConfiguredSchema,
+    await caller.call(
+      "chat_configure",
+      {
+        notebook_id: notebookId,
+        goal: "custom",
+        custom_prompt: CHAT_PERSONA_PROMPT,
+        response_length: CHAT_RESPONSE_LENGTH,
+      },
+      signal,
+    ),
+    "chat_configure",
+    false,
+  );
+  await saveChatPersonaVersion(binding.id, CHAT_PERSONA_VERSION);
+  logger.info("Notebook chat persona applied", { bindingId: binding.id, version: CHAT_PERSONA_VERSION });
 }
 
 // One part of the book as a text source, uploaded once per revision. After a lost answer the notebook's sources are
