@@ -41,7 +41,10 @@ biến, nguồn của manifest Drive).
 - **Video:** `Video` (`scriptVersion` tăng mỗi lần kịch bản đổi; `approvedScriptVersion` do người duyệt; `autoReadyScriptVersion` do máy
   kiểm; khoảng `minDurationSec`–`maxDurationSec` người dùng cho phép, `targetDurationSec` + `durationReason` do AI đề xuất — trước khi có
   đề xuất, `targetDurationSec` = mức dài nhất và lý do null) · `VideoLesson` (snapshot bài học lúc chọn) · `VideoScene` (duy nhất `(videoId, order)`) · `MediaAsset` · `RenderRecord`
-  (snapshot bất biến, `archiveIntentAt`; "lỗi thời" là suy ra `scriptVersion < Video.scriptVersion`, không lưu).
+  (snapshot bất biến, `archiveIntentAt`; "lỗi thời" là suy ra `scriptVersion < Video.scriptVersion`, không lưu) ·
+  `VideoPublishMetadata` (duy nhất `videoId`: tiêu đề, caption, hashtag để đăng; `origin` `AI`/`EDITED`; `sourceTextHash` =
+  `scriptTextHash()` của chữ các cảnh hiện lúc viết hay lưu — khác hash hiện tại thì "Cần xem lại"; không dùng `scriptVersion` vì lồng
+  tiếng cũng tăng nó).
 - **Tác vụ:** `JobRecord` (read model) · `JobDispatch` (hàng outbox, 1:1) · `AiRun` (chế độ, phiên bản prompt, hash đầu vào; không bí mật).
 - **PDF:** `BookExtraction` (gắn `sourceHash`; chi phí OCR bằng micro-USD nguyên) · `ExtractionPage` (duy nhất
   `(extractionId, pageNumber)`; số trang PDF, không bao giờ là offset; `confidence` chỉ khi provider báo) · `OcrOperation` (duy nhất
@@ -75,6 +78,7 @@ RenderArchive    PENDING RUNNING WAITING COMPLETED FAILED    file: PENDING UPLOA
 DIAGNOSTIC_PING        kind (ping | notebooklm)
 ANALYZE_CHAPTER        chapterId, force        v1.1, hoặc NotebookLM cho chương sách PDF
 GENERATE_VIDEO_SCRIPT  videoId, sceneId?       cả kịch bản hoặc viết lại một cảnh
+GENERATE_PUBLISH_METADATA  videoId             viết lại tiêu đề, caption, hashtag (không khoá kịch bản)
 GENERATE_SCENE_TTS     sceneId                 loại duy nhất BullMQ thử lại (2 lần, backoff 5 giây)
 RENDER_VIDEO           renderId
 EXTRACT_PDF            extractionId            hoãn khi chờ
@@ -129,13 +133,15 @@ tối đa 8 lần liên tiếp; sản xuất 10 phút, 5 lần; archive 30 phút
 - `AiProvider` theo `AI_MODE`: `mock` (tất định, không mạng); `cli-task` (mặc định: ghi tác vụ vào `ai-tasks/<taskId>/`, job
   `WAITING_FOR_CLI`, người dùng chạy `pnpm ai:run --job <id>`); `cli-auto` (tuỳ chọn: vẫn ghi đủ tệp nhưng worker gọi `askClaude()` ngay).
 - Thư mục tác vụ: `input.json`, `prompt.md`, `schema.json` (JSON Schema draft-7 sinh từ chính schema Zod của đầu ra), `task.json`, rồi
-  `output.json` hoặc `output.raw.txt`. Loại: `chapter-analysis`, `video-script`, `scene-regeneration`, `scene-plan`.
+  `output.json` hoặc `output.raw.txt`. Loại: `chapter-analysis`, `video-script`, `scene-regeneration`, `scene-plan`,
+  `publish-metadata`.
 - `askClaude()` là đường duy nhất tới Claude (dùng bởi `pnpm ai:run`, `AutomatedCliProvider`, `ClaudeScenePlanCompiler`): kiểm
   `claude auth status`; chạy `claude -p --output-format json --tools "" --strict-mcp-config --no-session-persistence --json-schema …` từ
   mảng đối số, prompt qua stdin; env bỏ `CLAUDECODE*`/`CLAUDE_CODE_*` (không lồng phiên) và `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN`;
   timeout và huỷ → `SIGTERM`. Lỗi có mã ổn định (`AI_CLI_AUTH`, `AI_QUOTA_EXCEEDED`, `AI_CLI_TIMEOUT`, `INVALID_AI_OUTPUT`…).
-- Prompt có phiên bản; đổi chữ là tăng phiên bản: `chapter-analysis-v1`, `video-script-v6` (v1.1, cùng khung kể với sản xuất, đề xuất độ dài); `scene-plan-v5`
-  (biên dịch cảnh); `notebooklm-chapter-detection-v2`, `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v4` (đề xuất độ dài),
+- Prompt có phiên bản; đổi chữ là tăng phiên bản: `chapter-analysis-v1`, `video-script-v7` (v1.1, cùng khung kể với sản xuất, đề xuất độ
+  dài, kèm tiêu đề/caption/hashtag); `scene-plan-v6` (biên dịch cảnh, kèm tiêu đề/caption/hashtag); `publish-metadata-v1` (chỉ viết lại
+  tiêu đề/caption/hashtag); ba prompt này dùng chung quy tắc `prompts/publish-rule.ts`, đổi chữ ở đó là tăng cả ba; `notebooklm-chapter-detection-v2`, `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v4` (đề xuất độ dài),
   `notebooklm-chat-persona-v1` (vai trò của notebook); `draftVersion` của cache = phiên bản bản thảo + phiên bản vai trò. Danh sách độ dài được chọn và ngân sách lời của từng mức sinh từ `prompts/duration-choice.ts`.
 
 **Kiểm soát nội dung:**
@@ -145,7 +151,13 @@ tối đa 8 lần liên tiếp; sản xuất 10 phút, 5 lần; archive 30 phút
 - Sai schema → `FAILED`, không lưu gì. Trích đoạn chỉ giữ khi tìm thấy thật trong văn bản chương (`locateExcerpt`, bỏ qua khoảng trắng).
 - **Bộ chặn khẳng định không có căn cứ** (`findUnsupportedClaims`): con số hay câu trích dẫn trong kế hoạch cảnh mà không có trong bản
   thảo hoặc bài học (so sau chuẩn hoá NFC, chữ thường, khoảng trắng) làm kế hoạch bị từ chối (`SCENE_PLAN_UNSUPPORTED_CLAIM`) và không
-  được lưu. Đây là lưới an toàn cơ học, không chứng minh được sự trung thực.
+  được lưu. Đây là lưới an toàn cơ học, không chứng minh được sự trung thực. Lõi dùng chung (`videos/domain/source-claims.ts`) cũng
+  kiểm tiêu đề, caption, hashtag với nguồn là chữ kịch bản, snapshot bài học, tên sách và tác giả.
+- **Tiêu đề, caption, hashtag:** trong schema của tác vụ `video-script`/`scene-plan`, `publish` là optional và kiểu lỏng, để một bộ sai
+  không làm hỏng kịch bản; sau đó `acceptPublishMetadata()` chuẩn hoá hashtag (bỏ `#`, bỏ dấu, chữ thường, không trùng), kiểm giới hạn
+  và bộ chặn trên. Không đạt thì bỏ bộ đó và ghi log (kịch bản vẫn lưu, bộ cũ nếu có giữ lại và hiện "Cần xem lại"); với
+  `GENERATE_PUBLISH_METADATA` thì job `FAILED` (`PUBLISH_METADATA_UNSUPPORTED_CLAIM` / `INVALID_AI_OUTPUT`), không lưu gì. Bộ hợp lệ
+  được ghi trong cùng giao dịch với kịch bản (`replaceScriptWithin`).
 - Hoạt cảnh chỉ nhận giá trị từ danh sách cố định, sinh vào prompt từ `videos/domain/illustration.ts`.
 - `ClaudeScenePlanCompiler` đặt tên tác vụ theo hash đầu vào nên hỏi lại cùng đầu vào không tốn thêm lượt Claude. Sản xuất hàng loạt chỉ
   chạy với `mock` hoặc `cli-auto`; `cli-task` bị từ chối vì không thể chờ người chạy `pnpm ai:run` từng video.
@@ -155,7 +167,10 @@ tối đa 8 lần liên tiếp; sản xuất 10 phút, 5 lần; archive 30 phút
 - Nhập `.md/.txt`: tệp giữ tạm ở `imports/<id>/` để xem trước cách tách chương; xác nhận mới tạo sách; tệp gốc ghi nguyên byte rồi đặt
   chỉ đọc. Parser chương dùng chung cho sách PDF.
 - `ANALYZE_CHAPTER` → `analyzeChapter` → Zod → kiểm trích đoạn → thay bài nháp AI cũ. `GENERATE_VIDEO_SCRIPT` tạo 2–3 phương án hook +
-  các cảnh từ snapshot bài học. Sửa kịch bản đã duyệt → `NEEDS_REVIEW`.
+  các cảnh từ snapshot bài học, kèm tiêu đề/caption/hashtag. Sửa kịch bản đã duyệt → `NEEDS_REVIEW`.
+- Tab **Đăng tải**: `PUT /api/videos/:id/publish-metadata` lưu bản sửa tay (`origin = EDITED`, hash hiện tại); `POST
+…/publish-metadata/generate` xếp `GENERATE_PUBLISH_METADATA`. Cả hai bị chặn bởi `assertScriptNotGenerating()`; lưu còn bị chặn khi
+  job viết lại đang chạy (`PUBLISH_GENERATION_IN_PROGRESS`). Job này không khoá trình biên tập (`findActiveVideoJob` chỉ xét job kịch bản).
 - `runSceneTts`: khoá `sha256(TTS_ENGINE_VERSION, giọng, tốc độ, lời dẫn)`; trượt thì `edge-tts` (lời dẫn qua tệp, không qua dòng lệnh) →
   cắt lặng đầu/cuối (ffmpeg) → đo (ffprobe) → `videos/<videoId>/audio/<hash>.mp3`. Audio tải lên (nhận bằng chữ ký byte) chỉ được đo.
 
@@ -319,8 +334,9 @@ status:     PENDING ─claim─► RUNNING ─┬─► COMPLETED
   fingerprint kế hoạch gồm **fingerprint bản thảo**, phiên bản prompt và độ dài, nên đổi bất kỳ thứ gì thì kế hoạch cũ không được dùng lại.
   Bản thảo không bao giờ ghi vào `output.json` của tác vụ Claude.
 - **Áp dụng** (`applyScenePlan`): câu lệnh đầu của giao dịch là `UPDATE` có điều kiện (lấy khoá ghi trước khi đọc, tránh nâng cấp khoá
-  của SQLite WAL; chỉ một người thắng), rồi ghi cảnh qua `replaceScriptWithin`, **cùng đường ghi** với luồng thủ công. Áp lại cùng kế hoạch
-  → `ALREADY_APPLIED`, giữ nguyên cảnh và audio.
+  của SQLite WAL; chỉ một người thắng), rồi ghi cảnh qua `replaceScriptWithin`, **cùng đường ghi** với luồng thủ công, kèm tiêu đề/caption/
+  hashtag của kế hoạch nếu đạt quy tắc. Áp lại cùng kế hoạch → `ALREADY_APPLIED`, giữ nguyên cảnh và audio. Kế hoạch lưu trước khi có
+  `publish` vẫn qua fingerprint (trường optional, không default).
 - **Lồng tiếng:** từng cảnh, đúng thứ tự, qua `runSceneTts` (có cache; không gọi song song dịch vụ trực tuyến). Dừng sớm giữ audio đã tạo;
   chỉ chuyển `VOICED` khi mọi cảnh có audio.
 - **Readiness** (`assessReadiness`) thay cho duyệt tay: mọi quy tắc chặn của preflight FINAL (§9.3) trên audio thật, cộng
@@ -356,8 +372,9 @@ status:     PENDING ─claim─► RUNNING ─┬─► COMPLETED
 ### 9.2 Snapshot và `runRender`
 
 - `captureRenderSnapshot` chụp lúc **yêu cầu** render: cảnh, audio theo đường dẫn lưu (tên theo hash nội dung nên byte không đổi), nguồn
-  bài học, kích thước/chất lượng, `scriptVersion`, cổng duyệt (`status`, `autoReady`), template. Lưu kèm `snapshotHash` (sha256 JSON khoá
-  sắp xếp), **không bao giờ ghi đè**; khi đọc phải đúng schema và hash. ESLint cấm `render-runner.ts` đọc video sống.
+  bài học, kích thước/chất lượng, `scriptVersion`, cổng duyệt (`status`, `autoReady`), template, và tiêu đề/caption/hashtag khi bộ hiện
+  tại không "Cần xem lại" (`publish`, optional không default nên snapshot cũ giữ hash). Lưu kèm `snapshotHash` (sha256 JSON khoá sắp
+  xếp), **không bao giờ ghi đè**; khi đọc phải đúng schema và hash. ESLint cấm `render-runner.ts` đọc video sống.
 - **Pha render** (trọn hoặc không gì): preflight trên snapshot → `renderMedia` → ffprobe kiểm H.264/AAC, kích thước, FPS, thời lượng →
   `COMPLETED`, cùng câu lệnh đặt `archiveIntentAt` cho FINAL. Lỗi/huỷ trong pha này xoá tệp dở. **Pha sau** chỉ báo tiến độ; lỗi ở đó
   không bao giờ xoá MP4 hay lật trạng thái. Render đã `COMPLETED` chạy lại là no-op.
@@ -393,8 +410,8 @@ theo tiêu đề video. `illustrationJson` null = mặc định theo loại cả
 
 ```
 render FINAL COMPLETED + archiveIntentAt ─► requestRenderArchive | sweepRenderArchives (khởi động + mỗi phút)
-  ─► RenderArchive + 3 RenderArchiveFile + job ARCHIVE_RENDER (một giao dịch, tài khoản đang kết nối)
-  ─► dựng script/manifest ─► prepareDestination ─► upload MP4 → script → manifest ─► verify ─► COMPLETED khi cả ba VERIFIED
+  ─► RenderArchive + 3–4 RenderArchiveFile + job ARCHIVE_RENDER (một giao dịch, tài khoản đang kết nối)
+  ─► dựng script/publish/manifest ─► prepareDestination ─► upload MP4 → script → publish → manifest ─► verify ─► COMPLETED khi mọi tệp VERIFIED
 ```
 
 - Archive tách khỏi render; `destinationKey` = `permissionId` của tài khoản. Chưa kết nối Drive → không làm gì, ý định vẫn nằm trên
@@ -403,7 +420,10 @@ render FINAL COMPLETED + archiveIntentAt ─► requestRenderArchive | sweepRend
   không có đường dẫn local, JSON khoá sắp xếp nên dựng lại ra cùng byte. Cảnh minh hoạ: snapshot ghi `illustrative` cho từng cảnh lúc
   chụp (nhịp bản thảo có `illustrative` của item sản xuất, ánh xạ sang loại cảnh bằng `SCENE_TYPE_FOR_BEAT`; video làm tay thì là
   cảnh `SITUATION`, vì nó lấy từ tình huống minh hoạ của bài học); `script.json` ghi cờ theo cảnh, `manifest.json` liệt kê
-  `illustrativeScenes`. Snapshot cũ không có cờ thì hai tệp giữ đúng byte như trước để archive dở không báo tệp đổi. Cây Drive:
+  `illustrativeScenes`. Snapshot cũ không có cờ thì hai tệp giữ đúng byte như trước để archive dở không báo tệp đổi.
+- `publish.txt` (tiêu đề, rồi caption + hashtag sẵn để dán; `formatPublishText`) chỉ có khi snapshot có `publish`: archive tạo hàng
+  `PUBLISH` lúc được yêu cầu, `manifest.json` thêm `files.publish`. Archive chạy theo **chính các hàng tệp của nó**, nên archive tạo
+  trước khi có `publish.txt` vẫn chạy tiếp với ba tệp; `prepareDestination` cấp ID cho mọi loại, ID thừa không dùng. Cây Drive:
   `Book Video Studio/books/<bookId>/videos/<videoId>/renders/<renderId>/`.
 - Lỗi chờ được → `WAITING` + hoãn; quyền, Drive đầy, tệp local đổi → `FAILED`. Thử lại dùng lại thư mục, ID tệp, checkpoint và tệp đã xác
   minh. Ứng dụng không bao giờ xoá gì trên Drive.
@@ -469,7 +489,7 @@ DATA_DIR/                     mặc định ./data; bị từ chối nếu nằm
   books/<bookId>/             original.<md|txt|pdf> (chỉ đọc), chapters/<chapterId>.md,
                               extractions/<id>/canonical.md, extractions/<id>/ocr/<requestKey>/ (tạm)
   ai-tasks/<taskId>/          tệp tác vụ AI và đầu ra thô
-  videos/<videoId>/           audio/<contentHash>.<mp3|wav>, renders/<renderId>-<draft|final>.mp4, -script.json, -manifest.json
+  videos/<videoId>/           audio/<contentHash>.<mp3|wav>, renders/<renderId>-<draft|final>.mp4, -script.json, -publish.txt, -manifest.json
   integrations/               notebooklm-status.json
   credentials/                google-drive.json (0600, thư mục 0700)
 ```
@@ -515,6 +535,8 @@ DATA_DIR/                     mặc định ./data; bị từ chối nếu nằm
   đề xuất chỉ là mục tiêu viết, nên dài hơn đề xuất mà còn trong khoảng không tốn lượt sửa.
 - **Hai artifact tách có fingerprint, cache bản thảo** — Claude lỗi không tốn lại NotebookLM; nháp không lẫn kết quả cuối.
 - **Snapshot render bất biến; render hai pha** — sửa video lúc render chờ không trộn vào; lỗi báo tiến độ không xoá được MP4 đã xong.
+- **Tiêu đề/caption/hashtag viết cùng kịch bản, kiểm sau, lỗi thời theo hash chữ** — không tốn thêm lượt AI; bộ sai không làm hỏng kịch
+  bản; lồng tiếng hay đổi hoạt cảnh không làm caption "Cần xem lại".
 - **Asset server cục bộ khi render** — Chromium cần URL; chỉ phục vụ đúng tệp của snapshot, không lộ `data/`.
 - **Hoạt cảnh SVG theo frame** — preview và render giống hệt; nhẹ cho CPU yếu.
 - **Lưu trữ tách khỏi render, ID cấp trước, không tìm kiếm Drive** — lỗi Drive không đụng MP4; thử lại nhắm đúng đối tượng mà không đoán

@@ -34,7 +34,8 @@ Hai luồng dùng chung sách, chương, bài học, trình biên tập, mẫu v
 
 - EPUB, đọc hình ảnh trong sách; OCR ngoài trang PDF không có chữ dùng được; OCR tự host hay nhà cung cấp khác ngoài Mistral.
 - Video ngang/16:9; dựng timeline kéo thả; AI sinh video, ảnh, 3D, stock footage; sinh hay chạy mã Remotion tuỳ ý.
-- SaaS, nhiều người dùng, hosting/render trên đám mây; tự đăng video, SEO, kiếm tiền, thumbnail AI.
+- SaaS, nhiều người dùng, hosting/render trên đám mây; tự đăng video, theo dõi lượt xem, công cụ SEO ngoài bộ tiêu đề / caption /
+  hashtag đề xuất (§5.13), kiếm tiền, thumbnail AI.
 - Claude API/SDK/API key; lấy token hay cookie từ tài khoản Claude.
 - Google Sheets; duyệt từng kịch bản trong luồng hàng loạt; phụ đề khớp chính xác từng từ.
 
@@ -61,10 +62,12 @@ Hai luồng dùng chung sách, chương, bài học, trình biên tập, mẫu v
 2. **Phân tích** một hoặc tất cả chương → bài học nháp kèm trích đoạn.
 3. **Duyệt bài học** (đối chiếu trích đoạn, sửa, gộp, lưu trữ, tạo thủ công).
 4. **Tạo video** từ bài học đã duyệt (khuyên một bài) với một khoảng thời lượng.
-5. **Tạo kịch bản**: Claude viết kịch bản và đề xuất độ dài trong khoảng; chọn một trong 2–3 hook, sửa cảnh, **Duyệt kịch bản**.
+5. **Tạo kịch bản**: Claude viết kịch bản, đề xuất độ dài trong khoảng và viết luôn tiêu đề, caption, hashtag để đăng (§5.13);
+   chọn một trong 2–3 hook, sửa cảnh, **Duyệt kịch bản**.
 6. **Giọng đọc**: edge-tts hoặc tải âm thanh lên cho từng cảnh.
 7. **Xem trước** trong khung điện thoại, vùng an toàn, **Xem 4 giây đầu**.
 8. **Render** nháp rồi bản cuối, tải MP4; bản cuối tự lưu Drive nếu đã kết nối.
+9. **Đăng tải**: sửa, lưu, sao chép tiêu đề, caption, hashtag; **Tạo lại** khi kịch bản đã đổi. Người dùng tự đăng video.
 
 Với `AI_MODE=cli-task`, bước dùng AI dừng ở **Chờ Claude CLI** tới khi người dùng chạy lệnh hiển thị trong terminal của mình;
 với `cli-auto`, worker tự chạy Claude Code CLI của người dùng.
@@ -75,8 +78,8 @@ với `cli-auto`, worker tự chạy Claude Code CLI của người dùng.
 2. **Trích xuất**: Đọc PDF → OCR trang cần thiết → Ghép văn bản → Tạo chương (§5.3).
 3. **Phân tích tất cả chương**: NotebookLM lập danh mục bài học có trích đoạn nguyên văn và số trang; không cần duyệt.
 4. **Sản xuất video**: chọn bài học (một, nhiều hoặc tất cả) và khoảng thời lượng.
-5. Mỗi bài là **một video**: bản thảo và độ dài đề xuất (NotebookLM) → biên tập cảnh (Claude) → áp dụng kịch bản → lồng tiếng (edge-tts) → kiểm tra
-   tự động → render bản cuối → lưu Drive.
+5. Mỗi bài là **một video**: bản thảo và độ dài đề xuất (NotebookLM) → biên tập cảnh, kèm tiêu đề, caption, hashtag (Claude) →
+   áp dụng kịch bản → lồng tiếng (edge-tts) → kiểm tra tự động → render bản cuối → lưu Drive (kèm `publish.txt`).
 6. Theo dõi ở mục **Sản xuất**; video mở được trong trình biên tập như mọi video.
 
 Chạy với `AI_MODE=cli-auto` (NotebookLM + Claude thật, cần profile NotebookLM đã đăng nhập) hoặc `mock` (dữ liệu mẫu). `cli-task`
@@ -227,10 +230,11 @@ sửa tên/tác giả, xoá có giải thích ảnh hưởng. Tổng quan: tác 
 
 - Mọi bản render **cuối** hoàn tất (cả hai luồng) được lưu tự động khi đã kết nối; chưa kết nối thì chờ tới khi kết nối. Bản nháp
   không lưu.
-- Mỗi bản lưu, dựng từ snapshot render, gồm MP4, `script.json` (cảnh, bài học và trích đoạn nguồn) và `manifest.json` (thông số,
-  phiên bản, âm thanh, kích thước và SHA-256 các tệp) trong `Book Video Studio/books/<sách>/videos/<video>/renders/<render>/`. Cảnh
-  là tình huống sáng tác cho video (không lấy từ sách) được đánh dấu minh hoạ trong cả hai tệp.
-- Lưu Drive là việc riêng: lỗi Drive không xoá MP4, không chạy lại AI, giọng đọc hay render. **Đã lưu Drive** chỉ khi cả ba tệp đã
+- Mỗi bản lưu, dựng từ snapshot render, gồm MP4, `script.json` (cảnh, bài học và trích đoạn nguồn), `publish.txt` (tiêu đề,
+  caption, hashtag — chỉ khi bản render có bộ này, §5.13) và `manifest.json` (thông số, phiên bản, âm thanh, kích thước và SHA-256
+  các tệp) trong `Book Video Studio/books/<sách>/videos/<video>/renders/<render>/`. Cảnh là tình huống sáng tác cho video (không
+  lấy từ sách) được đánh dấu minh hoạ trong `script.json` và `manifest.json`.
+- Lưu Drive là việc riêng: lỗi Drive không xoá MP4, không chạy lại AI, giọng đọc hay render. **Đã lưu Drive** chỉ khi mọi tệp đã
   xác minh (kích thước + checksum); upload tiếp tục được, mất phản hồi không tạo tệp trùng. Drive đầy, mất quyền, đổi tài khoản →
   **Lưu Drive lỗi** kèm lý do; thử lại từ lịch sử render hoặc trang Tác vụ.
 
@@ -252,6 +256,23 @@ sửa tên/tác giả, xoá có giải thích ảnh hưởng. Tổng quan: tác 
 
 Tiếng Việt; tối ưu 1280–1920 px, dùng được ở màn hình hẹp; sáng / tối / theo hệ thống. Trạng thái Đang tải / Trống / Lỗi / Thành
 công thật, không nút giả; xác nhận thao tác phá huỷ. Ngôn ngữ thị giác: [AGENTS.md](../AGENTS.md) §15.
+
+### 5.13. Tiêu đề, caption và hashtag
+
+- Mỗi video có **một bộ** tiêu đề, caption, hashtag dùng chung cho TikTok, Facebook Reels, YouTube Shorts, để người dùng tự đăng.
+  Viết để người đang lướt dừng lại xem và để nền tảng hiểu video nói về gì; Studio không đăng video.
+- Claude viết bộ này cùng kịch bản (thủ công) hoặc cùng kế hoạch cảnh (hàng loạt), không tốn thêm lần gọi AI. Bộ vi phạm quy tắc
+  (§7.2) bị bỏ riêng, kịch bản vẫn được lưu.
+- Tab **Đăng tải** của trình biên tập: sửa, **Lưu**, sao chép từng ô hoặc **Sao chép caption + hashtag**; **Tạo lại** (tác vụ AI
+  riêng, hỏi xác nhận khi bản hiện tại đã sửa tay) viết lại từ kịch bản hiện tại. Không cần duyệt kịch bản, chỉ cần có kịch bản;
+  khoá trong lúc kịch bản đang được tạo hay video đang sản xuất tự động.
+- Tiêu đề một dòng, tối đa 100 ký tự, từ khoá chính ở đầu. Caption tối đa 2.200 ký tự: dòng đầu là câu móc ngắn, vài dòng giá trị,
+  dòng nguồn "Sách: <tên> – <tác giả>", một lời mời hành động; không chứa hashtag. 3–8 hashtag, lưu không dấu, chữ thường, không
+  trùng.
+- Chữ kịch bản đổi sau khi viết bộ này (sửa, ẩn, thêm, xoá, đổi thứ tự cảnh) → nhãn **Cần xem lại**; đổi giọng đọc hay hoạt cảnh
+  thì không. Lưu bản sửa tay là xác nhận bộ khớp kịch bản hiện tại.
+- Yêu cầu render bản cuối chụp bộ hiện tại (không **Cần xem lại**) vào snapshot; bản lưu Drive kèm `publish.txt` (§5.9). Sửa bộ
+  sau đó không đổi bản lưu đã có.
 
 ## 6. Video
 
@@ -358,18 +379,21 @@ không thử lại vô hạn.
 - Claude được sửa lời cho dễ nghe, đúng thời lượng nhưng **không thêm** trích dẫn, số liệu, tên nghiên cứu hay khẳng định ngoài bản
   thảo và bài học. Một kiểm tra cơ học chặn số và trích dẫn không có trong nguồn — lưới an toàn, không phải bằng chứng trung thực.
 - Không clickbait sai lệch, không sao chép dài. Độ tin cậy OCR và "trích đoạn khớp nguồn" là hai bằng chứng riêng.
+- Tiêu đề, caption, hashtag (§5.13) chỉ dùng ý có trong kịch bản, bài học và tên sách; video phải trả lời được điều tiêu đề hứa.
+  Kiểm tra cơ học như trên chặn số và trích dẫn không có trong kịch bản, bài học, tên sách và tác giả.
 
 ### 7.3. Ngôn ngữ
 
 Sách có thể bằng tiếng Việt hoặc tiếng Anh (OCR giữ đúng ngôn ngữ). Bài học, bản thảo, lời dẫn, chữ, phụ đề **luôn tiếng Việt** tự
-nhiên, có dấu: dịch ý, không chèn câu tiếng Anh trừ tên riêng, tên sách. Trích đoạn nguồn giữ **nguyên văn ngôn ngữ gốc** để đối
+nhiên, có dấu: dịch ý, không chèn câu tiếng Anh trừ tên riêng, tên sách. Hashtag viết không dấu (§5.13). Trích đoạn nguồn giữ **nguyên văn ngôn ngữ gốc** để đối
 chiếu được. Mã, định danh, tên tệp bằng tiếng Anh.
 
 ### 7.4. Văn bản sách là dữ liệu không đáng tin
 
 - Văn bản sách được bọc như dữ liệu trong mọi prompt; câu lệnh trong sách ("bỏ qua mọi hướng dẫn…") không điều khiển AI hay worker.
 - **Không bao giờ gửi cả cuốn sách** cho AI. Mỗi lần chỉ: một chương (phân tích thủ công), một phần chương có giới hạn (NotebookLM),
-  dàn ý đầu trang (xác định chương), nguồn các chương mà bài học trích (bản thảo), hoặc snapshot bài học đã chọn (kịch bản).
+  dàn ý đầu trang (xác định chương), nguồn các chương mà bài học trích (bản thảo), hoặc snapshot bài học đã chọn (kịch bản, tiêu
+  đề và caption).
 - Đầu ra AI luôn qua kiểm tra schema; sai → tác vụ lỗi, không lưu gì. NotebookLM chỉ được trả JSON.
 - Không gọi AI khi tải trang. Prompt có phiên bản, đổi nội dung là đổi phiên bản ([AGENTS.md](../AGENTS.md) §9). Bản thảo NotebookLM
   hợp lệ được cache theo bài học, khoảng thời lượng, nguồn, phiên bản prompt, nên cùng yêu cầu không tốn hạn mức lần hai.
@@ -417,8 +441,9 @@ Không thêm dịch vụ đám mây khác, không Anthropic API, không gộp OC
 ### 10.1. E2E-01 — Một sách, nhiều video (thủ công)
 
 1. Nhập sách mẫu `.md` ≥ 3 chương, đổi tên một chương, xác nhận; phân tích bằng AI mẫu; duyệt 3 bài học.
-2. Video A từ bài 1 (khoảng 30–60 giây; AI đề xuất độ dài), chọn hook. Video B từ bài 2 + 3 (khoảng 30–90 giây); sửa một cảnh,
-   các cảnh khác không đổi.
+2. Video A từ bài 1 (khoảng 30–60 giây; AI đề xuất độ dài), chọn hook; tab **Đăng tải** có tiêu đề, caption, hashtag viết cùng
+   kịch bản, sửa và lưu được, hashtag được chuẩn hoá. Video B từ bài 2 + 3 (khoảng 30–90 giây); sửa một cảnh, các cảnh khác không
+   đổi.
 3. Sửa bài 1 → snapshot của video A không đổi.
 4. Tải âm thanh cho hook; chữ hook có ngay ở frame 0 trong xem trước.
 5. Duyệt kịch bản, render nháp và bản cuối; ffprobe: H.264 + AAC, 720×1280 / 1080×1920, 30 FPS, không vượt mức dài nhất.
@@ -427,7 +452,8 @@ Không thêm dịch vụ đám mây khác, không Anthropic API, không gộp OC
 ### 10.2. E2E-02 — PDF tới Drive, không bước duyệt (hàng loạt)
 
 Tải PDF ở "Sách PDF" → trích xuất, có chương → **Phân tích tất cả chương** → chọn một bài **vẫn là bản nháp** → **Sản xuất 1
-video** → video hoàn tất, **Đã lưu Drive** kèm liên kết thư mục → MP4 1080×1920 H.264 + AAC; bài học vẫn **Bản nháp**.
+video** → video hoàn tất, **Đã lưu Drive** kèm liên kết thư mục và `publish.txt` → MP4 1080×1920 H.264 + AAC; bài học vẫn
+**Bản nháp**.
 
 ### 10.3. Trường hợp biên và lỗi
 
@@ -448,6 +474,8 @@ video** → video hoàn tất, **Đã lưu Drive** kèm liên kết thư mục �
   Kết quả AI vẫn sai sau lượt sửa → video "Lỗi" kèm lý do. Huỷ → không bước nào chạy tiếp.
 - Render xong mà Drive lỗi hay mất phản hồi khi upload → chỉ upload lại, không tệp trùng. Drive đầy, mất quyền → lỗi kèm lý do, MP4
   vẫn trên máy. Sửa video sau render → bản lưu Drive cũ không đổi.
+- Caption AI có số liệu hay trích dẫn không có trong nguồn → bỏ bộ đó, kịch bản vẫn lưu; với **Tạo lại** → tác vụ lỗi, bộ cũ giữ
+  nguyên. Sửa cảnh sau khi viết caption → **Cần xem lại**; bản cuối render lúc đó không kèm `publish.txt`.
 
 ### 10.4. Nghiệm thu với tài khoản thật
 
@@ -468,17 +496,18 @@ Thiếu thời gian thì ưu tiên lát cắt chạy thật bằng AI mẫu + â
 
 ## 12. Hiện trạng triển khai
 
-| Năng lực                                                                | Trạng thái                                                          |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Luồng thủ công từ `.md`/`.txt` tới render nháp/cuối                     | Đã triển khai; E2E-01 chạy với AI mẫu                               |
-| Claude Code CLI (`cli-task`, `cli-auto`); edge-tts và tải âm thanh      | Đã triển khai                                                       |
-| Video tới 5 phút, AI đề xuất độ dài trong khoảng; hook 4 giây mọi luồng | Đã triển khai (NotebookLM đề xuất: chỉ kiểm thử với NotebookLM giả) |
-| Một khung kể cho cả hai luồng; hoạt cảnh SVG do Claude chọn             | Đã triển khai                                                       |
-| Nhập PDF, lớp chữ (Poppler), ghép văn bản, tạo chương                   | Đã triển khai; kiểm thử với Poppler thật                            |
-| OCR Mistral Batch và trần chi phí                                       | Có trong mã; **chỉ kiểm thử với Mistral giả**                       |
-| NotebookLM: xác định chương, danh mục, bản thảo                         | Có trong mã; **chỉ kiểm thử với NotebookLM giả**                    |
-| Claude biên tập cảnh; kịch bản tiếng Việt từ sách tiếng Anh             | Có trong mã; chưa chạy với NotebookLM thật                          |
-| Sản xuất hàng loạt (checkpoint, sửa AI, kiểm tra tự động, huỷ/thử lại)  | Đã triển khai; E2E-02 chạy với AI mẫu và Drive giả                  |
-| Lưu Google Drive                                                        | Có trong mã; **chỉ kiểm thử với Google giả**                        |
-| Nghiệm thu với tài khoản Mistral, NotebookLM, Google thật               | **Chưa thực hiện**                                                  |
-| Nhạc nền; EPUB; tách chương thủ công cho PDF; phụ đề khớp từng từ       | Chưa có                                                             |
+| Năng lực                                                                | Trạng thái                                                            |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Luồng thủ công từ `.md`/`.txt` tới render nháp/cuối                     | Đã triển khai; E2E-01 chạy với AI mẫu                                 |
+| Claude Code CLI (`cli-task`, `cli-auto`); edge-tts và tải âm thanh      | Đã triển khai                                                         |
+| Video tới 5 phút, AI đề xuất độ dài trong khoảng; hook 4 giây mọi luồng | Đã triển khai (NotebookLM đề xuất: chỉ kiểm thử với NotebookLM giả)   |
+| Một khung kể cho cả hai luồng; hoạt cảnh SVG do Claude chọn             | Đã triển khai                                                         |
+| Nhập PDF, lớp chữ (Poppler), ghép văn bản, tạo chương                   | Đã triển khai; kiểm thử với Poppler thật                              |
+| OCR Mistral Batch và trần chi phí                                       | Có trong mã; **chỉ kiểm thử với Mistral giả**                         |
+| NotebookLM: xác định chương, danh mục, bản thảo                         | Có trong mã; **chỉ kiểm thử với NotebookLM giả**                      |
+| Claude biên tập cảnh; kịch bản tiếng Việt từ sách tiếng Anh             | Có trong mã; chưa chạy với NotebookLM thật                            |
+| Sản xuất hàng loạt (checkpoint, sửa AI, kiểm tra tự động, huỷ/thử lại)  | Đã triển khai; E2E-02 chạy với AI mẫu và Drive giả                    |
+| Lưu Google Drive                                                        | Có trong mã; **chỉ kiểm thử với Google giả**                          |
+| Tiêu đề, caption, hashtag (cùng kịch bản, Tạo lại, `publish.txt`)       | Đã triển khai; E2E chạy với AI mẫu; **chưa đánh giá với Claude thật** |
+| Nghiệm thu với tài khoản Mistral, NotebookLM, Google thật               | **Chưa thực hiện**                                                    |
+| Nhạc nền; EPUB; tách chương thủ công cho PDF; phụ đề khớp từng từ       | Chưa có                                                               |

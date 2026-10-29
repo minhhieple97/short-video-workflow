@@ -105,7 +105,10 @@ src/
     chapters/          chapter listing/reading/rename, analysis runner (worker) + analysis requests (web, server-only);
                        PDF chapters are catalogued by NotebookLM part by part when it is set up (`notebook-chapter-analysis`)
     lessons/           lesson domain (fields, excerpt verification), repository, review service, library/review UI
-    videos/            short-form domain (scene types, layouts, duration budget, snapshots), script generation/editing, editor UI
+    videos/            short-form domain (scene types, layouts, duration budget, snapshots), script generation/editing, editor UI;
+                       the title/caption/hashtag set to post with (`domain/publish-metadata.ts`: rules + hashtag normalizing,
+                       `publish-proposal.ts` for the set written with a script, `publish-generation`/`publish-request` services,
+                       Đăng tải tab in `components/publish/`)
     jobs/              job payload schemas, JobRecord/AiRun repositories, enqueue/retry/cancel services, jobs dashboard UI
     notebooklm/        v1.2 NotebookLM bindings: one notebook per book and account, one source per part and revision (title marker);
                        `NotebookLmScriptStudio` (the real `ScriptStudioProvider`: one MCP process per run, `notebookId#sourceId` refs,
@@ -213,7 +216,7 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 
 ## 8. Jobs & queue
 
-- One queue `studio-jobs`; job types: `ANALYZE_CHAPTER`, `GENERATE_VIDEO_SCRIPT`, `GENERATE_SCENE_TTS`, `RENDER_VIDEO`, `RUN_PRODUCTION_ITEM`, `ARCHIVE_RENDER`, `EXTRACT_PDF` (plus `DIAGNOSTIC_PING` for health checks).
+- One queue `studio-jobs`; job types: `ANALYZE_CHAPTER`, `GENERATE_VIDEO_SCRIPT`, `GENERATE_PUBLISH_METADATA`, `GENERATE_SCENE_TTS`, `RENDER_VIDEO`, `RUN_PRODUCTION_ITEM`, `ARCHIVE_RENDER`, `EXTRACT_PDF` (plus `DIAGNOSTIC_PING` for health checks).
 - A production item's job is written in the same transaction that makes the item runnable (creation, retry); never start one any other way.
   Its processor claims the item, steps from the checkpoint and defers instead of waiting; cancelling the job cancels the item.
 - An archive and its `ARCHIVE_RENDER` job are written in one transaction (`createArchiveWithJob`); the worker's archive sweep
@@ -241,7 +244,8 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - Never add `@anthropic-ai/sdk`, never create `ANTHROPIC_API_KEY`, never read/copy/log Claude tokens, cookies or credentials.
 - Run subprocesses with `spawn`/`execFile` and an argument array — **never** build shell strings from input, never use `exec` with interpolation.
 - Never use `--dangerously-skip-permissions`. When the model only needs to emit JSON, do not grant file-write/shell tools.
-- Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v6`, `scene-plan-v5`, and for NotebookLM `notebooklm-chapter-detection-v2`,
+- Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v7`, `scene-plan-v6`, `publish-metadata-v1` — the three last share
+  `prompts/publish-rule.ts`, so editing it bumps all three — and for NotebookLM `notebooklm-chapter-detection-v2`,
   `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v4`, and the notebook's chat persona `notebooklm-chat-persona-v1`, applied once per
   notebook through `chat_configure` and re-applied when its version changes); changing a prompt's text means bumping its version (the draft and
   persona versions also key the draft cache). Book content is passed as quoted untrusted data.
@@ -304,7 +308,8 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 
 Both flows are implemented and pass the gate (E2E-01 manual, E2E-02 PDF → Drive). Mistral OCR, NotebookLM and Google Drive run only against
 local fakes so far; `docs/requirements.md` (implementation status) and `docs/operations.md` (real-account acceptance) say what is still
-unverified. The hook limit is 4 s / 120 frames for every flow.
+unverified. The hook limit is 4 s / 120 frames for every flow. Each video carries one title/caption/hashtag set written with its script
+(and archived as `publish.txt`); its quality with real Claude is not yet judged.
 
 ## 15. Visual language ("Studio Ink")
 

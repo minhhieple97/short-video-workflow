@@ -102,7 +102,7 @@ You choose the lesson, the machine does the rest.
   validated props.
 
 **What it deliberately does not do:** 16:9 video, multi-user or hosted SaaS, AI-generated footage or images, auto-posting,
-thumbnails or SEO, EPUB input, word-accurate captions. See [`docs/requirements.md`](docs/requirements.md) §1.4.
+thumbnails, SEO tooling beyond the suggested title, caption and hashtags, EPUB input, word-accurate captions. See [`docs/requirements.md`](docs/requirements.md) §1.4.
 
 ## Results
 
@@ -118,7 +118,8 @@ thumbnails or SEO, EPUB input, word-accurate captions. See [`docs/requirements.m
 | Illustration    | Flat SVG cartoon: 7 settings × 8 character actions, driven only by the frame                      |
 | Editor guides   | TikTok / YouTube Shorts / Facebook Reels safe zones, shown in the editor and never in the MP4     |
 | Render safety   | Preflight rules before rendering, then an `ffprobe` check of codec, size, FPS and duration        |
-| Archive (batch) | Final MP4 + `script.json` + `manifest.json` (with SHA-256) uploaded to your Google Drive          |
+| Publishing text | One title, caption and hashtag set for TikTok, Reels and Shorts, written with the script          |
+| Archive (batch) | Final MP4 + `script.json` + `publish.txt` + `manifest.json` (with SHA-256) uploaded to your Drive |
 
 ## Features
 
@@ -512,6 +513,7 @@ Both flows are implemented and covered by end-to-end tests. Integrations with ex
 | Videos up to 5 min, AI-proposed length inside your range, 4 s hook            | Implemented                                                  |
 | PDF import, text layer, chapters                                              | Implemented, tested with real Poppler                        |
 | Batch production with checkpoints, correction pass, cancel and retry          | Implemented, covered by `E2E-02` with mock AI and fake Drive |
+| Title, caption and hashtags (with the script, on demand, `publish.txt`)       | Implemented with mock AI; not yet judged with real Claude    |
 | Mistral OCR Batch, NotebookLM, Google Drive adapters                          | In the code, **tested against local fakes**                  |
 | Acceptance run with real Mistral, NotebookLM and Google accounts              | **Tracked in [`docs/operations.md`](docs/operations.md)**    |
 | Background music · EPUB · manual chapter split for PDFs · word-level captions | Not built                                                    |

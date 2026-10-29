@@ -192,8 +192,8 @@ Gói được ghim (`NOTEBOOKLM_MCP_PACKAGE`) vì dùng API không chính thức
   nối lại Google Drive**; mỗi tài khoản có tối đa 100 refresh token cho một client (token cũ nhất bị huỷ khi vượt).
 - Mọi bản render cuối hoàn tất được lưu lên Drive khi đã kết nối, kể cả bản xong trước khi kết nối (worker quét lúc khởi
   động và mỗi phút); bản render có nút **Lưu lên Drive** / **Thử lại lưu Drive**. Thư mục
-  `Book Video Studio/books/<bookId>/videos/<videoId>/renders/<renderId>/` gồm MP4, `script.json`, `manifest.json`, tệp
-  nào cũng được xác minh checksum với bản local.
+  `Book Video Studio/books/<bookId>/videos/<videoId>/renders/<renderId>/` gồm MP4, `script.json`, `publish.txt` (tiêu đề,
+  caption, hashtag — khi bản render có bộ này), `manifest.json`, tệp nào cũng được xác minh checksum với bản local.
 - **Ngắt kết nối** thu hồi refresh token ở Google và xoá credential local; không xoá gì trên Drive.
 
 ### 3.6 Giọng đọc
@@ -316,7 +316,7 @@ data/                                   # không commit
   books/<bookId>/extractions/<id>/      # canonical.md, chunk OCR tạm
   ai-tasks/<jobId>/                     # prompt, input, schema, đầu ra thô của AI
   videos/<videoId>/audio/               # giọng đọc
-  videos/<videoId>/renders/             # MP4, -script.json, -manifest.json
+  videos/<videoId>/renders/             # MP4, -script.json, -publish.txt, -manifest.json
   integrations/notebooklm-status.json   # hạn mức NotebookLM đọc gần nhất
   credentials/google-drive.json         # token Drive (0600), không mang ra ngoài máy
 ```
@@ -385,7 +385,9 @@ Drive; không mất tiến độ khi khởi động lại, không chạy lại c
 
 - [ ] Chọn bài học → **Sản xuất video**: kiểm tra mạch kể (theo [requirements.md](requirements.md)), lời tiếng Việt,
       audio, và ffprobe trên MP4.
-- [ ] Archive Drive hoàn tất: thư mục có MP4, `script.json`, `manifest.json`, checksum khớp bản local.
+- [ ] Archive Drive hoàn tất: thư mục có MP4, `script.json`, `publish.txt`, `manifest.json`, checksum khớp bản local.
+- [ ] Tiêu đề, caption, hashtag do Claude thật viết: tiếng Việt tự nhiên, tiêu đề ≤ 100 ký tự, dòng nguồn đúng sách và tác giả,
+      hashtag không dấu, không số liệu hay trích dẫn ngoài nguồn.
 - [ ] Dừng rồi chạy lại worker giữa một đợt sản xuất: tiến độ không mất, không có video hay tệp Drive trùng.
 
 ## 10. Bản quyền và điều khoản
