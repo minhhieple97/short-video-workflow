@@ -1,4 +1,5 @@
 import type * as DbClient from "@/server/db/client";
+import type { TargetDurationSec } from "@/features/videos/domain/duration";
 import type { PipelineDeps } from "@/features/productions/services/production-pipeline.service";
 import { MockScenePlanCompiler } from "@/server/scene-plan/mock-scene-plan-compiler";
 import type { ScenePlan, ScenePlanCompiler, ScenePlanRequest } from "@/server/scene-plan/scene-plan-compiler";
@@ -18,10 +19,13 @@ export interface CountingDepsOptions {
   shortenWhenRevised?: boolean;
   afterCompile?: () => Promise<void>;
   bodyFrames?: number;
+  // Overrides the length the draft proposes, per attempt.
+  proposeSec?: (attempt: number) => TargetDurationSec;
 }
 
 // Pipeline providers that count what they are asked and can be told to misbehave. Voicing attaches a fake audio asset
-// with a fixed length per scene: the hook fits its 4 s, a shortened scene is 2 s, any other body scene `bodyFrames`.
+// with a fixed length per scene: the hook fits its 4 s, a shortened scene is 7 s, any other body scene `bodyFrames`
+// (6 s by default), so a video lands inside a 30–60 s range unless a test says otherwise.
 export function createCountingDeps(
   db: typeof DbClient,
   videoId: () => string,
@@ -40,7 +44,9 @@ export function createCountingDeps(
       calls.drafts.push(request);
       const failure = options.draftFails?.(calls.drafts.length);
       if (failure) throw failure;
-      return studio.writeDraft(request, callOptions);
+      const draft = await studio.writeDraft(request, callOptions);
+      const proposed = options.proposeSec?.(calls.drafts.length);
+      return proposed === undefined ? draft : { ...draft, targetDurationSec: proposed };
     },
   };
   const compiler: ScenePlanCompiler = {
@@ -76,7 +82,7 @@ export function createCountingDeps(
         },
       });
       const frames =
-        scene.type === "HOOK" ? 90 : scene.narration === SHORT_NARRATION ? 60 : (options.bodyFrames ?? 150);
+        scene.type === "HOOK" ? 90 : scene.narration === SHORT_NARRATION ? 210 : (options.bodyFrames ?? 180);
       await db.prisma.videoScene.update({
         where: { id: sceneId },
         data: { audioAssetId: asset.id, durationFrames: frames },

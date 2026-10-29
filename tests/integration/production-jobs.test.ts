@@ -102,8 +102,8 @@ describe("requesting a production", () => {
       bookId: (await batch()).bookId,
       lessonIds: [lessonId],
       idempotencyKey: "replayed-key",
-      targetDurationSec: 60 as const,
-      extended: false,
+      minDurationSec: 30 as const,
+      maxDurationSec: 60 as const,
     };
     const first = await productions.requestProduction(input);
     await productions.requestProduction(input);

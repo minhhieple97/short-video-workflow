@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { formatRange, isWithinRange } from "@/features/videos/domain/duration";
 import type { CallOptions } from "@/server/integrations/call-options";
 import { IntegrationError } from "@/server/integrations/integration-error";
 import { NotebookLmSession } from "@/server/script-studio/notebooklm/notebooklm-session";
@@ -12,6 +13,7 @@ import {
 import {
   detectedChapterSchema,
   lessonExtractionSchema,
+  proposedDurationSchema,
   scriptDraftBeatSchema,
   scriptDraftSchema,
   type DetectedChapter,
@@ -42,7 +44,7 @@ const MAX_CHAPTERS = 500;
 // A source reference names its notebook too, so a question can be asked without looking the book up again.
 const REF_SEPARATOR = "#";
 
-const draftBeatsSchema = z.object({ beats: z.array(scriptDraftBeatSchema).min(1).max(12) });
+const draftAnswerSchema = proposedDurationSchema.extend({ beats: z.array(scriptDraftBeatSchema).min(1).max(12) });
 
 function splitRefs(sources: readonly SourceRef[]): { notebookId: string; sourceIds: string[] } {
   const parsed = sources.map((source) => {
@@ -110,20 +112,24 @@ export class NotebookLmScriptStudio implements ScriptStudioProvider {
     );
   }
 
-  // A draft out of story order is refused as DRAFT_INVALID, which the production pipeline's one correction can fix.
+  // A draft out of story order (DRAFT_INVALID) or with a length outside the range (DRAFT_LENGTH_OUT_OF_RANGE) is refused;
+  // the production pipeline's one correction can fix either.
   async writeDraft(request: WriteDraftRequest, options?: CallOptions): Promise<ScriptDraft> {
-    const { beats } = await this.ask(
+    const answer = await this.ask(
       request.sources,
-      buildScriptDraftPrompt({
-        lesson: request.lesson,
-        targetDurationSec: request.targetDurationSec,
-        revisionNote: request.revisionNote,
-      }),
+      buildScriptDraftPrompt({ lesson: request.lesson, range: request.range, revisionNote: request.revisionNote }),
       "DRAFT_INVALID",
-      draftBeatsSchema,
+      draftAnswerSchema,
       options,
     );
-    const draft = scriptDraftSchema.safeParse({ lessonId: request.lesson.lessonId, beats });
+    if (!isWithinRange(answer.targetDurationSec, request.range)) {
+      throw new IntegrationError(
+        "DRAFT_LENGTH_OUT_OF_RANGE",
+        `Bản thảo đề xuất ${answer.targetDurationSec} giây, ngoài khoảng ${formatRange(request.range)}: chọn lại một độ dài trong khoảng.`,
+        "REJECTED",
+      );
+    }
+    const draft = scriptDraftSchema.safeParse({ lessonId: request.lesson.lessonId, ...answer });
     if (draft.success) return draft.data;
     throw new IntegrationError(
       "DRAFT_INVALID",

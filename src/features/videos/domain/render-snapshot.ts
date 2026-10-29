@@ -23,6 +23,9 @@ export const renderSnapshotSchema = z.object({
     title: z.string(),
     bookTitle: z.string(),
     targetDurationSec: z.number().int().positive(),
+    // Optional without a default so a snapshot taken before ranges existed keeps its bytes (and its hash).
+    minDurationSec: z.number().int().positive().optional(),
+    maxDurationSec: z.number().int().positive().optional(),
     scriptVersion: z.number().int().positive(),
     // What the script gate saw when the render was requested, so the preflight is judged on the same facts later.
     status: z.string(),
@@ -106,7 +109,9 @@ export function toPreflightInput(snapshot: RenderSnapshot): PreflightInput {
   return {
     status: snapshot.video.status,
     autoReady: snapshot.video.autoReady,
-    targetDurationSec: snapshot.video.targetDurationSec,
+    // A render requested before ranges existed was held to its single length, with no minimum.
+    maxDurationSec: snapshot.video.maxDurationSec ?? snapshot.video.targetDurationSec,
+    minDurationSec: snapshot.video.minDurationSec ?? null,
     scenes: [...snapshot.scenes]
       .sort((left, right) => left.order - right.order)
       .map((scene) => ({

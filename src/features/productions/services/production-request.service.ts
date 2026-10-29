@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 
 import { getBook } from "@/features/books/services/book.service";
 import { buildLessonSnapshot } from "@/features/videos/services/lesson-snapshot-builder";
+import { assertDurationRangeAllowed } from "@/features/videos/services/video.service";
 import { AppError, NotFoundError } from "@/shared/errors";
 import { createLogger } from "@/shared/logger";
 
@@ -26,7 +27,8 @@ export function toProductionDto(record: ProductionRecord): ProductionDto {
     id: record.id,
     bookId: record.bookId,
     status: toBatchStatus(record.status),
-    targetDurationSec: record.targetDurationSec,
+    minDurationSec: record.minDurationSec,
+    maxDurationSec: record.maxDurationSec,
     createdAt: record.createdAt.toISOString(),
     items: record.items.map((item) => ({
       id: item.id,
@@ -46,7 +48,12 @@ export function toProductionDto(record: ProductionRecord): ProductionDto {
 const fingerprintOf = (input: CreateProductionInput): string =>
   createHash("sha256")
     .update(
-      JSON.stringify({ bookId: input.bookId, lessonIds: input.lessonIds, targetDurationSec: input.targetDurationSec }),
+      JSON.stringify({
+        bookId: input.bookId,
+        lessonIds: input.lessonIds,
+        minDurationSec: input.minDurationSec,
+        maxDurationSec: input.maxDurationSec,
+      }),
     )
     .digest("hex");
 
@@ -71,6 +78,7 @@ function replay(existing: ProductionRecord, fingerprint: string): { production: 
 export async function requestProduction(
   input: CreateProductionInput,
 ): Promise<{ production: ProductionDto; reused: boolean }> {
+  assertDurationRangeAllowed(input);
   const fingerprint = fingerprintOf(input);
   const existing = await findProductionByKey(input.idempotencyKey);
   if (existing) return replay(existing, fingerprint);
@@ -106,7 +114,7 @@ export async function requestProduction(
       bookId: book.id,
       idempotencyKey: input.idempotencyKey,
       fingerprint,
-      targetDurationSec: input.targetDurationSec,
+      range: { minDurationSec: input.minDurationSec, maxDurationSec: input.maxDurationSec },
       items: input.lessonIds.flatMap((lessonId, index) => {
         const lesson = byId.get(lessonId);
         return lesson

@@ -3,6 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   assessDurationBudget,
   assessLessonLoad,
+  clampToRange,
+  fitToRange,
+  formatRange,
+  isWithinRange,
+  presetsInRange,
   countSyllables,
   estimateNarrationSeconds,
   HOOK_MAX_SECONDS,
@@ -41,14 +46,32 @@ describe("duration estimates", () => {
     expect(estimateNarrationSeconds("   ")).toBe(0);
   });
 
-  it("rates the duration budget against the preset", () => {
-    expect(assessDurationBudget(0, 60).level).toBe("empty");
-    expect(assessDurationBudget(20, 60).level).toBe("short");
-    expect(assessDurationBudget(45, 60).level).toBe("ok");
-    expect(assessDurationBudget(57, 60).level).toBe("near");
-    const over = assessDurationBudget(65, 60);
+  it("rates the duration against the range: under the minimum, near or over the maximum", () => {
+    const budget = { targetSeconds: 45, minDurationSec: 30, maxDurationSec: 60 };
+    expect(assessDurationBudget(0, budget).level).toBe("empty");
+    expect(assessDurationBudget(20, budget)).toMatchObject({ level: "short", minSeconds: 30, maxSeconds: 60 });
+    expect(assessDurationBudget(45, budget).level).toBe("ok");
+    // Longer than the AI's plan but inside the range is still fine.
+    expect(assessDurationBudget(50, budget).level).toBe("ok");
+    expect(assessDurationBudget(57, budget).level).toBe("near");
+    const over = assessDurationBudget(65, budget);
     expect(over.level).toBe("over");
-    expect(over.message).toContain("Dài hơn 5 giây");
+    expect(over.message).toContain("Dài hơn 5 giây so với mức tối đa 60 giây");
+  });
+
+  it("works out which lengths a range allows and fits narration to the shortest that holds it", () => {
+    const range = { minDurationSec: 45, maxDurationSec: 120 };
+    expect(presetsInRange(range)).toEqual([45, 60, 90, 120]);
+    expect(fitToRange(10, range)).toBe(45);
+    expect(fitToRange(61, range)).toBe(90);
+    expect(fitToRange(500, range)).toBe(120);
+    expect(clampToRange(30, range)).toBe(45);
+    expect(clampToRange(300, range)).toBe(120);
+    expect(clampToRange(90, range)).toBe(90);
+    expect(isWithinRange(30, range)).toBe(false);
+    expect(isWithinRange(120, range)).toBe(true);
+    expect(formatRange({ minDurationSec: 30, maxDurationSec: 300 })).toBe("30 giây – 5 phút");
+    expect(formatRange({ minDurationSec: 60, maxDurationSec: 60 })).toBe("60 giây");
   });
 
   it("recommends one lesson per short video and flags overload", () => {
@@ -62,21 +85,19 @@ describe("duration estimates", () => {
 describe("createVideoSchema", () => {
   const base = { bookId: "b", title: "Video", lessonIds: ["l1"] };
 
-  it("defaults to 60 seconds and accepts 30/45/60 without the extended flag", () => {
-    expect(createVideoSchema.parse(base)).toMatchObject({ targetDurationSec: 60, extended: false });
-    expect(createVideoSchema.parse({ ...base, targetDurationSec: 45 }).targetDurationSec).toBe(45);
+  it("takes a range of allowed lengths, up to five minutes", () => {
+    expect(createVideoSchema.parse({ ...base, minDurationSec: 30, maxDurationSec: 300 })).toMatchObject({
+      minDurationSec: 30,
+      maxDurationSec: 300,
+    });
+    expect(createVideoSchema.safeParse({ ...base, minDurationSec: 60, maxDurationSec: 60 }).success).toBe(true);
   });
 
-  it("allows the long presets, up to five minutes, only as an explicit choice of a long video", () => {
-    for (const seconds of [90, 120, 180, 240, 300]) {
-      expect(createVideoSchema.safeParse({ ...base, targetDurationSec: seconds }).success).toBe(false);
-      expect(createVideoSchema.parse({ ...base, targetDurationSec: seconds, extended: true }).targetDurationSec).toBe(
-        seconds,
-      );
-    }
-    expect(createVideoSchema.safeParse({ ...base, targetDurationSec: 60, extended: true }).success).toBe(false);
-    expect(createVideoSchema.safeParse({ ...base, targetDurationSec: 150, extended: true }).success).toBe(false);
-    expect(createVideoSchema.safeParse({ ...base, targetDurationSec: 360, extended: true }).success).toBe(false);
+  it("refuses a missing range, a length that is not offered, and a minimum above the maximum", () => {
+    expect(createVideoSchema.safeParse(base).success).toBe(false);
+    expect(createVideoSchema.safeParse({ ...base, minDurationSec: 30, maxDurationSec: 150 }).success).toBe(false);
+    expect(createVideoSchema.safeParse({ ...base, minDurationSec: 30, maxDurationSec: 360 }).success).toBe(false);
+    expect(createVideoSchema.safeParse({ ...base, minDurationSec: 90, maxDurationSec: 60 }).success).toBe(false);
   });
 });
 
@@ -84,7 +105,8 @@ describe("mock video script", () => {
   const input = {
     videoId: "video-1",
     title: "Video thử",
-    targetDurationSec: 60 as const,
+    minDurationSec: 30 as const,
+    maxDurationSec: 120 as const,
     videoProfile: "SHORT_VERTICAL" as const,
     lessons: [LESSON],
     promptVersion: VIDEO_SCRIPT_PROMPT_VERSION,
@@ -116,7 +138,28 @@ describe("mock video script", () => {
 
     expect(findStorySceneOrderProblem(scenes.map((scene) => scene.type))).toBeNull();
     expect(scenes[0]!.narration).toBe(`${LESSON.realLifeScenario} Lan muốn đọc sách mỗi tối.`);
-    expect(mockVideoScript({ ...input, targetDurationSec: 30 }).scenes).toHaveLength(5);
+    expect(mockVideoScript({ ...input, maxDurationSec: 30 }).scenes).toHaveLength(5);
+  });
+
+  it("proposes the shortest allowed length that holds its narration, and says why", () => {
+    const output = videoScriptOutputSchema.parse(mockVideoScript(input));
+    const seconds = [output.hookOptions[0]!.narration, ...output.scenes.map((scene) => scene.narration)]
+      .map(estimateNarrationSeconds)
+      .reduce((sum, value) => sum + value, 0);
+
+    expect(output.targetDurationSec).toBe(fitToRange(seconds, input));
+    expect(output.durationReason).toContain(`${Math.ceil(seconds)} giây`);
+    expect(mockVideoScript({ ...input, minDurationSec: 90 }).targetDurationSec).toBe(90);
+  });
+
+  it("asks Claude to pick one allowed length that suits the content, inside the range, and to say why", () => {
+    const prompt = buildVideoScriptPrompt(input);
+
+    expect(prompt).toContain("trong khoảng 30–120 giây");
+    expect(prompt).toContain("30 (30 giây) ≈ 120 âm tiết");
+    expect(prompt).toContain("120 (2 phút) ≈ 480 âm tiết");
+    expect(prompt).not.toContain("180 (3 phút)");
+    expect(prompt).toContain('"targetDurationSec", "durationReason"');
   });
 
   it("rewrites a scene differently on each attempt while keeping its type", () => {

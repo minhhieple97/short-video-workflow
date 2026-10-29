@@ -14,7 +14,7 @@ Mỗi video là một nội dung độc lập cho bảng tin điện thoại: th
 trong sách, cách xử lý và một hành động cụ thể.
 
 Nhập và phân tích sách một lần, dùng lại cho nhiều video, truy vết được nguồn từng bài học. Xuất MP4 **dọc 9:16** cho TikTok,
-YouTube Shorts, Facebook Reels (mặc định 60 giây, tối đa 5 phút khi chọn rõ), nội dung **tiếng Việt** kể cả khi sách bằng tiếng
+YouTube Shorts, Facebook Reels (dài 30 giây tới 5 phút, AI chọn độ dài theo nội dung trong khoảng người dùng cho phép), nội dung **tiếng Việt** kể cả khi sách bằng tiếng
 Anh. Chạy cục bộ, **không Claude API key**, chi phí thấp, trên máy yếu.
 
 ### 1.2. Người dùng
@@ -60,8 +60,8 @@ Hai luồng dùng chung sách, chương, bài học, trình biên tập, mẫu v
 1. **Nhập sách** `.md`/`.txt` (tải lên hoặc dán), sửa danh sách chương, **Xác nhận nhập**.
 2. **Phân tích** một hoặc tất cả chương → bài học nháp kèm trích đoạn.
 3. **Duyệt bài học** (đối chiếu trích đoạn, sửa, gộp, lưu trữ, tạo thủ công).
-4. **Tạo video** từ bài học đã duyệt (khuyên một bài) với một preset.
-5. **Tạo kịch bản**: chọn một trong 2–3 hook, sửa cảnh, **Duyệt kịch bản**.
+4. **Tạo video** từ bài học đã duyệt (khuyên một bài) với một khoảng thời lượng.
+5. **Tạo kịch bản**: Claude viết kịch bản và đề xuất độ dài trong khoảng; chọn một trong 2–3 hook, sửa cảnh, **Duyệt kịch bản**.
 6. **Giọng đọc**: edge-tts hoặc tải âm thanh lên cho từng cảnh.
 7. **Xem trước** trong khung điện thoại, vùng an toàn, **Xem 4 giây đầu**.
 8. **Render** nháp rồi bản cuối, tải MP4; bản cuối tự lưu Drive nếu đã kết nối.
@@ -74,8 +74,8 @@ với `cli-auto`, worker tự chạy Claude Code CLI của người dùng.
 1. **Nhập sách → "Sách PDF"**: tải PDF; tệp gốc lưu nguyên byte, phần còn lại chạy nền.
 2. **Trích xuất**: Đọc PDF → OCR trang cần thiết → Ghép văn bản → Tạo chương (§5.3).
 3. **Phân tích tất cả chương**: NotebookLM lập danh mục bài học có trích đoạn nguyên văn và số trang; không cần duyệt.
-4. **Sản xuất video**: chọn bài học (một, nhiều hoặc tất cả) và preset.
-5. Mỗi bài là **một video**: bản thảo (NotebookLM) → biên tập cảnh (Claude) → áp dụng kịch bản → lồng tiếng (edge-tts) → kiểm tra
+4. **Sản xuất video**: chọn bài học (một, nhiều hoặc tất cả) và khoảng thời lượng.
+5. Mỗi bài là **một video**: bản thảo và độ dài đề xuất (NotebookLM) → biên tập cảnh (Claude) → áp dụng kịch bản → lồng tiếng (edge-tts) → kiểm tra
    tự động → render bản cuối → lưu Drive.
 6. Theo dõi ở mục **Sản xuất**; video mở được trong trình biên tập như mọi video.
 
@@ -111,7 +111,7 @@ xuất** (`ProductionBatch`) gồm các mục (`ProductionItem`): mỗi mục = 
 
 ### 4.4. Video, snapshot và duyệt
 
-- Video dùng bài học của **đúng một** sách. Thủ công: 1–5 bài, khuyên một, cảnh báo khi vượt sức chứa của preset. Hàng loạt:
+- Video dùng bài học của **đúng một** sách. Thủ công: 1–5 bài, khuyên một, cảnh báo khi vượt sức chứa của mức dài nhất. Hàng loạt:
   **đúng một bài mỗi video**.
 - `VideoLesson` lưu **snapshot** bài học lúc chọn; sửa bài học sau đó không đổi video đã có.
 - **Thủ công**: chỉ bài **Đã duyệt** mới tạo được video; bản cuối cần kịch bản đã duyệt; sửa kịch bản sau khi duyệt (lời dẫn, chữ,
@@ -174,12 +174,13 @@ sách và video gần đây.
 
 ### 5.5. Tạo video và trình biên tập
 
-- Tạo video thủ công: chọn bài đã duyệt, tiêu đề, mô tả, preset (§6.2); hiện mức tải nội dung, quá tải thì khuyên bỏ bớt bài,
-  tách video hoặc chọn preset dài. Video tạo được khi chưa có kịch bản.
+- Tạo video thủ công: chọn bài đã duyệt, tiêu đề, mô tả, khoảng thời lượng (§6.2); hiện mức tải nội dung, quá tải thì khuyên bỏ
+  bớt bài, tách video hoặc nới khoảng. Video tạo được khi chưa có kịch bản. Khoảng đổi được trong cài đặt video.
 - **Hook**: 2–3 phương án theo ba kiểu — câu hỏi đánh trúng vấn đề, sai lầm thường gặp, tương phản trước/sau — có lời dẫn, chữ,
   bố cục, hoạt cảnh; chọn rồi sửa được.
 - **Cảnh**: sửa lời dẫn, chữ, bố cục, hoạt cảnh; ẩn, xoá, thêm theo loại, sắp xếp; **Viết lại cảnh này** chỉ đổi đúng cảnh đó.
-- Tổng thời lượng so với preset, cảnh báo khi sát hoặc vượt; khi vượt chỉ hướng dẫn rút gọn. **Duyệt kịch bản** bị chặn khi chưa
+- Tổng thời lượng so với khoảng (hiện cả độ dài AI đề xuất và lý do), cảnh báo khi ngắn hơn mức ngắn nhất, sát hoặc vượt mức dài
+  nhất; khi vượt chỉ hướng dẫn rút gọn. **Duyệt kịch bản** bị chặn khi chưa
   có cảnh hoặc hook không hợp lệ.
 - Video của đợt sản xuất: hiện trạng thái mục, bước tiếp theo, lượt sửa AI; tab **Nguồn kịch bản** hiện bản thảo theo nhịp, trích
   đoạn kèm số trang, đánh dấu minh hoạ.
@@ -202,13 +203,14 @@ sách và video gần đây.
 ### 5.8. Sản xuất hàng loạt
 
 - Danh mục: bài học chưa lưu trữ theo thứ tự chương, kèm trích đoạn và số trang; bài thiếu trích đoạn không chọn được. Một đợt
-  tối đa 100 bài, cùng một preset.
+  tối đa 100 bài, cùng một khoảng thời lượng; mỗi video có độ dài riêng do NotebookLM đề xuất.
 - Tạo đợt là tạo ngay mọi video và snapshot, tất cả hoặc không gì. Gửi trùng (bấm hai lần, gửi lại) trả về đợt cũ.
 - Mỗi video tiến theo checkpoint; khởi động lại hay thử lại tiếp từ bước cuối đã xong. Bản thảo hợp lệ được cache: NotebookLM xong
   mà Claude lỗi thì chỉ chạy lại Claude.
-- **Một lượt sửa AI mỗi video**, gửi tới bước sửa được vấn đề: nội dung/nguồn (bản thảo sai mạch kể, bài thiếu trích đoạn) → bản
-  thảo ở NotebookLM; diễn đạt/cấu trúc/thời lượng (quá preset, hook quá 4 giây, thiếu chữ, sai cấu trúc, số liệu hay trích dẫn
-  ngoài nguồn) → biên tập cảnh ở Claude. Không tăng preset, không tăng tốc đọc. Hết lượt hoặc lỗi AI không sửa được → video **Lỗi**
+- **Một lượt sửa AI mỗi video**, gửi tới bước sửa được vấn đề: nội dung/nguồn (bản thảo sai mạch kể, độ dài đề xuất ngoài khoảng,
+  bài thiếu trích đoạn, video ngắn hơn mức ngắn nhất — chỉ NotebookLM kể thêm được từ nguồn) → bản thảo ở NotebookLM; diễn đạt/
+  cấu trúc/thời lượng (dài hơn mức dài nhất, hook quá 4 giây, thiếu chữ, sai cấu trúc, số liệu hay trích dẫn ngoài nguồn) → biên
+  tập cảnh ở Claude. Không nới khoảng, không tăng hay giảm tốc đọc. Hết lượt hoặc lỗi AI không sửa được → video **Lỗi**
   kèm lý do.
 - Việc phải chờ (render đang chạy, dịch vụ tạm lỗi, hạn mức) đưa video về **Đang chờ** và hẹn lại, không giữ worker; thử lại tự
   động có giới hạn.
@@ -256,13 +258,18 @@ H.264 + AAC. Font Be Vietnam Pro đóng gói sẵn; dấu tiếng Việt đúng 
 
 ### 6.2. Thời lượng
 
-- Preset ngắn **30 / 45 / 60 giây**, mặc định **60**. Preset dài **90 / 120 / 180 / 240 / 300 giây** chỉ khi người dùng chọn rõ
-  **Video dài**; ứng dụng không bao giờ tự đặt. Trần cấu hình được, không quá 300 giây.
+- Độ dài là một trong các mức **30 / 45 / 60 / 90 / 120 / 180 / 240 / 300 giây**. Người dùng đặt **khoảng** cho mỗi video hoặc
+  mỗi đợt (ngắn nhất – dài nhất), mặc định **30 giây – 5 phút**; mức dài nhất không vượt trần cấu hình của máy (tối đa 300 giây).
+- **AI đề xuất độ dài** hợp với nội dung, trong khoảng đó, kèm một câu lý do, rồi viết lời dẫn khớp độ dài đó: luồng thủ công →
+  Claude khi tạo kịch bản; luồng hàng loạt → NotebookLM khi viết bản thảo (vì nó đọc nguồn). Bài nhiều chi tiết, ví dụ, bước làm thì
+  dài hơn; ý đơn giản thì ngắn; không kéo dài cho đủ. Đề xuất ngoài khoảng bị từ chối. Đổi khoảng giữ đề xuất nếu còn nằm trong
+  khoảng, không thì kéo về đầu gần nhất.
+- Giới hạn cứng là **mức dài nhất**: bản cuối dài hơn thì chặn. Dài hơn đề xuất nhưng vẫn trong khoảng thì vẫn đạt. Ngắn hơn mức
+  ngắn nhất: luồng thủ công chỉ cảnh báo; luồng hàng loạt chặn và dùng lượt sửa AI. Không bao giờ tự nới khoảng, cắt lời hay đổi tốc
+  độ đọc.
 - Video dài kể sâu hơn, **không thêm bài học**; tối đa 30 cảnh sau hook (khoảng 8–15 giây mỗi cảnh). Quá 60 giây có thể không còn
   được tính là Shorts/Reels; người dùng tự cân nhắc khi đăng.
 - Lập kế hoạch theo khoảng 4 âm tiết/giây; thời lượng thật = âm thanh đo được + khoảng đệm; mỗi cảnh hiện ít nhất 2 giây.
-- Bản cuối **không vượt preset**; vượt thì chặn, yêu cầu rút gọn, ẩn cảnh hoặc chọn preset khác. Không tự tăng preset, không cắt
-  lời, không tăng tốc đọc.
 
 ### 6.3. Hook
 
@@ -314,7 +321,8 @@ Bài học trong sách và điều rút ra (`KEY_TAKEAWAY`) → Quay lại xử 
 | --------------------------------------------------- | -------- | -------- | ------------------- |
 | Có cảnh hiển thị; cảnh đầu là HOOK; mọi cảnh có chữ | Chặn     | Chặn     | Chặn                |
 | Tổng ≤ 300 giây                                     | Chặn     | Chặn     | Chặn                |
-| HOOK ≤ 4 giây; tổng ≤ preset                        | Cảnh báo | Chặn     | Chặn                |
+| HOOK ≤ 4 giây; tổng ≤ mức dài nhất của khoảng       | Cảnh báo | Chặn     | Chặn                |
+| Tổng ≥ mức ngắn nhất của khoảng                     | Cảnh báo | Cảnh báo | Chặn                |
 | Kịch bản đã duyệt hoặc đã qua kiểm tra tự động      | Cảnh báo | Chặn     | —                   |
 | Mọi cảnh hiển thị có giọng đọc                      | Cảnh báo | Cảnh báo | Chặn                |
 | Mọi bài học còn trích đoạn nguồn                    | —        | —        | Chặn                |
@@ -360,7 +368,7 @@ chiếu được. Mã, định danh, tên tệp bằng tiếng Anh.
   dàn ý đầu trang (xác định chương), nguồn các chương mà bài học trích (bản thảo), hoặc snapshot bài học đã chọn (kịch bản).
 - Đầu ra AI luôn qua kiểm tra schema; sai → tác vụ lỗi, không lưu gì. NotebookLM chỉ được trả JSON.
 - Không gọi AI khi tải trang. Prompt có phiên bản, đổi nội dung là đổi phiên bản ([AGENTS.md](../AGENTS.md) §9). Bản thảo NotebookLM
-  hợp lệ được cache theo bài học, preset, nguồn, phiên bản prompt, nên cùng yêu cầu không tốn hạn mức lần hai.
+  hợp lệ được cache theo bài học, khoảng thời lượng, nguồn, phiên bản prompt, nên cùng yêu cầu không tốn hạn mức lần hai.
 
 ## 8. Tích hợp bên ngoài
 
@@ -404,10 +412,11 @@ Không thêm dịch vụ đám mây khác, không Anthropic API, không gộp OC
 ### 10.1. E2E-01 — Một sách, nhiều video (thủ công)
 
 1. Nhập sách mẫu `.md` ≥ 3 chương, đổi tên một chương, xác nhận; phân tích bằng AI mẫu; duyệt 3 bài học.
-2. Video A từ bài 1 (60 giây), chọn hook. Video B từ bài 2 + 3, preset dài chọn rõ (90 giây); sửa một cảnh, các cảnh khác không đổi.
+2. Video A từ bài 1 (khoảng 30–60 giây; AI đề xuất độ dài), chọn hook. Video B từ bài 2 + 3 (khoảng 30–90 giây); sửa một cảnh,
+   các cảnh khác không đổi.
 3. Sửa bài 1 → snapshot của video A không đổi.
 4. Tải âm thanh cho hook; chữ hook có ngay ở frame 0 trong xem trước.
-5. Duyệt kịch bản, render nháp và bản cuối; ffprobe: H.264 + AAC, 720×1280 / 1080×1920, 30 FPS, không vượt preset.
+5. Duyệt kịch bản, render nháp và bản cuối; ffprobe: H.264 + AAC, 720×1280 / 1080×1920, 30 FPS, không vượt mức dài nhất.
 6. Tải lại trang, khởi động lại web → mọi dữ liệu còn nguyên.
 
 ### 10.2. E2E-02 — PDF tới Drive, không bước duyệt (hàng loạt)
@@ -427,7 +436,8 @@ video** → video hoàn tất, **Đã lưu Drive** kèm liên kết thư mục �
   chứa "ignore previous instructions" → chỉ là văn bản.
 - Redis tắt → web vẫn mở, báo lỗi khi xếp việc. Worker tắt → tác vụ chờ, chạy tiếp khi worker bật.
 - edge-tts lỗi → tải âm thanh lên được. Âm thanh đổi → độ dài cảnh cập nhật, render cũ lỗi thời.
-- Âm thanh 65 giây với preset 60 → chặn bản cuối, không tự chuyển preset dài. Thiếu HOOK hoặc HOOK > 4 giây → lỗi kiểm tra.
+- Âm thanh 65 giây với khoảng tới 60 giây → chặn bản cuối, không tự nới khoảng. Đề xuất 60 giây, âm thanh thật 68 giây, khoảng tới
+  90 giây → đạt. AI đề xuất độ dài ngoài khoảng → từ chối (thủ công) hoặc lượt sửa AI (hàng loạt). Thiếu HOOK hoặc HOOK > 4 giây → lỗi kiểm tra.
 - Chữ dài có thể tràn vùng an toàn → cảnh báo. Render lỗi giữa chừng → không MP4 hỏng nào được ghi thành công.
 - Gửi đợt hai lần, thử lại mục → không thêm video. Worker chết giữa bước, hay NotebookLM xong mà Claude lỗi → chỉ chạy lại bước lỗi.
   Kết quả AI vẫn sai sau lượt sửa → video "Lỗi" kèm lý do. Huỷ → không bước nào chạy tiếp.
@@ -453,16 +463,17 @@ Thiếu thời gian thì ưu tiên lát cắt chạy thật bằng AI mẫu + â
 
 ## 12. Hiện trạng triển khai
 
-| Năng lực                                                               | Trạng thái                                         |
-| ---------------------------------------------------------------------- | -------------------------------------------------- |
-| Luồng thủ công từ `.md`/`.txt` tới render nháp/cuối                    | Đã triển khai; E2E-01 chạy với AI mẫu              |
-| Claude Code CLI (`cli-task`, `cli-auto`); edge-tts và tải âm thanh     | Đã triển khai                                      |
-| Video tới 5 phút; hook 4 giây mọi luồng; hoạt cảnh SVG do Claude chọn  | Đã triển khai                                      |
-| Nhập PDF, lớp chữ (Poppler), ghép văn bản, tạo chương                  | Đã triển khai; kiểm thử với Poppler thật           |
-| OCR Mistral Batch và trần chi phí                                      | Có trong mã; **chỉ kiểm thử với Mistral giả**      |
-| NotebookLM: xác định chương, danh mục, bản thảo                        | Có trong mã; **chỉ kiểm thử với NotebookLM giả**   |
-| Claude biên tập cảnh; kịch bản tiếng Việt từ sách tiếng Anh            | Có trong mã; chưa chạy với NotebookLM thật         |
-| Sản xuất hàng loạt (checkpoint, sửa AI, kiểm tra tự động, huỷ/thử lại) | Đã triển khai; E2E-02 chạy với AI mẫu và Drive giả |
-| Lưu Google Drive                                                       | Có trong mã; **chỉ kiểm thử với Google giả**       |
-| Nghiệm thu với tài khoản Mistral, NotebookLM, Google thật              | **Chưa thực hiện**                                 |
-| Nhạc nền; EPUB; tách chương thủ công cho PDF; phụ đề khớp từng từ      | Chưa có                                            |
+| Năng lực                                                                | Trạng thái                                                          |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Luồng thủ công từ `.md`/`.txt` tới render nháp/cuối                     | Đã triển khai; E2E-01 chạy với AI mẫu                               |
+| Claude Code CLI (`cli-task`, `cli-auto`); edge-tts và tải âm thanh      | Đã triển khai                                                       |
+| Video tới 5 phút, AI đề xuất độ dài trong khoảng; hook 4 giây mọi luồng | Đã triển khai (NotebookLM đề xuất: chỉ kiểm thử với NotebookLM giả) |
+| Một khung kể cho cả hai luồng; hoạt cảnh SVG do Claude chọn             | Đã triển khai                                                       |
+| Nhập PDF, lớp chữ (Poppler), ghép văn bản, tạo chương                   | Đã triển khai; kiểm thử với Poppler thật                            |
+| OCR Mistral Batch và trần chi phí                                       | Có trong mã; **chỉ kiểm thử với Mistral giả**                       |
+| NotebookLM: xác định chương, danh mục, bản thảo                         | Có trong mã; **chỉ kiểm thử với NotebookLM giả**                    |
+| Claude biên tập cảnh; kịch bản tiếng Việt từ sách tiếng Anh             | Có trong mã; chưa chạy với NotebookLM thật                          |
+| Sản xuất hàng loạt (checkpoint, sửa AI, kiểm tra tự động, huỷ/thử lại)  | Đã triển khai; E2E-02 chạy với AI mẫu và Drive giả                  |
+| Lưu Google Drive                                                        | Có trong mã; **chỉ kiểm thử với Google giả**                        |
+| Nghiệm thu với tài khoản Mistral, NotebookLM, Google thật               | **Chưa thực hiện**                                                  |
+| Nhạc nền; EPUB; tách chương thủ công cho PDF; phụ đề khớp từng từ       | Chưa có                                                             |

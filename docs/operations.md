@@ -96,28 +96,28 @@ Ba giới hạn `DRIVE_*` là của riêng ứng dụng, không phải quota Goo
 
 **AI, giọng đọc, video**
 
-| Biến                         | Mặc định              | Ý nghĩa                                          |
-| ---------------------------- | --------------------- | ------------------------------------------------ |
-| `AI_MODE`                    | `cli-task`            | `mock`, `cli-task` hoặc `cli-auto` (§3.1)        |
-| `MAX_AI_CONCURRENCY`         | `1`                   | Số tác vụ AI cùng lúc                            |
-| `CLAUDE_CLI_COMMAND`         | `claude`              | Lệnh Claude Code CLI                             |
-| `AI_TASK_TIMEOUT_SEC`        | `600`                 | Thời gian tối đa một lần gọi Claude              |
-| `TTS_MODE`                   | `edge-tts`            | `edge-tts`, hoặc `upload` (chỉ âm thanh tải lên) |
-| `TTS_VOICE`                  | `vi-VN-NamMinhNeural` | Giọng edge-tts                                   |
-| `TTS_SPEED`                  | `0`                   | Tốc độ theo phần trăm, −50..50 (0 = tự nhiên)    |
-| `EDGE_TTS_COMMAND`           | `edge-tts`            | Lệnh edge-tts (đường dẫn tuyệt đối cũng được)    |
-| `SCENE_AUDIO_PADDING_MS`     | `300`                 | Khoảng nghỉ sau mỗi đoạn đọc (0–2000)            |
-| `MAX_AUDIO_UPLOAD_MB`        | `20`                  | Giới hạn âm thanh tải lên (tối đa 100)           |
-| `VIDEO_PROFILE`              | `SHORT_VERTICAL`      | Giá trị duy nhất được nhận                       |
-| `DEFAULT_VIDEO_DURATION_SEC` | `60`                  | 30, 45, 60, 90, 120, 180, 240 hoặc 300; ≤ tối đa |
-| `MAX_VIDEO_DURATION_SEC`     | `300`                 | ≤ 300; preset dài chỉ hiện tới giá trị này       |
-| `RENDER_WIDTH`               | `1080`                | Chiều rộng bản cuối                              |
-| `RENDER_HEIGHT`              | `1920`                | Chiều cao bản cuối; tỉ lệ phải đúng 9:16         |
-| `RENDER_FPS`                 | `30`                  | FPS của cả bản cuối và bản nháp                  |
-| `DRAFT_RENDER_WIDTH`         | `720`                 | Chiều rộng bản nháp                              |
-| `DRAFT_RENDER_HEIGHT`        | `1280`                | Chiều cao bản nháp; tỉ lệ phải đúng 9:16         |
-| `RENDER_CONCURRENCY`         | `1`                   | Luồng render Remotion; chỉ tăng sau khi đo       |
-| `WORKER_CONCURRENCY`         | `1`                   | Số job worker chạy cùng lúc; chỉ tăng sau khi đo |
+| Biến                             | Mặc định              | Ý nghĩa                                                                            |
+| -------------------------------- | --------------------- | ---------------------------------------------------------------------------------- |
+| `AI_MODE`                        | `cli-task`            | `mock`, `cli-task` hoặc `cli-auto` (§3.1)                                          |
+| `MAX_AI_CONCURRENCY`             | `1`                   | Số tác vụ AI cùng lúc                                                              |
+| `CLAUDE_CLI_COMMAND`             | `claude`              | Lệnh Claude Code CLI                                                               |
+| `AI_TASK_TIMEOUT_SEC`            | `600`                 | Thời gian tối đa một lần gọi Claude                                                |
+| `TTS_MODE`                       | `edge-tts`            | `edge-tts`, hoặc `upload` (chỉ âm thanh tải lên)                                   |
+| `TTS_VOICE`                      | `vi-VN-NamMinhNeural` | Giọng edge-tts                                                                     |
+| `TTS_SPEED`                      | `0`                   | Tốc độ theo phần trăm, −50..50 (0 = tự nhiên)                                      |
+| `EDGE_TTS_COMMAND`               | `edge-tts`            | Lệnh edge-tts (đường dẫn tuyệt đối cũng được)                                      |
+| `SCENE_AUDIO_PADDING_MS`         | `300`                 | Khoảng nghỉ sau mỗi đoạn đọc (0–2000)                                              |
+| `MAX_AUDIO_UPLOAD_MB`            | `20`                  | Giới hạn âm thanh tải lên (tối đa 100)                                             |
+| `VIDEO_PROFILE`                  | `SHORT_VERTICAL`      | Giá trị duy nhất được nhận                                                         |
+| `DEFAULT_MIN_VIDEO_DURATION_SEC` | `30`                  | Mức ngắn nhất mặc định của khoảng (30, 45, 60, 90, 120, 180, 240, 300)             |
+| `MAX_VIDEO_DURATION_SEC`         | `300`                 | Mức dài nhất mặc định và trần của mọi khoảng (cùng các mức trên); server cũng kiểm |
+| `RENDER_WIDTH`                   | `1080`                | Chiều rộng bản cuối                                                                |
+| `RENDER_HEIGHT`                  | `1920`                | Chiều cao bản cuối; tỉ lệ phải đúng 9:16                                           |
+| `RENDER_FPS`                     | `30`                  | FPS của cả bản cuối và bản nháp                                                    |
+| `DRAFT_RENDER_WIDTH`             | `720`                 | Chiều rộng bản nháp                                                                |
+| `DRAFT_RENDER_HEIGHT`            | `1280`                | Chiều cao bản nháp; tỉ lệ phải đúng 9:16                                           |
+| `RENDER_CONCURRENCY`             | `1`                   | Luồng render Remotion; chỉ tăng sau khi đo                                         |
+| `WORKER_CONCURRENCY`             | `1`                   | Số job worker chạy cùng lúc; chỉ tăng sau khi đo                                   |
 
 ## 3. AI và tích hợp
 
@@ -203,7 +203,7 @@ Gói được ghim (`NOTEBOOKLM_MCP_PACKAGE`) vì dùng API không chính thức
   (sau 2, 5, 10 giây). Lỗi 403 nghĩa là bản edge-tts đã cũ.
 - Tải lên MP3/WAV (≤ `MAX_AUDIO_UPLOAD_MB`): giữ nguyên tệp, chỉ đo; cảnh báo nếu khoảng lặng đầu quá 0,5 giây.
   `TTS_MODE=upload` tắt hẳn TTS; sản xuất hàng loạt luôn lồng tiếng bằng edge-tts nên cần `TTS_MODE=edge-tts`.
-- Độ dài cảnh = âm thanh thật + `SCENE_AUDIO_PADDING_MS`; Studio không cắt lời hay tăng tốc cho vừa preset. Sửa chữ trên
+- Độ dài cảnh = âm thanh thật + `SCENE_AUDIO_PADDING_MS`; Studio không cắt lời hay đổi tốc độ đọc cho vừa khoảng thời lượng. Sửa chữ trên
   màn hình giữ audio; sửa lời dẫn gỡ audio cũ.
 
 ## 4. Vận hành hằng ngày
@@ -229,8 +229,11 @@ pnpm, không phải chẩn đoán này.
 - Đo trên máy dev, concurrency 1: bản nháp 480 frame (16 giây) mất 36,8 giây có hoạt cảnh so với 37,3 giây khi chưa có,
   MP4 2,3 MB so với 0,66 MB; bản nháp 720×1280 dài 5 phút mất 10 phút 31 giây, 32 MB. **Chưa đo** bản cuối 1080×1920
   dài 5 phút.
-- Kiểm tra trước render chặn: HOOK không ở frame 0 hoặc dài quá 120 frame (4 giây), thiếu chữ, vượt preset hoặc
-  `MAX_VIDEO_DURATION_SEC`; bản cuối cần kịch bản đã duyệt (hoặc đạt kiểm tra tự động khi sản xuất hàng loạt).
+- Kiểm tra trước render chặn: HOOK không ở frame 0 hoặc dài quá 120 frame (4 giây), thiếu chữ, dài hơn mức dài nhất của khoảng
+  (hoặc 300 giây); bản cuối cần kịch bản đã duyệt (hoặc đạt kiểm tra tự động khi sản xuất hàng loạt). Ngắn hơn mức ngắn nhất chỉ
+  cảnh báo khi làm tay, nhưng chặn (và dùng lượt sửa AI) khi sản xuất hàng loạt.
+- Độ dài mỗi video do AI đề xuất trong khoảng bạn đặt (Claude khi tạo kịch bản, NotebookLM khi viết bản thảo); huy hiệu trong trình
+  biên tập hiện đề xuất, khoảng và lý do (rê chuột). Muốn đúng một độ dài thì đặt ngắn nhất = dài nhất.
 - Đổi kịch bản, cảnh hay âm thanh làm các bản render trước thành **Lỗi thời**; MP4 cũ không bao giờ tự bị xoá. Render
   lại để có bản mới. Vùng an toàn là ước lượng chỉnh được, chỉ hiện trong trình biên tập, không vào MP4.
 - Tự kiểm tra một tệp:
@@ -249,45 +252,48 @@ pnpm, không phải chẩn đoán này.
 
 ## 6. Xử lý sự cố
 
-| Dấu hiệu / mã                           | Nghĩa                                 | Làm gì                                                      |
-| --------------------------------------- | ------------------------------------- | ----------------------------------------------------------- |
-| "Không thể kết nối Redis…" (503)        | Web không tới được Redis              | `docker compose up -d` (không Docker: §1)                   |
-| "Worker không chạy"                     | Worker chưa chạy                      | `pnpm worker:dev`; tác vụ đã xếp hàng tự chạy tiếp          |
-| Worker thoát ngay, mã 1                 | Redis chưa chạy hoặc `REDIS_URL` sai  | Xem log, bật Redis, kiểm tra `REDIS_URL`                    |
-| `Invalid environment configuration`     | `.env` có giá trị sai                 | Đọc tên biến và lý do trong thông báo, đối chiếu §2         |
-| `DATA_DIR resolves to /mnt/...`         | Dữ liệu nằm trên ổ Windows            | Đưa dự án và dữ liệu về filesystem Linux                    |
-| API báo "is not a function"             | Cache `pnpm dev` cũ sau cập nhật      | Dừng `pnpm dev`, xoá `.next/dev`, chạy lại                  |
-| "Tác vụ không còn trong hàng đợi…"      | Dữ liệu Redis đã bị xoá               | **Thử lại** tác vụ                                          |
-| Tác vụ "Chờ Claude CLI" mãi             | `cli-task` đang chờ bạn chạy lệnh     | `pnpm ai:run --job <id>`, hoặc `AI_MODE=cli-auto` / `mock`  |
-| `AI_CLI_AUTH`, `AI_QUOTA_EXCEEDED`      | Chưa đăng nhập Claude / hết hạn mức   | `claude` rồi `/login` / đợi hạn mức; rồi **Thử lại**        |
-| `AI_CLI_MISSING`, `AI_CLI_TIMEOUT`      | Thiếu lệnh `claude` / quá thời gian   | Sửa `CLAUDE_CLI_COMMAND` / tăng `AI_TASK_TIMEOUT_SEC`       |
-| `AI_MODE_UNSUPPORTED`                   | Sản xuất hàng loạt ở `cli-task`       | `AI_MODE=cli-auto` (hoặc `mock` để thử)                     |
-| `SCRIPT_STUDIO_NOT_AVAILABLE`           | Chưa đặt `NOTEBOOKLM_PROFILE`         | Đặt profile (§3.4), khởi động lại worker                    |
-| `SCRIPT_GENERATION_IN_PROGRESS`         | Đang tạo kịch bản / viết lại cảnh     | Chờ, hoặc **Huỷ tạo kịch bản** / **Huỷ viết lại cảnh**      |
-| `TTS_REJECTED` (403)                    | Bản edge-tts đã cũ                    | `pip install -U edge-tts`, hoặc tải âm thanh lên            |
-| `TTS_FAILED` "không trả về âm thanh"    | edge-tts chập chờn, đã thử lại 4 lần  | Thử lại sau ít phút hoặc tải âm thanh lên                   |
-| `TTS_DISABLED`                          | Đang `TTS_MODE=upload`                | Tải âm thanh lên, hoặc đặt `TTS_MODE=edge-tts`              |
-| Render báo thiếu Chromium / thư viện    | Chromium của Remotion chưa sẵn sàng   | `pnpm exec remotion browser ensure`, rồi tài liệu Remotion  |
-| Chữ tiếng Việt lỗi dấu                  | Thiếu tệp font                        | Kiểm tra `public/fonts` còn đủ Be Vietnam Pro               |
-| `PDF_TOOL_MISSING`                      | Chưa có Poppler                       | Cài Poppler (§3.2), **Thử lại**                             |
-| `PDF_ENCRYPTED`, `PDF_CORRUPT`          | PDF cần mật khẩu / bị hỏng            | Bỏ mật khẩu / xuất lại PDF rồi nhập lại; không thử lại được |
-| `PDF_TOO_MANY_PAGES`                    | Vượt `MAX_PDF_PAGES`                  | Tăng giới hạn nếu máy chịu được, khởi động lại, **Thử lại** |
-| `OCR_NOT_CONFIGURED`                    | Cần OCR mà chưa có `MISTRAL_API_KEY`  | Đặt khoá, khởi động lại worker hoặc **Thử lại**             |
-| `OCR_BUDGET_EXCEEDED`                   | Ước tính vượt trần chi phí            | Nâng **Trần chi phí OCR** rồi **Thử lại**                   |
-| `MISTRAL_HTTP_401`, `_403`              | Mistral từ chối khoá                  | Sửa khoá, **Thử lại**; lô đang mở và giữ chỗ vẫn nguyên     |
-| "Còn trang lỗi" (`OCR_PAGES_FAILED`)    | Có trang OCR lỗi (quá cỡ, hết hạn…)   | **Thử lại** chỉ gửi lại các trang đó (tốn tiền cho chúng)   |
-| `OCR_CANCELLED_REMOTELY`                | Lô bị huỷ ở phía Mistral              | **Thử lại** để gửi lại                                      |
-| "Chưa xác định chương"                  | Không thấy tiêu đề chương/đề xuất sai | Cấu hình NotebookLM rồi **Thử lại**; lý do nêu chương sai   |
-| `NOTEBOOKLM_PROFILE_MISSING`            | Profile chưa đăng nhập hoặc hết hạn   | `nlm login` lại (§3.4), rồi **Kiểm tra NotebookLM**         |
-| `NOTEBOOKLM_AUTH_REQUIRED`              | NotebookLM báo cần đăng nhập lại      | Như dòng trên                                               |
-| `NOTEBOOKLM_QUOTA`                      | Hết hạn mức NotebookLM                | Xem giờ đặt lại ở Cài đặt → NotebookLM, rồi **Thử lại**     |
-| `NOTEBOOKLM_*_INVALID`, `DRAFT_INVALID` | Sai định dạng hoặc sai mạch kể        | Bản thảo: lượt sửa tự động; chương: **Phân tích lại**       |
-| `PRODUCTION_CORRECTION_EXHAUSTED`       | Đã dùng lượt sửa AI mà vẫn chưa đạt   | Xem lý do (thường quá dài); sửa bài học / preset dài hơn    |
-| `DRIVE_RECONNECT_REQUIRED`              | Refresh token bị thu hồi hoặc hết hạn | **Kết nối lại Google Drive**; archive dở chạy tiếp          |
-| `drive_error=<mã>` khi kết nối          | Từ chối quyền / phiên kết nối hết hạn | **Kết nối Google Drive** lần nữa; kết nối cũ giữ nguyên     |
-| `DRIVE_STORAGE_FULL`                    | Drive hết dung lượng                  | Giải phóng dung lượng rồi **Thử lại lưu Drive**             |
-| `DRIVE_APP_DAILY_LIMIT`                 | Chạm giới hạn 24 giờ của ứng dụng     | Archive tự chờ, hoặc tăng `DRIVE_*` và khởi động lại        |
-| `ARCHIVE_DESTINATION_CHANGED`           | Đã kết nối tài khoản Google khác      | Tài khoản mới nhận archive mới; archive cũ giữ nguyên       |
+| Dấu hiệu / mã                           | Nghĩa                                   | Làm gì                                                                   |
+| --------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------ |
+| "Không thể kết nối Redis…" (503)        | Web không tới được Redis                | `docker compose up -d` (không Docker: §1)                                |
+| "Worker không chạy"                     | Worker chưa chạy                        | `pnpm worker:dev`; tác vụ đã xếp hàng tự chạy tiếp                       |
+| Worker thoát ngay, mã 1                 | Redis chưa chạy hoặc `REDIS_URL` sai    | Xem log, bật Redis, kiểm tra `REDIS_URL`                                 |
+| `Invalid environment configuration`     | `.env` có giá trị sai                   | Đọc tên biến và lý do trong thông báo, đối chiếu §2                      |
+| `DATA_DIR resolves to /mnt/...`         | Dữ liệu nằm trên ổ Windows              | Đưa dự án và dữ liệu về filesystem Linux                                 |
+| API báo "is not a function"             | Cache `pnpm dev` cũ sau cập nhật        | Dừng `pnpm dev`, xoá `.next/dev`, chạy lại                               |
+| "Tác vụ không còn trong hàng đợi…"      | Dữ liệu Redis đã bị xoá                 | **Thử lại** tác vụ                                                       |
+| Tác vụ "Chờ Claude CLI" mãi             | `cli-task` đang chờ bạn chạy lệnh       | `pnpm ai:run --job <id>`, hoặc `AI_MODE=cli-auto` / `mock`               |
+| `AI_CLI_AUTH`, `AI_QUOTA_EXCEEDED`      | Chưa đăng nhập Claude / hết hạn mức     | `claude` rồi `/login` / đợi hạn mức; rồi **Thử lại**                     |
+| `AI_CLI_MISSING`, `AI_CLI_TIMEOUT`      | Thiếu lệnh `claude` / quá thời gian     | Sửa `CLAUDE_CLI_COMMAND` / tăng `AI_TASK_TIMEOUT_SEC`                    |
+| `AI_MODE_UNSUPPORTED`                   | Sản xuất hàng loạt ở `cli-task`         | `AI_MODE=cli-auto` (hoặc `mock` để thử)                                  |
+| `SCRIPT_STUDIO_NOT_AVAILABLE`           | Chưa đặt `NOTEBOOKLM_PROFILE`           | Đặt profile (§3.4), khởi động lại worker                                 |
+| `SCRIPT_GENERATION_IN_PROGRESS`         | Đang tạo kịch bản / viết lại cảnh       | Chờ, hoặc **Huỷ tạo kịch bản** / **Huỷ viết lại cảnh**                   |
+| `TTS_REJECTED` (403)                    | Bản edge-tts đã cũ                      | `pip install -U edge-tts`, hoặc tải âm thanh lên                         |
+| `TTS_FAILED` "không trả về âm thanh"    | edge-tts chập chờn, đã thử lại 4 lần    | Thử lại sau ít phút hoặc tải âm thanh lên                                |
+| `TTS_DISABLED`                          | Đang `TTS_MODE=upload`                  | Tải âm thanh lên, hoặc đặt `TTS_MODE=edge-tts`                           |
+| Render báo thiếu Chromium / thư viện    | Chromium của Remotion chưa sẵn sàng     | `pnpm exec remotion browser ensure`, rồi tài liệu Remotion               |
+| Chữ tiếng Việt lỗi dấu                  | Thiếu tệp font                          | Kiểm tra `public/fonts` còn đủ Be Vietnam Pro                            |
+| `PDF_TOOL_MISSING`                      | Chưa có Poppler                         | Cài Poppler (§3.2), **Thử lại**                                          |
+| `PDF_ENCRYPTED`, `PDF_CORRUPT`          | PDF cần mật khẩu / bị hỏng              | Bỏ mật khẩu / xuất lại PDF rồi nhập lại; không thử lại được              |
+| `PDF_TOO_MANY_PAGES`                    | Vượt `MAX_PDF_PAGES`                    | Tăng giới hạn nếu máy chịu được, khởi động lại, **Thử lại**              |
+| `OCR_NOT_CONFIGURED`                    | Cần OCR mà chưa có `MISTRAL_API_KEY`    | Đặt khoá, khởi động lại worker hoặc **Thử lại**                          |
+| `OCR_BUDGET_EXCEEDED`                   | Ước tính vượt trần chi phí              | Nâng **Trần chi phí OCR** rồi **Thử lại**                                |
+| `MISTRAL_HTTP_401`, `_403`              | Mistral từ chối khoá                    | Sửa khoá, **Thử lại**; lô đang mở và giữ chỗ vẫn nguyên                  |
+| "Còn trang lỗi" (`OCR_PAGES_FAILED`)    | Có trang OCR lỗi (quá cỡ, hết hạn…)     | **Thử lại** chỉ gửi lại các trang đó (tốn tiền cho chúng)                |
+| `OCR_CANCELLED_REMOTELY`                | Lô bị huỷ ở phía Mistral                | **Thử lại** để gửi lại                                                   |
+| "Chưa xác định chương"                  | Không thấy tiêu đề chương/đề xuất sai   | Cấu hình NotebookLM rồi **Thử lại**; lý do nêu chương sai                |
+| `NOTEBOOKLM_PROFILE_MISSING`            | Profile chưa đăng nhập hoặc hết hạn     | `nlm login` lại (§3.4), rồi **Kiểm tra NotebookLM**                      |
+| `NOTEBOOKLM_AUTH_REQUIRED`              | NotebookLM báo cần đăng nhập lại        | Như dòng trên                                                            |
+| `NOTEBOOKLM_QUOTA`                      | Hết hạn mức NotebookLM                  | Xem giờ đặt lại ở Cài đặt → NotebookLM, rồi **Thử lại**                  |
+| `NOTEBOOKLM_*_INVALID`, `DRAFT_INVALID` | Sai định dạng hoặc sai mạch kể          | Bản thảo: lượt sửa tự động; chương: **Phân tích lại**                    |
+| `PRODUCTION_CORRECTION_EXHAUSTED`       | Đã dùng lượt sửa AI mà vẫn chưa đạt     | Xem lý do (thường quá dài/ngắn); sửa bài học / đợt mới với khoảng khác   |
+| `UNDER_MIN`                             | Video ngắn hơn mức ngắn nhất            | Làm tay: chỉ cảnh báo. Hàng loạt: NotebookLM viết lại sâu hơn (một lượt) |
+| `DRAFT_LENGTH_OUT_OF_RANGE`             | NotebookLM đề xuất độ dài ngoài khoảng  | Tự sửa bằng lượt sửa AI; lặp lại thì kiểm tra prompt/NotebookLM          |
+| `DURATION_OVER_LIMIT`                   | Khoảng dài hơn `MAX_VIDEO_DURATION_SEC` | Chọn mức dài nhất thấp hơn, hoặc nâng biến này (≤ 300) và khởi động lại  |
+| `DRIVE_RECONNECT_REQUIRED`              | Refresh token bị thu hồi hoặc hết hạn   | **Kết nối lại Google Drive**; archive dở chạy tiếp                       |
+| `drive_error=<mã>` khi kết nối          | Từ chối quyền / phiên kết nối hết hạn   | **Kết nối Google Drive** lần nữa; kết nối cũ giữ nguyên                  |
+| `DRIVE_STORAGE_FULL`                    | Drive hết dung lượng                    | Giải phóng dung lượng rồi **Thử lại lưu Drive**                          |
+| `DRIVE_APP_DAILY_LIMIT`                 | Chạm giới hạn 24 giờ của ứng dụng       | Archive tự chờ, hoặc tăng `DRIVE_*` và khởi động lại                     |
+| `ARCHIVE_DESTINATION_CHANGED`           | Đã kết nối tài khoản Google khác        | Tài khoản mới nhận archive mới; archive cũ giữ nguyên                    |
 
 ## 7. Dữ liệu, sao lưu và khôi phục
 

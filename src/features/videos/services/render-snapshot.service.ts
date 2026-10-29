@@ -70,6 +70,8 @@ export async function captureRenderSnapshot(
       title: video.title,
       bookTitle: video.book.title,
       targetDurationSec: video.targetDurationSec,
+      minDurationSec: video.minDurationSec,
+      maxDurationSec: video.maxDurationSec,
       scriptVersion: video.scriptVersion,
       status: video.status,
       autoReady: video.autoReady,

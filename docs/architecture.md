@@ -39,7 +39,8 @@ biến, nguồn của manifest Drive).
 - **Sách:** `Book` (tệp gốc + `sourceHash`; `md`/`txt`/`pdf`; xoá mềm, bị chặn khi có video) · `Chapter` (duy nhất `(bookId, order)`)
   · `Lesson` + `LessonSource` (duy nhất `(lessonId, chapterId, sourceLocator)`; locator `offset:<k>` hoặc `page:<n>;offset:<k>`).
 - **Video:** `Video` (`scriptVersion` tăng mỗi lần kịch bản đổi; `approvedScriptVersion` do người duyệt; `autoReadyScriptVersion` do máy
-  kiểm) · `VideoLesson` (snapshot bài học lúc chọn) · `VideoScene` (duy nhất `(videoId, order)`) · `MediaAsset` · `RenderRecord`
+  kiểm; khoảng `minDurationSec`–`maxDurationSec` người dùng cho phép, `targetDurationSec` + `durationReason` do AI đề xuất — trước khi có
+  đề xuất, `targetDurationSec` = mức dài nhất và lý do null) · `VideoLesson` (snapshot bài học lúc chọn) · `VideoScene` (duy nhất `(videoId, order)`) · `MediaAsset` · `RenderRecord`
   (snapshot bất biến, `archiveIntentAt`; "lỗi thời" là suy ra `scriptVersion < Video.scriptVersion`, không lưu).
 - **Tác vụ:** `JobRecord` (read model) · `JobDispatch` (hàng outbox, 1:1) · `AiRun` (chế độ, phiên bản prompt, hash đầu vào; không bí mật).
 - **PDF:** `BookExtraction` (gắn `sourceHash`; chi phí OCR bằng micro-USD nguyên) · `ExtractionPage` (duy nhất
@@ -47,7 +48,8 @@ biến, nguồn của manifest Drive).
   `requestKey`, ghi **trước** khi gửi; `outputStoredAt` có trước `cleanedAt`).
 - **NotebookLM:** `NotebookBinding` (duy nhất `(bookId, profile)`) · `NotebookSourceBinding` (duy nhất
   `(notebookBindingId, sourceKey, contentHash)`) · `ScriptDraftCache` (duy nhất `cacheKey`).
-- **Sản xuất:** `ProductionBatch` (duy nhất `idempotencyKey`) · `ProductionItem` (duy nhất `(batchId, lessonId)`, `(batchId, position)`,
+- **Sản xuất:** `ProductionBatch` (duy nhất `idempotencyKey`; khoảng thời lượng chép sang từng video, cột `targetDurationSec` cũ chỉ còn
+  ghi bằng mức dài nhất) · `ProductionItem` (duy nhất `(batchId, lessonId)`, `(batchId, position)`,
   `videoId`; một bài học = một item = một video; `lessonId` `Restrict`).
 - **Lưu trữ:** `RenderArchive` (duy nhất `(renderId, provider, destinationKey)`) · `RenderArchiveFile` (duy nhất `(archiveId, kind)`; ID
   từ xa cấp trước, ghi một lần; checkpoint = token + số byte) · `ArchiveFolder` (duy nhất `(provider, destinationKey, path)`) ·
@@ -132,8 +134,9 @@ tối đa 8 lần liên tiếp; sản xuất 10 phút, 5 lần; archive 30 phút
   `claude auth status`; chạy `claude -p --output-format json --tools "" --strict-mcp-config --no-session-persistence --json-schema …` từ
   mảng đối số, prompt qua stdin; env bỏ `CLAUDECODE*`/`CLAUDE_CODE_*` (không lồng phiên) và `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN`;
   timeout và huỷ → `SIGTERM`. Lỗi có mã ổn định (`AI_CLI_AUTH`, `AI_QUOTA_EXCEEDED`, `AI_CLI_TIMEOUT`, `INVALID_AI_OUTPUT`…).
-- Prompt có phiên bản; đổi chữ là tăng phiên bản: `chapter-analysis-v1`, `video-script-v5` (v1.1, cùng khung kể với sản xuất); `scene-plan-v4` (biên dịch cảnh);
-  `notebooklm-chapter-detection-v1`, `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v3` (cũng là `draftVersion` của cache).
+- Prompt có phiên bản; đổi chữ là tăng phiên bản: `chapter-analysis-v1`, `video-script-v6` (v1.1, cùng khung kể với sản xuất, đề xuất độ dài); `scene-plan-v5`
+  (biên dịch cảnh); `notebooklm-chapter-detection-v1`, `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v4` (đề xuất độ dài;
+  cũng là `draftVersion` của cache). Danh sách độ dài được chọn và ngân sách lời của từng mức sinh từ `prompts/duration-choice.ts`.
 
 **Kiểm soát nội dung:**
 
@@ -265,8 +268,10 @@ cũ của chương và ghi `AiRun(mode=notebooklm)`.
 ### 7.4 Bản thảo và cache
 
 - `writeDraft` đọc mọi phần của mọi chương bài học trích dẫn (cùng khoá với lúc lập danh mục nên không tải lại). Prompt ép mạch kể HOOK →
-  tình huống → sai lầm → bài học → giải quyết → hành động; sai định dạng hay sai thứ tự → `DRAFT_INVALID`.
-- `ScriptDraftCache.cacheKey` = sha256(provider, `draftVersion`, bài học + `contentHash`, preset, **tập** remote ID nguồn, ghi chú sửa).
+  tình huống → sai lầm → bài học → giải quyết → hành động; sai định dạng hay sai thứ tự → `DRAFT_INVALID`. Bản thảo kèm
+  `targetDurationSec` (một mức trong khoảng của video) và `durationReason`; ngoài khoảng → `DRAFT_LENGTH_OUT_OF_RANGE`.
+- `ScriptDraftCache.cacheKey` = sha256(provider, `draftVersion`, bài học + `contentHash`, khoảng thời lượng, **tập** remote ID nguồn, ghi
+  chú sửa).
   Bước bản thảo hỏi cache trước; trượt thì gọi NotebookLM rồi lưu ngay.
 
 ## 8. Pipeline sản xuất
@@ -276,7 +281,7 @@ cũ của chương và ghi `AiRun(mode=notebooklm)`.
 `requestProduction` (`POST /api/productions`): bài học cùng sách, không `ARCHIVED`, có ít nhất một trích đoạn. Một **nested create** ghi
 batch + mỗi bài một item + một `Video` (snapshot bài học dựng như luồng thủ công) + job `RUN_PRODUCTION_ITEM` — đủ cả hoặc không gì. Chọn
 không phải duyệt: không đòi `APPROVED`, không đổi trạng thái bài học. Cùng `idempotencyKey` + cùng `fingerprint` (sách, bài học theo thứ
-tự, preset) → trả batch cũ; cùng khoá khác nội dung → `409`; gửi đua → một batch (bên thua bắt `P2002`).
+tự, khoảng thời lượng) → trả batch cũ; cùng khoá khác nội dung → `409`; gửi đua → một batch (bên thua bắt `P2002`).
 
 ### 8.2 Checkpoint, trạng thái, lease
 
@@ -299,6 +304,9 @@ status:     PENDING ─claim─► RUNNING ─┬─► COMPLETED
 
 ### 8.3 Các bước
 
+- **Độ dài:** bước bản thảo lấy khoảng từ **video** (không từ đợt) và kiểm đề xuất của bản thảo (kể cả bản lấy từ cache); hợp lệ thì
+  `saveDraftArtifact` ghi artifact và `Video.targetDurationSec` + `durationReason` trong cùng một giao dịch có điều kiện. Bước biên dịch
+  dùng độ dài của bản thảo, cùng khoảng của video.
 - **Bản thảo → biên dịch:** hai artifact không bao giờ trộn (`server/scene-plan/handoff.ts`), mỗi cái có `schemaVersion` và `fingerprint`;
   fingerprint kế hoạch gồm **fingerprint bản thảo**, phiên bản prompt và độ dài, nên đổi bất kỳ thứ gì thì kế hoạch cũ không được dùng lại.
   Bản thảo không bao giờ ghi vào `output.json` của tác vụ Claude.
@@ -308,16 +316,17 @@ status:     PENDING ─claim─► RUNNING ─┬─► COMPLETED
 - **Lồng tiếng:** từng cảnh, đúng thứ tự, qua `runSceneTts` (có cache; không gọi song song dịch vụ trực tuyến). Dừng sớm giữ audio đã tạo;
   chỉ chuyển `VOICED` khi mọi cảnh có audio.
 - **Readiness** (`assessReadiness`) thay cho duyệt tay: mọi quy tắc chặn của preflight FINAL (§9.3) trên audio thật, cộng
-  `AUDIO_NOT_READY` và `SOURCE_MISSING`; báo mọi vấn đề một lượt. Đạt → ghi `autoReadyScriptVersion = scriptVersion` bằng CAS. Không giả
+  `UNDER_MIN` (với người chỉ là cảnh báo), `AUDIO_NOT_READY` và `SOURCE_MISSING`; báo mọi vấn đề một lượt. Đạt → ghi `autoReadyScriptVersion = scriptVersion` bằng CAS. Không giả
   duyệt: `Video.status` vẫn `NEEDS_REVIEW`; sửa sau đó tăng `scriptVersion` nên readiness tự hết hiệu lực.
 - **Render** (`queueFinalRender`): chụp snapshot, dùng lại render FINAL đã xong cùng `scriptVersion` hoặc đang chạy; nếu không thì
   preflight rồi tạo `RenderRecord` + job qua outbox (không qua `requestRender` của web vì nó bị khoá `VIDEO_IN_PRODUCTION`).
 
 ### 8.4 Một lượt sửa AI, lỗi, huỷ, thử lại
 
-- `planCorrection`: `SOURCE_MISSING`, `DRAFT_INVALID` → script studio (lùi về `NONE`); lỗi độ dài, hook, cảnh trống, đầu ra sai, khẳng
-  định không căn cứ → compiler (lùi về `DRAFTED`); có cả hai thì chọn bước sớm hơn. Mã khác không sửa được và không tiêu lượt. Ghi chú
-  (≤ 600 ký tự, lời của hệ thống) luôn dặn rút gọn thay vì tăng preset hay đọc nhanh; code không bao giờ đổi preset hay tốc độ TTS. Tiêu
+- `planCorrection`: `SOURCE_MISSING`, `DRAFT_INVALID`, `DRAFT_LENGTH_OUT_OF_RANGE`, `UNDER_MIN` → script studio (lùi về `NONE`; chỉ
+  nó kể thêm được từ nguồn); dài hơn mức dài nhất, hook, cảnh trống, đầu ra sai, khẳng định không căn cứ → compiler (lùi về `DRAFTED`);
+  có cả hai thì chọn bước sớm hơn. Mã khác không sửa được và không tiêu lượt. Ghi chú (≤ 600 ký tự, lời của hệ thống; mã không có
+  hướng dẫn riêng thì dùng chính thông điệp lỗi) không bao giờ cho nới khoảng hay đổi tốc độ đọc; code không đổi khoảng hay tốc độ TTS. Tiêu
   lượt là một `UPDATE` có điều kiện: đúng một lời gọi thắng, còn lại → item `FAILED`.
 - Lỗi tạm → hoãn (§3.3); `AUTH`, `REJECTED` không sửa được, `AppError` → `FAILED` kèm mã; lỗi bất ngờ → `FAILED` để item không bao giờ
   "đang chạy" mà không có job.
@@ -331,7 +340,7 @@ status:     PENDING ─claim─► RUNNING ─┬─► COMPLETED
 - `toCompositionProps()` là nơi duy nhất biến video thành props cho composition `ShortVideo`; Player và render dùng chung nó và
   `shortVideoPropsSchema` nên bản xem trước là bản sẽ render. `src/remotion/**` là React thuần (không `process.env`, DB, mạng); font Be Vietnam Pro đóng gói cục bộ.
 - Độ dài cảnh = `ceil((durationMs + SCENE_AUDIO_PADDING_MS) / 1000 × 30)` theo audio thật, tối thiểu 2 giây; trước khi có audio ước lượng
-  4 âm tiết/giây. Không bao giờ cắt lời hay tăng tốc để vừa preset. Phụ đề tách theo dấu câu, ≤ 9 từ mỗi cụm, thời gian chia theo âm tiết.
+  4 âm tiết/giây. Không bao giờ cắt lời hay tăng tốc để vừa khoảng. Phụ đề tách theo dấu câu, ≤ 9 từ mỗi cụm, thời gian chia theo âm tiết.
 - Audio được phục vụ cho Chromium bởi asset server tạm ở `127.0.0.1:<cổng ngẫu nhiên>`, chỉ đúng các tệp snapshot nêu.
 - `RENDER_TEMPLATE_VERSION` (`composition-props.ts`) ghi vào mọi snapshot; tăng khi thay đổi Remotion làm cùng props trông khác.
   Vùng an toàn chỉ là lớp phủ trong editor, không vào MP4.
@@ -359,8 +368,9 @@ status:     PENDING ─claim─► RUNNING ─┬─► COMPLETED
 
 ```
 chặn mọi bản   NO_SCENES, HOOK_MISSING (cảnh đầu phải là HOOK hiển thị), EMPTY_TEXT, OVER_MAX (> 300 giây)
-chặn FINAL     HOOK_TOO_LONG (> 120 frame), OVER_TARGET, SCRIPT_NOT_APPROVED (không APPROVED và không autoReady)
-cảnh báo       HOOK_SILENCE (> 500 ms lặng đầu), LONG_TEXT, MISSING_AUDIO
+chặn FINAL     HOOK_TOO_LONG (> 120 frame), OVER_TARGET (> mức dài nhất của khoảng), SCRIPT_NOT_APPROVED (không APPROVED và
+               không autoReady)
+cảnh báo       HOOK_SILENCE (> 500 ms lặng đầu), LONG_TEXT, MISSING_AUDIO, UNDER_MIN (< mức ngắn nhất; readiness coi là chặn)
 ```
 
 ### 9.4 Hoạt cảnh SVG
@@ -422,7 +432,7 @@ Bốn port trong `src/server/`; service nhận port qua tham số, factory chọ
   (không chờ), `findOperation`, `cancel`, `cleanup` (chỉ sau khi đã lưu output) → `MistralBatchOcrProvider`.
 - **`ScriptStudioProvider`** (`script-studio/`): `ensureSource`, `detectChapters`, `extractLessons`, `writeDraft`, `draftVersion` →
   `NotebookLmScriptStudio`.
-- **`ScenePlanCompiler`** (`scene-plan/`): `compile(draft, lesson, preset, revisionNote)` → `ScenePlan` → `ClaudeScenePlanCompiler`.
+- **`ScenePlanCompiler`** (`scene-plan/`): `compile(draft, lesson, độ dài đề xuất, khoảng, revisionNote)` → `ScenePlan` → `ClaudeScenePlanCompiler`.
 - **`VideoArchiveProvider`** (`archive/`): `prepareDestination` (ID cấp trước), `upload` (theo checkpoint), `verify` →
   `GoogleDriveArchiveProvider`.
 
@@ -492,7 +502,9 @@ DATA_DIR/                     mặc định ./data; bị từ chối nếu nằm
 - **NotebookLM đọc theo phần với `source_ids` tường minh; trang lấy nơi tìm thấy** — chương dài cần chia; không lẫn nguồn cũ; không tin số
   trang mô hình khai.
 - **Chọn bài học ≠ duyệt; readiness do máy kiểm sau khi có audio** — sản xuất hàng loạt không có người duyệt; thời lượng thật chỉ biết sau TTS.
-- **Một lượt sửa AI, không nâng preset hay đọc nhanh** — giới hạn chi phí và vòng lặp; video không vừa thì thất bại rõ ràng.
+- **Một lượt sửa AI, không nới khoảng hay đổi tốc độ đọc** — giới hạn chi phí và vòng lặp; video không vừa thì thất bại rõ ràng.
+- **Khoảng do người, độ dài do AI** — AI viết lời thấy nội dung nên chọn được độ dài hợp; người giữ giới hạn. Trần là giới hạn cứng,
+  đề xuất chỉ là mục tiêu viết, nên dài hơn đề xuất mà còn trong khoảng không tốn lượt sửa.
 - **Hai artifact tách có fingerprint, cache bản thảo** — Claude lỗi không tốn lại NotebookLM; nháp không lẫn kết quả cuối.
 - **Snapshot render bất biến; render hai pha** — sửa video lúc render chờ không trộn vào; lỗi báo tiến độ không xoá được MP4 đã xong.
 - **Asset server cục bộ khi render** — Chromium cần URL; chỉ phục vụ đúng tệp của snapshot, không lộ `data/`.

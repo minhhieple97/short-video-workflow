@@ -6,7 +6,9 @@ export interface DraftRequestIdentity {
   lessonId: string;
   // Null for a lesson snapshot taken before content hashes existed; such a draft is still keyed by the lesson id.
   lessonContentHash: string | null;
-  targetDurationSec: number;
+  // The draft proposes its own length inside this range, so the range (not a length) is part of the request.
+  minDurationSec: number;
+  maxDurationSec: number;
   // Remote source references change with every new revision of a source's text.
   sourceRemoteIds: readonly string[];
   revisionNote: string | null;

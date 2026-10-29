@@ -12,7 +12,7 @@ import { seedProduction } from "./production-fixture";
 const TOKEN = "fixture-worker";
 
 // A video with the story scenes applied and an audio asset on every scene, as it is after the voicing step. The hook
-// lasts 90 frames and every other scene 150, so the video is well within a 60 second preset.
+// lasts 90 frames and every other scene 180, so the video (33 s) sits inside a 30–60 second range.
 export async function seedVoicedVideo(deps: {
   db: typeof DbClient;
   claim: typeof Claim;
@@ -27,13 +27,14 @@ export async function seedVoicedVideo(deps: {
   const draft = await new MockScriptStudioProvider().writeDraft({
     sources: [],
     lesson: SAMPLE_LESSON,
-    targetDurationSec: 60,
+    range: { minDurationSec: 30, maxDurationSec: 60 },
     revisionNote: null,
   });
   const plan = await new MockScenePlanCompiler().compile({
     draft,
     lesson: SAMPLE_LESSON,
     targetDurationSec: 60,
+    range: { minDurationSec: 30, maxDurationSec: 60 },
     revisionNote: null,
   });
   await apply.applyScenePlan({
@@ -64,7 +65,7 @@ export async function seedVoicedVideo(deps: {
     });
     await db.prisma.videoScene.update({
       where: { id: scene.id },
-      data: { audioAssetId: asset.id, durationFrames: index === 0 ? 90 : 150 },
+      data: { audioAssetId: asset.id, durationFrames: index === 0 ? 90 : 180 },
     });
   }
   const video = await db.prisma.video.findUniqueOrThrow({ where: { id: videoId } });

@@ -28,13 +28,14 @@ async function planFor(variant = "") {
   const draft = await new MockScriptStudioProvider().writeDraft({
     sources: [],
     lesson: { ...SAMPLE_LESSON, title: `${SAMPLE_LESSON.title}${variant}` },
-    targetDurationSec: 60,
+    range: { minDurationSec: 30, maxDurationSec: 60 },
     revisionNote: null,
   });
   const plan: ScenePlan = await new MockScenePlanCompiler().compile({
     draft,
     lesson: SAMPLE_LESSON,
     targetDurationSec: 60,
+    range: { minDurationSec: 30, maxDurationSec: 60 },
     revisionNote: null,
   });
   return createScenePlanArtifact({
@@ -94,8 +95,8 @@ beforeEach(async () => {
     bookId: book.id,
     lessonIds: [lesson.id],
     idempotencyKey: `key-${Math.random()}`,
-    targetDurationSec: 60,
-    extended: false,
+    minDurationSec: 30,
+    maxDurationSec: 60,
   });
   itemId = production.items[0]?.id ?? "";
   videoId = production.items[0]?.videoId ?? "";

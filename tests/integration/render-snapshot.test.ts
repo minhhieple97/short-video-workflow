@@ -105,7 +105,7 @@ describe("captureRenderSnapshot", () => {
     const draft = await new MockScriptStudioProvider().writeDraft({
       sources: [],
       lesson: SAMPLE_LESSON,
-      targetDurationSec: 60,
+      range: { minDurationSec: 30, maxDurationSec: 60 },
       revisionNote: null,
     });
     const storeDraft = (illustrative: string[]) =>

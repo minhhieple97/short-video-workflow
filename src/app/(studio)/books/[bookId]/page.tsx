@@ -21,7 +21,7 @@ import { lessonFilterSchema } from "@/features/lessons/schemas/lesson.schema";
 import { listLessons } from "@/features/lessons/services/lesson.service";
 import { CreateVideoDialog } from "@/features/videos/components/create-video-dialog";
 import { VideoTable } from "@/features/videos/components/video-table";
-import { listVideos } from "@/features/videos/services/video.service";
+import { defaultDurationRange, listVideos } from "@/features/videos/services/video.service";
 import { formatDateTime } from "@/lib/format";
 import { orNotFound } from "@/server/http/page-helpers";
 import { getAppConfig } from "@/shared/config/env";
@@ -112,7 +112,8 @@ export default async function BookDetailPage({ params, searchParams }: Readonly<
                 <CreateVideoDialog
                   bookId={book.id}
                   lessons={approvedLessons.map(({ id, title, usedInVideoCount }) => ({ id, title, usedInVideoCount }))}
-                  maxDurationSec={getAppConfig().video.maxDurationSec}
+                  defaultRange={defaultDurationRange()}
+                  ceilingSec={getAppConfig().video.maxDurationSec}
                 />
               </div>
               <VideoTable videos={videos} emptyHint="Duyệt ít nhất một bài học rồi bấm “Tạo video”." />

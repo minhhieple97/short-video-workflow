@@ -29,9 +29,13 @@ describe("NotebookLM prompts for books in English or Vietnamese", () => {
   });
 
   it("asks for a Vietnamese script in the required story order, quoting the source only in its own language", () => {
-    const prompt = buildScriptDraftPrompt({ lesson: SAMPLE_LESSON, targetDurationSec: 60, revisionNote: null });
+    const prompt = buildScriptDraftPrompt({
+      lesson: SAMPLE_LESSON,
+      range: { minDurationSec: 30, maxDurationSec: 60 },
+      revisionNote: null,
+    });
 
-    expect(SCRIPT_DRAFT_PROMPT_VERSION).toBe("notebooklm-script-draft-v3");
+    expect(SCRIPT_DRAFT_PROMPT_VERSION).toBe("notebooklm-script-draft-v4");
     expect(prompt).toContain("Lời dẫn LUÔN bằng tiếng Việt");
     expect(prompt).toContain("HOOK → SITUATION → MISTAKE → LESSON → RESOLUTION → ACTION");
     expect(prompt).toContain("đúng ngôn ngữ của nguồn (không dịch)");

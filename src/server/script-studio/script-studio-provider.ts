@@ -1,4 +1,4 @@
-import type { TargetDurationSec } from "@/features/videos/domain/duration";
+import type { DurationRange } from "@/features/videos/domain/duration";
 import type { LessonSnapshot } from "@/features/videos/domain/lesson-snapshot";
 import type { CallOptions } from "@/server/integrations/call-options";
 
@@ -44,10 +44,11 @@ export interface ExtractLessonsRequest {
   endPage: number;
 }
 
+// The draft proposes a length inside `range` and is written to it.
 export interface WriteDraftRequest {
   sources: SourceRef[];
   lesson: LessonSnapshot;
-  targetDurationSec: TargetDurationSec;
+  range: DurationRange;
   // The single content correction allowed per video; null on the first pass.
   revisionNote: string | null;
 }

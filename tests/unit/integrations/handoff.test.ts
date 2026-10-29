@@ -23,13 +23,14 @@ async function sample(): Promise<{ draft: ScriptDraft; plan: ScenePlan }> {
   const draft = await new MockScriptStudioProvider().writeDraft({
     sources: [],
     lesson: SAMPLE_LESSON,
-    targetDurationSec: 60,
+    range: { minDurationSec: 30, maxDurationSec: 60 },
     revisionNote: null,
   });
   const plan = await new MockScenePlanCompiler().compile({
     draft,
     lesson: SAMPLE_LESSON,
     targetDurationSec: 60,
+    range: { minDurationSec: 30, maxDurationSec: 60 },
     revisionNote: null,
   });
   return { draft, plan };
@@ -181,6 +182,8 @@ describe("scene plan task input", () => {
       draft,
       lesson: SAMPLE_LESSON,
       targetDurationSec: 60,
+      minDurationSec: 30,
+      maxDurationSec: 90,
       revisionNote: null,
       promptVersion: "scene-plan-v1",
     });
@@ -188,23 +191,27 @@ describe("scene plan task input", () => {
     expect(Object.keys(input).sort()).toEqual([
       "draft",
       "lesson",
+      "maxDurationSec",
+      "minDurationSec",
       "promptVersion",
       "revisionNote",
       "targetDurationSec",
     ]);
   });
 
-  it("rejects a target length that is not a preset", async () => {
+  it("rejects a length that is not one of the allowed ones", async () => {
     const { draft } = await sample();
-
-    expect(
+    const input = (lengths: { targetDurationSec: number; minDurationSec: number; maxDurationSec: number }) =>
       scenePlanTaskInputSchema.safeParse({
         draft,
         lesson: SAMPLE_LESSON,
-        targetDurationSec: 50,
+        ...lengths,
         revisionNote: null,
         promptVersion: "p",
-      }).success,
-    ).toBe(false);
+      }).success;
+
+    expect(input({ targetDurationSec: 60, minDurationSec: 30, maxDurationSec: 90 })).toBe(true);
+    expect(input({ targetDurationSec: 50, minDurationSec: 30, maxDurationSec: 90 })).toBe(false);
+    expect(input({ targetDurationSec: 60, minDurationSec: 30, maxDurationSec: 100 })).toBe(false);
   });
 });

@@ -91,6 +91,8 @@ describe("contracts enforce the story", () => {
   it("rejects a script draft whose beats are out of order", () => {
     const draft = {
       lessonId: "l",
+      targetDurationSec: 60,
+      durationReason: "Vừa đủ.",
       beats: ["HOOK", "SITUATION", "MISTAKE", "RESOLUTION", "LESSON", "ACTION"].map(beat),
     };
 
@@ -101,7 +103,11 @@ describe("contracts enforce the story", () => {
   });
 
   it("accepts a script draft that tells the whole story", () => {
-    expect(scriptDraftSchema.safeParse({ lessonId: "l", beats: NARRATIVE_BEATS.map(beat) }).success).toBe(true);
+    const proposal = { targetDurationSec: 60, durationReason: "Vừa đủ." };
+    expect(scriptDraftSchema.safeParse({ lessonId: "l", ...proposal, beats: NARRATIVE_BEATS.map(beat) }).success).toBe(
+      true,
+    );
+    expect(scriptDraftSchema.safeParse({ lessonId: "l", beats: NARRATIVE_BEATS.map(beat) }).success).toBe(false);
   });
 
   it("rejects a scene plan in the manual flow's order", () => {

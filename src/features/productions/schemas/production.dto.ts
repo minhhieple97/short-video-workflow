@@ -16,7 +16,8 @@ export interface ProductionDto {
   id: string;
   bookId: string;
   status: BatchStatus;
-  targetDurationSec: number;
+  minDurationSec: number;
+  maxDurationSec: number;
   createdAt: string;
   items: ProductionItemDto[];
 }

@@ -6,6 +6,8 @@ export interface ProductionItemViewDto {
   lessonTitle: string;
   videoId: string | null;
   videoTitle: string | null;
+  // The length NotebookLM proposed for this video, and why; null until its draft is written.
+  proposedDuration: { seconds: number; reason: string } | null;
   status: ItemStatus;
   checkpoint: ItemCheckpoint;
   // Why the item is waiting or failed, in the user's words; null when there is nothing to explain.
@@ -21,7 +23,8 @@ export interface ProductionViewDto {
   id: string;
   book: { id: string; title: string };
   status: BatchStatus;
-  targetDurationSec: number;
+  minDurationSec: number;
+  maxDurationSec: number;
   createdAt: string;
   completedAt: string | null;
   inProgress: boolean;
@@ -35,7 +38,8 @@ export interface ProductionSummaryDto {
   id: string;
   book: { id: string; title: string };
   status: BatchStatus;
-  targetDurationSec: number;
+  minDurationSec: number;
+  maxDurationSec: number;
   itemCount: number;
   completedCount: number;
   createdAt: string;

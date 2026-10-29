@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
+import { formatPreset, formatRange } from "../domain/duration";
 import type { VideoSummary } from "../schemas/video.dto";
 import { VideoStatusBadge } from "./video-status-badge";
 
@@ -69,7 +70,9 @@ export function VideoCard({ video }: Readonly<{ video: VideoSummary }>) {
         <p className="line-clamp-2 leading-snug font-bold group-hover:underline">{video.title}</p>
         <div className="flex flex-wrap items-center gap-2">
           <VideoStatusBadge status={video.status} />
-          <span className="text-muted-foreground text-xs">Short {video.targetDurationSec}s</span>
+          <span className="text-muted-foreground text-xs">
+            {video.durationProposed ? formatPreset(video.targetDurationSec) : formatRange(video)}
+          </span>
         </div>
       </div>
     </Link>

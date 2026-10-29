@@ -53,7 +53,7 @@ describe("requestAiCorrection", () => {
     expect(await item()).toMatchObject({
       aiCorrectionTarget: "SCENE_COMPILER",
       checkpoint: "DRAFTED",
-      aiCorrectionNote: expect.stringContaining("không tăng preset"),
+      aiCorrectionNote: expect.stringContaining("không nới khoảng"),
     });
   });
 

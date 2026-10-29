@@ -146,8 +146,8 @@ describe("voiceover fallbacks and duration limits", () => {
       title: "Video 30 giây",
       description: null,
       lessonIds: [lesson.id],
-      targetDurationSec: 30,
-      extended: false,
+      minDurationSec: 30,
+      maxDurationSec: 30,
     });
     videoId = video.id;
     await generation.runScriptGeneration({ videoId, jobRecordId: null });

@@ -1,10 +1,11 @@
 import { getBook } from "@/features/books/services/book.service";
 import { findActiveJobForEntities, findActiveJobForEntity } from "@/features/jobs/repositories/job-record.repository";
 import { toJobDto } from "@/features/jobs/services/job-dto";
+import { getAppConfig } from "@/shared/config/env";
 import { AppError, NotFoundError } from "@/shared/errors";
 import type { JobDto } from "@/shared/types/job";
 
-import { assessLessonLoad } from "../domain/duration";
+import { assessLessonLoad, clampToRange, formatPreset, type DurationRange } from "../domain/duration";
 import { toVideoStatus } from "../domain/video-status";
 import {
   createVideoRecord,
@@ -30,6 +31,24 @@ export async function requireVideo(id: string): Promise<VideoDetailRecord> {
   return video;
 }
 
+// The range a new video or batch starts with, from the settings.
+export function defaultDurationRange(): DurationRange {
+  const { defaultMinDurationSec, maxDurationSec } = getAppConfig().video;
+  return { minDurationSec: defaultMinDurationSec, maxDurationSec };
+}
+
+// The forms only offer lengths up to MAX_VIDEO_DURATION_SEC; this holds the line for any other caller too.
+export function assertDurationRangeAllowed(range: DurationRange): void {
+  const ceiling = getAppConfig().video.maxDurationSec;
+  if (range.maxDurationSec > ceiling) {
+    throw new AppError(
+      "DURATION_OVER_LIMIT",
+      `Thời lượng dài nhất ${formatPreset(range.maxDurationSec)} vượt giới hạn ${formatPreset(ceiling)} đặt cho máy này.`,
+      400,
+    );
+  }
+}
+
 export async function getVideo(id: string): Promise<VideoDetail> {
   return toVideoDetail(await requireVideo(id));
 }
@@ -41,6 +60,9 @@ export async function listVideos(filter: { bookId?: string } = {}): Promise<Vide
     status: toVideoStatus(video.status),
     book: video.book,
     targetDurationSec: video.targetDurationSec,
+    minDurationSec: video.minDurationSec,
+    maxDurationSec: video.maxDurationSec,
+    durationProposed: video.durationReason !== null,
     lessonCount: video._count.videoLessons,
     sceneCount: video._count.scenes,
     hookText: video.scenes[0]?.onScreenText ?? null,
@@ -49,6 +71,7 @@ export async function listVideos(filter: { bookId?: string } = {}): Promise<Vide
 }
 
 export async function createVideo(input: CreateVideoInput): Promise<{ video: VideoDetail; warnings: string[] }> {
+  assertDurationRangeAllowed(input);
   const book = await getBook(input.bookId);
   const lessonIds = [...new Set(input.lessonIds)];
   const lessons = await findApprovedLessonsForVideo(book.id, lessonIds);
@@ -66,21 +89,25 @@ export async function createVideo(input: CreateVideoInput): Promise<{ video: Vid
     bookId: book.id,
     title: input.title,
     description: input.description,
-    targetDurationSec: input.targetDurationSec,
+    range: { minDurationSec: input.minDurationSec, maxDurationSec: input.maxDurationSec },
     lessons: ordered.map((lesson) => ({ lessonId: lesson.id, snapshot: buildLessonSnapshot(lesson, capturedAt) })),
   });
 
-  const load = assessLessonLoad(lessonIds.length, input.targetDurationSec);
+  const load = assessLessonLoad(lessonIds.length, input.maxDurationSec);
   return { video: await getVideo(video.id), warnings: load.level === "ok" ? [] : [load.message] };
 }
 
+// A new range keeps the AI's proposed length when it still fits, and otherwise moves it to the nearest end of the range.
 export async function updateVideo(id: string, input: UpdateVideoInput): Promise<VideoDetail> {
-  await requireVideo(id);
+  assertDurationRangeAllowed(input);
+  const video = await requireVideo(id);
   await assertScriptNotGenerating(id);
+  const range = { minDurationSec: input.minDurationSec, maxDurationSec: input.maxDurationSec };
   await updateVideoMetadata(id, {
     title: input.title,
     description: input.description,
-    targetDurationSec: input.targetDurationSec,
+    ...range,
+    targetDurationSec: clampToRange(video.targetDurationSec, range),
     platformPreviewMode: input.platformPreviewMode,
   });
   return getVideo(id);

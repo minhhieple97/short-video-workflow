@@ -19,14 +19,15 @@ const scene = (overrides: Partial<Scene> = {}): Scene => ({
 
 const input = (overrides: Partial<ReadinessInput> = {}): ReadinessInput => ({
   status: "NEEDS_REVIEW",
-  targetDurationSec: 60,
+  maxDurationSec: 60,
+  minDurationSec: null,
   scenes: [scene({ type: "HOOK", durationFrames: 90 }), scene(), scene({ type: "ACTION_STEP" })],
   lessons: [{ hasSourceExcerpt: true }],
   ...overrides,
 });
 
 describe("the FINAL preflight's approval gate", () => {
-  const base = { status: "NEEDS_REVIEW", targetDurationSec: 60, scenes: input().scenes };
+  const base = { status: "NEEDS_REVIEW", maxDurationSec: 60, minDurationSec: null, scenes: input().scenes };
   const codes = (value: PreflightInput) => runPreflight(value, "FINAL").blocking.map((issue) => issue.code);
 
   it("blocks an unapproved script that no automated check vouches for", () => {
@@ -71,16 +72,27 @@ describe("assessReadiness", () => {
     expect(longHook(HOOK_MAX_FRAMES + 1)).toContain("HOOK_TOO_LONG");
   });
 
-  it("blocks a video that runs past its preset instead of trimming or speeding up the narration", () => {
+  it("blocks a video that runs past the range's maximum instead of trimming or speeding up the narration", () => {
     const report = assessReadiness(
       input({
-        targetDurationSec: 30,
+        maxDurationSec: 30,
         scenes: [scene({ type: "HOOK", durationFrames: 90 }), scene({ durationFrames: 900 })],
       }),
     );
 
     expect(report.ready).toBe(false);
     expect(report.issues.map((issue) => issue.code)).toContain("OVER_TARGET");
+  });
+
+  it("blocks a video shorter than the range's minimum, which a person would only be warned about", () => {
+    const short = input({ minDurationSec: 30 });
+
+    expect(assessReadiness(short).issues.map((issue) => issue.code)).toEqual(["UNDER_MIN"]);
+    expect(runPreflight({ ...short, status: "APPROVED" }, "FINAL")).toMatchObject({
+      blocking: [],
+      warnings: [expect.objectContaining({ code: "UNDER_MIN" })],
+    });
+    expect(assessReadiness(input({ minDurationSec: 20 })).ready).toBe(true);
   });
 
   it("blocks a missing hook and a scene without on-screen text", () => {
@@ -106,7 +118,7 @@ describe("assessReadiness", () => {
   it("reports every problem at once so one correction can address them together", () => {
     const report = assessReadiness(
       input({
-        targetDurationSec: 30,
+        maxDurationSec: 30,
         scenes: [scene({ type: "HOOK", durationFrames: 200, audioAssetId: null }), scene({ durationFrames: 900 })],
         lessons: [],
       }),

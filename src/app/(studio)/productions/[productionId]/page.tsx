@@ -9,6 +9,7 @@ import { CancelProductionButton, RetryProductionButton } from "@/features/produc
 import { ProductionItemList } from "@/features/productions/components/production-item-list";
 import { BATCH_STATUS_LABELS } from "@/features/productions/domain/production-labels";
 import { getProductionView } from "@/features/productions/services/production-view.service";
+import { formatRange } from "@/features/videos/domain/duration";
 import { formatDateTime } from "@/lib/format";
 import { orNotFound } from "@/server/http/page-helpers";
 
@@ -36,7 +37,7 @@ export default async function ProductionPage({ params }: Readonly<{ params: Prom
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={status.tone}>{status.label}</Badge>
             <span>
-              {production.book.title} · Short {production.targetDurationSec}s · tạo lúc{" "}
+              {production.book.title} · mỗi video {formatRange(production)} · tạo lúc{" "}
               {formatDateTime(production.createdAt)}
             </span>
           </div>

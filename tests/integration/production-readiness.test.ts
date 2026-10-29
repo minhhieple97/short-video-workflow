@@ -29,7 +29,7 @@ let videos: typeof VideoService;
 let itemId: string;
 let videoId: string;
 
-async function attachAudio(frames: (index: number) => number = (index) => (index === 0 ? 90 : 150)) {
+async function attachAudio(frames: (index: number) => number = (index) => (index === 0 ? 90 : 180)) {
   const all = await db.prisma.videoScene.findMany({ where: { videoId }, orderBy: { order: "asc" } });
   for (const [index, scene] of all.entries()) {
     const asset = await db.prisma.mediaAsset.create({
@@ -71,13 +71,14 @@ beforeEach(async () => {
   const draft = await new MockScriptStudioProvider().writeDraft({
     sources: [],
     lesson: SAMPLE_LESSON,
-    targetDurationSec: 60,
+    range: { minDurationSec: 30, maxDurationSec: 60 },
     revisionNote: null,
   });
   const plan = await new MockScenePlanCompiler().compile({
     draft,
     lesson: SAMPLE_LESSON,
     targetDurationSec: 60,
+    range: { minDurationSec: 30, maxDurationSec: 60 },
     revisionNote: null,
   });
   await apply.applyScenePlan({
@@ -140,7 +141,7 @@ describe("markProductionItemReady", () => {
   });
 
   it("is not ready when the real narration makes the hook longer than 4 seconds", async () => {
-    await attachAudio((index) => (index === 0 ? 121 : 150));
+    await attachAudio((index) => (index === 0 ? 121 : 180));
 
     const outcome = await readiness.markProductionItemReady({ itemId, claimToken: TOKEN });
 

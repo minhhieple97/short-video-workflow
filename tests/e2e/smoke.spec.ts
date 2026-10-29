@@ -44,12 +44,14 @@ async function open(page: Page, url: string): Promise<void> {
   await page.waitForLoadState("networkidle");
 }
 
-async function createVideo(page: Page, bookUrl: string, lessonIndexes: number[], extended: boolean): Promise<string> {
+// The video may run from 30 seconds up to `longest`; the AI picks its length inside that range with the script.
+async function createVideo(page: Page, bookUrl: string, lessonIndexes: number[], longest: string): Promise<string> {
   await open(page, `${bookUrl}?tab=videos`);
   await page.getByRole("button", { name: "Tạo video" }).click();
   const dialog = page.getByRole("dialog");
   for (const index of lessonIndexes) await dialog.getByRole("checkbox").nth(index).click();
-  if (extended) await dialog.getByText(/^Video dài/).click();
+  await dialog.getByLabel("Dài nhất").click();
+  await page.getByRole("option", { name: longest, exact: true }).click();
   await dialog.getByRole("button", { name: "Tạo video" }).click();
   await page.waitForURL(/\/videos\/[a-z0-9]+$/);
   return page.url();
@@ -96,19 +98,20 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
     return hrefs;
   });
 
-  const videoA = await test.step("create video A (one lesson, 60s) and pick a hook", async () => {
-    const url = await createVideo(page, bookUrl, [0], false);
-    await expect(page.getByText("Short 60s")).toBeVisible();
+  const videoA = await test.step("create video A (one lesson, up to 60 s) and pick a hook", async () => {
+    const url = await createVideo(page, bookUrl, [0], "60 giây");
+    await expect(page.getByText("Khoảng 30 giây – 60 giây")).toBeVisible();
     await generateScript(page);
+    await expect(page.getByText(/^AI đề xuất (30|45|60) giây · 30 giây – 60 giây$/)).toBeVisible();
     await page.getByRole("button", { name: "Dùng hook này" }).first().click();
     await expect(page.getByText("Đã chọn hook.")).toBeVisible();
     await expect(page.getByText(/Đạt — HOOK bắt đầu tại frame 0/)).toBeVisible();
     return url;
   });
 
-  await test.step("create video B (two lessons, explicit long 90 s) and edit one scene only", async () => {
-    const url = await createVideo(page, bookUrl, [1, 2], true);
-    await expect(page.getByText("Video dài 90 giây")).toBeVisible();
+  await test.step("create video B (two lessons, up to 90 s) and edit one scene only", async () => {
+    const url = await createVideo(page, bookUrl, [1, 2], "90 giây");
+    await expect(page.getByText("Khoảng 30 giây – 90 giây")).toBeVisible();
     await generateScript(page);
     const videoId = url.split("/").at(-1) ?? "";
     const before = (await (await request.get(`/api/videos/${videoId}`)).json()) as { scenes: SceneJson[] };

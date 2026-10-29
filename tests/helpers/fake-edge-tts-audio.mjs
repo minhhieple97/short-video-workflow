@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Stand-in for the edge-tts CLI that writes a real, short MP3, so the whole voice-over path (silence trim, probe, store)
-// can run. Every call is counted in FAKE_EDGE_TTS_COUNTER, and FAKE_EDGE_TTS_FAIL_ON makes a call fail when the text file
+// Stand-in for the edge-tts CLI that writes a real MP3 as long as the text takes to read (about four syllables a
+// second, at least one second), so the whole voice-over path (silence trim, probe, store) and the length checks can run. Every call is counted in FAKE_EDGE_TTS_COUNTER, and FAKE_EDGE_TTS_FAIL_ON makes a call fail when the text file
 // it was given contains that marker.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -23,6 +23,8 @@ if (marker && text.includes(marker)) {
   process.stderr.write("ValueError: Invalid voice 'xx-XX-Nobody'\n");
   process.exit(1);
 }
+const syllables = text.split(/\s+/).filter((token) => /[\p{L}\p{N}]/u.test(token)).length;
+const seconds = Math.max(1, Math.round((syllables / 4) * 10) / 10);
 execFileSync("ffmpeg", [
   "-hide_banner",
   "-loglevel",
@@ -31,7 +33,7 @@ execFileSync("ffmpeg", [
   "-f",
   "lavfi",
   "-i",
-  "sine=frequency=440:duration=1",
+  `sine=frequency=440:duration=${seconds}`,
   "-ar",
   "24000",
   "-ac",

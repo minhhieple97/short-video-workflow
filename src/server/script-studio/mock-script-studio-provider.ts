@@ -1,3 +1,4 @@
+import { estimateNarrationSeconds, fitToRange } from "@/features/videos/domain/duration";
 import { NARRATIVE_BEATS, type NarrativeBeat } from "@/features/videos/domain/narrative-beats";
 import type { CallOptions } from "@/server/integrations/call-options";
 import type { DetectedChapter, LessonExtraction, ScriptDraft } from "@/server/script-studio/script-studio-contracts";
@@ -13,6 +14,14 @@ import type {
 const PAGES_PER_FAKE_CHAPTER = 10;
 
 // Deterministic and offline (AI_MODE=mock): turns the lesson's own fields into a draft that tells the whole story.
+const RETOLD_BEATS = [
+  "SITUATION",
+  "MISTAKE",
+  "LESSON",
+  "RESOLUTION",
+  "ACTION",
+] as const satisfies readonly NarrativeBeat[];
+
 export class MockScriptStudioProvider implements ScriptStudioProvider {
   readonly id = "mock-script-studio";
   readonly draftVersion = "mock-draft-v1";
@@ -77,8 +86,19 @@ export class MockScriptStudioProvider implements ScriptStudioProvider {
       ACTION: lesson.actionableStep,
     };
 
+    // Like a real studio, it writes about as much as the length it proposes: short lesson fields are told again, beat
+    // after beat, until the narration reaches the range's minimum.
+    const retold = [lesson.summary, lesson.principle, lesson.betterApproach, lesson.actionableStep].filter(Boolean);
+    const told = () => NARRATIVE_BEATS.reduce((sum, beat) => sum + estimateNarrationSeconds(narrationFor[beat]), 0);
+    for (let turn = 0; told() < request.range.minDurationSec && retold.length > 0 && turn < 40; turn += 1) {
+      const beat = RETOLD_BEATS[turn % RETOLD_BEATS.length] ?? "SITUATION";
+      narrationFor[beat] = `${narrationFor[beat]} ${retold[turn % retold.length] ?? ""}`;
+    }
+    const seconds = told();
     return {
       lessonId: lesson.lessonId,
+      targetDurationSec: fitToRange(seconds, request.range),
+      durationReason: `Bản thảo mẫu đọc khoảng ${Math.ceil(seconds)} giây.`,
       beats: NARRATIVE_BEATS.map((beat) => ({
         beat,
         narration: narrationFor[beat],

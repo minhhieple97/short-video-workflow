@@ -9,6 +9,8 @@ import { SAMPLE_LESSON } from "../../helpers/contracts/script-studio-provider-co
 const input = (overrides: Partial<ScenePlanTaskInput> = {}): ScenePlanTaskInput => ({
   draft: {
     lessonId: "lesson-1",
+    targetDurationSec: 60,
+    durationReason: "Đủ kể trọn bài học.",
     beats: ["HOOK", "SITUATION", "MISTAKE", "LESSON", "RESOLUTION", "ACTION"].map((beat) => ({
       beat: beat as "HOOK",
       narration: `Lời của ${beat}`,
@@ -18,6 +20,8 @@ const input = (overrides: Partial<ScenePlanTaskInput> = {}): ScenePlanTaskInput 
   },
   lesson: SAMPLE_LESSON,
   targetDurationSec: 60,
+  minDurationSec: 30,
+  maxDurationSec: 90,
   revisionNote: null,
   promptVersion: SCENE_PLAN_PROMPT_VERSION,
   ...overrides,
@@ -35,8 +39,9 @@ describe("buildScenePlanPrompt", () => {
     const prompt = buildScenePlanPrompt(input());
 
     expect(prompt).toContain(`(${SCENE_PLAN_PROMPT_VERSION})`);
-    expect(prompt).toContain("tối đa 60 giây");
-    expect(prompt).toContain("~240 âm tiết");
+    expect(prompt).toContain("dài khoảng 60 giây");
+    expect(prompt).toContain("trong 30–90 giây");
+    expect(prompt).toContain("khoảng ~240 âm tiết, không dưới ~120 và không quá ~360");
     expect(prompt).toContain("~15 âm tiết");
   });
 
@@ -64,6 +69,8 @@ describe("buildScenePlanPrompt", () => {
     const hostile = input({
       draft: {
         lessonId: "l",
+        targetDurationSec: 60,
+        durationReason: "Đủ kể trọn bài học.",
         beats: [
           {
             beat: "HOOK",

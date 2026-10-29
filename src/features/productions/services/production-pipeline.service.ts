@@ -1,5 +1,5 @@
 import { lessonSnapshotSchema, type LessonSnapshot } from "@/features/videos/domain/lesson-snapshot";
-import { isDurationPreset, type TargetDurationSec } from "@/features/videos/domain/duration";
+import { formatRange, isDurationPreset, isWithinRange, type DurationRange } from "@/features/videos/domain/duration";
 import { findRenderRecord } from "@/features/videos/repositories/render.repository";
 import { SCENE_PLAN_PROMPT_VERSION } from "@/server/ai/prompts/scene-plan-prompt";
 import { IntegrationError } from "@/server/integrations/integration-error";
@@ -77,12 +77,13 @@ function lessonOf(item: ProductionItemForRun): LessonSnapshot {
   return parsed.data;
 }
 
-function targetOf(item: ProductionItemForRun): TargetDurationSec {
-  const target = item.batch.targetDurationSec;
-  if (!isDurationPreset(target)) {
-    throw new AppError("PRODUCTION_PRESET_INVALID", "Preset thời lượng của đợt sản xuất không hợp lệ.", 500);
+// The video carries the range (set from the batch, changeable in its settings while it is not running).
+function rangeOf(item: ProductionItemForRun): DurationRange {
+  const range = { minDurationSec: item.video?.minDurationSec ?? 0, maxDurationSec: item.video?.maxDurationSec ?? 0 };
+  if (!isDurationPreset(range.minDurationSec) || !isDurationPreset(range.maxDurationSec)) {
+    throw new AppError("PRODUCTION_PRESET_INVALID", "Khoảng thời lượng của video không hợp lệ.", 500);
   }
-  return target;
+  return range;
 }
 
 const requireVideoId = (item: ProductionItemForRun): string => {
@@ -101,13 +102,14 @@ async function draftStep(
   deps: PipelineDeps,
 ): Promise<StepOutcome> {
   const lesson = lessonOf(item);
-  const targetDurationSec = targetOf(item);
+  const videoId = requireVideoId(item);
+  const range = rangeOf(item);
   const sources = await deps.resolveSources({ bookId: item.batch.bookId, lesson, signal });
   const revisionNote = item.aiCorrectionTarget === "SCRIPT_STUDIO" ? item.aiCorrectionNote : null;
   const cacheKey = draftCacheKey(deps.scriptStudio, {
     lessonId: lesson.lessonId,
     lessonContentHash: lesson.contentHash,
-    targetDurationSec,
+    ...range,
     sourceRemoteIds: sources.map((source) => source.remoteId),
     revisionNote,
   });
@@ -116,11 +118,18 @@ async function draftStep(
     // script studio's quota is spent once per request.
     let draft = await readCachedDraft(cacheKey);
     if (!draft) {
-      draft = await deps.scriptStudio.writeDraft({ sources, lesson, targetDurationSec, revisionNote }, { signal });
+      draft = await deps.scriptStudio.writeDraft({ sources, lesson, range, revisionNote }, { signal });
       await cacheDraft(cacheKey, deps.scriptStudio, draft);
     }
+    if (!isWithinRange(draft.targetDurationSec, range)) {
+      const message = `Bản thảo đề xuất ${draft.targetDurationSec} giây, ngoài khoảng ${formatRange(range)}: chọn lại một độ dài trong khoảng.`;
+      return correct(item.id, claimToken, [{ code: "DRAFT_LENGTH_OUT_OF_RANGE", message }], message);
+    }
+    const { targetDurationSec, durationReason } = draft;
     const artifact = createDraftArtifact({ draft, lessonContentHash: lesson.contentHash, targetDurationSec });
-    if (!(await saveDraftArtifact(item.id, claimToken, artifact))) throw lostClaim();
+    if (!(await saveDraftArtifact(item.id, claimToken, artifact, { videoId, targetDurationSec, durationReason }))) {
+      throw lostClaim();
+    }
     return { kind: "CONTINUE" };
   } catch (error) {
     return correctRejected(item.id, claimToken, error);
@@ -138,7 +147,7 @@ async function compileStep(
     return failed("PRODUCTION_ARTIFACT_INVALID", "Bản thảo đã lưu bị hỏng hoặc không khớp fingerprint.");
   }
   const lesson = lessonOf(item);
-  const targetDurationSec = targetOf(item);
+  const { targetDurationSec } = draftArtifact.data.draft;
 
   try {
     const plan = await deps.compiler.compile(
@@ -146,6 +155,7 @@ async function compileStep(
         draft: draftArtifact.data.draft,
         lesson,
         targetDurationSec,
+        range: rangeOf(item),
         revisionNote: item.aiCorrectionTarget === "SCENE_COMPILER" ? item.aiCorrectionNote : null,
       },
       { signal },

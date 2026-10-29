@@ -181,7 +181,19 @@ describe("runRender completion", () => {
     expect(fs.existsSync(file)).toBe(false);
   });
 
-  it("rejects a FINAL MP4 longer than the preset", async () => {
+  it("accepts a FINAL MP4 longer than the AI's proposed length while it stays within the range", async () => {
+    await db.prisma.video.update({ where: { id: videoId }, data: { targetDurationSec: 30, durationReason: "Gọn." } });
+    const { id } = await queueRender("FINAL");
+
+    await expect(
+      runner.runRender(
+        { renderId: id, onProgress: async () => undefined },
+        fakeDeps({ probe: probeFor(1080, 1920, 45_000) }),
+      ),
+    ).resolves.toMatchObject({ durationMs: 45_000 });
+  });
+
+  it("rejects a FINAL MP4 longer than the range's maximum", async () => {
     const { id } = await queueRender("FINAL");
 
     await expect(

@@ -19,7 +19,8 @@ const scene = (overrides: Partial<PreflightInput["scenes"][number]> = {}) => ({
 const hook = scene({ type: "HOOK", onScreenText: "VÌ SAO?", durationFrames: 75 });
 const input = (overrides: Partial<PreflightInput> = {}): PreflightInput => ({
   status: "APPROVED",
-  targetDurationSec: 60,
+  maxDurationSec: 60,
+  minDurationSec: null,
   scenes: [hook, scene(), scene({ type: "ACTION_STEP" })],
   ...overrides,
 });
@@ -98,10 +99,10 @@ describe("preflight", () => {
     expect(report.warnings.map((w) => w.code)).toEqual(["MISSING_AUDIO"]);
   });
 
-  it("blocks a final render that is over the preset, unapproved or has a long hook, but lets drafts through", () => {
+  it("blocks a final render that is over the maximum, unapproved or has a long hook, but lets drafts through", () => {
     const risky = input({
       status: "NEEDS_REVIEW",
-      targetDurationSec: 30,
+      maxDurationSec: 30,
       scenes: [scene({ type: "HOOK", durationFrames: HOOK_MAX_FRAMES + 1 }), scene({ durationFrames: 900 })],
     });
     expect(

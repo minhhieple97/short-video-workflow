@@ -82,8 +82,8 @@ beforeEach(async () => {
     bookId: book.id,
     lessonIds: [lesson.id],
     idempotencyKey: `key-${Math.random()}`,
-    targetDurationSec: 60,
-    extended: false,
+    minDurationSec: 30,
+    maxDurationSec: 60,
   });
   itemId = production.items[0]?.id ?? "";
   videoId = production.items[0]?.videoId ?? "";
@@ -93,13 +93,14 @@ beforeEach(async () => {
   const draft = await new MockScriptStudioProvider().writeDraft({
     sources: [],
     lesson: SAMPLE_LESSON,
-    targetDurationSec: 60,
+    range: { minDurationSec: 30, maxDurationSec: 60 },
     revisionNote: null,
   });
   const plan = await new MockScenePlanCompiler().compile({
     draft,
     lesson: SAMPLE_LESSON,
     targetDurationSec: 60,
+    range: { minDurationSec: 30, maxDurationSec: 60 },
     revisionNote: null,
   });
   await apply.applyScenePlan({

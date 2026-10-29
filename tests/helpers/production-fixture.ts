@@ -40,8 +40,8 @@ export async function seedProduction(deps: {
     bookId: book.id,
     lessonIds: [lesson.id],
     idempotencyKey: `key-${Math.random()}`,
-    targetDurationSec: 60,
-    extended: false,
+    minDurationSec: 30,
+    maxDurationSec: 60,
   });
   return {
     bookId: book.id,

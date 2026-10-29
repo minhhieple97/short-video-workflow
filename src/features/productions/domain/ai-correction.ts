@@ -9,9 +9,11 @@ export interface CorrectionIssue {
 }
 
 // A video gets one AI correction, and it goes to the step that can fix the problem. What the book says, and which source
-// backs it, belongs to the script studio (NotebookLM). Wording, structure and length belong to the compiler (Claude).
-// Anything else (a voice-over that failed, a script that changed under the check) is not something an AI can repair.
-const SCRIPT_STUDIO_CODES = new Set(["SOURCE_MISSING", "DRAFT_INVALID"]);
+// backs it, belongs to the script studio (NotebookLM); so does a video too short for its range, because only the script
+// studio can tell more from the sources (the compiler would have to invent). Wording, structure and length over the
+// maximum belong to the compiler (Claude). Anything else (a voice-over that failed, a script that changed under the
+// check) is not something an AI can repair.
+const SCRIPT_STUDIO_CODES = new Set(["SOURCE_MISSING", "DRAFT_INVALID", "DRAFT_LENGTH_OUT_OF_RANGE", "UNDER_MIN"]);
 const SCENE_COMPILER_CODES = new Set([
   "OVER_TARGET",
   "OVER_MAX",
@@ -30,7 +32,10 @@ export function isCorrectableIssue(code: string): boolean {
 }
 
 const GUIDANCE: Record<string, string> = {
-  OVER_TARGET: "Tổng thời lượng vượt preset: rút gọn lời dẫn cho vừa, không tăng preset và không đọc nhanh hơn.",
+  OVER_TARGET:
+    "Tổng thời lượng vượt mức tối đa của khoảng: rút gọn lời dẫn cho vừa, không nới khoảng và không đọc nhanh hơn.",
+  UNDER_MIN:
+    "Video ngắn hơn mức tối thiểu: kể sâu hơn từ nguồn (tình huống chi tiết hơn, nhiều bước hành động hơn), không thêm dữ kiện ngoài nguồn và không đọc chậm hơn.",
   OVER_MAX: "Tổng thời lượng vượt giới hạn tuyệt đối: rút gọn mạnh lời dẫn, không đọc nhanh hơn.",
   HOOK_TOO_LONG: `Hook đọc quá ${HOOK_MAX_SECONDS} giây: viết hook ngắn hơn nhưng vẫn gợi đủ vấn đề.`,
   HOOK_MISSING: "Thiếu HOOK ở đầu: mở bằng một HOOK có chữ trên màn hình.",

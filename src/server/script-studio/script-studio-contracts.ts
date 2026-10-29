@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { MAX_STORY_SCENES } from "@/features/videos/domain/duration";
+import { DURATION_PRESETS_SEC, MAX_STORY_SCENES } from "@/features/videos/domain/duration";
 import {
   describeStoryOrderProblem,
   findNarrativeOrderProblem,
@@ -41,9 +41,16 @@ export const scriptDraftBeatSchema = z.object({
   illustrative: z.boolean(),
 });
 
+// The script studio reads the sources, so it also says how long the video should be to tell them, and why.
+export const proposedDurationSchema = z.object({
+  targetDurationSec: z.literal(DURATION_PRESETS_SEC),
+  durationReason: z.string().trim().min(1).max(200),
+});
+
 export const scriptDraftSchema = z
   .object({
     lessonId: z.string().min(1),
+    ...proposedDurationSchema.shape,
     beats: z.array(scriptDraftBeatSchema).min(1).max(MAX_STORY_SCENES),
   })
   .superRefine((draft, context) => {

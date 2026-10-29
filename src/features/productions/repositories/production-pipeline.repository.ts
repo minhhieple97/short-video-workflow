@@ -2,10 +2,12 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 
 const RUN_INCLUDE = {
-  batch: { select: { bookId: true, targetDurationSec: true } },
+  batch: { select: { bookId: true } },
   video: {
     select: {
       id: true,
+      minDurationSec: true,
+      maxDurationSec: true,
       videoLessons: { orderBy: { position: "asc" }, take: 1, select: { lessonSnapshotJson: true } },
     },
   },
@@ -17,27 +19,40 @@ export function findProductionItemForRun(itemId: string): Promise<ProductionItem
   return prisma.productionItem.findUnique({ where: { id: itemId }, include: RUN_INCLUDE });
 }
 
-// Stores an artifact and moves the checkpoint in one conditional update: only the holder, only from the step that
-// produces it. False means the item is no longer where the caller thought it was.
-async function saveArtifact(
+// Each artifact is stored by a conditional update that also moves the checkpoint: only the holder, only from the step
+// that produces it. False means the item is no longer where the caller thought it was. The draft's proposed length lands
+// on the video in the same transaction, so it changes only if this caller still holds the item.
+export async function saveDraftArtifact(
   itemId: string,
   claimToken: string,
-  from: "NONE" | "DRAFTED",
-  to: "DRAFTED" | "COMPILED",
-  data: Prisma.ProductionItemUpdateManyMutationInput,
+  artifact: Prisma.InputJsonObject,
+  proposal: { videoId: string; targetDurationSec: number; durationReason: string },
+): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    const { count } = await tx.productionItem.updateMany({
+      where: { id: itemId, claimToken, checkpoint: "NONE" },
+      data: { draftArtifactJson: artifact, checkpoint: "DRAFTED" },
+    });
+    if (count === 0) return false;
+    await tx.video.update({
+      where: { id: proposal.videoId },
+      data: { targetDurationSec: proposal.targetDurationSec, durationReason: proposal.durationReason },
+    });
+    return true;
+  });
+}
+
+export async function saveScenePlanArtifact(
+  itemId: string,
+  claimToken: string,
+  artifact: Prisma.InputJsonObject,
 ): Promise<boolean> {
   const { count } = await prisma.productionItem.updateMany({
-    where: { id: itemId, claimToken, checkpoint: from },
-    data: { ...data, checkpoint: to },
+    where: { id: itemId, claimToken, checkpoint: "DRAFTED" },
+    data: { scenePlanArtifactJson: artifact, checkpoint: "COMPILED" },
   });
   return count > 0;
 }
-
-export const saveDraftArtifact = (itemId: string, claimToken: string, artifact: Prisma.InputJsonObject) =>
-  saveArtifact(itemId, claimToken, "NONE", "DRAFTED", { draftArtifactJson: artifact });
-
-export const saveScenePlanArtifact = (itemId: string, claimToken: string, artifact: Prisma.InputJsonObject) =>
-  saveArtifact(itemId, claimToken, "DRAFTED", "COMPILED", { scenePlanArtifactJson: artifact });
 
 // Counts a temporary failure and keeps its reason, so the progress page can say why the item is waiting.
 export async function recordTransientFailure(

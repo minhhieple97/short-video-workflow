@@ -4,6 +4,7 @@ import { EmptyState } from "@/components/layout/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
 
+import { formatPreset, formatRange } from "../domain/duration";
 import type { VideoSummary } from "../schemas/video.dto";
 import { VideoStatusBadge } from "./video-status-badge";
 
@@ -47,7 +48,9 @@ export function VideoTable({ videos, showBook = false, emptyHint }: Readonly<Vid
             <TableCell>
               <VideoStatusBadge status={video.status} />
             </TableCell>
-            <TableCell className="text-right tabular-nums">{video.targetDurationSec}s</TableCell>
+            <TableCell className="text-right tabular-nums">
+              {video.durationProposed ? formatPreset(video.targetDurationSec) : formatRange(video)}
+            </TableCell>
             <TableCell className="text-right tabular-nums">{video.sceneCount}</TableCell>
             <TableCell className="text-muted-foreground text-xs">{formatDateTime(video.updatedAt)}</TableCell>
           </TableRow>

@@ -42,7 +42,7 @@ function buildConfigRows(): ConfigRow[] {
       label: "Xem trước",
       value: `Trình duyệt, khung ${PREVIEW_FRAME.width}×${PREVIEW_FRAME.height} thu nhỏ từ bản cuối (không render tệp)`,
     },
-    { label: "Thời lượng mặc định / tối đa", value: `${video.defaultDurationSec}s / ${video.maxDurationSec}s` },
+    { label: "Khoảng thời lượng mặc định", value: `${video.defaultMinDurationSec}s – ${video.maxDurationSec}s` },
     { label: "Preset thời lượng", value: video.durationPresetsSec.map((seconds) => `${seconds}s`).join(" · ") },
     { label: "Worker concurrency", value: String(concurrency.worker) },
     { label: "Render concurrency", value: String(concurrency.render) },

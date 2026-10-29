@@ -26,7 +26,10 @@ export async function findProductionView(id: string) {
       book: { select: { id: true, title: true } },
       items: {
         orderBy: { position: "asc" },
-        include: { lesson: { select: { title: true } }, video: { select: { id: true, title: true } } },
+        include: {
+          lesson: { select: { title: true } },
+          video: { select: { id: true, title: true, targetDurationSec: true, durationReason: true } },
+        },
       },
     },
   });
@@ -98,7 +101,7 @@ export function createProduction(input: {
   bookId: string;
   idempotencyKey: string;
   fingerprint: string;
-  targetDurationSec: number;
+  range: { minDurationSec: number; maxDurationSec: number };
   items: readonly NewProductionItem[];
 }): Promise<ProductionRecord> {
   return prisma.$transaction(async (tx) => {
@@ -107,7 +110,8 @@ export function createProduction(input: {
         bookId: input.bookId,
         idempotencyKey: input.idempotencyKey,
         fingerprint: input.fingerprint,
-        targetDurationSec: input.targetDurationSec,
+        ...input.range,
+        targetDurationSec: input.range.maxDurationSec,
         status: "QUEUED",
         items: {
           create: input.items.map((item) => ({
@@ -118,7 +122,9 @@ export function createProduction(input: {
               create: {
                 bookId: input.bookId,
                 title: item.videoTitle,
-                targetDurationSec: input.targetDurationSec,
+                ...input.range,
+                // NotebookLM proposes the length when it writes the draft; until then the plan is the maximum.
+                targetDurationSec: input.range.maxDurationSec,
                 status: "DRAFT",
                 videoLessons: {
                   create: [{ lessonId: item.lessonId, position: 1, lessonSnapshotJson: item.snapshot }],

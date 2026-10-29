@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { ARCHIVE_STATUS_LABELS, toArchiveStatus } from "@/features/archive/domain/archive-labels";
+import { formatPreset } from "@/features/videos/domain/duration";
 
 import { ITEM_STATUS_LABELS, productionStep } from "../domain/production-labels";
 import type { ProductionItemViewDto } from "../schemas/production-view.dto";
@@ -71,6 +72,11 @@ export function ProductionItemList({
                   }
                 >
                   {item.reason}
+                </p>
+              ) : null}
+              {item.proposedDuration ? (
+                <p className="text-muted-foreground text-xs">
+                  AI đề xuất {formatPreset(item.proposedDuration.seconds)}: {item.proposedDuration.reason}
                 </p>
               ) : null}
               {item.correction ? <p className="text-muted-foreground text-xs">{item.correction}</p> : null}

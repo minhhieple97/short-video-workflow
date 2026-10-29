@@ -9,8 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LESSON_STATUS_LABELS } from "@/features/lessons/domain/lesson-fields";
-import { DurationPresetPicker, type DurationChoice } from "@/features/videos/components/duration-preset-picker";
-import { DEFAULT_TARGET_SEC, formatPreset } from "@/features/videos/domain/duration";
+import { DurationRangePicker } from "@/features/videos/components/duration-range-picker";
+import { formatRange, type DurationRange } from "@/features/videos/domain/duration";
 import { errorMessage, sendJson } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
@@ -22,13 +22,19 @@ import type { ProductionDto } from "../schemas/production.dto";
 export function ProductionRequestForm({
   bookId,
   lessons,
-  maxDurationSec,
-}: Readonly<{ bookId: string; lessons: readonly CatalogueLessonDto[]; maxDurationSec: number }>) {
+  defaultRange,
+  ceilingSec,
+}: Readonly<{
+  bookId: string;
+  lessons: readonly CatalogueLessonDto[];
+  defaultRange: DurationRange;
+  ceilingSec: number;
+}>) {
   const router = useRouter();
   // One key per visit of this form, so a double submit or a retry after a lost answer is the same request.
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [selected, setSelected] = useState<string[]>([]);
-  const [duration, setDuration] = useState<DurationChoice>({ targetDurationSec: DEFAULT_TARGET_SEC, extended: false });
+  const [duration, setDuration] = useState<DurationRange>(defaultRange);
   const [pending, setPending] = useState(false);
 
   const selectable = useMemo(() => lessons.filter((lesson) => lesson.unavailableReason === null), [lessons]);
@@ -136,16 +142,16 @@ export function ProductionRequestForm({
 
       <section aria-labelledby="preset-heading" className="flex flex-col gap-2">
         <h2 id="preset-heading" className="text-lg font-bold">
-          Thời lượng mỗi video (9:16 · 1080×1920 · 30 FPS)
+          Khoảng thời lượng mỗi video (9:16 · 1080×1920 · 30 FPS)
         </h2>
-        <DurationPresetPicker value={duration} onChange={setDuration} maxDurationSec={maxDurationSec} />
+        <DurationRangePicker id="production-duration" value={duration} onChange={setDuration} ceilingSec={ceilingSec} />
       </section>
 
       <div className="bg-card shadow-card sticky bottom-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4">
         <p className="text-sm">
           {selected.length === 0
             ? "Chọn ít nhất một bài học."
-            : `${selected.length} bài học → ${selected.length} video ${formatPreset(duration.targetDurationSec)}.`}
+            : `${selected.length} bài học → ${selected.length} video, mỗi video ${formatRange(duration)}.`}
         </p>
         <Button onClick={() => void submit()} disabled={pending || selected.length === 0}>
           <Clapperboard aria-hidden />

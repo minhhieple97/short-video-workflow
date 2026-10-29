@@ -52,8 +52,8 @@ beforeAll(async () => {
       title: "Video thẻ",
       description: null,
       lessonIds: [lesson!.id],
-      targetDurationSec: 30,
-      extended: false,
+      minDurationSec: 30,
+      maxDurationSec: 30,
     })
   ).video.id;
 }, 60_000);

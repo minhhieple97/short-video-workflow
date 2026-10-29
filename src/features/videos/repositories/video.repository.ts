@@ -64,7 +64,7 @@ export function createVideoRecord(input: {
   bookId: string;
   title: string;
   description: string | null;
-  targetDurationSec: number;
+  range: { minDurationSec: number; maxDurationSec: number };
   lessons: { lessonId: string; snapshot: Prisma.InputJsonObject }[];
 }): Promise<Video> {
   return prisma.video.create({
@@ -72,7 +72,9 @@ export function createVideoRecord(input: {
       bookId: input.bookId,
       title: input.title,
       description: input.description,
-      targetDurationSec: input.targetDurationSec,
+      ...input.range,
+      // Until a script proposes a length, the plan is the longest the user allows.
+      targetDurationSec: input.range.maxDurationSec,
       status: "DRAFT",
       videoLessons: {
         create: input.lessons.map((lesson, index) => ({
@@ -90,6 +92,8 @@ export function updateVideoMetadata(
   data: {
     title: string;
     description: string | null;
+    minDurationSec: number;
+    maxDurationSec: number;
     targetDurationSec: number;
     platformPreviewMode: "TIKTOK" | "YOUTUBE_SHORTS" | "FACEBOOK_REELS" | null;
   },
@@ -145,7 +149,12 @@ async function rewriteOrder(tx: Tx, orderedIds: readonly string[]): Promise<void
   }
 }
 
-export type ReplacementScript = { hookOptions: Prisma.InputJsonValue; scenes: readonly NewSceneRecord[] };
+export type ReplacementScript = {
+  hookOptions: Prisma.InputJsonValue;
+  scenes: readonly NewSceneRecord[];
+  // The length the AI wrote this script for, when it proposed one with it.
+  duration?: { targetDurationSec: number; durationReason: string };
+};
 
 // The one place a whole script is written, so the manual flow and the production flow cannot drift apart. The caller
 // supplies the transaction when the write must be atomic with something else.
@@ -154,7 +163,7 @@ export async function replaceScriptWithin(tx: Tx, videoId: string, script: Repla
   await tx.videoScene.createMany({
     data: script.scenes.map((scene, order) => ({ ...scene, videoId, order })),
   });
-  return bumpScript(tx, videoId, { hookOptionsJson: script.hookOptions });
+  return bumpScript(tx, videoId, { hookOptionsJson: script.hookOptions, ...script.duration });
 }
 
 export function replaceScript(videoId: string, script: ReplacementScript): Promise<Video> {

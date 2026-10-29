@@ -18,6 +18,8 @@ let videoId: string;
 
 const DRAFT: ScriptDraft = {
   lessonId: "l1",
+  targetDurationSec: 60,
+  durationReason: "Đủ kể trọn bài học.",
   beats: [
     { beat: "HOOK", narration: "Vì sao bạn cứ hẹn ngày mai?", sourceExcerpts: [], illustrative: false },
     { beat: "SITUATION", narration: "Tối nào bạn cũng định tập.", sourceExcerpts: [], illustrative: true },

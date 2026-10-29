@@ -7,6 +7,8 @@ import { SAMPLE_LESSON } from "./script-studio-provider-contract";
 
 const DRAFT: ScriptDraft = {
   lessonId: SAMPLE_LESSON.lessonId,
+  targetDurationSec: 60,
+  durationReason: "Đủ kể trọn bài học.",
   beats: [
     { beat: "HOOK", narration: "Vì sao bạn cứ hẹn ngày mai?", sourceExcerpts: [], illustrative: false },
     {
@@ -29,7 +31,13 @@ const DRAFT: ScriptDraft = {
 
 export function describeScenePlanCompilerContract(name: string, createCompiler: () => ScenePlanCompiler): void {
   describe(`ScenePlanCompiler contract: ${name}`, () => {
-    const request = { draft: DRAFT, lesson: SAMPLE_LESSON, targetDurationSec: 60 as const, revisionNote: null };
+    const request = {
+      draft: DRAFT,
+      lesson: SAMPLE_LESSON,
+      targetDurationSec: 60 as const,
+      range: { minDurationSec: 30, maxDurationSec: 60 },
+      revisionNote: null,
+    };
 
     it("returns a plan that satisfies the scene-plan contract", async () => {
       const plan = await createCompiler().compile(request);

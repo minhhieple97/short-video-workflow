@@ -9,22 +9,22 @@ const VALID_ENV = {
 };
 
 describe("parseAppConfig", () => {
-  it("applies short-form defaults: 9:16, 1080x1920 final, 720x1280 draft, 60s, concurrency 1", () => {
+  it("applies vertical defaults: 9:16, 1080x1920 final, 720x1280 draft, 30 s – 5 min, concurrency 1", () => {
     const config = parseAppConfig(VALID_ENV);
 
     expect(config.video.aspectRatio).toBe("9:16");
     expect(config.video.final).toEqual({ width: 1080, height: 1920, fps: 30 });
     expect(config.video.draft).toEqual({ width: 720, height: 1280, fps: 30 });
-    expect(config.video.defaultDurationSec).toBe(60);
+    expect(config.video.defaultMinDurationSec).toBe(30);
     expect(config.video.maxDurationSec).toBe(300);
     expect(config.concurrency).toEqual({ worker: 1, render: 1 });
     expect(config.ai.mode).toBe("cli-task");
   });
 
   it("coerces numeric strings read from the environment", () => {
-    const config = parseAppConfig({ ...VALID_ENV, DEFAULT_VIDEO_DURATION_SEC: "45", WORKER_CONCURRENCY: "2" });
+    const config = parseAppConfig({ ...VALID_ENV, DEFAULT_MIN_VIDEO_DURATION_SEC: "45", WORKER_CONCURRENCY: "2" });
 
-    expect(config.video.defaultDurationSec).toBe(45);
+    expect(config.video.defaultMinDurationSec).toBe(45);
     expect(config.concurrency.worker).toBe(2);
   });
 
@@ -32,13 +32,14 @@ describe("parseAppConfig", () => {
     expect(() => parseAppConfig({ ...VALID_ENV, RENDER_WIDTH: "1920", RENDER_HEIGHT: "1080" })).toThrow(ConfigError);
   });
 
-  it("rejects a default duration outside the allowed presets", () => {
-    expect(() => parseAppConfig({ ...VALID_ENV, DEFAULT_VIDEO_DURATION_SEC: "70" })).toThrow(ConfigError);
+  it("rejects range ends outside the allowed lengths", () => {
+    expect(() => parseAppConfig({ ...VALID_ENV, DEFAULT_MIN_VIDEO_DURATION_SEC: "70" })).toThrow(ConfigError);
+    expect(() => parseAppConfig({ ...VALID_ENV, MAX_VIDEO_DURATION_SEC: "75" })).toThrow(ConfigError);
   });
 
-  it("rejects a default duration longer than the maximum", () => {
+  it("rejects a default minimum longer than the maximum", () => {
     expect(() =>
-      parseAppConfig({ ...VALID_ENV, DEFAULT_VIDEO_DURATION_SEC: "90", MAX_VIDEO_DURATION_SEC: "60" }),
+      parseAppConfig({ ...VALID_ENV, DEFAULT_MIN_VIDEO_DURATION_SEC: "90", MAX_VIDEO_DURATION_SEC: "60" }),
     ).toThrow(ConfigError);
   });
 
@@ -49,8 +50,9 @@ describe("parseAppConfig", () => {
 
   it("offers exactly the presets the video rules know", () => {
     expect(parseAppConfig(VALID_ENV).video.durationPresetsSec).toEqual(DURATION_PRESETS_SEC);
-    expect(parseAppConfig({ ...VALID_ENV, DEFAULT_VIDEO_DURATION_SEC: "300" }).video.defaultDurationSec).toBe(300);
-    expect(() => parseAppConfig({ ...VALID_ENV, DEFAULT_VIDEO_DURATION_SEC: "75" })).toThrow(ConfigError);
+    expect(parseAppConfig({ ...VALID_ENV, DEFAULT_MIN_VIDEO_DURATION_SEC: "300" }).video.defaultMinDurationSec).toBe(
+      300,
+    );
   });
 
   it("reads import limits and extra chapter patterns", () => {

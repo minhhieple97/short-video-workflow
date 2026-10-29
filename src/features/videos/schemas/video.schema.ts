@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { DEFAULT_TARGET_SEC, DURATION_PRESETS_SEC, isLongPreset } from "../domain/duration";
+import { DURATION_PRESETS_SEC } from "../domain/duration";
 import { illustrationSchema } from "../domain/illustration";
 import { BODY_SCENE_TYPES, VISUAL_VARIANTS } from "../domain/scene-types";
 
@@ -15,17 +15,19 @@ const optionalText = (max: number) =>
     .nullish()
     .transform((value) => (value ? value : null));
 
-const EXTENDED_RULE = "Preset dài hơn 60 giây chỉ dùng khi chọn rõ “Video dài”.";
-
-// `extended` records that the user chose a long preset on purpose; it is never set by the app.
-export const durationFields = {
-  targetDurationSec: durationPresetSchema.default(DEFAULT_TARGET_SEC),
-  extended: z.boolean().default(false),
+// The lengths the user allows; the AI picks the video's length inside them.
+export const durationRangeFields = {
+  minDurationSec: durationPresetSchema,
+  maxDurationSec: durationPresetSchema,
 };
 
-export function enforceExtended(value: { targetDurationSec: number; extended: boolean }, ctx: z.RefinementCtx): void {
-  if (isLongPreset(value.targetDurationSec) !== value.extended) {
-    ctx.addIssue({ code: "custom", path: ["targetDurationSec"], message: EXTENDED_RULE });
+export function enforceRange(value: { minDurationSec: number; maxDurationSec: number }, ctx: z.RefinementCtx): void {
+  if (value.minDurationSec > value.maxDurationSec) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["minDurationSec"],
+      message: "Thời lượng ngắn nhất không được dài hơn thời lượng dài nhất.",
+    });
   }
 }
 
@@ -38,18 +40,18 @@ export const createVideoSchema = z
       .array(z.string().min(1))
       .min(1, "Chọn ít nhất một bài học đã duyệt.")
       .max(5, "Tối đa 5 bài học cho một video."),
-    ...durationFields,
+    ...durationRangeFields,
   })
-  .superRefine(enforceExtended);
+  .superRefine(enforceRange);
 
 export const updateVideoSchema = z
   .object({
     title: z.string().trim().min(1, "Tiêu đề không được để trống.").max(200, "Tiêu đề tối đa 200 ký tự."),
     description: optionalText(500),
     platformPreviewMode: z.enum(["TIKTOK", "YOUTUBE_SHORTS", "FACEBOOK_REELS"]).nullable().default(null),
-    ...durationFields,
+    ...durationRangeFields,
   })
-  .superRefine(enforceExtended);
+  .superRefine(enforceRange);
 
 export const updateSceneSchema = z.object({
   title: optionalText(120),

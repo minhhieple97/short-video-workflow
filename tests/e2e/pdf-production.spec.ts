@@ -94,6 +94,8 @@ test("E2E-02: PDF → catalogue → chosen lesson → vertical video archived to
       )
       .toEqual(expect.arrayContaining(["Hoàn tất", "Đã lưu Drive"]));
     await expect(page.getByRole("link", { name: /Thư mục Drive/ })).toBeVisible();
+    // The script studio chose the length inside the default range and said why.
+    await expect(page.getByText(/^AI đề xuất \d+ (giây|phút): .+/)).toBeVisible();
   });
 
   await test.step("the render is a 9:16 H.264 + AAC MP4 and the lesson was never approved", async () => {
@@ -104,13 +106,16 @@ test("E2E-02: PDF → catalogue → chosen lesson → vertical video archived to
         "-v",
         "error",
         "-show_entries",
-        "stream=codec_name,width,height",
+        "stream=codec_name,width,height:format=duration",
         "-of",
         "json",
         created[0] ?? "",
       ]).toString(),
-    ) as { streams: { codec_name: string; width?: number; height?: number }[] };
+    ) as { streams: { codec_name: string; width?: number; height?: number }[]; format: { duration: string } };
     expect(probe.streams.map((stream) => stream.codec_name).sort()).toEqual(["aac", "h264"]);
+    // Inside the default 30 s – 5 min range: readiness holds a batch video to the minimum.
+    expect(Number(probe.format.duration)).toBeGreaterThanOrEqual(30);
+    expect(Number(probe.format.duration)).toBeLessThanOrEqual(300);
     expect(probe.streams.find((stream) => stream.codec_name === "h264")).toMatchObject({ width: 1080, height: 1920 });
 
     await open(page, `${bookUrl}?tab=lessons`);

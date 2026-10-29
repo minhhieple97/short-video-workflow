@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { MAX_STORY_SCENES, type TargetDurationSec } from "@/features/videos/domain/duration";
+import { MAX_STORY_SCENES, type DurationRange, type TargetDurationSec } from "@/features/videos/domain/duration";
 import { describeStoryOrderProblem, findStorySceneOrderProblem } from "@/features/videos/domain/narrative-beats";
 import type { LessonSnapshot } from "@/features/videos/domain/lesson-snapshot";
 import { hookOptionSchema, storyboardSceneSchema } from "@/server/ai/contracts/video-script";
@@ -22,7 +22,9 @@ export type ScenePlan = z.infer<typeof scenePlanSchema>;
 export interface ScenePlanRequest {
   draft: ScriptDraft;
   lesson: LessonSnapshot;
+  // The length the draft was written for, and the range the final video must stay in.
   targetDurationSec: TargetDurationSec;
+  range: DurationRange;
   // The single compile or duration correction allowed per video; null on the first pass.
   revisionNote: string | null;
 }

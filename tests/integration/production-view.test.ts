@@ -55,7 +55,7 @@ describe("getProductionView", () => {
   it("shows a new production as waiting to start, cancellable, with nothing to explain", async () => {
     const production = await view.getProductionView(batchId);
 
-    expect(production).toMatchObject({ status: "QUEUED", inProgress: true, targetDurationSec: 60 });
+    expect(production).toMatchObject({ status: "QUEUED", inProgress: true, minDurationSec: 30, maxDurationSec: 60 });
     expect(production.counts).toEqual({ PENDING: 1, RUNNING: 0, WAITING: 0, COMPLETED: 0, FAILED: 0, CANCELLED: 0 });
     expect(production.items[0]).toMatchObject({
       position: 1,
@@ -64,6 +64,7 @@ describe("getProductionView", () => {
       status: "PENDING",
       checkpoint: "NONE",
       reason: null,
+      proposedDuration: null,
       correction: null,
       render: null,
       archive: null,

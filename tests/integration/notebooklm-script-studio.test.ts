@@ -86,12 +86,14 @@ beforeAll(async () => {
   pipelineDeps = await import("@/features/productions/services/pipeline-deps");
 }, 60_000);
 
+const PROPOSAL = { targetDurationSec: 45, durationReason: "Bài học gọn, đủ kể trong 45 giây." };
+
 beforeEach(async () => {
   nlm = fakeNotebookLm(path.join(env.dataDir, `nlm-${Math.random().toString(36).slice(2)}`));
   nlm.answerQueries([
     { contains: "Hãy xác định các CHƯƠNG", answer: notebookAnswer(CHAPTERS) },
     { contains: "bài học riêng biệt", answer: notebookAnswer(LESSONS) },
-    { contains: "Mạch kể bắt buộc", answer: notebookAnswer({ beats: BEATS }) },
+    { contains: "Mạch kể bắt buộc", answer: notebookAnswer({ ...PROPOSAL, beats: BEATS }) },
   ]);
   await db.prisma.book.deleteMany();
   await createBook(CONTRACT_BOOK.id);
@@ -120,21 +122,23 @@ describe("NotebookLmScriptStudio", () => {
     const draft = await provider.writeDraft({
       sources: [source],
       lesson: SAMPLE_LESSON,
-      targetDurationSec: 45,
+      range: { minDurationSec: 30, maxDurationSec: 45 },
       revisionNote: "Giữ đúng trích đoạn.",
     });
 
-    expect(draft.lessonId).toBe(SAMPLE_LESSON.lessonId);
+    expect(draft).toMatchObject({ lessonId: SAMPLE_LESSON.lessonId, ...PROPOSAL });
     expect(draft.beats.map((beat) => beat.beat)).toEqual(BEATS.map((beat) => beat.beat));
     const [query] = nlm.calls("notebook_query");
     expect(query?.source_ids).toEqual([source.remoteId.split("#")[1]]);
     expect(String(query?.query)).toContain(JSON.stringify(SAMPLE_LESSON.title));
-    expect(String(query?.query)).toContain("45 giây");
+    expect(String(query?.query)).toContain("trong khoảng 30–45 giây");
+    expect(String(query?.query)).toContain("45 (45 giây) ≈ 162 từ");
+    expect(String(query?.query)).not.toContain("60 (60 giây)");
     expect(String(query?.query)).toContain('"Giữ đúng trích đoạn."');
   });
 
-  it("refuses a draft out of story order as DRAFT_INVALID, which the one correction can fix", async () => {
-    nlm.script({ notebook_query: [notebookAnswer({ beats: [BEATS[1], BEATS[0], ...BEATS.slice(2)] })] });
+  it("refuses a proposed length outside the range, which the one correction can fix", async () => {
+    nlm.script({ notebook_query: [notebookAnswer({ targetDurationSec: 90, durationReason: "Dài.", beats: BEATS })] });
     const provider = studio();
     const source = await provider.ensureSource({
       book: CONTRACT_BOOK,
@@ -143,7 +147,31 @@ describe("NotebookLmScriptStudio", () => {
     });
 
     await expect(
-      provider.writeDraft({ sources: [source], lesson: SAMPLE_LESSON, targetDurationSec: 60, revisionNote: null }),
+      provider.writeDraft({
+        sources: [source],
+        lesson: SAMPLE_LESSON,
+        range: { minDurationSec: 30, maxDurationSec: 60 },
+        revisionNote: null,
+      }),
+    ).rejects.toMatchObject({ code: "DRAFT_LENGTH_OUT_OF_RANGE", kind: "REJECTED" });
+  });
+
+  it("refuses a draft out of story order as DRAFT_INVALID, which the one correction can fix", async () => {
+    nlm.script({ notebook_query: [notebookAnswer({ ...PROPOSAL, beats: [BEATS[1], BEATS[0], ...BEATS.slice(2)] })] });
+    const provider = studio();
+    const source = await provider.ensureSource({
+      book: CONTRACT_BOOK,
+      document: { key: "chapter:c1:part:1", title: "Chương 1", markdown: "x" },
+      known: null,
+    });
+
+    await expect(
+      provider.writeDraft({
+        sources: [source],
+        lesson: SAMPLE_LESSON,
+        range: { minDurationSec: 30, maxDurationSec: 60 },
+        revisionNote: null,
+      }),
     ).rejects.toMatchObject({ code: "DRAFT_INVALID", kind: "REJECTED" });
   });
 
@@ -152,7 +180,7 @@ describe("NotebookLmScriptStudio", () => {
     const request = (remoteIds: string[]) => ({
       sources: remoteIds.map((remoteId) => ({ key: "k", remoteId })),
       lesson: SAMPLE_LESSON,
-      targetDurationSec: 60 as const,
+      range: { minDurationSec: 30, maxDurationSec: 60 },
       revisionNote: null,
     });
 

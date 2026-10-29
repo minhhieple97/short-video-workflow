@@ -84,8 +84,9 @@ const envSchema = z
     MAX_AUDIO_UPLOAD_MB: z.coerce.number().positive().max(100).default(20),
 
     VIDEO_PROFILE: z.literal("SHORT_VERTICAL").default("SHORT_VERTICAL"),
-    DEFAULT_VIDEO_DURATION_SEC: durationPreset.default(60),
-    MAX_VIDEO_DURATION_SEC: z.coerce.number().int().positive().max(300).default(300),
+    // The range a new video or batch starts with; MAX_VIDEO_DURATION_SEC is also the longest a range may reach.
+    DEFAULT_MIN_VIDEO_DURATION_SEC: durationPreset.default(30),
+    MAX_VIDEO_DURATION_SEC: durationPreset.default(300),
     RENDER_WIDTH: positiveInt(1080),
     RENDER_HEIGHT: positiveInt(1920),
     RENDER_FPS: positiveInt(30),
@@ -101,11 +102,11 @@ const envSchema = z
     if (!isPortrait9x16(env.DRAFT_RENDER_WIDTH, env.DRAFT_RENDER_HEIGHT)) {
       ctx.addIssue({ code: "custom", path: ["DRAFT_RENDER_HEIGHT"], message: "draft render size must be 9:16" });
     }
-    if (env.DEFAULT_VIDEO_DURATION_SEC > env.MAX_VIDEO_DURATION_SEC) {
+    if (env.DEFAULT_MIN_VIDEO_DURATION_SEC > env.MAX_VIDEO_DURATION_SEC) {
       ctx.addIssue({
         code: "custom",
-        path: ["DEFAULT_VIDEO_DURATION_SEC"],
-        message: "default duration must not exceed MAX_VIDEO_DURATION_SEC",
+        path: ["DEFAULT_MIN_VIDEO_DURATION_SEC"],
+        message: "default minimum duration must not exceed MAX_VIDEO_DURATION_SEC",
       });
     }
   });
@@ -146,7 +147,7 @@ export interface AppConfig {
     profile: "SHORT_VERTICAL";
     aspectRatio: typeof VIDEO_ASPECT_RATIO;
     durationPresetsSec: readonly number[];
-    defaultDurationSec: number;
+    defaultMinDurationSec: number;
     maxDurationSec: number;
     final: { width: number; height: number; fps: number };
     draft: { width: number; height: number; fps: number };
@@ -221,7 +222,7 @@ export function parseAppConfig(source: Record<string, string | undefined>): AppC
       profile: env.VIDEO_PROFILE,
       aspectRatio: VIDEO_ASPECT_RATIO,
       durationPresetsSec: DURATION_PRESETS_SEC,
-      defaultDurationSec: env.DEFAULT_VIDEO_DURATION_SEC,
+      defaultMinDurationSec: env.DEFAULT_MIN_VIDEO_DURATION_SEC,
       maxDurationSec: env.MAX_VIDEO_DURATION_SEC,
       final: { width: env.RENDER_WIDTH, height: env.RENDER_HEIGHT, fps: env.RENDER_FPS },
       draft: { width: env.DRAFT_RENDER_WIDTH, height: env.DRAFT_RENDER_HEIGHT, fps: env.RENDER_FPS },

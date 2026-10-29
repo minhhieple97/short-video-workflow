@@ -122,7 +122,7 @@ export function describeScriptStudioProviderContract(name: string, createProvide
       const draft = await provider.writeDraft({
         sources: [source],
         lesson: SAMPLE_LESSON,
-        targetDurationSec: 60,
+        range: { minDurationSec: 30, maxDurationSec: 60 },
         revisionNote: null,
       });
 
@@ -130,6 +130,9 @@ export function describeScriptStudioProviderContract(name: string, createProvide
       expect(draft.lessonId).toBe(SAMPLE_LESSON.lessonId);
       expect(draft.beats[0]?.beat).toBe("HOOK");
       expect(draft.beats.some((beat) => beat.illustrative)).toBe(true);
+      expect(draft.targetDurationSec).toBeGreaterThanOrEqual(30);
+      expect(draft.targetDurationSec).toBeLessThanOrEqual(60);
+      expect(draft.durationReason.trim()).not.toBe("");
     });
 
     it("accepts a revision note on the correction pass", async () => {
@@ -143,7 +146,7 @@ export function describeScriptStudioProviderContract(name: string, createProvide
       const draft = await provider.writeDraft({
         sources: [source],
         lesson: SAMPLE_LESSON,
-        targetDurationSec: 60,
+        range: { minDurationSec: 30, maxDurationSec: 60 },
         revisionNote: "Giữ đúng trích đoạn trong sách.",
       });
 
@@ -183,7 +186,12 @@ export function describeScriptStudioProviderContract(name: string, createProvide
       ).rejects.toThrow();
       await expect(
         provider.writeDraft(
-          { sources: [source], lesson: SAMPLE_LESSON, targetDurationSec: 60, revisionNote: null },
+          {
+            sources: [source],
+            lesson: SAMPLE_LESSON,
+            range: { minDurationSec: 30, maxDurationSec: 60 },
+            revisionNote: null,
+          },
           options,
         ),
       ).rejects.toThrow();

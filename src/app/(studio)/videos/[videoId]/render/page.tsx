@@ -10,6 +10,7 @@ import { ActiveJobWatcher } from "@/features/videos/components/active-job-watche
 import { PreflightList } from "@/features/videos/components/render/preflight-list";
 import { RenderButtons } from "@/features/videos/components/render/render-buttons";
 import { RenderHistory } from "@/features/videos/components/render/render-history";
+import { formatPreset } from "@/features/videos/domain/duration";
 import { dimensionsFor, listRenders, preflightFor } from "@/features/videos/services/render.service";
 import { findActiveVideoJob, getVideo } from "@/features/videos/services/video.service";
 import { orNotFound } from "@/server/http/page-helpers";
@@ -52,7 +53,7 @@ export default async function VideoRenderPage({ params }: Readonly<{ params: Pro
       />
       <PageHeader
         title="Render MP4"
-        description={`9:16 · 30 FPS · H.264 + AAC · preset ${video.targetDurationSec}s · render concurrency ${getAppConfig().concurrency.render}`}
+        description={`9:16 · 30 FPS · H.264 + AAC · tối đa ${formatPreset(video.maxDurationSec)} · render concurrency ${getAppConfig().concurrency.render}`}
       />
 
       {activeJob ? (

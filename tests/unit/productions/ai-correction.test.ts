@@ -44,11 +44,19 @@ describe("planCorrection", () => {
     expect(plan?.note).toContain("trích đoạn nguồn");
   });
 
-  it("tells the AI to shorten rather than to raise the preset or speed the narration up", () => {
+  it("tells the AI to shorten rather than to widen the range or speed the narration up", () => {
     const note = planCorrection([issue("OVER_TARGET")])?.note ?? "";
 
-    expect(note).toContain("không tăng preset");
+    expect(note).toContain("không nới khoảng");
     expect(note).toContain("không đọc nhanh hơn");
+  });
+
+  it("sends a video shorter than the range back to the script studio, to tell more from the sources", () => {
+    const plan = planCorrection([issue("UNDER_MIN")]);
+
+    expect(plan).toMatchObject({ target: "SCRIPT_STUDIO", rewindTo: "NONE" });
+    expect(plan?.note).toContain("kể sâu hơn từ nguồn");
+    expect(plan?.note).toContain("không thêm dữ kiện ngoài nguồn");
   });
 
   it("states the hook limit from the shared constant", () => {
@@ -59,7 +67,7 @@ describe("planCorrection", () => {
     const note =
       planCorrection([issue("OVER_TARGET"), issue("OVER_TARGET"), issue("EMPTY_TEXT"), issue("OVER_MAX")])?.note ?? "";
 
-    expect(note.match(/vượt preset/g)).toHaveLength(1);
+    expect(note.match(/vượt mức tối đa của khoảng/g)).toHaveLength(1);
     expect(note.length).toBeLessThanOrEqual(600);
   });
 

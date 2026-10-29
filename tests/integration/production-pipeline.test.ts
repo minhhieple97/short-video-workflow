@@ -248,17 +248,66 @@ describe("runProductionPipeline", () => {
     expect(outcome).toMatchObject({ kind: "FAILED", code: "PRODUCTION_CORRECTION_EXHAUSTED" });
   });
 
-  it("corrects a video that does not fit its preset by shortening it, never by raising the preset", async () => {
+  it("puts the length the draft proposes, and why, on the video and compiles to it", async () => {
+    const { deps, calls } = makeDeps({ proposeSec: () => 45 });
+
+    await run(deps);
+
+    expect(calls.drafts[0]?.range).toEqual({ minDurationSec: 30, maxDurationSec: 60 });
+    expect(calls.compiles[0]).toMatchObject({
+      targetDurationSec: 45,
+      range: { minDurationSec: 30, maxDurationSec: 60 },
+    });
+    expect(await db.prisma.video.findUniqueOrThrow({ where: { id: videoId } })).toMatchObject({
+      targetDurationSec: 45,
+      durationReason: expect.stringContaining("giây"),
+    });
+  });
+
+  it("accepts a video longer than the proposed length as long as it stays within the range", async () => {
+    // 3 s hook + five 6 s scenes = 33 s against a 30 s proposal and a 60 s maximum.
+    const { deps } = makeDeps({ proposeSec: () => 30 });
+
+    await run(deps);
+
+    expect(await item()).toMatchObject({ checkpoint: "READY", aiCorrectionTarget: null });
+  });
+
+  it("sends a video shorter than its range back to the script studio to tell more, not to the compiler", async () => {
+    const { deps, calls } = makeDeps({ bodyFrames: 60 });
+
+    await run(deps);
+
+    expect(calls.drafts).toHaveLength(2);
+    expect(calls.drafts[1]?.revisionNote).toContain("kể sâu hơn từ nguồn");
+    expect((await item()).aiCorrectionTarget).toBe("SCRIPT_STUDIO");
+  });
+
+  it("spends the one correction on a draft whose proposed length is outside the range", async () => {
+    const { deps, calls } = makeDeps({ proposeSec: (attempt) => (attempt === 1 ? 90 : 45) });
+
+    await run(deps);
+
+    expect(calls.drafts).toHaveLength(2);
+    expect(calls.drafts[1]?.revisionNote).toContain("90 giây");
+    expect(calls.compiles[0]?.targetDurationSec).toBe(45);
+    expect(await item()).toMatchObject({ aiCorrectionTarget: "SCRIPT_STUDIO", checkpoint: "READY" });
+  });
+
+  it("corrects a video longer than its range by shortening it, never by widening the range", async () => {
     const { deps, calls } = makeDeps({ bodyFrames: 400, shortenWhenRevised: true });
 
     const outcome = await run(deps);
 
     expect(outcome.kind).toBe("DEFER");
     expect(calls.compiles).toHaveLength(2);
-    expect(calls.compiles[1]?.revisionNote).toContain("không tăng preset");
+    expect(calls.compiles[1]?.revisionNote).toContain("không nới khoảng");
     expect(calls.compiles[1]?.revisionNote).toContain("không đọc nhanh hơn");
     expect(await item()).toMatchObject({ aiCorrectionTarget: "SCENE_COMPILER", checkpoint: "READY" });
-    expect((await db.prisma.video.findUniqueOrThrow({ where: { id: videoId } })).targetDurationSec).toBe(60);
+    expect(await db.prisma.video.findUniqueOrThrow({ where: { id: videoId } })).toMatchObject({
+      minDurationSec: 30,
+      maxDurationSec: 60,
+    });
     const scenes = await db.prisma.videoScene.findMany({ where: { videoId } });
     expect(scenes.every((scene) => scene.narration === SHORT_NARRATION)).toBe(true);
   });

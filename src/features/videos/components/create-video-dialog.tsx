@@ -22,9 +22,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage, sendJson } from "@/lib/api-client";
 
-import { assessLessonLoad, DEFAULT_TARGET_SEC } from "../domain/duration";
+import { assessLessonLoad, type DurationRange } from "../domain/duration";
 import type { VideoDetail } from "../schemas/video.dto";
-import { DurationPresetPicker, type DurationChoice } from "./duration-preset-picker";
+import { DurationRangePicker } from "./duration-range-picker";
 
 export interface SelectableLesson {
   id: string;
@@ -35,18 +35,23 @@ export interface SelectableLesson {
 export function CreateVideoDialog({
   bookId,
   lessons,
-  maxDurationSec,
-}: Readonly<{ bookId: string; lessons: readonly SelectableLesson[]; maxDurationSec: number }>) {
+  defaultRange,
+  ceilingSec,
+}: Readonly<{
+  bookId: string;
+  lessons: readonly SelectableLesson[];
+  defaultRange: DurationRange;
+  ceilingSec: number;
+}>) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [duration, setDuration] = useState<DurationChoice>({ targetDurationSec: DEFAULT_TARGET_SEC, extended: false });
+  const [duration, setDuration] = useState<DurationRange>(defaultRange);
   const [pending, setPending] = useState(false);
 
-  const target = duration.targetDurationSec;
-  const load = assessLessonLoad(selected.length, target);
+  const load = assessLessonLoad(selected.length, duration.maxDurationSec);
   const reused = lessons.filter((lesson) => selected.includes(lesson.id) && lesson.usedInVideoCount > 0);
   const firstSelected = lessons.find((lesson) => lesson.id === selected[0]);
 
@@ -89,7 +94,7 @@ export function CreateVideoDialog({
         <DialogHeader>
           <DialogTitle>Tạo video ngắn 9:16</DialogTitle>
           <DialogDescription>
-            Khuyên dùng một bài học cho mỗi video; tối đa hai bài học bổ trợ nhau cho preset 30–60 giây.
+            Khuyên dùng một bài học cho mỗi video; chỉ ghép thêm bài học khi chúng bổ trợ nhau.
           </DialogDescription>
         </DialogHeader>
 
@@ -133,8 +138,13 @@ export function CreateVideoDialog({
         </div>
 
         <div className="flex flex-col gap-2">
-          <span className="text-sm font-medium">Thời lượng (dọc 9:16 · 1080×1920 · 30 FPS)</span>
-          <DurationPresetPicker value={duration} onChange={setDuration} maxDurationSec={maxDurationSec} />
+          <span className="text-sm font-medium">Khoảng thời lượng (dọc 9:16 · 1080×1920 · 30 FPS)</span>
+          <DurationRangePicker
+            id="new-video-duration"
+            value={duration}
+            onChange={setDuration}
+            ceilingSec={ceilingSec}
+          />
         </div>
 
         {selected.length > 0 ? (

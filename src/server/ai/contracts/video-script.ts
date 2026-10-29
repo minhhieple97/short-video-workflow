@@ -26,10 +26,14 @@ export const storyboardSceneSchema = z.object({
   illustration: illustrationSchema.optional(),
 });
 
+const durationPreset = z.literal(DURATION_PRESETS_SEC);
+
 export const videoScriptInputSchema = z.object({
   videoId: z.string(),
   title: z.string(),
-  targetDurationSec: z.literal(DURATION_PRESETS_SEC),
+  // The lengths the user allows; the AI proposes one of them with the script.
+  minDurationSec: durationPreset,
+  maxDurationSec: durationPreset,
   videoProfile: z.literal("SHORT_VERTICAL"),
   lessons: z.array(lessonSnapshotSchema).min(1),
   promptVersion: z.string(),
@@ -37,6 +41,8 @@ export const videoScriptInputSchema = z.object({
 
 export const videoScriptOutputSchema = z.object({
   videoId: z.string(),
+  targetDurationSec: durationPreset,
+  durationReason: z.string().trim().min(1).max(200),
   hookOptions: z.array(hookOptionSchema).min(2).max(3),
   // A five-minute video tells each part of the story in several scenes.
   scenes: z.array(storyboardSceneSchema).min(1).max(MAX_STORY_SCENES),

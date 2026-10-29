@@ -6,7 +6,8 @@ const studio = { id: "notebooklm", draftVersion: "notebooklm-script-draft-v1" };
 const request = {
   lessonId: "lesson-1",
   lessonContentHash: "hash-1",
-  targetDurationSec: 60,
+  minDurationSec: 30,
+  maxDurationSec: 60,
   sourceRemoteIds: ["nb#a", "nb#b"],
   revisionNote: null,
 };
@@ -24,7 +25,8 @@ describe("draftCacheKey", () => {
       draftCacheKey({ ...studio, draftVersion: "notebooklm-script-draft-v2" }, request),
       draftCacheKey({ ...studio, id: "mock-script-studio" }, request),
       draftCacheKey(studio, { ...request, lessonContentHash: "hash-2" }),
-      draftCacheKey(studio, { ...request, targetDurationSec: 45 }),
+      draftCacheKey(studio, { ...request, minDurationSec: 45 }),
+      draftCacheKey(studio, { ...request, maxDurationSec: 90 }),
       draftCacheKey(studio, { ...request, sourceRemoteIds: ["nb#a", "nb#c"] }),
       draftCacheKey(studio, { ...request, revisionNote: "Rút gọn." }),
       draftCacheKey(studio, { ...request, lessonId: "lesson-2" }),

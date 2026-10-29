@@ -35,7 +35,7 @@ function verifyOutput(
   if (Math.abs(probe.video.fps - expected.fps) > 0.01)
     return `Tốc độ khung hình ${probe.video.fps} khác ${expected.fps}.`;
   if (expected.maxDurationMs !== null && probe.durationMs > expected.maxDurationMs + DURATION_TOLERANCE_MS) {
-    return `Thời lượng ${Math.round(probe.durationMs / 100) / 10}s vượt preset.`;
+    return `Thời lượng ${Math.round(probe.durationMs / 100) / 10}s vượt mức tối đa.`;
   }
   return null;
 }
@@ -112,7 +112,7 @@ async function produceRender(
   const probe = await deps.probe(outputFile);
   const problem = verifyOutput(probe, {
     ...dims,
-    maxDurationMs: quality === "FINAL" ? snapshot.video.targetDurationSec * 1000 : null,
+    maxDurationMs: quality === "FINAL" ? toPreflightInput(snapshot).maxDurationSec * 1000 : null,
   });
   if (problem) throw new AppError("RENDER_VERIFICATION_FAILED", `Kiểm tra MP4 thất bại: ${problem}`, 500);
 

@@ -52,7 +52,11 @@ export interface VideoSummary {
   title: string;
   status: VideoStatus;
   book: { id: string; title: string };
+  // The AI's proposed length once a script exists (durationProposed), otherwise the range's maximum.
   targetDurationSec: number;
+  minDurationSec: number;
+  maxDurationSec: number;
+  durationProposed: boolean;
   lessonCount: number;
   sceneCount: number;
   // On-screen text of the HOOK scene (what viewers read at frame 0); null until a script exists.
@@ -66,8 +70,11 @@ export interface VideoDetail {
   description: string | null;
   status: VideoStatus;
   book: { id: string; title: string; author: string | null };
+  // The AI's proposed length (durationReason says why) once a script exists; the range's maximum before that.
   targetDurationSec: number;
-  extended: boolean;
+  minDurationSec: number;
+  maxDurationSec: number;
+  durationReason: string | null;
   width: number;
   height: number;
   fps: number;

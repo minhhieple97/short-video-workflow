@@ -19,7 +19,9 @@ export interface PreflightInput {
   status: string;
   // True when the automated readiness checks passed for exactly this version of the script.
   autoReady?: boolean;
-  targetDurationSec: number;
+  // The final render may not be longer than the maximum; null minimum for a render captured before ranges existed.
+  maxDurationSec: number;
+  minDurationSec: number | null;
   scenes: readonly {
     type: SceneType;
     onScreenText: string;
@@ -68,10 +70,15 @@ export function runPreflight(input: PreflightInput, quality: RenderQuality): Pre
       code: "OVER_MAX",
       message: `Tổng thời lượng ${totalSeconds}s vượt giới hạn tuyệt đối ${ABSOLUTE_MAX_SECONDS}s.`,
     });
-  } else if (totalSeconds > input.targetDurationSec) {
+  } else if (totalSeconds > input.maxDurationSec) {
     finalOnly({
       code: "OVER_TARGET",
-      message: `Tổng thời lượng ${totalSeconds}s vượt preset ${input.targetDurationSec}s. Rút gọn lời dẫn hoặc đổi preset — không tự cắt lời.`,
+      message: `Tổng thời lượng ${totalSeconds}s vượt mức tối đa ${input.maxDurationSec}s. Rút gọn lời dẫn hoặc nới khoảng thời lượng — không tự cắt lời.`,
+    });
+  } else if (input.minDurationSec !== null && visible.length > 0 && totalSeconds < input.minDurationSec) {
+    warnings.push({
+      code: "UNDER_MIN",
+      message: `Tổng thời lượng ${totalSeconds}s ngắn hơn mức tối thiểu ${input.minDurationSec}s.`,
     });
   }
 

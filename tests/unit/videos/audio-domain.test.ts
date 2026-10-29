@@ -63,7 +63,8 @@ describe("hook checks with narration", () => {
     const report = runPreflight(
       {
         status: "APPROVED",
-        targetDurationSec: 60,
+        maxDurationSec: 60,
+        minDurationSec: null,
         scenes: [scene({ audioAssetId: "a", audio: { ...audio, leadingSilenceMs: 900 }, durationFrames: 80 })],
       },
       "DRAFT",

@@ -16,6 +16,8 @@ const beat = (name: ScriptDraft["beats"][number]["beat"], narration: string, exc
 
 const DRAFT: ScriptDraft = {
   lessonId: "lesson-1",
+  targetDurationSec: 60,
+  durationReason: "Đủ kể trọn bài học.",
   beats: [
     beat("HOOK", "Vì sao bạn hoãn việc?"),
     beat("SITUATION", "Tối nào bạn cũng định tập."),

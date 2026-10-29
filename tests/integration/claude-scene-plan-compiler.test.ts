@@ -26,6 +26,8 @@ const beat = (name: ScriptDraft["beats"][number]["beat"], narration: string) => 
 // This draft is the one the shared contract uses, so the plan Claude "returns" below matches what the contract expects.
 const DRAFT: ScriptDraft = {
   lessonId: SAMPLE_LESSON.lessonId,
+  targetDurationSec: 60,
+  durationReason: "Đủ kể trọn bài học.",
   beats: [
     beat("HOOK", "Vì sao bạn cứ hẹn ngày mai?"),
     beat("SITUATION", "Tối nào bạn cũng định tập nhưng lại thôi."),
@@ -35,7 +37,13 @@ const DRAFT: ScriptDraft = {
     beat("ACTION", "Làm ngay hai phút đầu tiên."),
   ],
 };
-const REQUEST: ScenePlanRequest = { draft: DRAFT, lesson: SAMPLE_LESSON, targetDurationSec: 60, revisionNote: null };
+const REQUEST: ScenePlanRequest = {
+  draft: DRAFT,
+  lesson: SAMPLE_LESSON,
+  targetDurationSec: 60,
+  range: { minDurationSec: 30, maxDurationSec: 60 },
+  revisionNote: null,
+};
 
 let env: TestEnvironment;
 let ClaudeScenePlanCompiler: typeof ClaudeCompilerType;

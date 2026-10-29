@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { BATCH_STATUS_LABELS } from "@/features/productions/domain/production-labels";
 import { listProductions } from "@/features/productions/services/production-view.service";
+import { formatRange } from "@/features/videos/domain/duration";
 import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ export default async function ProductionsPage() {
               <TableHead>Sách</TableHead>
               <TableHead>Trạng thái</TableHead>
               <TableHead className="text-right">Video xong</TableHead>
-              <TableHead>Preset</TableHead>
+              <TableHead>Khoảng thời lượng</TableHead>
               <TableHead>Tạo lúc</TableHead>
             </TableRow>
           </TableHeader>
@@ -56,7 +57,7 @@ export default async function ProductionsPage() {
                   <TableCell className="text-right tabular-nums">
                     {production.completedCount}/{production.itemCount}
                   </TableCell>
-                  <TableCell>{production.targetDurationSec}s</TableCell>
+                  <TableCell>{formatRange(production)}</TableCell>
                   <TableCell className="text-muted-foreground text-xs">
                     {formatDateTime(production.createdAt)}
                   </TableCell>

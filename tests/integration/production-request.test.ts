@@ -67,12 +67,14 @@ async function newBook(title: string) {
   });
 }
 
-const request = (overrides: Partial<Parameters<typeof productions.requestProduction>[0]> = {}) => ({
+type ProductionRequest = Parameters<typeof productions.requestProduction>[0];
+
+const request = (overrides: Partial<ProductionRequest> = {}): ProductionRequest => ({
   bookId,
   lessonIds,
   idempotencyKey: `key-${Math.random()}`,
-  targetDurationSec: 60 as const,
-  extended: false,
+  minDurationSec: 30,
+  maxDurationSec: 60,
   ...overrides,
 });
 
@@ -103,7 +105,7 @@ describe("requestProduction", () => {
     );
 
     expect(reused).toBe(false);
-    expect(production).toMatchObject({ status: "QUEUED", targetDurationSec: 60, bookId });
+    expect(production).toMatchObject({ status: "QUEUED", minDurationSec: 30, maxDurationSec: 60, bookId });
     expect(production.items.map((item) => [item.position, item.lessonTitle, item.status, item.checkpoint])).toEqual([
       [1, "Ba", "PENDING", "NONE"],
       [2, "Một", "PENDING", "NONE"],
@@ -111,7 +113,14 @@ describe("requestProduction", () => {
     expect(await db.prisma.video.count()).toBe(2);
     for (const item of production.items) {
       const video = await db.prisma.video.findUniqueOrThrow({ where: { id: item.videoId ?? "" } });
-      expect(video).toMatchObject({ title: item.lessonTitle, status: "DRAFT", targetDurationSec: 60, bookId });
+      expect(video).toMatchObject({
+        title: item.lessonTitle,
+        status: "DRAFT",
+        minDurationSec: 30,
+        maxDurationSec: 60,
+        targetDurationSec: 60,
+        bookId,
+      });
     }
   });
 
@@ -207,7 +216,7 @@ describe("requestProduction", () => {
       code: "IDEMPOTENCY_KEY_REUSED",
       httpStatus: 409,
     });
-    await expect(productions.requestProduction({ ...input, targetDurationSec: 45 })).rejects.toMatchObject({
+    await expect(productions.requestProduction({ ...input, maxDurationSec: 45 })).rejects.toMatchObject({
       code: "IDEMPOTENCY_KEY_REUSED",
     });
     expect(await db.prisma.productionBatch.count()).toBe(1);
@@ -271,7 +280,13 @@ describe("production API", () => {
     );
 
   it("answers 202 with the production, then lets it be read back", async () => {
-    const response = await post({ bookId, lessonIds, idempotencyKey: "key-abcdefgh" });
+    const response = await post({
+      bookId,
+      lessonIds,
+      idempotencyKey: "key-abcdefgh",
+      minDurationSec: 30,
+      maxDurationSec: 60,
+    });
 
     expect(response.status).toBe(202);
     const created = (await response.json()) as { id: string; reused: boolean; items: unknown[] };
@@ -286,7 +301,7 @@ describe("production API", () => {
   });
 
   it("answers 202 for a replay and marks it reused", async () => {
-    const body = { bookId, lessonIds, idempotencyKey: "key-abcdefgh" };
+    const body = { bookId, lessonIds, idempotencyKey: "key-abcdefgh", minDurationSec: 30, maxDurationSec: 60 };
     await post(body);
 
     const replay = await post(body);
@@ -299,9 +314,10 @@ describe("production API", () => {
     ["no lessons", { lessonIds: [] }],
     ["a lesson selected twice", { lessonIds: ["a", "a"] }],
     ["a short key", { idempotencyKey: "short" }],
-    ["a long preset without choosing a long video", { targetDurationSec: 300 }],
-    ["a length that is no preset", { targetDurationSec: 150, extended: true }],
-    ["more than five minutes", { targetDurationSec: 360, extended: true }],
+    ["no length range", {}],
+    ["a length that is no preset", { minDurationSec: 30, maxDurationSec: 150 }],
+    ["more than five minutes", { minDurationSec: 30, maxDurationSec: 360 }],
+    ["a minimum above the maximum", { minDurationSec: 90, maxDurationSec: 60 }],
   ])("answers 400 for %s", async (_label, override) => {
     const response = await post({ bookId, lessonIds, idempotencyKey: "key-abcdefgh", ...override });
 
@@ -309,19 +325,24 @@ describe("production API", () => {
     expect(await db.prisma.productionBatch.count()).toBe(0);
   });
 
-  it("accepts a five-minute video when a long video is chosen explicitly", async () => {
+  it("accepts a range up to five minutes, and plans each video at the maximum until its draft proposes a length", async () => {
     const response = await post({
       bookId,
       lessonIds,
       idempotencyKey: "key-abcdefgh",
-      targetDurationSec: 300,
-      extended: true,
+      minDurationSec: 30,
+      maxDurationSec: 300,
     });
 
     expect(response.status).toBe(202);
-    expect(await response.json()).toMatchObject({ targetDurationSec: 300 });
+    expect(await response.json()).toMatchObject({ minDurationSec: 30, maxDurationSec: 300 });
     const videos = await db.prisma.video.findMany({ where: { bookId } });
-    expect(videos.map((video) => video.targetDurationSec)).toEqual([300, 300, 300]);
+    expect(videos.map((video) => [video.minDurationSec, video.maxDurationSec, video.targetDurationSec])).toEqual([
+      [30, 300, 300],
+      [30, 300, 300],
+      [30, 300, 300],
+    ]);
+    expect(videos.every((video) => video.durationReason === null)).toBe(true);
   });
 
   it("answers 404 for an unknown production", async () => {

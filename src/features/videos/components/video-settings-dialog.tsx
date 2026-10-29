@@ -18,23 +18,23 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { sendJson } from "@/lib/api-client";
 
-import { isDurationPreset, DEFAULT_TARGET_SEC } from "../domain/duration";
+import type { DurationRange } from "../domain/duration";
 import type { VideoDetail } from "../schemas/video.dto";
-import { DurationPresetPicker, type DurationChoice } from "./duration-preset-picker";
+import { DurationRangePicker } from "./duration-range-picker";
 import { useVideoAction } from "./use-video-action";
 
 export function VideoSettingsDialog({
   video,
   locked,
-  maxDurationSec,
-}: Readonly<{ video: VideoDetail; locked: boolean; maxDurationSec: number }>) {
+  ceilingSec,
+}: Readonly<{ video: VideoDetail; locked: boolean; ceilingSec: number }>) {
   const { pending, run } = useVideoAction();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState(video.title);
   const [description, setDescription] = useState(video.description ?? "");
-  const [duration, setDuration] = useState<DurationChoice>({
-    targetDurationSec: isDurationPreset(video.targetDurationSec) ? video.targetDurationSec : DEFAULT_TARGET_SEC,
-    extended: video.extended,
+  const [duration, setDuration] = useState<DurationRange>({
+    minDurationSec: video.minDurationSec,
+    maxDurationSec: video.maxDurationSec,
   });
 
   async function save(): Promise<void> {
@@ -77,7 +77,10 @@ export function VideoSettingsDialog({
             onChange={(e) => setDescription(e.target.value)}
           />
         </div>
-        <DurationPresetPicker value={duration} onChange={setDuration} maxDurationSec={maxDurationSec} />
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium">Khoảng thời lượng</span>
+          <DurationRangePicker id="settings-duration" value={duration} onChange={setDuration} ceilingSec={ceilingSec} />
+        </div>
         <DialogFooter>
           <Button onClick={() => void save()} disabled={pending || title.trim().length === 0}>
             Lưu

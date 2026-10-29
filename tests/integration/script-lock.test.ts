@@ -66,8 +66,8 @@ beforeAll(async () => {
     title: "Video khoá",
     description: null,
     lessonIds: [lesson!.id],
-    targetDurationSec: 60,
-    extended: false,
+    minDurationSec: 30,
+    maxDurationSec: 60,
   });
   await generation.runScriptGeneration({ videoId: created.video.id, jobRecordId: null });
   video = await videos.getVideo(created.video.id);
@@ -106,8 +106,8 @@ function lockedChanges(current: VideoDetail, rewriteSceneId: string): Record<str
         title: "Tiêu đề mới",
         description: null,
         platformPreviewMode: null,
-        targetDurationSec: 90,
-        extended: true,
+        minDurationSec: 30,
+        maxDurationSec: 90,
       }),
     "delete video": () => videos.deleteVideo(current.id),
     "approve script": () => videos.approveScript(current.id),
@@ -167,10 +167,11 @@ describe("while a script is being generated", () => {
         title: "Tiêu đề mới",
         description: null,
         platformPreviewMode: null,
-        targetDurationSec: 45,
-        extended: false,
+        minDurationSec: 30,
+        maxDurationSec: 45,
       }),
-    ).resolves.toMatchObject({ title: "Tiêu đề mới", targetDurationSec: 45 });
+    ).resolves.toMatchObject({ title: "Tiêu đề mới", minDurationSec: 30, maxDurationSec: 45 });
+    expect((await videos.getVideo(video.id)).targetDurationSec).toBeLessThanOrEqual(45);
   });
 });
 
@@ -228,8 +229,8 @@ describe("while one scene is being rewritten", () => {
         title: "Tiêu đề sau khi viết lại",
         description: null,
         platformPreviewMode: null,
-        targetDurationSec: 45,
-        extended: false,
+        minDurationSec: 30,
+        maxDurationSec: 45,
       }),
     ).resolves.toMatchObject({ title: "Tiêu đề sau khi viết lại" });
   });

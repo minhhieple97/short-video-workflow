@@ -65,14 +65,14 @@ afterAll(async () => {
   env.cleanup();
 });
 
-const create = (lessonIds: string[], targetDurationSec: 30 | 45 | 60 | 90 = 60) =>
+const create = (lessonIds: string[], maxDurationSec: 30 | 45 | 60 | 90 = 60) =>
   videos.createVideo({
     bookId,
     title: `Video ${lessonIds.length}`,
     description: null,
     lessonIds,
-    targetDurationSec,
-    extended: targetDurationSec === 90,
+    minDurationSec: 30,
+    maxDurationSec,
   });
 
 describe("creating videos from lessons", () => {
@@ -81,7 +81,7 @@ describe("creating videos from lessons", () => {
     await expect(create(["missing-lesson"])).rejects.toMatchObject({ code: "LESSON_NOT_IN_BOOK" });
   });
 
-  it("builds two different videos from the same book with their own presets (M3 gate)", async () => {
+  it("builds two different videos from the same book with their own length ranges (M3 gate)", async () => {
     const a = await create([approved[0]!], 60);
     const b = await create([approved[1]!, approved[2]!], 90);
 
@@ -89,13 +89,14 @@ describe("creating videos from lessons", () => {
     expect(b.warnings[0]).toMatch(/2 bài học/);
     expect(a.video).toMatchObject({
       status: "DRAFT",
-      targetDurationSec: 60,
-      extended: false,
+      minDurationSec: 30,
+      maxDurationSec: 60,
       width: 1080,
       height: 1920,
       fps: 30,
     });
-    expect(b.video).toMatchObject({ targetDurationSec: 90, extended: true });
+    // Until a script proposes a length, each video is planned at the longest its range allows.
+    expect(b.video).toMatchObject({ maxDurationSec: 90, targetDurationSec: 90, durationReason: null });
     expect(b.video.lessons.map((lesson) => lesson.position)).toEqual([1, 2]);
     expect(await videos.listVideos({ bookId })).toHaveLength(2);
     expect((await lessons.getLesson(approved[0]!)).videos.map((video) => video.id)).toEqual([a.video.id]);
@@ -126,6 +127,14 @@ class OutOfOrderAi extends MockAiProvider {
   }
 }
 
+class OutOfRangeAi extends MockAiProvider {
+  override async generateVideoScript(input: VideoScriptInput) {
+    const result = await super.generateVideoScript(input);
+    if (result.status !== "completed") return result;
+    return { ...result, output: { ...result.output, targetDurationSec: 300 as const } };
+  }
+}
+
 class PictureSendingAi extends MockAiProvider {
   override async regenerateScene(input: SceneRegenerationInput) {
     const result = await super.regenerateScene(input);
@@ -149,6 +158,31 @@ describe("script generation and editing", () => {
     expect(video.scenes[0]).toMatchObject({ type: "HOOK", order: 0, hookVariant: "QUESTION" });
     expect(video.hookIssues).toEqual([]);
     expect(video.budget.level).not.toBe("over");
+    expect(video.durationReason).toMatch(/giây/);
+    expect(video.targetDurationSec).toBeGreaterThanOrEqual(30);
+    expect(video.targetDurationSec).toBeLessThanOrEqual(60);
+  });
+
+  it("refuses a proposed length outside the video's range and keeps the current script and length", async () => {
+    const before = await videos.getVideo(videoId);
+    await expect(
+      generation.runScriptGeneration({ videoId, jobRecordId: null, provider: new OutOfRangeAi() }),
+    ).rejects.toMatchObject({ code: "INVALID_AI_OUTPUT" });
+    const after = await videos.getVideo(videoId);
+    expect(after.scenes).toEqual(before.scenes);
+    expect(after).toMatchObject({ targetDurationSec: before.targetDurationSec, durationReason: before.durationReason });
+  });
+
+  it("keeps the proposed length when a new range still holds it, and moves it into a range that does not", async () => {
+    const before = await videos.getVideo(videoId);
+    const settings = { title: before.title, description: null, platformPreviewMode: null };
+
+    const wider = await videos.updateVideo(videoId, { ...settings, minDurationSec: 30, maxDurationSec: 120 });
+    expect(wider.targetDurationSec).toBe(before.targetDurationSec);
+    const narrow = await videos.updateVideo(videoId, { ...settings, minDurationSec: 90, maxDurationSec: 120 });
+    expect(narrow).toMatchObject({ minDurationSec: 90, maxDurationSec: 120, targetDurationSec: 90 });
+
+    await videos.updateVideo(videoId, { ...settings, minDurationSec: 30, maxDurationSec: 60 });
   });
 
   it("refuses an AI script that does not follow the story frame and keeps the current script", async () => {

@@ -20,6 +20,7 @@ import { getAppConfig } from "@/shared/config/env";
 import { AppError, NotFoundError } from "@/shared/errors";
 import { toSafeErrorMessage } from "@/shared/logger";
 
+import { formatRange, isWithinRange } from "../domain/duration";
 import { describeStoryOrderProblem, findStorySceneOrderProblem } from "../domain/narrative-beats";
 import { replaceScript, updateSceneRecord } from "../repositories/video.repository";
 import { buildSceneRecord, parseIllustration } from "./scene-records";
@@ -105,7 +106,8 @@ export async function runScriptGeneration(
   const input = videoScriptInputSchema.parse({
     videoId: video.id,
     title: video.title,
-    targetDurationSec: video.targetDurationSec,
+    minDurationSec: video.minDurationSec,
+    maxDurationSec: video.maxDurationSec,
     videoProfile: "SHORT_VERTICAL",
     lessons: lessonSnapshotsOf(video),
     promptVersion: VIDEO_SCRIPT_PROMPT_VERSION,
@@ -133,6 +135,13 @@ export async function runScriptGeneration(
         422,
       );
     }
+    if (!isWithinRange(output.targetDurationSec, video)) {
+      throw new AppError(
+        "INVALID_AI_OUTPUT",
+        `Độ dài AI đề xuất (${output.targetDurationSec} giây) nằm ngoài khoảng ${formatRange(video)}. Không thay đổi gì.`,
+        422,
+      );
+    }
 
     const scenes = [
       buildSceneRecord({
@@ -146,7 +155,11 @@ export async function runScriptGeneration(
       }),
       ...output.scenes.map((scene) => buildSceneRecord(toSceneContent(scene))),
     ];
-    await replaceScript(video.id, { hookOptions: output.hookOptions, scenes });
+    await replaceScript(video.id, {
+      hookOptions: output.hookOptions,
+      scenes,
+      duration: { targetDurationSec: output.targetDurationSec, durationReason: output.durationReason },
+    });
     return { kind: "done", value: { scenes: scenes.length, hookOptions: output.hookOptions.length }, output };
   });
 }

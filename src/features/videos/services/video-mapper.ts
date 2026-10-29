@@ -9,7 +9,6 @@ import {
   HOOK_MAX_SECONDS,
   VIDEO_FPS,
 } from "../domain/duration";
-import { isLongPreset } from "../domain/duration";
 import { lessonSnapshotSchema } from "../domain/lesson-snapshot";
 import { toSceneType, toVisualVariant, HOOK_VARIANTS, type HookVariant } from "../domain/scene-types";
 import { toVideoStatus } from "../domain/video-status";
@@ -89,7 +88,9 @@ export function toVideoDetail(video: VideoDetailRecord): VideoDetail {
     status: toVideoStatus(video.status),
     book: { id: video.book.id, title: video.book.title, author: video.book.author },
     targetDurationSec: video.targetDurationSec,
-    extended: isLongPreset(video.targetDurationSec),
+    minDurationSec: video.minDurationSec,
+    maxDurationSec: video.maxDurationSec,
+    durationReason: video.durationReason,
     width: video.width,
     height: video.height,
     fps: video.fps,
@@ -112,7 +113,11 @@ export function toVideoDetail(video: VideoDetailRecord): VideoDetail {
       };
     }),
     scenes,
-    budget: assessDurationBudget(visibleSeconds, video.targetDurationSec),
+    budget: assessDurationBudget(visibleSeconds, {
+      targetSeconds: video.targetDurationSec,
+      minDurationSec: video.minDurationSec,
+      maxDurationSec: video.maxDurationSec,
+    }),
     hookIssues: hookIssues(scenes),
     createdAt: video.createdAt.toISOString(),
     updatedAt: video.updatedAt.toISOString(),

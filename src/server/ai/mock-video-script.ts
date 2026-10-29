@@ -1,3 +1,4 @@
+import { estimateNarrationSeconds, fitToRange } from "@/features/videos/domain/duration";
 import type { LessonSnapshot } from "@/features/videos/domain/lesson-snapshot";
 import { DEFAULT_VISUAL_VARIANT, type BodySceneType } from "@/features/videos/domain/scene-types";
 
@@ -48,9 +49,9 @@ function scene(type: BodySceneType, title: string, narration: string): Storyboar
 const firstSentence = (text: string) => text.split(/(?<=[.!?…])\s+/u)[0] ?? text;
 
 // One story in the order every video follows. A short video, or one with several lessons, keeps the first sentence of each
-// lesson's part so all five parts still fit.
+// lesson's part so all five parts still fit. The proposed length is the shortest allowed one that holds the narration.
 export function mockVideoScript(input: VideoScriptInput): VideoScriptOutput {
-  const short = input.targetDurationSec <= 30 || input.lessons.length > 1;
+  const short = input.maxDurationSec <= 30 || input.lessons.length > 1;
   const part = (type: BodySceneType, title: string, pick: (lesson: LessonSnapshot) => string) =>
     scene(type, title, input.lessons.map((lesson) => (short ? firstSentence(pick(lesson)) : pick(lesson))).join(" "));
   const last = input.lessons.at(-1);
@@ -61,7 +62,17 @@ export function mockVideoScript(input: VideoScriptInput): VideoScriptOutput {
     part("BETTER_APPROACH", "Cách làm tốt hơn", (lesson) => lesson.betterApproach),
     ...(last ? [scene("ACTION_STEP", "Làm ngay", last.actionableStep)] : []),
   ];
-  return { videoId: input.videoId, hookOptions: MOCK_HOOKS, scenes };
+  const [hook] = MOCK_HOOKS;
+  const seconds = [hook?.narration ?? "", ...scenes.map((scene) => scene.narration)]
+    .map(estimateNarrationSeconds)
+    .reduce((sum, value) => sum + value, 0);
+  return {
+    videoId: input.videoId,
+    targetDurationSec: fitToRange(seconds, input),
+    durationReason: `Lời mẫu đọc khoảng ${Math.ceil(seconds)} giây.`,
+    hookOptions: MOCK_HOOKS,
+    scenes,
+  };
 }
 
 const REWRITE_PREFIXES = ["Nói ngắn gọn: ", "Hãy hình dung: ", "Điều quan trọng là: "];

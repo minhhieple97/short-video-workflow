@@ -164,8 +164,14 @@ model Video {
   width                  Int                  @default(1080)
   height                 Int                  @default(1920)
   videoProfile           VideoProfile         @default(SHORT_VERTICAL)
-  // DURATION_PRESETS_SEC (30 … 300) is enforced by Zod, not by the database.
+  // The length the AI planned the script for (one of DURATION_PRESETS_SEC, enforced by Zod); the range's maximum until a
+  // script proposes one.
   targetDurationSec      Int                  @default(60)
+  // The lengths the user allows; the AI picks targetDurationSec inside them and the final render may not exceed the max.
+  minDurationSec         Int                  @default(30)
+  maxDurationSec         Int                  @default(300)
+  // Why the AI chose targetDurationSec, in Vietnamese; null until a script or a production draft proposed a length.
+  durationReason         String?
   scriptVersion          Int                  @default(1)
   approvedScriptVersion  Int?
   // The scriptVersion at which the automated checks last passed. It is not an approval by a person: it only lets a FINAL
@@ -521,9 +527,13 @@ model ProductionBatch {
   book              Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
   // Supplied by the caller; a repeated request with the same key returns this batch instead of making another.
   idempotencyKey    String    @unique
-  // Hash of what was asked for (book, lessons, preset), to notice the same key being reused for different content.
+  // Hash of what was asked for (book, lessons, duration range), to notice the same key being reused for different content.
   fingerprint       String
+  // No longer read: the batch's range is min/maxDurationSec and each video gets its own proposed length. Written as the
+  // maximum so the column stays filled without a destructive migration.
   targetDurationSec Int
+  minDurationSec    Int       @default(30)
+  maxDurationSec    Int       @default(300)
   // QUEUED | RUNNING | COMPLETED | PARTIAL | FAILED | CANCELLED (a read model derived from the items).
   status            String
   createdAt         DateTime  @default(now())

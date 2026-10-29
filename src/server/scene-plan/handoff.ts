@@ -117,6 +117,8 @@ export const scenePlanTaskInputSchema = z.object({
   draft: scriptDraftSchema,
   lesson: lessonSnapshotSchema,
   targetDurationSec: z.literal(DURATION_PRESETS_SEC),
+  minDurationSec: z.literal(DURATION_PRESETS_SEC),
+  maxDurationSec: z.literal(DURATION_PRESETS_SEC),
   revisionNote: z.string().nullable(),
   promptVersion: z.string().min(1),
 });
