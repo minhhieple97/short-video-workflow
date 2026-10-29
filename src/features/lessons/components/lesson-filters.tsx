@@ -3,6 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { truncateText } from "@/lib/format";
 
 import { LESSON_STATUS_LABELS, LESSON_STATUSES } from "../domain/lesson-fields";
 import type { ChapterRef } from "../schemas/lesson.dto";
@@ -51,7 +52,10 @@ export function LessonFilters({ chapters }: Readonly<{ chapters: readonly Chapte
       <FilterSelect
         label="Chương"
         param="chapter"
-        options={chapters.map((chapter) => ({ value: chapter.id, label: `${chapter.order}. ${chapter.title}` }))}
+        options={chapters.map((chapter) => ({
+          value: chapter.id,
+          label: `${chapter.order}. ${truncateText(chapter.title, 60)}`,
+        }))}
       />
       <FilterSelect
         label="Trạng thái"

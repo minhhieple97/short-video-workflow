@@ -320,6 +320,15 @@ unverified. The hook limit is 4 s / 120 frames for every flow.
 - **Light, dark and system themes:** `next-themes` toggles the `dark` class on `<html>` (`ThemeProvider`, `ThemeToggle` in the sidebar, stored in
   `localStorage["studio-theme"]`, default = system). Every color must come from a token that `.dark` redefines; check new UI in both themes.
   Poster/progress colors that stand for the rendered video are intentionally fixed hexes. Shadows are `--elevation-*` variables so `.dark` can override them.
+- **Text that comes from a book or an AI is unbounded** (a PDF chapter title can be a whole paragraph). Never render it raw: clamp list
+  and table cells with `line-clamp-2 wrap-break-word` and put the full text in `title`; give tables that hold such text
+  `table-fixed` with fixed widths on the other columns; keep one-line status text on `truncate` inside a `min-w-0` row with the label
+  `shrink-0`; cut dropdown options with `truncateText()` (`lib/format.ts`); `PageHeader` and `Breadcrumbs` already shrink and clamp.
+- **Icon-only actions use `IconButton`** (`components/layout/icon-button.tsx`): `label` is both the tooltip and the accessible name, `note` is the
+  reason when it is disabled (a disabled button gets its tooltip from a wrapper). It is for page-header, table-row and toolbar actions whose
+  icon is clear. Keep the text on a button whose label carries live state or a count ("Phân tích 2 chương còn lại"), on dialog/form footers
+  (Lưu, Huỷ, confirm) and on a button that status messages or docs tell the user to press by name ("Thử lại" on the PDF extraction card).
+  Touch screens have no hover, so never rely on the tooltip alone for meaning.
 - The video editor docks the phone preview beside the editor at ≥ 1280 px (`EditorWorkspace`; one Player mounted at a time). Keep `<main>` on
   `overflow-x-clip`: `overflow-x-hidden` makes it a scroll container and breaks `position: sticky`.
 

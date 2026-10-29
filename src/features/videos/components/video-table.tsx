@@ -33,14 +33,22 @@ export function VideoTable({ videos, showBook = false, emptyHint }: Readonly<Vid
         {videos.map((video) => (
           <TableRow key={video.id}>
             <TableCell className="max-w-sm whitespace-normal">
-              <Link href={`/videos/${video.id}`} className="font-medium hover:underline">
+              <Link
+                href={`/videos/${video.id}`}
+                title={video.title}
+                className="line-clamp-2 font-medium wrap-break-word hover:underline"
+              >
                 {video.title}
               </Link>
               <p className="text-muted-foreground text-xs">{video.lessonCount} bài học</p>
             </TableCell>
             {showBook ? (
               <TableCell className="max-w-xs whitespace-normal">
-                <Link href={`/books/${video.book.id}`} className="text-sm hover:underline">
+                <Link
+                  href={`/books/${video.book.id}`}
+                  title={video.book.title}
+                  className="line-clamp-2 text-sm wrap-break-word hover:underline"
+                >
                   {video.book.title}
                 </Link>
               </TableCell>

@@ -14,6 +14,8 @@ import { orNotFound } from "@/server/http/page-helpers";
 
 export const dynamic = "force-dynamic";
 
+const LONG_TITLE_CHARS = 120;
+
 export default async function ChapterPage({
   params,
 }: Readonly<{ params: Promise<{ bookId: string; chapterId: string }> }>) {
@@ -46,6 +48,13 @@ export default async function ChapterPage({
       <div className="flex flex-wrap items-center gap-2">
         <AnalyzeChapterButton chapterId={chapter.id} status={chapter.analysisStatus} />
       </div>
+      {chapter.title.length > LONG_TITLE_CHARS ? (
+        <p role="note" className="bg-tone-amber text-tone-amber-foreground max-w-2xl rounded-lg px-3 py-2 text-sm">
+          Tên chương dài bất thường ({formatNumber(chapter.title.length)} ký tự), có thể do đoạn đầu chương bị nhận nhầm
+          là tiêu đề. Nên đổi thành tên ngắn gọn (tối đa 200 ký tự); sau khi đổi tên, phân tích hiện tại được coi là cũ
+          và cần phân tích lại.
+        </p>
+      ) : null}
       <RenameChapterForm chapterId={chapter.id} title={chapter.title} />
 
       <div className="flex flex-col gap-3">

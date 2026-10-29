@@ -9,6 +9,15 @@ export function formatNumber(value: number): string {
   return NUMBER.format(value);
 }
 
+// For places CSS cannot clamp, such as the options of a dropdown: one line, cut at a word, "…" when anything was lost.
+export function truncateText(text: string, max: number): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (flat.length <= max) return flat;
+  const cut = flat.slice(0, max - 1);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${NUMBER.format(Math.round(bytes / 102.4) / 10)} KB`;

@@ -123,7 +123,9 @@ export function ProductionRequestForm({
                       <ul className="mt-2 flex flex-col gap-2">
                         {lesson.sources.map((source, index) => (
                           <li key={`${lesson.id}-${index}`} className="border-border border-l-2 pl-3">
-                            <span className="font-medium">{source.chapterTitle}</span>
+                            <span title={source.chapterTitle} className="line-clamp-2 font-medium wrap-break-word">
+                              {source.chapterTitle}
+                            </span>
                             {source.page === null ? null : (
                               <span className="text-muted-foreground"> · trang {source.page}</span>
                             )}

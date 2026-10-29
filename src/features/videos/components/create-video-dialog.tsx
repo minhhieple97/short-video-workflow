@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { IconButton } from "@/components/layout/icon-button";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -82,13 +83,13 @@ export function CreateVideoDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button
+        <IconButton
+          label="Tạo video"
+          note={lessons.length === 0 ? "Cần ít nhất một bài học đã duyệt" : undefined}
           disabled={lessons.length === 0}
-          title={lessons.length === 0 ? "Cần ít nhất một bài học đã duyệt" : undefined}
         >
           <Clapperboard aria-hidden />
-          Tạo video
-        </Button>
+        </IconButton>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>

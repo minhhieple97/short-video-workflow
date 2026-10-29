@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
+import { IconButton } from "@/components/layout/icon-button";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -50,10 +51,9 @@ export function EditBookDialog({ book }: Readonly<{ book: BookSummary }>) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline">
+        <IconButton label="Sửa thông tin" variant="outline">
           <Pencil aria-hidden />
-          Sửa thông tin
-        </Button>
+        </IconButton>
       </DialogTrigger>
       <DialogContent>
         <form onSubmit={(event) => void handleSubmit(event)} className="flex flex-col gap-4">
