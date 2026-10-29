@@ -10,7 +10,7 @@ import type * as ScriptEditing from "@/features/videos/services/script-editing.s
 import type * as ScriptGeneration from "@/features/videos/services/script-generation.service";
 import type * as VideoService from "@/features/videos/services/video.service";
 import type * as DbClient from "@/server/db/client";
-import type { SceneRegenerationInput } from "@/server/ai/contracts/video-script";
+import type { SceneRegenerationInput, VideoScriptInput } from "@/server/ai/contracts/video-script";
 import { MockAiProvider } from "@/server/ai/mock-ai-provider";
 
 import { SAMPLE_BOOK_PATH, setupTestEnvironment, type TestEnvironment } from "../helpers/test-environment";
@@ -113,6 +113,19 @@ describe("creating videos from lessons", () => {
   });
 });
 
+class OutOfOrderAi extends MockAiProvider {
+  override async generateVideoScript(input: VideoScriptInput) {
+    const result = await super.generateVideoScript(input);
+    if (result.status !== "completed") return result;
+    const scenes = [...result.output.scenes];
+    const [situation, mistake, takeaway, approach, ...rest] = scenes;
+    return {
+      ...result,
+      output: { ...result.output, scenes: [situation!, mistake!, approach!, takeaway!, ...rest] },
+    };
+  }
+}
+
 class PictureSendingAi extends MockAiProvider {
   override async regenerateScene(input: SceneRegenerationInput) {
     const result = await super.regenerateScene(input);
@@ -136,6 +149,14 @@ describe("script generation and editing", () => {
     expect(video.scenes[0]).toMatchObject({ type: "HOOK", order: 0, hookVariant: "QUESTION" });
     expect(video.hookIssues).toEqual([]);
     expect(video.budget.level).not.toBe("over");
+  });
+
+  it("refuses an AI script that does not follow the story frame and keeps the current script", async () => {
+    const before = await videos.getVideo(videoId);
+    await expect(
+      generation.runScriptGeneration({ videoId, jobRecordId: null, provider: new OutOfOrderAi() }),
+    ).rejects.toMatchObject({ code: "INVALID_AI_OUTPUT" });
+    expect((await videos.getVideo(videoId)).scenes).toEqual(before.scenes);
   });
 
   it("switches the hook without touching the rest of the script", async () => {

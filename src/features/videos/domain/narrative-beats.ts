@@ -24,8 +24,8 @@ export const SCENE_TYPE_FOR_BEAT = {
   ACTION: "ACTION_STEP",
 } as const satisfies Record<NarrativeBeat, SceneType>;
 
-// The same story as scene types, after the HOOK. KEY_TAKEAWAY carries the lesson and BETTER_APPROACH the resolution,
-// so (unlike the manual flow, which puts the better approach first) the lesson comes before the resolution.
+// The same story as scene types, after the HOOK, for every video: KEY_TAKEAWAY carries the lesson and BETTER_APPROACH the
+// resolution, so the lesson comes before the resolution.
 export const STORY_SCENE_ORDER = [
   "SITUATION",
   "COMMON_MISTAKE",
@@ -66,7 +66,8 @@ export function findNarrativeOrderProblem(beats: readonly string[]): StoryOrderP
   return findOrderProblem(beats, NARRATIVE_BEATS);
 }
 
-// The scenes after the HOOK of a production plan must tell the same story, in order, using only story scene types.
+// The scenes after the HOOK that an AI writes (a production plan or a manual script) must tell that story, in order, using
+// only story scene types. People editing a script afterwards are not held to it.
 export function findStorySceneOrderProblem(sceneTypes: readonly string[]): StoryOrderProblem | null {
   return findOrderProblem(sceneTypes, STORY_SCENE_ORDER);
 }

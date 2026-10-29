@@ -1,10 +1,11 @@
 import { HOOK_MAX_SECONDS, MAX_STORY_SCENES, SYLLABLES_PER_SECOND } from "@/features/videos/domain/duration";
+import { STORY_SCENE_ORDER } from "@/features/videos/domain/narrative-beats";
 
 import type { SceneRegenerationInput, VideoScriptInput } from "../contracts/video-script";
 import { ILLUSTRATION_JSON, ILLUSTRATION_RULE } from "./illustration-rule";
 import { fenceUntrustedText, UNTRUSTED_TEXT_RULE } from "./untrusted-text";
 
-export const VIDEO_SCRIPT_PROMPT_VERSION = "video-script-v4";
+export const VIDEO_SCRIPT_PROMPT_VERSION = "video-script-v5";
 
 const SHARED_RULES = [
   `- ${UNTRUSTED_TEXT_RULE}`,
@@ -12,7 +13,7 @@ const SHARED_RULES = [
   "- Một ý chính cho mỗi video; chỉ ghép bài học thứ hai khi chúng bổ trợ nhau và vẫn còn chỗ cho tình huống + hành động.",
   "- Không clickbait sai lệch, không bịa nghiên cứu, số liệu hay trích dẫn.",
   "- onScreenText cô đọng (từ khoá), không phải đoạn văn dài.",
-  "- Lời dẫn đọc tự nhiên khoảng 4 âm tiết/giây; tổng thời lượng không vượt targetDurationSec. Nếu không đủ chỗ, giảm số cảnh thay vì nói nhanh.",
+  "- Lời dẫn đọc tự nhiên khoảng 4 âm tiết/giây; tổng thời lượng không vượt targetDurationSec. Nếu không đủ chỗ, rút gọn lời từng cảnh thay vì bỏ phần hay nói nhanh.",
 ];
 
 export function buildVideoScriptPrompt(input: VideoScriptInput): string {
@@ -24,7 +25,7 @@ export function buildVideoScriptPrompt(input: VideoScriptInput): string {
     "## Quy tắc",
     ...SHARED_RULES,
     `- hookOptions: 2–3 phương án hook cho 0–${HOOK_MAX_SECONDS} giây đầu (QUESTION = câu hỏi đánh trúng vấn đề, MISTAKE = sai lầm quen thuộc, CONTRAST = tương phản trước/sau). Lời hook tối đa ~${HOOK_MAX_SECONDS * SYLLABLES_PER_SECOND - 1} âm tiết; onScreenText đọc được khi tắt tiếng.`,
-    "- scenes: các cảnh sau hook theo mạch SITUATION → COMMON_MISTAKE → BETTER_APPROACH → KEY_TAKEAWAY → ACTION_STEP (được gộp/bỏ bớt để vừa thời lượng). Không có logo, lời chào hay intro.",
+    `- scenes: đúng thứ tự ${STORY_SCENE_ORDER.join(" → ")}, mỗi phần ít nhất một cảnh, không dùng loại cảnh khác: tình huống đời thường → sai lầm trong tình huống đó → bài học trong sách và điều rút ra → quay lại xử lý đúng tình huống mở đầu bằng bài học → một hành động cụ thể làm được ngay. Tên sách và bài học chỉ nhắc từ cảnh KEY_TAKEAWAY trở đi. Nhiều bài học thì kể thành một câu chuyện theo cùng khung, không lặp khung cho từng bài. Không có logo, lời chào hay intro.`,
     `- Video dài hơn 60 giây: kể sâu hơn chứ không thêm bài học — mỗi phần có thể gồm nhiều cảnh (mỗi cảnh khoảng 8–15 giây), tình huống chi tiết hơn, nhiều bước hành động hơn; tối đa ${MAX_STORY_SCENES} cảnh.`,
     `- visualVariant thuộc: HOOK_QUESTION, SPLIT_MISTAKE_SOLUTION, SCENARIO_CARD, BIG_TAKEAWAY, ACTION_CHECKLIST.`,
     ILLUSTRATION_RULE,

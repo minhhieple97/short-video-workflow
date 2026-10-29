@@ -20,6 +20,7 @@ import { getAppConfig } from "@/shared/config/env";
 import { AppError, NotFoundError } from "@/shared/errors";
 import { toSafeErrorMessage } from "@/shared/logger";
 
+import { describeStoryOrderProblem, findStorySceneOrderProblem } from "../domain/narrative-beats";
 import { replaceScript, updateSceneRecord } from "../repositories/video.repository";
 import { buildSceneRecord, parseIllustration } from "./scene-records";
 import { lessonSnapshotsOf } from "./video-mapper";
@@ -124,6 +125,14 @@ export async function runScriptGeneration(
     if (output.videoId !== video.id) throw new AppError("INVALID_AI_OUTPUT", "Kết quả AI không khớp video.", 422);
     const [hook] = output.hookOptions;
     if (!hook) throw new AppError("INVALID_AI_OUTPUT", "Kết quả AI thiếu phương án hook.", 422);
+    const orderProblem = findStorySceneOrderProblem(output.scenes.map((scene) => scene.type));
+    if (orderProblem) {
+      throw new AppError(
+        "INVALID_AI_OUTPUT",
+        `Kịch bản AI không theo khung kể: ${describeStoryOrderProblem(orderProblem)} Không thay đổi gì.`,
+        422,
+      );
+    }
 
     const scenes = [
       buildSceneRecord({

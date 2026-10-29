@@ -45,27 +45,22 @@ function scene(type: BodySceneType, title: string, narration: string): Storyboar
   return { type, title, narration, onScreenText: caption(narration), visualVariant: DEFAULT_VISUAL_VARIANT[type] };
 }
 
-function lessonScenes(lesson: LessonSnapshot, compact: boolean): StoryboardScene[] {
-  if (compact) {
-    return [
-      scene("SITUATION", "Tình huống", `${lesson.realLifeScenario} ${lesson.commonMistake}`),
-      scene("BETTER_APPROACH", "Cách làm tốt hơn", lesson.betterApproach),
-    ];
-  }
-  return [
-    scene("SITUATION", "Tình huống", lesson.realLifeScenario),
-    scene("COMMON_MISTAKE", "Sai lầm", lesson.commonMistake),
-    scene("BETTER_APPROACH", "Cách làm tốt hơn", lesson.betterApproach),
-    scene("KEY_TAKEAWAY", "Điều cần nhớ", lesson.principle),
-  ];
-}
+const firstSentence = (text: string) => text.split(/(?<=[.!?…])\s+/u)[0] ?? text;
 
-// Deterministic storyboard built from the lesson snapshots so demos and tests never need Claude.
+// One story in the order every video follows. A short video, or one with several lessons, keeps the first sentence of each
+// lesson's part so all five parts still fit.
 export function mockVideoScript(input: VideoScriptInput): VideoScriptOutput {
-  const compact = input.targetDurationSec <= 30 || input.lessons.length > 1;
-  const scenes = input.lessons.flatMap((lesson) => lessonScenes(lesson, compact));
+  const short = input.targetDurationSec <= 30 || input.lessons.length > 1;
+  const part = (type: BodySceneType, title: string, pick: (lesson: LessonSnapshot) => string) =>
+    scene(type, title, input.lessons.map((lesson) => (short ? firstSentence(pick(lesson)) : pick(lesson))).join(" "));
   const last = input.lessons.at(-1);
-  if (last) scenes.push(scene("ACTION_STEP", "Làm ngay", last.actionableStep));
+  const scenes = [
+    part("SITUATION", "Tình huống", (lesson) => lesson.realLifeScenario),
+    part("COMMON_MISTAKE", "Sai lầm", (lesson) => lesson.commonMistake),
+    part("KEY_TAKEAWAY", "Điều cần nhớ", (lesson) => lesson.principle),
+    part("BETTER_APPROACH", "Cách làm tốt hơn", (lesson) => lesson.betterApproach),
+    ...(last ? [scene("ACTION_STEP", "Làm ngay", last.actionableStep)] : []),
+  ];
   return { videoId: input.videoId, hookOptions: MOCK_HOOKS, scenes };
 }
 

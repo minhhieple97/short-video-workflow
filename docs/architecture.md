@@ -132,7 +132,7 @@ tối đa 8 lần liên tiếp; sản xuất 10 phút, 5 lần; archive 30 phút
   `claude auth status`; chạy `claude -p --output-format json --tools "" --strict-mcp-config --no-session-persistence --json-schema …` từ
   mảng đối số, prompt qua stdin; env bỏ `CLAUDECODE*`/`CLAUDE_CODE_*` (không lồng phiên) và `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN`;
   timeout và huỷ → `SIGTERM`. Lỗi có mã ổn định (`AI_CLI_AUTH`, `AI_QUOTA_EXCEEDED`, `AI_CLI_TIMEOUT`, `INVALID_AI_OUTPUT`…).
-- Prompt có phiên bản; đổi chữ là tăng phiên bản: `chapter-analysis-v1`, `video-script-v4` (v1.1); `scene-plan-v4` (biên dịch cảnh);
+- Prompt có phiên bản; đổi chữ là tăng phiên bản: `chapter-analysis-v1`, `video-script-v5` (v1.1, cùng khung kể với sản xuất); `scene-plan-v4` (biên dịch cảnh);
   `notebooklm-chapter-detection-v1`, `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v3` (cũng là `draftVersion` của cache).
 
 **Kiểm soát nội dung:**

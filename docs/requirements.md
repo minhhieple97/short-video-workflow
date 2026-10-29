@@ -276,14 +276,14 @@ H.264 + AAC. Font Be Vietnam Pro đóng gói sẵn; dấu tiếng Việt đúng 
 
 Mỗi video: **một ý chính, một tình huống cụ thể, một cách xử lý, một hành động** làm được ngay.
 
-**Hàng loạt — bắt buộc, có kiểm tra:** Hook (`HOOK`) → Tình huống đời thường (`SITUATION`) → Sai lầm (`COMMON_MISTAKE`) → Bài học
-trong sách và điều rút ra (`KEY_TAKEAWAY`) → Quay lại xử lý đúng tình huống mở đầu (`BETTER_APPROACH`) → Hành động cụ thể
-(`ACTION_STEP`). Đúng thứ tự, mỗi nhịp ít nhất một cảnh, không loại cảnh khác; tên sách và bài học chỉ xuất hiện từ nhịp bài học.
-Bản thảo hay kế hoạch cảnh sai mạch kể bị từ chối và đi vào lượt sửa AI.
+**Một khung cho cả hai luồng, có kiểm tra:** Hook (`HOOK`) → Tình huống đời thường (`SITUATION`) → Sai lầm (`COMMON_MISTAKE`) →
+Bài học trong sách và điều rút ra (`KEY_TAKEAWAY`) → Quay lại xử lý đúng tình huống mở đầu (`BETTER_APPROACH`) → Hành động cụ thể
+(`ACTION_STEP`). Đúng thứ tự, mỗi phần ít nhất một cảnh, không loại cảnh khác; tên sách và bài học chỉ xuất hiện từ phần bài học.
 
-**Thủ công — khung gợi ý:** hook rồi Tình huống → Sai lầm → Cách xử lý → Điều cần nhớ → Hành động, gộp hoặc bỏ bớt để vừa thời
-lượng; người dùng thêm, ẩn, sắp xếp tự do, có thêm loại **Tổng kết**. Ràng buộc cứng chỉ là hook và thời lượng. Hai bài học trong
-một video chỉ hợp lý khi chúng bổ trợ nhau và còn chỗ cho tình huống và hành động.
+- **Hàng loạt:** bản thảo hay kế hoạch cảnh sai mạch kể bị từ chối và đi vào lượt sửa AI.
+- **Thủ công:** kịch bản Claude viết sai khung bị từ chối, không lưu gì (bấm tạo lại). Sau đó người dùng thêm, ẩn, sắp xếp tự do,
+  có thêm loại **Tổng kết**; khung chỉ ràng buộc kịch bản do AI viết. Video nhiều bài học kể thành một câu chuyện theo cùng khung;
+  hai bài học chỉ hợp lý khi chúng bổ trợ nhau.
 
 ### 6.5. Bố cục và hoạt cảnh
 

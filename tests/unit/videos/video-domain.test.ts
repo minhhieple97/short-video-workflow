@@ -8,6 +8,7 @@ import {
   HOOK_MAX_SECONDS,
 } from "@/features/videos/domain/duration";
 import type { LessonSnapshot } from "@/features/videos/domain/lesson-snapshot";
+import { findStorySceneOrderProblem } from "@/features/videos/domain/narrative-beats";
 import { createVideoSchema } from "@/features/videos/schemas/video.schema";
 import { CHARACTER_ACTIONS, ILLUSTRATION_SETTINGS } from "@/features/videos/domain/illustration";
 import { sceneContentHash } from "@/features/videos/services/scene-records";
@@ -98,18 +99,24 @@ describe("mock video script", () => {
     expect(output.scenes.map((scene) => scene.type)).toEqual([
       "SITUATION",
       "COMMON_MISTAKE",
-      "BETTER_APPROACH",
       "KEY_TAKEAWAY",
+      "BETTER_APPROACH",
       "ACTION_STEP",
     ]);
+    expect(findStorySceneOrderProblem(output.scenes.map((scene) => scene.type))).toBeNull();
   });
 
-  it("compacts the storyboard for 30-second videos", () => {
-    expect(mockVideoScript({ ...input, targetDurationSec: 30 }).scenes.map((scene) => scene.type)).toEqual([
-      "SITUATION",
-      "BETTER_APPROACH",
-      "ACTION_STEP",
-    ]);
+  it("keeps all five parts in a short or multi-lesson video, telling the lessons as one story", () => {
+    const second: LessonSnapshot = {
+      ...LESSON,
+      lessonId: "lesson-2",
+      realLifeScenario: "Lan muốn đọc sách mỗi tối. Nhưng điện thoại luôn thắng.",
+    };
+    const scenes = mockVideoScript({ ...input, lessons: [LESSON, second] }).scenes;
+
+    expect(findStorySceneOrderProblem(scenes.map((scene) => scene.type))).toBeNull();
+    expect(scenes[0]!.narration).toBe(`${LESSON.realLifeScenario} Lan muốn đọc sách mỗi tối.`);
+    expect(mockVideoScript({ ...input, targetDurationSec: 30 }).scenes).toHaveLength(5);
   });
 
   it("rewrites a scene differently on each attempt while keeping its type", () => {
