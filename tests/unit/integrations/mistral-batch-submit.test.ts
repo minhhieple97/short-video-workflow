@@ -34,6 +34,8 @@ beforeEach(() => {
   server.files.clear();
   server.jobs.clear();
   server.requests.length = 0;
+  server.reportedBytes = null;
+  server.normalizeBatchUploads = false;
   client = new MistralClient({ apiKey: "test-key", baseUrl: server.baseUrl });
   directory = fs.mkdtempSync(path.join(os.tmpdir(), "bvs-submit-"));
 });
@@ -87,6 +89,27 @@ describe("submitOcrBatch", () => {
       custom_id: "chunk-7",
       body: expect.objectContaining({ document: { type: "file", file_id: "file-9" }, include_image_base64: false }),
     });
+  });
+
+  it("creates a batch after Mistral normalizes its JSONL upload", async () => {
+    server.normalizeBatchUploads = true;
+
+    const jobId = await submitOcrBatch(
+      client,
+      { requestKey: "normalized-batch", chunks: [chunk("normalized-chunk")] },
+      { model: MODEL },
+    );
+
+    const requestFile = [...server.files.values()].find((file) => file.purpose === "batch");
+    expect(requestFile).toBeDefined();
+    expect(JSON.parse(requestFile?.bytes.toString("utf8") ?? "{}")).toMatchObject({
+      id: expect.any(String),
+      custom_id: "normalized-chunk",
+      body: { id: null, extract_header: false, extract_footer: false },
+    });
+    expect(server.jobs.get(jobId)).toMatchObject({ input_files: [requestFile?.id], total_requests: 1 });
+    expect(countOf("POST", "/v1/batch/jobs")).toBe(1);
+    expect(countOf("DELETE", `/v1/files/${requestFile?.id}`)).toBe(0);
   });
 
   it("reuses the existing job on a replay and uploads and creates nothing", async () => {

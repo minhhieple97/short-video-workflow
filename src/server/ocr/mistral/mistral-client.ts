@@ -207,7 +207,8 @@ export class MistralClient {
     if (typeof file.purpose === "string" && file.purpose !== purpose) {
       throw new IntegrationError("MISTRAL_BAD_RESPONSE", "Mistral lưu tệp với mục đích khác với yêu cầu.", "REJECTED");
     }
-    if (typeof file.bytes === "number" && file.bytes !== blob.size) {
+    // Mistral normalizes batch JSONL with default fields, so only OCR documents retain their original byte size.
+    if (purpose === "ocr" && typeof file.bytes === "number" && file.bytes !== blob.size) {
       throw new IntegrationError(
         "MISTRAL_UPLOAD_SIZE_MISMATCH",
         "Mistral báo kích thước tệp khác với tệp đã gửi, có thể upload bị cắt.",

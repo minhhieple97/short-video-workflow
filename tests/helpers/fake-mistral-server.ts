@@ -70,6 +70,7 @@ export class FakeMistralServer {
   readonly requests: RecordedRequest[] = [];
   // Lets a test make the server report a different size than it received.
   reportedBytes: ((file: StoredFile) => number) | null = null;
+  normalizeBatchUploads = false;
 
   private readonly routes: Route[] = [];
   private readonly faults: { method: string; pattern: RegExp; fault: Fault }[] = [];
@@ -204,6 +205,21 @@ export class FakeMistralServer {
         purpose,
         bytes: Buffer.from(await upload.arrayBuffer()),
       };
+      if (purpose === "batch" && this.normalizeBatchUploads) {
+        const lines = stored.bytes
+          .toString("utf8")
+          .trim()
+          .split("\n")
+          .map((raw, index) => {
+            const line = JSON.parse(raw) as { body: Record<string, unknown> };
+            return JSON.stringify({
+              id: `batch_req_${index}`,
+              ...line,
+              body: { id: null, extract_header: false, extract_footer: false, ...line.body },
+            });
+          });
+        stored.bytes = Buffer.from(`${lines.join("\n")}\n`);
+      }
       this.files.set(stored.id, stored);
       return {
         id: stored.id,

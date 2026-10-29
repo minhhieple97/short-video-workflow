@@ -295,6 +295,9 @@ pnpm, không phải chẩn đoán này.
 | `DRIVE_APP_DAILY_LIMIT`                 | Chạm giới hạn 24 giờ của ứng dụng       | Archive tự chờ, hoặc tăng `DRIVE_*` và khởi động lại                     |
 | `ARCHIVE_DESTINATION_CHANGED`           | Đã kết nối tài khoản Google khác        | Tài khoản mới nhận archive mới; archive cũ giữ nguyên                    |
 
+`MISTRAL_UPLOAD_SIZE_MISMATCH`: kích thước PDF OCR lưu tại Mistral khác tệp gửi; kiểm tra tệp/kết nối rồi **Thử lại**.
+JSONL của Batch có thể được Mistral chuẩn hoá và tăng kích thước; ứng dụng chỉ đối chiếu byte của PDF OCR.
+
 ## 7. Dữ liệu, sao lưu và khôi phục
 
 ```

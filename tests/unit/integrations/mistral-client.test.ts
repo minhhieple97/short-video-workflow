@@ -27,6 +27,7 @@ beforeEach(() => {
   server.files.clear();
   server.requests.length = 0;
   server.reportedBytes = null;
+  server.normalizeBatchUploads = false;
   client = new MistralClient({ apiKey: KEY, baseUrl: server.baseUrl });
   directory = fs.mkdtempSync(path.join(os.tmpdir(), "bvs-mistral-"));
 });
@@ -79,12 +80,21 @@ describe("MistralClient file upload", () => {
     expect(server.requests[0]?.authorization).toBe(`Bearer ${KEY}`);
   });
 
-  it("rejects a response whose size differs from what was sent", async () => {
-    server.reportedBytes = (file) => file.bytes.byteLength - 1;
+  it("accepts batch JSONL normalized with server defaults and a different stored size", async () => {
+    server.normalizeBatchUploads = true;
+    const content = '{"custom_id":"a","body":{"document":{"type":"file","file_id":"file-pdf"}}}\n';
 
-    const failure = await failureOf(
-      client.uploadText({ content: "0123456789", fileName: "a.jsonl", purpose: "batch" }),
-    );
+    const file = await client.uploadText({ content, fileName: "requests.jsonl", purpose: "batch" });
+
+    expect(file.bytes).toBeGreaterThan(Buffer.byteLength(content));
+    expect(server.files.get(file.id)?.bytes.toString("utf8")).toContain('"extract_header":false');
+  });
+
+  it("rejects an OCR PDF response whose size differs from what was sent", async () => {
+    server.reportedBytes = (file) => file.bytes.byteLength - 1;
+    const filePath = writePdf("chunk.pdf");
+
+    const failure = await failureOf(client.uploadFile({ filePath, fileName: "chunk.pdf", purpose: "ocr" }));
 
     expect(failure).toMatchObject({ code: "MISTRAL_UPLOAD_SIZE_MISMATCH", kind: "REJECTED" });
   });
