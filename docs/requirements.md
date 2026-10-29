@@ -222,7 +222,8 @@ sách và video gần đây.
 - Mọi bản render **cuối** hoàn tất (cả hai luồng) được lưu tự động khi đã kết nối; chưa kết nối thì chờ tới khi kết nối. Bản nháp
   không lưu.
 - Mỗi bản lưu, dựng từ snapshot render, gồm MP4, `script.json` (cảnh, bài học và trích đoạn nguồn) và `manifest.json` (thông số,
-  phiên bản, âm thanh, kích thước và SHA-256 các tệp) trong `Book Video Studio/books/<sách>/videos/<video>/renders/<render>/`.
+  phiên bản, âm thanh, kích thước và SHA-256 các tệp) trong `Book Video Studio/books/<sách>/videos/<video>/renders/<render>/`. Cảnh
+  là tình huống sáng tác cho video (không lấy từ sách) được đánh dấu minh hoạ trong cả hai tệp.
 - Lưu Drive là việc riêng: lỗi Drive không xoá MP4, không chạy lại AI, giọng đọc hay render. **Đã lưu Drive** chỉ khi cả ba tệp đã
   xác minh (kích thước + checksum); upload tiếp tục được, mất phản hồi không tạo tệp trùng. Drive đầy, mất quyền, đổi tài khoản →
   **Lưu Drive lỗi** kèm lý do; thử lại từ lịch sử render hoặc trang Tác vụ.
@@ -341,7 +342,7 @@ không thử lại vô hạn.
   tìm thấy trong chương thì bị loại; không chắc thì để trống.
 - Tình huống AI sáng tác là **minh hoạ**, không bao giờ trình bày như chuyện trong sách hay lời tác giả: trường tình huống của bài
   học luôn mang nhãn minh hoạ; nhịp bản thảo do AI tự nghĩ ra được đánh dấu và hiện ở tab Nguồn kịch bản; Claude phải giữ nó là
-  minh hoạ khi biên tập.
+  minh hoạ khi biên tập; hồ sơ lưu Drive ghi rõ cảnh nào là minh hoạ (§5.9).
 - Claude được sửa lời cho dễ nghe, đúng thời lượng nhưng **không thêm** trích dẫn, số liệu, tên nghiên cứu hay khẳng định ngoài bản
   thảo và bài học. Một kiểm tra cơ học chặn số và trích dẫn không có trong nguồn — lưới an toàn, không phải bằng chứng trung thực.
 - Không clickbait sai lệch, không sao chép dài. Độ tin cậy OCR và "trích đoạn khớp nguồn" là hai bằng chứng riêng.

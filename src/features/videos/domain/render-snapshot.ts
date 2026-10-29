@@ -50,6 +50,8 @@ export const renderSnapshotSchema = z.object({
       // Optional without a default: a snapshot stored before illustrations existed must parse back to the same bytes, or
       // its fingerprint would no longer match and the render would stop being trusted.
       illustration: illustrationSchema.nullable().optional(),
+      // A scenario made up for the video rather than taken from the book. Optional for the same reason as above.
+      illustrative: z.boolean().optional(),
     }),
   ),
   // The audio files the scenes use, by the path they were stored under (named by content, so the bytes cannot change).

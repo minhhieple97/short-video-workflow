@@ -171,6 +171,12 @@ export async function isVideoInActiveProduction(videoId: string): Promise<boolea
   return item !== null;
 }
 
+// The draft an automated production wrote for this video, as stored (null for a video made by hand).
+export async function findProductionDraftForVideo(videoId: string): Promise<unknown> {
+  const item = await prisma.productionItem.findUnique({ where: { videoId }, select: { draftArtifactJson: true } });
+  return item?.draftArtifactJson ?? null;
+}
+
 export function updateSceneRecord(
   videoId: string,
   sceneId: string,

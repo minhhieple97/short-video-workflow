@@ -8,6 +8,10 @@ import { toPreflightInput } from "@/features/videos/domain/render-snapshot";
 import type * as RenderRepository from "@/features/videos/repositories/render.repository";
 import type * as Snapshots from "@/features/videos/services/render-snapshot.service";
 import type * as DbClient from "@/server/db/client";
+import { createDraftArtifact } from "@/server/scene-plan/handoff";
+import { MockScriptStudioProvider } from "@/server/script-studio/mock-script-studio-provider";
+
+import { SAMPLE_LESSON } from "../helpers/contracts/script-studio-provider-contract";
 
 import { seedVoicedVideo } from "../helpers/voiced-video-fixture";
 import { setupTestEnvironment, type TestEnvironment } from "../helpers/test-environment";
@@ -19,6 +23,7 @@ let renders: typeof RenderRepository;
 let deps: { db: typeof DbClient; claim: typeof Claim; apply: typeof Apply; productions: typeof ProductionRequest };
 
 let videoId: string;
+let itemId: string;
 
 async function queueRender(quality: "DRAFT" | "FINAL" = "FINAL") {
   const { snapshot, hash } = await snapshots.captureRenderSnapshot(videoId, quality);
@@ -52,7 +57,7 @@ beforeAll(async () => {
 }, 60_000);
 
 beforeEach(async () => {
-  ({ videoId } = await seedVoicedVideo(deps));
+  ({ videoId, itemId } = await seedVoicedVideo(deps));
 });
 
 afterAll(async () => {
@@ -88,6 +93,40 @@ describe("captureRenderSnapshot", () => {
     expect(snapshot.video).toMatchObject({ targetDurationSec: 60, status: "NEEDS_REVIEW", autoReady: true });
     expect(snapshot.video.scriptVersion).toBeGreaterThan(1);
     expect(hash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("marks the made-up scenarios: the draft's illustrative beats, or the situation when there is no draft", async () => {
+    const illustrativeTypes = async () =>
+      (await snapshots.captureRenderSnapshot(videoId, "FINAL")).snapshot.scenes
+        .filter((scene) => scene.illustrative)
+        .map((scene) => scene.type);
+    expect(await illustrativeTypes()).toEqual(["SITUATION"]);
+
+    const draft = await new MockScriptStudioProvider().writeDraft({
+      sources: [],
+      lesson: SAMPLE_LESSON,
+      targetDurationSec: 60,
+      revisionNote: null,
+    });
+    const storeDraft = (illustrative: string[]) =>
+      db.prisma.productionItem.update({
+        where: { id: itemId },
+        data: {
+          draftArtifactJson: createDraftArtifact({
+            draft: {
+              ...draft,
+              beats: draft.beats.map((beat) => ({ ...beat, illustrative: illustrative.includes(beat.beat) })),
+            },
+            lessonContentHash: null,
+            targetDurationSec: 60,
+          }),
+        },
+      });
+
+    await storeDraft(["MISTAKE", "RESOLUTION"]);
+    expect(await illustrativeTypes()).toEqual(["COMMON_MISTAKE", "BETTER_APPROACH"]);
+    await storeDraft([]);
+    expect(await illustrativeTypes()).toEqual([]);
   });
 
   it("records the render size for the quality asked: 1080x1920 for FINAL, 720x1280 for DRAFT", async () => {

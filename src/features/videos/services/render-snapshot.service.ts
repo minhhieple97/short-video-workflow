@@ -1,4 +1,5 @@
 import type { RenderRecord } from "@/generated/prisma/client";
+import { scriptDraftArtifactSchema } from "@/server/scene-plan/handoff";
 import { AppError } from "@/shared/errors";
 
 import {
@@ -9,12 +10,25 @@ import {
 } from "../domain/render-snapshot";
 import type { RenderQuality } from "../domain/preflight";
 import { lessonSnapshotSchema } from "../domain/lesson-snapshot";
+import { SCENE_TYPE_FOR_BEAT } from "../domain/narrative-beats";
+import type { SceneType } from "../domain/scene-types";
 import { findMediaAssets } from "../repositories/audio.repository";
 import { saveRenderSnapshotIfMissing } from "../repositories/render.repository";
+import { findProductionDraftForVideo } from "../repositories/video.repository";
 import type { VideoDetail } from "../schemas/video.dto";
 import { dimensionsFor } from "./render.service";
 import { toVideoDetail } from "./video-mapper";
 import { requireVideo } from "./video.service";
+
+// The parts of the story that are scenarios made up for the video, not taken from the book: what the production's draft
+// marked as illustrative, or, for a video made by hand, the situation (it comes from the lesson's illustrative scenario).
+async function illustrativeSceneTypes(videoId: string): Promise<ReadonlySet<SceneType>> {
+  const artifact = scriptDraftArtifactSchema.safeParse(await findProductionDraftForVideo(videoId));
+  if (!artifact.success) return new Set<SceneType>(["SITUATION"]);
+  return new Set(
+    artifact.data.draft.beats.filter((beat) => beat.illustrative).map((beat) => SCENE_TYPE_FOR_BEAT[beat.beat]),
+  );
+}
 
 // Captures what a render of this video would be made from right now. A visible scene that points at audio which no longer
 // exists is refused here, loudly, instead of being rendered silent.
@@ -46,6 +60,7 @@ export async function captureRenderSnapshot(
     );
   }
 
+  const illustrative = await illustrativeSceneTypes(videoId);
   const dims = dimensionsFor(quality);
   const snapshot: RenderSnapshot = {
     ...currentSnapshotIdentity(),
@@ -73,6 +88,7 @@ export async function captureRenderSnapshot(
       hidden: scene.hidden,
       audioAssetId: scene.audioAssetId,
       illustration: scene.illustration,
+      illustrative: illustrative.has(scene.type),
     })),
     audio: audioIds.flatMap((assetId) => {
       const asset = assets.get(assetId);

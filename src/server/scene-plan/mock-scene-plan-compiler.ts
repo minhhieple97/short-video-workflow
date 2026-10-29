@@ -1,16 +1,7 @@
 import type { CharacterAction } from "@/features/videos/domain/illustration";
-import type { NarrativeBeat } from "@/features/videos/domain/narrative-beats";
-import type { BodySceneType } from "@/features/videos/domain/scene-types";
+import { SCENE_TYPE_FOR_BEAT, type NarrativeBeat } from "@/features/videos/domain/narrative-beats";
 import type { CallOptions } from "@/server/integrations/call-options";
 import type { ScenePlan, ScenePlanCompiler, ScenePlanRequest } from "@/server/scene-plan/scene-plan-compiler";
-
-const SCENE_TYPE_FOR_BEAT: Record<Exclude<NarrativeBeat, "HOOK">, BodySceneType> = {
-  SITUATION: "SITUATION",
-  MISTAKE: "COMMON_MISTAKE",
-  LESSON: "KEY_TAKEAWAY",
-  RESOLUTION: "BETTER_APPROACH",
-  ACTION: "ACTION_STEP",
-};
 
 const ACTION_FOR_BEAT: Record<NarrativeBeat, CharacterAction> = {
   HOOK: "THINKING",

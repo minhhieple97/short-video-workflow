@@ -382,7 +382,10 @@ render FINAL COMPLETED + archiveIntentAt ─► requestRenderArchive | sweepRend
 - Archive tách khỏi render; `destinationKey` = `permissionId` của tài khoản. Chưa kết nối Drive → không làm gì, ý định vẫn nằm trên
   render. Processor **chỉ upload**.
 - `script.json` và `manifest.json` (thông số render, `snapshotHash`, tên + byte + SHA-256 của MP4 và script) dựng **chỉ từ snapshot**,
-  không có đường dẫn local, JSON khoá sắp xếp nên dựng lại ra cùng byte. Cây Drive:
+  không có đường dẫn local, JSON khoá sắp xếp nên dựng lại ra cùng byte. Cảnh minh hoạ: snapshot ghi `illustrative` cho từng cảnh lúc
+  chụp (nhịp bản thảo có `illustrative` của item sản xuất, ánh xạ sang loại cảnh bằng `SCENE_TYPE_FOR_BEAT`; video làm tay thì là
+  cảnh `SITUATION`, vì nó lấy từ tình huống minh hoạ của bài học); `script.json` ghi cờ theo cảnh, `manifest.json` liệt kê
+  `illustrativeScenes`. Snapshot cũ không có cờ thì hai tệp giữ đúng byte như trước để archive dở không báo tệp đổi. Cây Drive:
   `Book Video Studio/books/<bookId>/videos/<videoId>/renders/<renderId>/`.
 - Lỗi chờ được → `WAITING` + hoãn; quyền, Drive đầy, tệp local đổi → `FAILED`. Thử lại dùng lại thư mục, ID tệp, checkpoint và tệp đã xác
   minh. Ứng dụng không bao giờ xoá gì trên Drive.

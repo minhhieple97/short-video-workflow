@@ -1,3 +1,5 @@
+import type { SceneType } from "./scene-types";
+
 // Story order of a production video: the lesson is introduced only after the situation and the mistake, and the
 // resolution then returns to the opening situation before the concrete action.
 export const NARRATIVE_BEATS = ["HOOK", "SITUATION", "MISTAKE", "LESSON", "RESOLUTION", "ACTION"] as const;
@@ -11,6 +13,16 @@ export const NARRATIVE_BEAT_LABELS: Record<NarrativeBeat, string> = {
   RESOLUTION: "Cách giải quyết",
   ACTION: "Hành động",
 };
+
+// Which scene type tells each beat of a draft.
+export const SCENE_TYPE_FOR_BEAT = {
+  HOOK: "HOOK",
+  SITUATION: "SITUATION",
+  MISTAKE: "COMMON_MISTAKE",
+  LESSON: "KEY_TAKEAWAY",
+  RESOLUTION: "BETTER_APPROACH",
+  ACTION: "ACTION_STEP",
+} as const satisfies Record<NarrativeBeat, SceneType>;
 
 // The same story as scene types, after the HOOK. KEY_TAKEAWAY carries the lesson and BETTER_APPROACH the resolution,
 // so (unlike the manual flow, which puts the better approach first) the lesson comes before the resolution.

@@ -54,12 +54,26 @@ export function buildArchiveScript(snapshot: RenderSnapshot, facts: Pick<Archive
         narration: scene.narration,
         onScreenText: scene.onScreenText,
         durationSec: Math.round((scene.durationFrames / fps) * 1000) / 1000,
+        ...(scene.illustrative === undefined ? {} : { illustrative: scene.illustrative }),
       })),
     lessons: snapshot.lessons.map((lesson) => ({
       lessonId: lesson.lessonId,
       title: lesson.title,
       sources: lesson.sources.map((source) => ({ chapterTitle: source.chapterTitle, excerpt: source.excerpt })),
     })),
+  };
+}
+
+// Scenarios made up for the video are named in the record so nobody takes them for the book's own story. Snapshots taken
+// before scenes carried the mark leave the field out, so their files rebuild to the same bytes on a retry.
+function illustrativeScenes(snapshot: RenderSnapshot): { illustrativeScenes?: number[] } {
+  const visible = snapshot.scenes.filter((scene) => !scene.hidden);
+  if (visible.every((scene) => scene.illustrative === undefined)) return {};
+  return {
+    illustrativeScenes: visible
+      .filter((scene) => scene.illustrative === true)
+      .map((scene) => scene.order)
+      .sort((left, right) => left - right),
   };
 }
 
@@ -86,6 +100,7 @@ export function buildArchiveManifest(
     snapshotHash: facts.snapshotHash,
     snapshotCapturedAt: snapshot.capturedAt,
     renderCompletedAt: facts.completedAt,
+    ...illustrativeScenes(snapshot),
     files,
     audio: snapshot.audio.map((audio) => ({
       assetId: audio.assetId,
