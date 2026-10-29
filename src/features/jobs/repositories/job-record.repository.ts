@@ -92,6 +92,18 @@ export function markJobRetrying(id: string, errorCode: string, errorMessage: str
   });
 }
 
+export async function recordJobTransientFailure(id: string): Promise<number> {
+  const record = await prisma.jobRecord.update({ where: { id }, data: { transientFailures: { increment: 1 } } });
+  return record.transientFailures;
+}
+
+export async function recordJobWaitReason(id: string, failure: { code: string; message: string }): Promise<void> {
+  await prisma.jobRecord.updateMany({
+    where: { id, status: "RUNNING" },
+    data: { errorCode: failure.code, errorMessage: failure.message },
+  });
+}
+
 export function markJobFailed(id: string, errorCode: string, errorMessage: string): Promise<JobRecord> {
   return prisma.jobRecord.update({
     where: { id },

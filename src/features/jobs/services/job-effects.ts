@@ -8,6 +8,12 @@ import { failRenderRecord, findRenderRecord } from "@/features/videos/repositori
 const CHAPTER_IN_FLIGHT = ["QUEUED", "ANALYZING", "WAITING_FOR_CLI"];
 const RENDER_IN_FLIGHT = ["QUEUED", "RENDERING"];
 
+export async function deferJobEntity(record: JobRecord): Promise<void> {
+  if (record.jobType !== "ANALYZE_CHAPTER") return;
+  const chapter = await findChapterWithBook(record.entityId);
+  if (chapter) await setChapterAnalysisStatus(chapter.id, "QUEUED");
+}
+
 // Puts the job's entity back into a consistent state after a job is cancelled or lost.
 export async function releaseJobEntity(
   record: JobRecord,

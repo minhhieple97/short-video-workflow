@@ -65,7 +65,10 @@ async function toExtractionDto(extraction: BookExtraction): Promise<ExtractionDt
     activeJob: activeJob && { id: activeJob.id, status: activeJob.status },
     held,
     canRetry:
-      activeJob === null && status !== "COMPLETED" && !isPermanentExtractionFailure(status, extraction.errorCode),
+      activeJob === null &&
+      status !== "STAGED" &&
+      status !== "COMPLETED" &&
+      !isPermanentExtractionFailure(status, extraction.errorCode),
     // A FAILED run stopped before OCR (the PDF could not be read), so the ceiling does not matter to it either.
     canSetCeiling: !TEXT_COMPLETE_STATUSES.includes(status) && status !== "FAILED",
   };

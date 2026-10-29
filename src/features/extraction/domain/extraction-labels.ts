@@ -3,6 +3,7 @@ import type { ExtractionStatus } from "./extraction-status";
 type Tone = "mint" | "amber" | "violet" | "blue" | "rose" | "slate";
 
 export const EXTRACTION_STATUS_LABELS: Record<ExtractionStatus, { label: string; tone: Tone }> = {
+  STAGED: { label: "Chờ đến lượt sách", tone: "amber" },
   QUEUED: { label: "Đang chờ xử lý", tone: "amber" },
   INSPECTING: { label: "Đang kiểm tra PDF", tone: "violet" },
   EXTRACTING: { label: "Đang đọc lớp chữ", tone: "violet" },
@@ -37,6 +38,7 @@ const STEP_ORDER: readonly ExtractionStep["key"][] = ["read", "ocr", "assemble",
 
 function stepOf(status: ExtractionStatus, hasPages: boolean): ExtractionStep["key"] {
   switch (status) {
+    case "STAGED":
     case "QUEUED":
     case "INSPECTING":
     case "EXTRACTING":

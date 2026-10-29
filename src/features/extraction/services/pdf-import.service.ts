@@ -39,6 +39,16 @@ const originalPdfPath = (bookId: string) => `${bookDirectory(bookId)}/original.p
 // Streams the PDF to a staging file (validating signature and size as the bytes arrive), then moves it, unchanged and
 // read-only, to the book folder and creates the book with its first extraction run. Nothing is kept on any failure.
 export async function importPdfBook(input: PdfImportInput): Promise<PdfImportResult> {
+  const result = await storePdfBook(input);
+  if (!result.jobId) throw new AppError("EXTRACTION_JOB_MISSING", "Chưa tạo được tác vụ trích xuất.");
+  return { ...result, jobId: result.jobId };
+}
+
+export function importPdfBookForBatch(input: PdfImportInput & { batchItemId: string }) {
+  return storePdfBook(input);
+}
+
+async function storePdfBook(input: PdfImportInput & { batchItemId?: string }) {
   const fileName = sanitizeFileName(input.fileName);
   assertPdfFileName(fileName);
   const { maxSizeBytes } = getAppConfig().pdf;
@@ -87,9 +97,10 @@ export async function importPdfBook(input: PdfImportInput): Promise<PdfImportRes
         sourceSizeBytes: bytes,
       },
       getAppConfig().ocr.costCeilingMicroUsd,
+      input.batchItemId,
     );
     logger.info("PDF imported", { bookId: book.id, extractionId: extraction.id, sourceHash: sha256, bytes });
-    return { bookId: book.id, extractionId: extraction.id, jobId: job.id, status: "QUEUED" };
+    return { bookId: book.id, extractionId: extraction.id, jobId: job?.id ?? null, status: "QUEUED" as const };
   } catch (error) {
     await removeBookDirectory(bookId);
     throw error;

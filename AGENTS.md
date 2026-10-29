@@ -122,6 +122,8 @@ src/
     productions/       v1.2 production batches: lesson selection (`production-request`, catalogue page `/books/:id/produce`), the
                        item pipeline (`production-pipeline`, one resumable `RUN_PRODUCTION_ITEM` job per item), correction,
                        readiness, cancel/retry, start-up reconcile, and the progress pages (`/productions`, `production-view`)
+    book-imports/      multi-PDF batches (1–15 books), staged uploads, serial book/chapter scheduling and all-lesson production;
+                       worker book-import sweeper orchestrates existing jobs; progress at /book-imports
   lib/                 client-safe helpers: utils.ts (shadcn `cn()`), api-client.ts (typed fetch + ApiError), format.ts (vi-VN)
   server/              Server-side infrastructure (never imported by client components or Remotion)
     db/                client.ts: Prisma + better-sqlite3 singleton, WAL setup (shared by Next, worker, scripts)

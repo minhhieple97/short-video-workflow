@@ -16,6 +16,7 @@ import { getAppConfig } from "@/shared/config/env";
 import { createLogger, toSafeErrorMessage } from "@/shared/logger";
 
 import { startArchiveSweeper } from "./lifecycle/archive-sweeper";
+import { startBookImportSweeper } from "./lifecycle/book-import-sweeper";
 import { startDispatchSweeper } from "./lifecycle/dispatch-sweeper";
 import { startHeartbeat } from "./lifecycle/heartbeat";
 import { reconcileJobRecords } from "./lifecycle/reconcile";
@@ -68,10 +69,12 @@ async function main(): Promise<void> {
 
   const stopDispatchSweeper = startDispatchSweeper(enqueue);
   const stopArchiveSweeper = startArchiveSweeper();
+  const stopBookImportSweeper = startBookImportSweeper();
   registerShutdown(async () => {
     stopHeartbeat();
     await stopDispatchSweeper();
     await stopArchiveSweeper();
+    await stopBookImportSweeper();
     await worker.close();
     await lock.release();
     await queue.close();

@@ -68,9 +68,9 @@ export async function listUndeliveredJobRecordIds(): Promise<Set<string>> {
   return new Set(rows.map((row) => row.jobRecordId));
 }
 
-export async function markIntentDispatched(id: string): Promise<boolean> {
+export async function markIntentDispatched(id: string, bullmqJobId: string): Promise<boolean> {
   const { count } = await prisma.jobDispatch.updateMany({
-    where: { id, dispatchedAt: null },
+    where: { id, dispatchedAt: null, jobRecord: { bullmqJobId } },
     data: { dispatchedAt: new Date() },
   });
   return count > 0;

@@ -43,6 +43,7 @@ beforeAll(async () => {
 }, 60_000);
 
 beforeEach(async () => {
+  await db.prisma.providerCooldown.deleteMany();
   ({ itemId, videoId } = await seedProduction({ db, productions }));
   await claim.claimProductionItem(itemId, TOKEN, 600_000);
 });
@@ -190,7 +191,7 @@ describe("runProductionPipeline", () => {
     });
 
     expect(await run(deps)).toEqual({ kind: "DEFER", retryAfterMs: 3_600_000 });
-    expect(await item()).toMatchObject({ transientRetries: 1, errorCode: "QUOTA", errorMessage: "hết hạn mức" });
+    expect(await item()).toMatchObject({ transientRetries: 0, errorCode: "QUOTA", errorMessage: "hết hạn mức" });
 
     await run(deps);
 

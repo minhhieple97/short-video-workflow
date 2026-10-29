@@ -33,7 +33,9 @@ beforeAll(async () => {
 
 afterAll(() => env.cleanup());
 
-afterEach(() => {
+afterEach(async () => {
+  const { prisma } = await import("@/server/db/client");
+  await prisma.providerCooldown.deleteMany();
   for (const key of ["FAKE_CLAUDE_MODE", "FAKE_CLAUDE_OUTPUT", "FAKE_CLAUDE_LOG", "ANTHROPIC_API_KEY", "CLAUDECODE"]) {
     delete process.env[key];
   }
@@ -87,6 +89,26 @@ describe("AutomatedCliProvider (AI_MODE=cli-auto)", () => {
     process.env.FAKE_CLAUDE_MODE = mode;
     await expect(provider.analyzeChapter(INPUT, { taskId })).rejects.toMatchObject({ code });
     expect(fs.existsSync(taskFile(taskId, "output.json"))).toBe(false);
+  });
+
+  it.each([
+    ["quota-30m", 30 * 60_000],
+    ["quota-1h", 60 * 60_000],
+  ] as const)("reads the reset interval from the %s CLI response and waits until then", async (mode, retryAfterMs) => {
+    const log = path.join(env.dataDir, "claude-quota-call.json");
+    Object.assign(process.env, { FAKE_CLAUDE_MODE: mode, FAKE_CLAUDE_LOG: log });
+    await expect(provider.analyzeChapter(INPUT, { taskId: nextTask() })).rejects.toMatchObject({
+      code: "AI_QUOTA_EXCEEDED",
+      retryAfterMs,
+    });
+    fs.rmSync(log);
+    const error: unknown = await provider
+      .analyzeChapter(INPUT, { taskId: nextTask() })
+      .catch((failure: unknown) => failure);
+    const { IntegrationError } = await import("@/server/integrations/integration-error");
+    if (!(error instanceof IntegrationError)) throw new Error("Expected quota failure");
+    expect(error.retryAfterMs).toBeGreaterThan(retryAfterMs - 5_000);
+    expect(fs.existsSync(log)).toBe(false);
   });
 
   it("stops the Claude process when the job is cancelled", async () => {

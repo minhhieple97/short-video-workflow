@@ -73,6 +73,15 @@ export class EdgeTtsProvider implements TtsProvider {
       if (result.ok) return;
       await fs.rm(run.outputFile, { force: true });
 
+      if (/\b429\b|too many requests|rate.?limit/i.test(result.stderr)) {
+        throw new IntegrationError(
+          "TTS_QUOTA",
+          "Dịch vụ giọng đọc đang giới hạn lượt gọi. Tự động chờ rồi tiếp tục.",
+          "QUOTA",
+          { retryAfterMs: 60_000 },
+        );
+      }
+
       if (REJECTED_ERROR.test(result.stderr)) {
         throw new IntegrationError(
           "TTS_REJECTED",

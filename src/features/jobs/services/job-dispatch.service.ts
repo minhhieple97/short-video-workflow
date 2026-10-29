@@ -63,7 +63,7 @@ function parseIntent(intent: JobIntent): { jobType: JobType; data: Record<string
 export async function dispatchJobIntent(intent: JobIntent, enqueue: EnqueueJob): Promise<void> {
   const { jobType, data } = parseIntent(intent);
   await enqueue(jobType, data, intent.jobRecord.bullmqJobId);
-  await markIntentDispatched(intent.id);
+  await markIntentDispatched(intent.id, intent.jobRecord.bullmqJobId);
 }
 
 // Called by the worker when a processor reports that its remote operation is still pending. The schedule lives in

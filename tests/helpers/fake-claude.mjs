@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Stand-in for the Claude Code CLI in tests. Answers `auth status --json` and `-p` like the real binary.
-// FAKE_CLAUDE_MODE: "ok" (prints FAKE_CLAUDE_OUTPUT as structured_output), "quota", "logged-out", "bad-output", "slow".
+// FAKE_CLAUDE_MODE: "ok" (structured_output), "quota", "quota-30m", "quota-1h", "logged-out", "bad-output", "slow".
 // FAKE_CLAUDE_LOG receives the arguments and the security-relevant environment of the `-p` call.
 import fs from "node:fs";
 
@@ -31,8 +31,14 @@ process.stdin.on("end", () => {
     setTimeout(() => {}, 60_000);
     return;
   }
-  if (mode === "quota") {
-    process.stdout.write(JSON.stringify({ type: "result", is_error: true, result: "Claude AI usage limit reached" }));
+  if (["quota", "quota-30m", "quota-1h"].includes(mode)) {
+    const result =
+      mode === "quota-30m"
+        ? "You've hit your limit · resets in 30 minutes"
+        : mode === "quota-1h"
+          ? "You've hit your limit · resets in 1 hour"
+          : "Claude AI usage limit reached";
+    process.stdout.write(JSON.stringify({ type: "result", is_error: true, result }));
     process.exit(1);
   }
   const structured = mode === "bad-output" ? { unexpected: true } : JSON.parse(process.env.FAKE_CLAUDE_OUTPUT ?? "{}");

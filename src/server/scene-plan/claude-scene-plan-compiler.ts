@@ -24,6 +24,7 @@ const KIND_BY_CODE: Record<string, IntegrationFailureKind> = {
 // askClaude reports through AppError codes; the port speaks IntegrationError. A cancellation is not a failure and passes
 // through untouched.
 function toIntegrationError(error: unknown): unknown {
+  if (error instanceof IntegrationError) return error;
   if (!(error instanceof AppError)) return error;
   const kind = KIND_BY_CODE[error.code];
   return kind ? new IntegrationError(error.code, error.message, kind, { cause: error }) : error;
