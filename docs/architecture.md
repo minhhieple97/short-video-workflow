@@ -22,13 +22,17 @@ Terminal người dùng: pnpm ai:run ──► claude -p ──► ai-tasks/<id>
 ```
 
 - **Web:** Zod → service → repository; việc dài chỉ được ghi thành tác vụ, trả `202 { jobId }`, UI hỏi lại mỗi 2–3 giây. Không bao
-  giờ chạy AI, TTS, render. Redis/worker tắt thì trang vẫn mở và báo suy giảm (`/api/status`, heartbeat cũ hơn 15 giây); thao tác cần
+  giờ chạy AI, TTS, render. Redis/worker tắt thì trang vẫn mở và báo suy giảm (`/api/status`: không có khoá worker, tiến trình giữ khoá đã chết, hoặc heartbeat cũ hơn 15 giây); thao tác cần
   Redis ngay thì `PING` thử rồi trả `503 QUEUE_UNAVAILABLE`.
-- **Worker:** mọi việc nặng và mọi lời gọi ra ngoài; concurrency mặc định 1; không tới được Redis thì thoát mã 1. Khởi động: bật WAL →
+- **Worker:** mọi việc nặng và mọi lời gọi ra ngoài; concurrency mặc định 1; không tới được Redis thì thoát mã 1. **Chỉ một worker mỗi Redis DB:** ngay sau khi ping Redis, trước mọi bước bên dưới, worker giữ khoá
+  `studio:worker:lock` (`SET NX` kèm TTL 30 giây, mỗi heartbeat gia hạn; gia hạn, nhả và thay khoá đều là script Lua so khớp giá trị nên
+  worker đã mất khoá không đụng được khoá của worker mới); đã có worker khác thì ghi trạng thái của nó rồi thoát mã 1. Chủ khoá cùng máy
+  mà tiến trình không còn thì bị thay ngay (`tsx watch` SIGKILL worker chậm rồi chạy bản mới tức thì), khoá ghi từ máy khác phải chờ hết
+  hạn. Khởi động: giữ khoá → bật WAL →
   `sweepDueJobIntents` (giao outbox còn sót trước, để đối soát chỉ xét job đáng lẽ đã ở Redis) → `reconcileJobRecords` →
   `reconcileProductionItems`, `reconcileExtractions` (cấp job mới cho việc dở đã mất job; chỉ lúc khởi động để lỗi lặp không thành vòng)
   → `sweepRenderArchives` → mở BullMQ `Worker`. Định kỳ: heartbeat 5 giây, quét outbox 5 giây, quét archive 60 giây. SIGINT/SIGTERM:
-  đóng trong tối đa 15 giây; job dở thành stalled và được đối soát lần sau.
+  đóng trong tối đa 15 giây, nhả khoá sau khi job cuối kết thúc; job dở thành stalled và được đối soát lần sau.
 
 ## 2. Mô hình dữ liệu
 

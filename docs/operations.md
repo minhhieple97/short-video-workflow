@@ -208,9 +208,20 @@ Gói được ghim (`NOTEBOOKLM_MCP_PACKAGE`) vì dùng API không chính thức
 
 ## 4. Vận hành hằng ngày
 
-Chạy Redis, `pnpm worker:dev`, `pnpm dev`, mở `http://127.0.0.1:3000`. Bản production: `pnpm build && pnpm start` kèm
-`pnpm worker:start`. Web vẫn mở khi Redis hoặc worker tắt (Cài đặt báo "suy giảm"); worker thoát mã 1 nếu không tới
+Chạy Redis rồi `pnpm dev:all` (web và worker trong một terminal, log gắn nhãn `[web]` / `[worker]`, Ctrl+C dừng cả hai), mở
+`http://127.0.0.1:3000`. Hoặc mỗi tiến trình một terminal: `pnpm worker:dev`, `pnpm dev`. Bản production: `pnpm build && pnpm start`
+kèm `pnpm worker:start`. Web vẫn mở khi Redis hoặc worker tắt (Cài đặt báo "suy giảm"); worker thoát mã 1 nếu không tới
 được Redis.
+
+**Chỉ một worker mỗi Redis DB.** Hai worker sẽ cùng nhận tác vụ và phá giới hạn "một việc AI, một lượt render một lúc", nên worker
+giữ khoá `studio:worker:lock` (PID, máy, giờ khởi động, thư mục dữ liệu; hết hạn sau 30 giây nếu heartbeat không gia hạn). Nếu đã có
+worker khác thì **từ chối chạy, in trạng thái của worker đó** rồi thoát mã 1: `pnpm worker:dev` và `pnpm worker:start` làm việc này ngay
+từ đầu (không để `tsx watch` treo chờ), còn `pnpm dev:all` chỉ khởi động thứ còn thiếu: bỏ qua worker nếu đã có, bỏ qua web nếu cổng
+web (3000, hoặc `PORT`) đã có tiến trình (Next sẽ tự nhảy sang cổng kế tiếp và để hai dev server cùng một thư mục). `pnpm worker:status` in cùng trạng thái đó
+(mã thoát 0 khi có worker, 1 khi không có, 2 khi không tới được Redis). Worker bị giết đột ngột (`kill -9`, đóng terminal, `tsx watch`
+buộc dừng khi nạp lại code) được nhận ra ngay vì tiến trình giữ khoá không còn, nên chạy lại được liền; khoá ghi từ máy khác thì phải
+đợi hết hạn. Mỗi bản checkout hoặc worktree của dự án cần một Redis DB riêng (ví dụ `REDIS_URL=redis://127.0.0.1:6379/1`), nếu không
+worker của bản này bị worker của bản kia từ chối.
 
 **Tác vụ (`/jobs`).** **Thử lại** tạo tác vụ mới; **Huỷ** dừng ngay tác vụ đang chờ, còn tác vụ đang chạy thì được yêu
 cầu dừng (render dừng giữa chừng và xoá tệp dở); **Chi tiết** kèm lệnh `pnpm ai:run`. Worker tắt thì tác vụ vẫn nằm
@@ -255,7 +266,8 @@ pnpm, không phải chẩn đoán này.
 | Dấu hiệu / mã                           | Nghĩa                                   | Làm gì                                                                   |
 | --------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------ |
 | "Không thể kết nối Redis…" (503)        | Web không tới được Redis                | `docker compose up -d` (không Docker: §1)                                |
-| "Worker không chạy"                     | Worker chưa chạy                        | `pnpm worker:dev`; tác vụ đã xếp hàng tự chạy tiếp                       |
+| "Worker không chạy"                     | Worker chưa chạy                        | `pnpm worker:dev` hoặc `pnpm dev:all`; tác vụ đã xếp hàng tự chạy tiếp   |
+| "Worker đã chạy rồi…"                   | Đã có worker trên Redis DB này          | Dùng tiếp worker đó, hoặc dừng nó (`kill <PID>`) rồi chạy lại            |
 | Worker thoát ngay, mã 1                 | Redis chưa chạy hoặc `REDIS_URL` sai    | Xem log, bật Redis, kiểm tra `REDIS_URL`                                 |
 | `Invalid environment configuration`     | `.env` có giá trị sai                   | Đọc tên biến và lý do trong thông báo, đối chiếu §2                      |
 | `DATA_DIR resolves to /mnt/...`         | Dữ liệu nằm trên ổ Windows              | Đưa dự án và dữ liệu về filesystem Linux                                 |

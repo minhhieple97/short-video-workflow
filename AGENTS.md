@@ -42,8 +42,10 @@ Hard constraints (do not relax without an explicit user decision):
 | Regenerate Prisma client                       | `pnpm db:generate`                                             |
 | Seed demo data                                 | `pnpm db:seed`                                                 |
 | Web dev server (127.0.0.1:3000)                | `pnpm dev`                                                     |
+| Web dev server + worker, one terminal          | `pnpm dev:all`                                                 |
 | Worker (watch mode)                            | `pnpm worker:dev`                                              |
 | Worker (no watch)                              | `pnpm worker:start`                                            |
+| Is a worker running? (exit 0 yes, 1 no)        | `pnpm worker:status`                                           |
 | List / run Claude CLI tasks (AI_MODE=cli-task) | `pnpm ai:run --list` · `pnpm ai:run --job <jobId> [--dry-run]` |
 | Environment diagnostics                        | `pnpm diagnose`                                                |
 | Remotion Studio (inspect compositions)         | `pnpm remotion:studio`                                         |
@@ -53,7 +55,10 @@ Hard constraints (do not relax without an explicit user decision):
 | Production build                               | `pnpm build`                                                   |
 
 First-time setup: `cp .env.example .env` → `pnpm install` → `docker compose up -d` → `pnpm db:migrate` → `pnpm db:seed`.
-Run for development in three terminals: Redis, `pnpm worker:dev`, `pnpm dev`.
+Run for development in three terminals (Redis, `pnpm worker:dev`, `pnpm dev`) or two (Redis, `pnpm dev:all`). Only one worker runs per
+Redis database: `worker:dev`, `worker:start` and `dev:all` refuse to start another and print the running one's status (§8). `dev:all`
+starts only what is missing: no second worker, and no second web server when the web port (`PORT`, default 3000) is taken, since
+`next dev` would silently move to the next free port and leave two dev servers on one folder.
 
 Toolchain notes (pinned on purpose — do not bump blindly):
 
@@ -120,7 +125,8 @@ src/
   lib/                 client-safe helpers: utils.ts (shadcn `cn()`), api-client.ts (typed fetch + ApiError), format.ts (vi-VN)
   server/              Server-side infrastructure (never imported by client components or Remotion)
     db/                client.ts: Prisma + better-sqlite3 singleton, WAL setup (shared by Next, worker, scripts)
-    queue/             constants, redis-connection.ts (shared: connection factories, probe, redaction), queue.ts (Next-only producer)
+    queue/             constants, redis-connection.ts (shared: connection factories, probe, redaction), queue.ts (Next-only producer),
+                       worker-lock.ts (the one-worker-per-Redis lock and the worker status read by the web, `pnpm diagnose` and scripts)
     storage/           DATA_DIR resolution (paths.ts), safe-path guard, atomic writes
     ai/                AiProvider interface, MockAiProvider, LocalCliTaskProvider, AutomatedCliProvider, contracts/ (Zod I/O),
                        prompts/ (versioned), cli-task/ (task files, ask-claude.ts + runner + output parsing; shared by `pnpm ai:run`
@@ -144,14 +150,15 @@ src/
                        (`data/credentials/google-drive.json`, mode 0600, never in SQLite, DTOs or logs), `DriveAccessToken`,
                        and `GoogleDriveArchiveProvider` (folder tree with pre-generated IDs, resumable upload, checksum verify)
     http/              route-helpers.ts (AppError → JSON, readJson/parseInput with Zod), page-helpers.ts (orNotFound)
-  worker/              Standalone process: main.ts, processors/ (dispatcher + one per job type), lifecycle/ (heartbeat, shutdown)
+  worker/              Standalone process: main.ts, processors/ (dispatcher + one per job type), lifecycle/ (heartbeat + lock renewal, shutdown)
   remotion/            Pure React video code: index.ts (registerRoot), root.tsx (ShortVideo + calculateMetadata), compositions/,
                        scenes/ (5 layouts), components/ (frame, captions, badge, motion), theme/ (tokens, bundled font),
                        illustration/ (flat SVG cartoon: 7 settings, a character with 8 actions, one look per video; frame-driven only)
   shared/              Truly shared: config/env.ts (Zod-validated env), logger.ts, errors.ts, types/ (create schemas/ on first need)
   generated/           Prisma client output (gitignored)
 prisma/                schema.prisma, migrations/ (committed), seed.ts
-scripts/               CLI entrypoints: run-claude-task.ts, diagnose.ts
+scripts/               CLI entrypoints: run-claude-task.ts, diagnose.ts, worker-status.ts (`pnpm worker:status` and the guard in front of
+                       `worker:dev`/`worker:start`), dev-all.ts (`pnpm dev:all`); lib/ holds their service runner and Vietnamese status text
 tests/                 unit/ + integration/ (Vitest), e2e/ (Playwright smoke + isolated stack), helpers/
 docs/                  requirements.md (product spec), architecture.md (technical design), operations.md (setup, env, troubleshooting)
 data/                  Runtime data (gitignored): studio.db, books/, ai-tasks/, videos/, diagnostics/
@@ -224,6 +231,14 @@ Dependency direction: `app → features/*/services → features/*/repositories �
   (start-up + every minute) archives FINAL renders that carry an archive intent and re-jobs unfinished archives. The archive
   processor only uploads: it never renders, voices or calls an AI.
 - Worker `concurrency = WORKER_CONCURRENCY` (default 1); global AI concurrency = 1; Remotion `concurrency = RENDER_CONCURRENCY` (default 1).
+- **One worker per Redis database** (two would each take jobs and break those limits). Before it reconciles or sweeps, the worker takes
+  `studio:worker:lock` (`server/queue/worker-lock.ts`: pid, host, start time and data dir, with a TTL that every heartbeat renews) and exits 1,
+  logging the holder's status, when another worker holds it. A holder that ran on this machine and no longer exists is taken over at once,
+  because `tsx watch` SIGKILLs a slow worker and starts the next one immediately; a lock written elsewhere is left to expire. The lock is
+  released only after the last job has finished, and a worker that finds another one holding it shuts down. `worker:dev` and
+  `worker:start` first run `scripts/worker-status.ts --require-stopped`, so a refused `tsx watch` never idles beside the first. Each
+  checkout of the project needs its own Redis database (`REDIS_URL=redis://127.0.0.1:6379/1`); never delete the lock key by hand while a
+  worker runs.
 - Job payloads carry **IDs and small metadata only** — never book text, audio, or secrets.
 - **Tracked jobs go through the outbox:** `recordJobIntent` writes the `JobRecord` and its `JobDispatch` row in one transaction, then
   `dispatchJobIntent` enqueues and marks `dispatchedAt`; the worker's `sweepDueJobIntents` delivers rows that never reached Redis and delayed
