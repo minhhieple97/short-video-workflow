@@ -65,6 +65,21 @@ afterAll(async () => {
 });
 
 describe("job outbox", () => {
+  it("does not mark a new deferral delivered when the worker reschedules before enqueue acknowledgement", async () => {
+    const intent = await dispatch.recordJobIntent(request("fast-resume"));
+    await dispatch.dispatchJobIntent(intent, async (_type, payload) => {
+      await db.prisma.jobRecord.update({ where: { id: intent.jobRecordId }, data: { status: "RUNNING" } });
+      expect(await dispatch.deferRunningJob(intent.jobRecordId, payload, 60_000)).toBe(true);
+    });
+    const pending = await db.prisma.jobDispatch.findUniqueOrThrow({
+      where: { id: intent.id },
+      include: { jobRecord: true },
+    });
+    expect(pending.dispatchedAt).toBeNull();
+    expect(pending.jobRecord.bullmqJobId).not.toBe(intent.jobRecord.bullmqJobId);
+    expect(pending.jobRecord.status).toBe("QUEUED");
+  });
+
   it("stores the job and its outbox row together, still undelivered", async () => {
     const intent = await dispatch.recordJobIntent(request("scene-a"));
 

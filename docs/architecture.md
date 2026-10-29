@@ -528,6 +528,30 @@ DATA_DIR/                     mặc định ./data; bị từ chối nếu nằm
   cần tích hợp tự dựng fake (Mistral, Google, máy chủ MCP, Claude CLI, edge-tts sinh MP3 thật, PDF dựng tay). Bộ cần Redis hoặc Poppler tự
   báo skipped khi thiếu.
 
+### Điều phối nhiều sách
+
+Khi đánh dấu outbox đã gửi, so cả mã job của lần gửi đó: worker có thể hoãn sang mã job mới trước khi enqueue cũ nhận
+xong phản hồi. Một xác nhận cũ không được đánh dấu lịch hoãn mới là đã gửi.
+
+`features/book-imports` lưu `BookImportBatch` và tối đa 15 `BookImportItem`. API tạo manifest có idempotency key; mỗi
+PDF dùng request body stream riêng, đi qua kiểm tra signature, hash và dung lượng của PDF importer. Sách và extraction
+`STAGED` được gắn vào item trong cùng giao dịch; chưa có job OCR khi đang tải file hoặc chờ sách trước.
+
+`worker/lifecycle/book-import-sweeper.ts` kiểm tra mỗi 10 giây, không chồng lượt chạy. Nó chỉ điều phối: kích hoạt một
+extraction kèm job/outbox trong giao dịch, xếp một chương mỗi lần, rồi chụp toàn bộ danh mục thành các production nhóm
+tối đa 100 bài học. Production giữ khoá cố định theo item/nhóm để replay không thêm video. AI, TTS và render vẫn chạy
+trong processor hiện có. Đợt `RUNNING` được ưu tiên trước đợt `QUEUED`; mỗi thời điểm chỉ một sách của các đợt tự động
+được xử lý. Không có tiến trình thứ ba hoặc queue thứ hai.
+
+`ProviderCooldown` giữ lịch chờ dùng chung của Claude, NotebookLM, Mistral, edge-tts và Drive. Quota không tăng bộ đếm
+lỗi tạm thời; job hoãn bằng outbox với `availableAt` từ mốc reset, không chạy lại trước mốc đó. CLI báo
+`resetsAt`/`resets_at`/`reset_at`, khoảng tương đối hoặc giờ kèm múi giờ thì dùng thông tin đó; khi không có giờ reset,
+một tác vụ thực đang chờ là lần thử tiếp theo sau ít nhất một phút. Scheduler chung chỉ lấy job đến hạn, không có vòng
+poll quota riêng cho job đang chờ 30 phút hay 1 giờ. Không gọi `/usage` như một prompt và không truy cập
+credential Claude. NotebookLM không báo giờ reset thì nghỉ 15 phút; Mistral nghỉ 5 phút; mọi `Retry-After` được tôn trọng.
+Outage cũng mở khoảng nghỉ dùng chung; chỉ lỗi tạm thời thực tế tăng bộ đếm retry. `UNKNOWN_OUTCOME` vẫn qua đối soát
+của adapter hiện có. Job phân tích chương có bộ đếm lỗi tạm thời riêng để quota dài không làm hết lượt retry.
+
 ## 14. Các quyết định chính
 
 - **Hai tiến trình, một queue, concurrency 1** — render, TTS, AI chiếm CPU/RAM hàng phút; UI phải luôn phản hồi; một người dùng, máy yếu.

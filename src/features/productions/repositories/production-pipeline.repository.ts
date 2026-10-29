@@ -69,10 +69,21 @@ export async function recordTransientFailure(
   return item?.transientRetries ?? 0;
 }
 
+export async function recordQuotaWait(
+  itemId: string,
+  claimToken: string,
+  failure: { code: string; message: string },
+): Promise<void> {
+  await prisma.productionItem.updateMany({
+    where: { id: itemId, claimToken },
+    data: { errorCode: failure.code, errorMessage: failure.message },
+  });
+}
+
 // The item moved on, so the last temporary failure no longer explains anything.
 export async function clearTransientRetries(itemId: string, claimToken: string): Promise<void> {
   await prisma.productionItem.updateMany({
-    where: { id: itemId, claimToken, transientRetries: { gt: 0 } },
+    where: { id: itemId, claimToken },
     data: { transientRetries: 0, errorCode: null, errorMessage: null },
   });
 }

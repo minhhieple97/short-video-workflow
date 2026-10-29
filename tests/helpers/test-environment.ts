@@ -16,6 +16,7 @@ export function setupTestEnvironment(): TestEnvironment {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "bvs-test-"));
   const dataDir = path.join(root, "data");
   fs.mkdirSync(dataDir, { recursive: true });
+  fs.closeSync(fs.openSync(path.join(dataDir, "test.db"), "a"));
 
   Object.assign(process.env, {
     ...OFFLINE_INTEGRATIONS_ENV,

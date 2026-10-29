@@ -1,22 +1,19 @@
 import "server-only";
 
-import { archiveFolderChain } from "@/server/archive/google-drive/drive-folder-tree";
 import { AppError, NotFoundError } from "@/shared/errors";
 import { createLogger } from "@/shared/logger";
 
 import { archiveFolderUrl } from "../domain/archive-labels";
-import { archiveFolderStore } from "../repositories/archive-folder.repository";
 import {
   findRenderArchive,
   findRenderForArchive,
   listRenderArchives,
   listVideoArchives,
-  resetArchiveForRetry,
-  type ArchiveRetryMode,
   type RenderArchiveRecord,
 } from "../repositories/render-archive.repository";
 import type { ArchiveDto, RenderArchivesDto } from "../schemas/archive.dto";
 import { currentArchiveDestination, requestRenderArchive } from "./archive-request.service";
+import { retryArchiveRecord } from "./archive-retry.service";
 
 const logger = createLogger("archive.control");
 
@@ -60,27 +57,11 @@ export async function getRenderArchives(renderId: string): Promise<RenderArchive
   return { renderId, archives: (await listRenderArchives(renderId)).map(toArchiveDto) };
 }
 
-function retryModeFor(errorCode: string | null): ArchiveRetryMode {
-  if (errorCode === "ARCHIVE_FOLDER_MISSING") return "NEW_DESTINATION";
-  if (errorCode === "ARCHIVE_REMOTE_MISMATCH") return "NEW_FILE_IDS";
-  return "RESUME";
-}
-
 // Retries only what failed: the render is never made again, and verified files and remote IDs are reused, except that a
 // removed render folder is rebuilt and a remote copy that did not match is uploaded as a new file (nothing is deleted
 // in Drive). A retry that loses a race with another one does nothing.
 async function retryArchive(archive: RenderArchiveRecord): Promise<void> {
-  const mode = retryModeFor(archive.errorCode);
-  if (mode === "NEW_DESTINATION") {
-    const render = await requireRender(archive.renderId);
-    const renderFolder = archiveFolderChain({
-      bookId: render.video.bookId,
-      videoId: render.videoId,
-      renderId: render.id,
-    }).at(-1);
-    if (renderFolder) await archiveFolderStore(archive.provider, archive.destinationKey).forget(renderFolder.path);
-  }
-  if (await resetArchiveForRetry(archive.id, mode)) logger.info("Archive retried", { archiveId: archive.id, mode });
+  if (await retryArchiveRecord(archive)) logger.info("Archive retried", { archiveId: archive.id });
 }
 
 // Archives the render now, or carries on with its archive, in the connected account. A finished archive is returned as it

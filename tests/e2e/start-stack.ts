@@ -9,6 +9,7 @@ import { E2E_DATA_DIR, E2E_ENV, E2E_PORT } from "./stack";
 
 fs.rmSync(E2E_DATA_DIR, { recursive: true, force: true });
 fs.mkdirSync(E2E_DATA_DIR, { recursive: true });
+fs.closeSync(fs.openSync(path.join(E2E_DATA_DIR, "e2e.db"), "a"));
 
 // A fake Google (token + Drive APIs) lives in this process for the whole run, and the app starts already connected to
 // it, so finished FINAL renders are archived without any real account.

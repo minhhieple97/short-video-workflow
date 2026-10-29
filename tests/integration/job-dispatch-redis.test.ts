@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { Queue, Worker } from "bullmq";
 import { Redis } from "ioredis";
+import { IntegrationError } from "@/server/integrations/integration-error";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type * as JobDispatch from "@/features/jobs/services/job-dispatch.service";
@@ -194,4 +195,91 @@ describe.skipIf(!redisAvailable)("job outbox against real BullMQ", () => {
       workerConnection.disconnect();
     }
   }, 40_000);
+
+  it.each([30, 60])(
+    "waits %i minutes for Claude reset through a worker restart without polling",
+    async (minutes) => {
+      const { withProviderCooldown } = await import("@/features/jobs/services/provider-cooldown.service");
+      await db.prisma.providerCooldown.deleteMany();
+      let calls = 0;
+      const unused: ProcessorTypes.JobProcessor = async () => {
+        throw new Error("unused");
+      };
+      const processors = {
+        DIAGNOSTIC_PING: async () => ({ pong: true }),
+        ANALYZE_CHAPTER: async () =>
+          withProviderCooldown("claude", async () => {
+            calls += 1;
+            if (calls === 1)
+              throw new IntegrationError("AI_QUOTA_EXCEEDED", "quota", "QUOTA", { retryAfterMs: minutes * 60_000 });
+            return { done: true };
+          }),
+        GENERATE_VIDEO_SCRIPT: unused,
+        GENERATE_PUBLISH_METADATA: unused,
+        GENERATE_SCENE_TTS: unused,
+        RENDER_VIDEO: unused,
+        RUN_PRODUCTION_ITEM: unused,
+        ARCHIVE_RENDER: unused,
+        EXTRACT_PDF: unused,
+      };
+      const waiting = await dispatch.recordJobIntent({
+        jobType: "ANALYZE_CHAPTER",
+        entityType: "CHAPTER",
+        entityId: "quota-chapter",
+        payload: { chapterId: "quota-chapter" },
+      });
+      const quick = await dispatch.recordJobIntent({
+        jobType: "DIAGNOSTIC_PING",
+        entityType: "SYSTEM",
+        entityId: "quota-ping",
+        payload: {},
+      });
+      const workerConnection = new Redis(REDIS_URL, { maxRetriesPerRequest: null });
+      let worker = new Worker(queue.name, dispatcher.createJobDispatcher(processors), {
+        connection: workerConnection,
+        concurrency: 1,
+      });
+      const record = () => db.prisma.jobRecord.findUniqueOrThrow({ where: { id: waiting.jobRecordId } });
+      const makeDue = () =>
+        db.prisma.jobDispatch.update({
+          where: { jobRecordId: waiting.jobRecordId },
+          data: { availableAt: new Date(0) },
+        });
+      try {
+        await dispatch.sweepDueJobIntents(enqueue);
+        await waitFor(
+          async () =>
+            (await db.prisma.jobRecord.findUniqueOrThrow({ where: { id: quick.jobRecordId } })).status === "COMPLETED",
+          10_000,
+        );
+        expect(await record()).toMatchObject({ status: "QUEUED", transientFailures: 0 });
+        expect(calls).toBe(1);
+        const reset = await db.prisma.providerCooldown.findUniqueOrThrow({ where: { provider: "claude" } });
+        const schedule = await db.prisma.jobDispatch.findUniqueOrThrow({ where: { jobRecordId: waiting.jobRecordId } });
+        expect(schedule.availableAt.getTime()).toBeGreaterThanOrEqual(reset.blockedUntil.getTime());
+        expect(schedule.availableAt.getTime() - reset.blockedUntil.getTime()).toBeLessThan(10_000);
+        const beforeReset = new Date(reset.blockedUntil.getTime() - 1);
+        expect(await dispatch.sweepDueJobIntents(enqueue, beforeReset)).toBe(0);
+        await worker.close();
+        worker = new Worker(queue.name, dispatcher.createJobDispatcher(processors), {
+          connection: workerConnection,
+          concurrency: 1,
+        });
+        expect(await dispatch.sweepDueJobIntents(enqueue, beforeReset)).toBe(0);
+        expect(await record()).toMatchObject({ status: "QUEUED", attempts: 1, transientFailures: 0 });
+        expect(calls).toBe(1);
+        await db.prisma.providerCooldown.update({ where: { provider: "claude" }, data: { blockedUntil: new Date(0) } });
+        await makeDue();
+        await dispatch.sweepDueJobIntents(enqueue);
+        await waitFor(async () => (await record()).status === "COMPLETED", 10_000);
+        expect(calls).toBe(2);
+        expect((await record()).transientFailures).toBe(0);
+        expect(await db.prisma.jobRecord.count({ where: { entityId: "quota-chapter" } })).toBe(1);
+      } finally {
+        await worker.close();
+        workerConnection.disconnect();
+      }
+    },
+    40_000,
+  );
 });

@@ -73,6 +73,7 @@ beforeAll(async () => {
 }, 60_000);
 
 beforeEach(async () => {
+  await db.prisma.providerCooldown.deleteMany();
   google = new FakeGoogleServer();
   await google.start();
   fake.endpoints = google.endpoints;
@@ -160,7 +161,11 @@ describe("processArchiveRender", () => {
 
     expect(await runJob(archiveId)).toEqual({ deferred: true, retryAfterMs: 30_000 });
     expect(await archiveOf(renderId)).toMatchObject({ status: "WAITING", retries: 1, errorCode: "GOOGLE_HTTP_503" });
+    expect(await runJob(archiveId)).toMatchObject({ deferred: true });
+    expect((await archiveOf(renderId)).retries).toBe(1);
+    await db.prisma.providerCooldown.updateMany({ data: { blockedUntil: new Date(0) } });
     expect(await runJob(archiveId)).toEqual({ deferred: true, retryAfterMs: 60_000 });
+    await db.prisma.providerCooldown.updateMany({ data: { blockedUntil: new Date(0) } });
 
     expect(await runJob(archiveId)).toEqual({ archiveId, outcome: "COMPLETED" });
   });

@@ -10,11 +10,14 @@ import {
   markJobRetrying,
   markJobRunning,
   markJobWaitingForCli,
+  recordJobTransientFailure,
+  recordJobWaitReason,
   setJobProgress,
 } from "@/features/jobs/repositories/job-record.repository";
 import { deferRunningJob } from "@/features/jobs/services/job-dispatch.service";
-import { releaseJobEntity } from "@/features/jobs/services/job-effects";
+import { deferJobEntity, releaseJobEntity } from "@/features/jobs/services/job-effects";
 import { AppError, JobCancelledError } from "@/shared/errors";
+import { IntegrationError } from "@/server/integrations/integration-error";
 import { createLogger, toSafeErrorMessage } from "@/shared/logger";
 import { isJobType, type JobType } from "@/shared/types/job";
 
@@ -93,6 +96,23 @@ export function createJobDispatcher(processors: Record<JobType, JobProcessor>): 
       return result;
     } catch (error) {
       if (watcher.signal.aborted || error instanceof JobCancelledError) return await finishCancelled();
+      if (error instanceof IntegrationError && error.kind === "QUOTA") {
+        const retryAfterMs = Math.max(1, error.retryAfterMs ?? 60_000);
+        await recordJobWaitReason(jobRecordId, error);
+        await deferJobEntity(record);
+        if (!(await deferRunningJob(jobRecordId, job.data, retryAfterMs))) return await finishCancelled();
+        return { deferred: true, retryAfterMs };
+      }
+      if (job.name === "ANALYZE_CHAPTER" && error instanceof IntegrationError && error.kind === "TRANSIENT") {
+        const failures = await recordJobTransientFailure(jobRecordId);
+        if (failures <= 5) {
+          const retryAfterMs = Math.max(error.retryAfterMs ?? 0, Math.min(15 * 60_000, 30_000 * 2 ** (failures - 1)));
+          await recordJobWaitReason(jobRecordId, error);
+          await deferJobEntity(record);
+          if (!(await deferRunningJob(jobRecordId, job.data, retryAfterMs))) return await finishCancelled();
+          return { deferred: true, retryAfterMs };
+        }
+      }
 
       const message = toSafeErrorMessage(error);
       const willRetry = job.attemptsMade + 1 < (job.opts.attempts ?? 1);

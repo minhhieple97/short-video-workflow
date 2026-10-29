@@ -5,6 +5,7 @@ import { createNotebookChapterDetector } from "@/features/notebooklm/services/no
 import { NOTEBOOKLM_NOT_CONFIGURED_MESSAGE } from "@/features/notebooklm/services/notebook-studio.service";
 import type { OcrOperation } from "@/generated/prisma/client";
 import { IntegrationError } from "@/server/integrations/integration-error";
+import { withProviderCooldown } from "@/features/jobs/services/provider-cooldown.service";
 import { createOcrProvider } from "@/server/ocr";
 import type { OcrProvider } from "@/server/ocr/ocr-provider";
 import { PdfError, type PopplerConfig } from "@/server/pdf/poppler";
@@ -204,15 +205,18 @@ async function detectChapters(
   }
 
   let proposed;
+  const detector = deps.chapterDetector;
   try {
-    proposed = await deps.chapterDetector.detect(
-      {
-        extractionId: extraction.id,
-        book: { id: extraction.bookId, title: extraction.book.title },
-        outline,
-        pageCount,
-      },
-      signal,
+    proposed = await withProviderCooldown("notebooklm", () =>
+      detector.detect(
+        {
+          extractionId: extraction.id,
+          book: { id: extraction.bookId, title: extraction.book.title },
+          outline,
+          pageCount,
+        },
+        signal,
+      ),
     );
   } catch (error) {
     if (signal?.aborted || !(error instanceof IntegrationError)) throw error;
@@ -220,6 +224,7 @@ async function detectChapters(
       return stopAtNeedsChapters(extraction.id, error.code, error.message);
     }
     return transientFailure(extraction.id, {
+      kind: error.kind,
       code: error.code,
       message: error.message,
       retryAfterMs: error.retryAfterMs ?? null,
@@ -389,7 +394,15 @@ async function submit(
 ): Promise<StepResult> {
   let outcome;
   try {
-    outcome = await submitOcrOperation({ provider, operationId: operation.id, chunks, signal });
+    outcome = await withProviderCooldown("mistral", async () => {
+      const result = await submitOcrOperation({ provider, operationId: operation.id, chunks, signal });
+      if (result.status === "RETRY_LATER" && result.kind === "QUOTA") {
+        throw new IntegrationError(result.code, result.message, "QUOTA", {
+          retryAfterMs: result.retryAfterMs ?? undefined,
+        });
+      }
+      return result;
+    });
   } catch (error) {
     return providerFailure(extraction.id, error, signal);
   }
@@ -423,7 +436,9 @@ async function collect(
 ): Promise<StepResult> {
   let outcome;
   try {
-    outcome = await collectOcrOperation({ provider, operationId: operation.id, plan, signal });
+    outcome = await withProviderCooldown("mistral", () =>
+      collectOcrOperation({ provider, operationId: operation.id, plan, signal }),
+    );
   } catch (error) {
     return providerFailure(extraction.id, error, signal);
   }
@@ -455,6 +470,7 @@ async function providerFailure(extractionId: string, error: unknown, signal?: Ab
   if (signal?.aborted || !(error instanceof IntegrationError)) throw error;
   if (error.kind === "AUTH" || error.kind === "REJECTED") return hold(extractionId, error.code, error.message);
   return transientFailure(extractionId, {
+    kind: error.kind,
     code: error.code,
     message: error.message,
     retryAfterMs: error.retryAfterMs ?? null,
@@ -463,8 +479,12 @@ async function providerFailure(extractionId: string, error: unknown, signal?: Ab
 
 async function transientFailure(
   extractionId: string,
-  failure: { code: string; message: string; retryAfterMs: number | null },
+  failure: { code: string; message: string; retryAfterMs: number | null; kind?: string },
 ): Promise<ExtractionRunOutcome> {
+  if (failure.kind === "QUOTA") {
+    await holdExtraction(extractionId, failure);
+    return { kind: "WAITING", retryAfterMs: Math.max(60_000, failure.retryAfterMs ?? 60_000) };
+  }
   const failures = await recordExtractionTransientFailure(extractionId, failure);
   if (failures > MAX_OCR_TRANSIENT_FAILURES) {
     return hold(extractionId, failure.code, `${failure.message} (đã thử lại ${MAX_OCR_TRANSIENT_FAILURES} lần)`);

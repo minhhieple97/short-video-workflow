@@ -1,6 +1,7 @@
 import type { NewChapterRecord } from "@/features/books/repositories/book.repository";
 import type { Book, BookExtraction, JobRecord } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
+import { AppError } from "@/shared/errors";
 
 import { startExtractionJobWithin } from "./extraction-jobs.repository";
 
@@ -18,15 +19,39 @@ interface NewPdfBook {
 export function createPdfBookWithExtraction(
   book: NewPdfBook,
   costCeilingMicroUsd: number,
-): Promise<{ book: Book; extraction: BookExtraction; job: JobRecord }> {
+): Promise<{ book: Book; extraction: BookExtraction; job: JobRecord }>;
+export function createPdfBookWithExtraction(
+  book: NewPdfBook,
+  costCeilingMicroUsd: number,
+  batchItemId: string | undefined,
+): Promise<{ book: Book; extraction: BookExtraction; job: JobRecord | null }>;
+export function createPdfBookWithExtraction(
+  book: NewPdfBook,
+  costCeilingMicroUsd: number,
+  batchItemId?: string,
+): Promise<{ book: Book; extraction: BookExtraction; job: JobRecord | null }> {
   return prisma.$transaction(async (tx) => {
+    if (batchItemId) {
+      const attached = await tx.bookImportItem.updateMany({
+        where: { id: batchItemId, bookId: null, batch: { status: "UPLOADING" }, fileName: book.sourceFileName },
+        data: { status: "QUEUED" },
+      });
+      if (!attached.count)
+        throw new AppError("BOOK_IMPORT_FILE_CONFLICT", "Tệp đã được tải lên hoặc đợt nhập đã đóng.", 409);
+    }
     const created = await tx.book.create({
       data: { ...book, sourceFormat: "pdf", language: "vi", status: "ACTIVE" },
     });
     const extraction = await tx.bookExtraction.create({
-      data: { bookId: created.id, status: "QUEUED", sourceHash: book.sourceHash, costCeilingMicroUsd },
+      data: {
+        bookId: created.id,
+        status: batchItemId ? "STAGED" : "QUEUED",
+        sourceHash: book.sourceHash,
+        costCeilingMicroUsd,
+      },
     });
-    return { book: created, extraction, job: await startExtractionJobWithin(tx, extraction.id) };
+    if (batchItemId) await tx.bookImportItem.update({ where: { id: batchItemId }, data: { bookId: created.id } });
+    return { book: created, extraction, job: batchItemId ? null : await startExtractionJobWithin(tx, extraction.id) };
   });
 }
 

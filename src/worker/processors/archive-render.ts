@@ -8,6 +8,7 @@ import { runRenderArchive } from "@/features/archive/services/archive-run.servic
 import { createDriveArchiveProvider } from "@/features/archive/services/drive-archive-provider.factory";
 import { archiveRenderPayloadSchema } from "@/features/jobs/schemas/job-payload.schema";
 import { IntegrationError } from "@/server/integrations/integration-error";
+import { withProviderCooldown } from "@/features/jobs/services/provider-cooldown.service";
 import { AppError } from "@/shared/errors";
 import { toSafeErrorMessage } from "@/shared/logger";
 
@@ -52,13 +53,17 @@ export const processArchiveRender: JobProcessor = async ({ job, signal }) => {
 
   let outcome;
   try {
-    outcome = await runRenderArchive({
-      archiveId,
-      provider: createDriveArchiveProvider(archive.destinationKey),
-      signal,
-    });
+    outcome = await withProviderCooldown("drive", () =>
+      runRenderArchive({
+        archiveId,
+        provider: createDriveArchiveProvider(archive.destinationKey),
+        signal,
+      }),
+    );
   } catch (error) {
     if (signal.aborted) throw error;
+    if (error instanceof IntegrationError && error.kind === "QUOTA")
+      return deferred(Math.max(60_000, error.retryAfterMs ?? 60_000));
     if (error instanceof IntegrationError && WAITABLE.has(error.kind)) {
       const retries = await recordArchiveRetry(archiveId, { code: error.code, message: error.message });
       if (retries > MAX_ARCHIVE_RETRIES) {

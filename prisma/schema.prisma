@@ -78,6 +78,7 @@ model Book {
   extractions       BookExtraction[]
   productionBatches ProductionBatch[]
   notebooks         NotebookBinding[]
+  importItem        BookImportItem?
 
   @@index([status])
   @@index([createdAt])
@@ -397,6 +398,7 @@ model JobRecord {
   status             JobStatus    @default(QUEUED)
   progress           Int          @default(0)
   attempts           Int          @default(0)
+  transientFailures  Int          @default(0)
   errorCode          String?
   errorMessage       String?
   createdAt          DateTime     @default(now())
@@ -548,6 +550,8 @@ model ProductionBatch {
   id                String    @id @default(cuid())
   bookId            String
   book              Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  importItemId      String?
+  importItem        BookImportItem? @relation(fields: [importItemId], references: [id], onDelete: Restrict)
   // Supplied by the caller; a repeated request with the same key returns this batch instead of making another.
   idempotencyKey    String    @unique
   // Hash of what was asked for (book, lessons, duration range), to notice the same key being reused for different content.
@@ -567,7 +571,50 @@ model ProductionBatch {
   items ProductionItem[]
 
   @@index([bookId])
+  @@index([importItemId])
   @@index([status])
+}
+
+model BookImportBatch {
+  id             String   @id @default(cuid())
+  idempotencyKey String   @unique
+  fingerprint    String
+  status         String   @default("UPLOADING")
+  minDurationSec Int
+  maxDurationSec Int
+  pace           String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  items          BookImportItem[]
+
+  @@index([status, createdAt])
+}
+
+model BookImportItem {
+  id           String   @id @default(cuid())
+  batchId      String
+  batch        BookImportBatch @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  position     Int
+  fileName     String
+  bookId       String?  @unique
+  book         Book?    @relation(fields: [bookId], references: [id], onDelete: Restrict)
+  status       String   @default("UPLOADING")
+  errorCode    String?
+  errorMessage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  productions  ProductionBatch[]
+
+  @@unique([batchId, position])
+  @@index([batchId, status])
+}
+
+model ProviderCooldown {
+  provider     String   @id
+  blockedUntil DateTime
+  errorCode    String
+  message      String
+  updatedAt    DateTime @updatedAt
 }
 
 model ProductionItem {

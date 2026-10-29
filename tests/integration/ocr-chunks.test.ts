@@ -79,12 +79,27 @@ describe.skipIf(!poppler)("buildOcrChunks (needs poppler-utils)", () => {
     expect(fs.readdirSync(path.join(directory, "ocr"))).toEqual([]);
   });
 
-  it("gives the same chunks for the same pages", async () => {
+  it("rebuilds the same page content in the same chunk order", async () => {
     const first = await build([1, 3, 5], 2, 10 * 1024 * 1024);
+    const textOf = (chunks: typeof first.chunks, label: string) =>
+      Promise.all(
+        chunks.map(async (chunk) => {
+          const pages = await extractTextLayer(
+            chunk.filePath,
+            chunk.pageNumbers.length,
+            path.join(directory, `${label}-${chunk.chunkId}.txt`),
+            config,
+          );
+          return pages.map((page) => page.trim());
+        }),
+      );
+    const firstText = await textOf(first.chunks, "first");
+    expect(firstText).toEqual([["Page 1", "Page 3"], ["Page 5"]]);
     const again = await build([5, 3, 1], 2, 10 * 1024 * 1024);
 
-    expect(again.chunks.map((chunk) => [chunk.chunkId, chunk.pageNumbers, chunk.bytes])).toEqual(
-      first.chunks.map((chunk) => [chunk.chunkId, chunk.pageNumbers, chunk.bytes]),
+    expect(again.chunks.map((chunk) => [chunk.chunkId, chunk.pageNumbers])).toEqual(
+      first.chunks.map((chunk) => [chunk.chunkId, chunk.pageNumbers]),
     );
+    expect(await textOf(again.chunks, "again")).toEqual(firstText);
   });
 });
