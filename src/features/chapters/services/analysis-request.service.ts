@@ -21,7 +21,7 @@ interface AnalysisTarget {
   analysisPromptVersion: string | null;
 }
 
-async function isUpToDate(chapter: AnalysisTarget, bookTitle: string): Promise<boolean> {
+export async function isUpToDate(chapter: AnalysisTarget, bookTitle: string): Promise<boolean> {
   if (chapter.analysisStatus !== "ANALYZED") return false;
   // A chapter catalogued by NotebookLM is up to date against its own prompt version and input.
   if (chapter.analysisPromptVersion === LESSON_EXTRACTION_PROMPT_VERSION) {

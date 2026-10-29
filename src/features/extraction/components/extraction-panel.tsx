@@ -1,5 +1,6 @@
-import { AlertTriangle, CheckCircle2, Circle, CircleDot, Info, PauseCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Circle, CircleDot, Info, Loader2, PauseCircle } from "lucide-react";
 
+import { SegmentedProgress } from "@/components/layout/segmented-progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +14,7 @@ import {
   HELD_LABEL,
   type ExtractionStepState,
 } from "../domain/extraction-labels";
+import { extractionProgressState } from "../domain/extraction-status";
 import type { ExtractionDto } from "../schemas/extraction.dto";
 import { ExtractionActions } from "./extraction-actions";
 
@@ -43,13 +45,16 @@ function Steps({ extraction }: Readonly<{ extraction: ExtractionDto }>) {
     hasPages: extraction.pageCount !== null,
     held: extraction.held,
   });
+  // The current step only turns while the worker still has work on it; a stopped run keeps a still marker.
+  const working = extractionProgressState(extraction) === "running";
   return (
     <ol className="grid gap-2 sm:grid-cols-4" aria-label="Các bước trích xuất">
       {steps.map((step) => {
-        const Icon = STEP_ICONS[step.state];
+        const spinning = working && step.state === "current";
+        const Icon = spinning ? Loader2 : STEP_ICONS[step.state];
         return (
           <li key={step.key} className="flex items-center gap-2 text-sm">
-            <Icon className={cn("size-4 shrink-0", STEP_TONES[step.state])} aria-hidden />
+            <Icon className={cn("size-4 shrink-0", STEP_TONES[step.state], spinning && "animate-spin")} aria-hidden />
             <span className={step.state === "todo" ? "text-muted-foreground" : undefined}>{step.label}</span>
             <span className="sr-only">({STEP_STATE_LABELS[step.state]})</span>
           </li>
@@ -70,31 +75,24 @@ function PageCounts({ extraction }: Readonly<{ extraction: ExtractionDto }>) {
       </p>
     );
   }
-  const rows: [string, number][] = [
-    ["Có chữ sẵn", pages.text],
-    ["Đã OCR", pages.ocr],
-    ["Trang trống", pages.empty],
-    ["Chờ gửi OCR", pages.waitingOcr],
-    ["Đang OCR", pages.sentToOcr],
-    ["Lỗi", pages.failed],
-  ];
+  const done = pages.text + pages.ocr + pages.empty;
+  const unread = Math.max(0, pageCount - done - pages.waitingOcr - pages.sentToOcr - pages.failed);
   return (
-    <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
-      <div className="flex justify-between gap-2 sm:col-span-4 sm:justify-start">
-        <dt className="text-muted-foreground">Tổng số trang</dt>
-        <dd className="font-medium tabular-nums">{formatNumber(pageCount)}</dd>
-      </div>
-      {rows
-        .filter(([, value]) => value > 0)
-        .map(([label, value]) => (
-          <div key={label} className="flex justify-between gap-2">
-            <dt className="text-muted-foreground">{label}</dt>
-            <dd className={cn("tabular-nums", label === "Lỗi" && "text-rose-600 dark:text-rose-400")}>
-              {formatNumber(value)}
-            </dd>
-          </div>
-        ))}
-    </dl>
+    <SegmentedProgress
+      label="Trang đã có chữ"
+      summary={`${formatNumber(done)}/${formatNumber(pageCount)} trang`}
+      done={done}
+      total={pageCount}
+      segments={[
+        { key: "text", label: "Có chữ sẵn", value: pages.text, tone: "mint" },
+        { key: "ocr", label: "Đã OCR", value: pages.ocr, tone: "blue" },
+        { key: "empty", label: "Trang trống", value: pages.empty, tone: "slate" },
+        { key: "sent", label: "Đang OCR", value: pages.sentToOcr, tone: "violet", active: true },
+        { key: "waiting", label: "Chờ gửi OCR", value: pages.waitingOcr, tone: "amber" },
+        { key: "failed", label: "Lỗi", value: pages.failed, tone: "rose" },
+        { key: "unread", label: "Chưa đọc", value: unread, tone: "slate" },
+      ]}
+    />
   );
 }
 
@@ -168,8 +166,8 @@ function StatusMessage({ extraction }: Readonly<{ extraction: ExtractionDto }>) 
   return <p className="text-muted-foreground text-sm">{errorMessage}</p>;
 }
 
-// Where a PDF book's extraction stands: the four steps, real page counts per state and the OCR spend. No percentage is
-// shown because how long OCR takes depends on the provider's batch queue, not on anything the app can measure.
+// Where a PDF book's extraction stands: the four steps, a bar of real page counts per state and the OCR spend. The bar
+// counts pages, never time: how long OCR takes depends on the provider's batch queue, not on anything the app measures.
 export function ExtractionPanel({ extraction }: Readonly<{ extraction: ExtractionDto }>) {
   const status = extraction.held ? HELD_LABEL : EXTRACTION_STATUS_LABELS[extraction.status];
   return (

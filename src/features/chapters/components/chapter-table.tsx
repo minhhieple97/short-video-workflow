@@ -8,9 +8,12 @@ import type { ChapterSummary } from "../schemas/chapter.dto";
 import { AnalyzeChapterButton } from "./analyze-chapter-button";
 import { ChapterStatusBadge } from "./chapter-status-badge";
 
-export function ChapterTable({ chapters }: Readonly<{ chapters: readonly ChapterSummary[] }>) {
+export function ChapterTable({
+  chapters,
+  emptyHint,
+}: Readonly<{ chapters: readonly ChapterSummary[]; emptyHint?: string }>) {
   if (chapters.length === 0) {
-    return <EmptyState title="Sách chưa có chương nào" />;
+    return <EmptyState title="Sách chưa có chương nào" description={emptyHint} />;
   }
 
   return (

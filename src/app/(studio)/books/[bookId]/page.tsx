@@ -9,10 +9,12 @@ import { BookTabs } from "@/features/books/components/book-tabs";
 import { DeleteBookButton } from "@/features/books/components/delete-book-button";
 import { EditBookDialog } from "@/features/books/components/edit-book-dialog";
 import { getBook } from "@/features/books/services/book.service";
-import { AnalyzeBookButton } from "@/features/chapters/components/analyze-book-button";
+import { BookAnalysisPanel } from "@/features/chapters/components/book-analysis-panel";
 import { ChapterTable } from "@/features/chapters/components/chapter-table";
+import { getBookAnalysisOverview } from "@/features/chapters/services/analysis-overview.service";
 import { listChapters } from "@/features/chapters/services/chapter.service";
 import { ExtractionPanel } from "@/features/extraction/components/extraction-panel";
+import { extractionProgressState } from "@/features/extraction/domain/extraction-status";
 import { getBookExtraction } from "@/features/extraction/services/extraction-view.service";
 import { CreateLessonDialog } from "@/features/lessons/components/create-lesson-dialog";
 import { LessonFilters } from "@/features/lessons/components/lesson-filters";
@@ -37,14 +39,23 @@ export default async function BookDetailPage({ params, searchParams }: Readonly<
   const [{ bookId }, query] = await Promise.all([params, searchParams]);
   const book = await orNotFound(getBook(bookId));
   const filter = lessonFilterSchema.safeParse({ chapterId: query.chapter, status: query.status, usage: query.usage });
-  const [chapters, lessons, approvedLessons, videos, extraction] = await Promise.all([
+  const [chapters, lessons, approvedLessons, videos, extraction, analysis] = await Promise.all([
     listChapters(bookId),
     listLessons(bookId, filter.success ? filter.data : {}),
     listLessons(bookId, { status: "APPROVED" }),
     listVideos({ bookId }),
     getBookExtraction(bookId),
+    getBookAnalysisOverview(bookId, book.title),
   ]);
   const chapterRefs = chapters.map(({ id, order, title }) => ({ id, order, title }));
+  const pendingExtraction = extractionProgressState(extraction);
+  // Producing needs lessons, which come from analysed chapters; until then the button says why it is off.
+  const produceBlocked =
+    book.lessonCount > 0
+      ? null
+      : pendingExtraction
+        ? "Chờ trích xuất PDF xong và phân tích chương để có bài học."
+        : "Chưa có bài học. Hãy phân tích chương ở tab Chương trước.";
 
   return (
     <section className="flex flex-col gap-6">
@@ -61,12 +72,22 @@ export default async function BookDetailPage({ params, searchParams }: Readonly<
         }
         actions={
           <>
-            <Button asChild>
-              <Link href={`/books/${book.id}/produce`}>
-                <Clapperboard aria-hidden />
-                Sản xuất video
-              </Link>
-            </Button>
+            {produceBlocked ? (
+              // A disabled button gets no pointer events, so the wrapper carries the tooltip.
+              <span title={produceBlocked} className="inline-flex">
+                <Button disabled aria-label={`Sản xuất video — ${produceBlocked}`}>
+                  <Clapperboard aria-hidden />
+                  Sản xuất video
+                </Button>
+              </span>
+            ) : (
+              <Button asChild>
+                <Link href={`/books/${book.id}/produce`}>
+                  <Clapperboard aria-hidden />
+                  Sản xuất video
+                </Link>
+              </Button>
+            )}
             <EditBookDialog book={book} />
             <DeleteBookButton book={book} />
           </>
@@ -81,14 +102,22 @@ export default async function BookDetailPage({ params, searchParams }: Readonly<
         panels={{
           chapters: (
             <div className="flex flex-col gap-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-muted-foreground text-sm">
-                  Chế độ AI: <span className="text-foreground font-medium">{getAppConfig().ai.mode}</span> · phân tích
-                  lần lượt từng chương, bài học tạo ra ở trạng thái nháp.
-                </p>
-                <AnalyzeBookButton bookId={book.id} />
-              </div>
-              <ChapterTable chapters={chapters} />
+              <BookAnalysisPanel
+                bookId={book.id}
+                aiMode={getAppConfig().ai.mode}
+                overview={analysis}
+                extraction={pendingExtraction}
+              />
+              <ChapterTable
+                chapters={chapters}
+                emptyHint={
+                  pendingExtraction === "running"
+                    ? "Đang trích xuất PDF; danh sách chương sẽ hiện khi trích xuất xong."
+                    : pendingExtraction === "stopped"
+                      ? "Trích xuất PDF đang dừng. Xem thẻ “Trích xuất PDF” phía trên để tiếp tục."
+                      : undefined
+                }
+              />
             </div>
           ),
           lessons: (

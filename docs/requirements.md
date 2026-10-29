@@ -138,8 +138,8 @@ xuất** (`ProductionBatch`) gồm các mục (`ProductionItem`): mỗi mục = 
 ### 5.1. Thư viện sách
 
 Tìm sách theo tên/tác giả không phân biệt dấu; thẻ sách có số chương/bài học/video, ngày nhập, nhãn trích xuất (PDF). Trang sách:
-tab Chương / Bài học / Video, nút **Sản xuất video**, sửa tên/tác giả, xoá có giải thích ảnh hưởng. Tổng quan: tác vụ đang chạy,
-sách và video gần đây.
+tab Chương / Bài học / Video (đổi tab ngay, giữ trong địa chỉ), nút **Sản xuất video** (khoá kèm lý do khi sách chưa có bài học),
+sửa tên/tác giả, xoá có giải thích ảnh hưởng. Tổng quan: tác vụ đang chạy, sách và video gần đây.
 
 ### 5.2. Nhập `.md` / `.txt` và chương
 
@@ -160,12 +160,16 @@ sách và video gần đây.
   cam kết). Vượt trần, thiếu khoá, khoá bị từ chối → dừng kèm lý do; không tự nâng trần, không đổi nhà cung cấp.
 - Chương do bộ nhận diện cục bộ tạo. Không thấy → NotebookLM chỉ nhận **dàn ý đầu trang**, không bao giờ cả sách; đề xuất chỉ được
   nhận khi câu mở đầu chương có thật trên trang bắt đầu và các chương theo thứ tự trang. Không được → **Chưa xác định chương**.
-- Không có phần trăm giả: OCR theo hàng đợi lô của Mistral (có thể vài giờ), worker tự kiểm tra lại.
+- Không có phần trăm giả: OCR theo hàng đợi lô của Mistral (có thể vài giờ), worker tự kiểm tra lại. Tiến độ là số trang theo
+  trạng thái (có chữ sẵn, đã OCR, trống, đang OCR, chờ gửi, lỗi, chưa đọc).
 
 ### 5.4. Phân tích chương và danh mục bài học
 
 - Phân tích một hoặc tất cả chương, **tuần tự**; chỉ chạy lại khi nội dung chương hay phiên bản prompt đổi, trừ khi người dùng
   chọn phân tích lại (có xác nhận).
+- **Phân tích tất cả chương** chỉ bấm được khi còn chương cần phân tích (nhãn nói còn bao nhiêu, báo trước chương sẽ chạy lại vì
+  đổi chế độ AI/prompt); chưa có chương, đang chạy hay đang chờ Claude CLI → khoá kèm lý do. Tiến độ là số chương theo trạng thái
+  và chương đang chạy; trang tự cập nhật, rời trang không dừng phân tích.
 - Trạng thái chương: Chưa phân tích, Đang chờ, Đang phân tích, Chờ chạy Claude CLI, Đã phân tích, **Phân tích chưa hết**, Lỗi.
 - Sách văn bản (và sách PDF khi chưa cấu hình NotebookLM): AI theo `AI_MODE`, 1–3 bài mỗi chương. Sách PDF có NotebookLM: chương
   chia thành phần ≤ 40.000 ký tự ở ranh giới đoạn, mỗi phần một câu hỏi, **không giới hạn** số bài; phần chưa đọc hết làm chương

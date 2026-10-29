@@ -43,3 +43,12 @@ export function isPermanentExtractionFailure(status: string, errorCode: string |
 export function toExtractionStatus(value: string): ExtractionStatus {
   return EXTRACTION_STATUSES.find((status) => status === value) ?? "FAILED";
 }
+
+// Whether a PDF book is still on its way to chapters (the worker has work left) or has stopped and waits for the user.
+// Null once the extraction completed, or for a book that was not imported from a PDF.
+export function extractionProgressState(
+  extraction: { status: ExtractionStatus; held: boolean } | null,
+): "running" | "stopped" | null {
+  if (!extraction || extraction.status === "COMPLETED") return null;
+  return RUNNABLE_EXTRACTION_STATUSES.includes(extraction.status) && !extraction.held ? "running" : "stopped";
+}
