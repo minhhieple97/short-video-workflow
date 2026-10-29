@@ -1,26 +1,24 @@
-import {
-  HOOK_MAX_SECONDS,
-  MAX_STORY_SCENES,
-  SYLLABLES_PER_SECOND,
-  type DurationRange,
-} from "@/features/videos/domain/duration";
+import { HOOK_MAX_SECONDS, MAX_STORY_SCENES, type DurationRange } from "@/features/videos/domain/duration";
 import type { LessonSnapshot } from "@/features/videos/domain/lesson-snapshot";
+import { formatSyllablesPerSecond, paceProfile, syllablesPerSecond, type Pace } from "@/features/videos/domain/pace";
 import { NARRATIVE_BEATS } from "@/features/videos/domain/narrative-beats";
 import { DURATION_CHOICE_RULE, durationChoices } from "@/server/ai/prompts/duration-choice";
 
-export const SCRIPT_DRAFT_PROMPT_VERSION = "notebooklm-script-draft-v4";
+export const SCRIPT_DRAFT_PROMPT_VERSION = "notebooklm-script-draft-v5";
 
 // Vietnamese is one syllable per written word, so the syllable rate is also the word budget (with a margin).
-const WORDS_PER_SECOND = SYLLABLES_PER_SECOND * 0.9;
-const wordBudget = (seconds: number) => Math.floor(seconds * WORDS_PER_SECOND);
+const wordsPerSecond = (pace: Pace) => syllablesPerSecond(pace) * 0.9;
 
 // The lesson comes from the app's own catalogue; it is quoted as data, like the sources, never followed as instructions.
 export function buildScriptDraftPrompt(input: {
   lesson: LessonSnapshot;
   range: DurationRange;
+  pace: Pace;
   revisionNote: string | null;
 }): string {
   const { lesson } = input;
+  const rate = wordsPerSecond(input.pace);
+  const wordBudget = (seconds: number) => Math.floor(seconds * rate);
   const lessonData = JSON.stringify({
     title: lesson.title,
     summary: lesson.summary,
@@ -40,7 +38,7 @@ export function buildScriptDraftPrompt(input: {
     "- SITUATION: tình huống đời thường; MISTAKE: sai lầm hoặc thất bại trong tình huống đó.",
     "- LESSON: liên hệ bài học trong sách và điều rút ra từ nó. Tên sách và bài học chỉ xuất hiện từ nhịp này trở đi, không ở HOOK/SITUATION/MISTAKE.",
     "- RESOLUTION: quay lại đúng tình huống ban đầu và xử lý nó bằng bài học; ACTION: một hành động cụ thể làm được ngay.",
-    `- targetDurationSec (giây): chọn MỘT mức, kèm số từ lời dẫn (cả HOOK) nó chứa: ${durationChoices(input.range, WORDS_PER_SECOND, "từ")}. ${DURATION_CHOICE_RULE} Viết tổng lời dẫn khớp mức đã chọn, không vượt; không đọc nhanh để vừa.`,
+    `- targetDurationSec (giây): chọn MỘT mức, kèm số từ lời dẫn (cả HOOK) nó chứa: ${durationChoices(input.range, rate, "từ")}. ${DURATION_CHOICE_RULE} Lời dẫn sẽ được đọc ở nhịp ${paceProfile(input.pace).label.toLowerCase()} (khoảng ${formatSyllablesPerSecond(input.pace)} âm tiết/giây) và số từ trên đã tính theo nhịp đó: viết tổng lời dẫn khớp mức đã chọn, không vượt.`,
     `- Video dài hơn 60 giây: kể sâu hơn chứ không thêm bài học — mỗi phần có thể gồm nhiều cảnh (mỗi cảnh khoảng 8–15 giây), tình huống chi tiết hơn, nhiều bước hành động hơn; tối đa ${MAX_STORY_SCENES} nhịp.`,
     '- Chỉ dùng điều có trong nguồn; không bịa trích dẫn, số liệu hay khẳng định. sourceExcerpts là câu chép NGUYÊN VĂN từ nguồn, đúng ngôn ngữ của nguồn (không dịch), để riêng, không trộn vào narration; page là số của dòng "[Trang N]" gần nhất (không có thì 1).',
     "- illustrative = true cho nhịp có tình huống do bạn tự nghĩ ra (không có trong sách).",

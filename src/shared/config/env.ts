@@ -3,6 +3,8 @@ import { z } from "zod";
 export const VIDEO_ASPECT_RATIO = "9:16" as const;
 // Mirrors DURATION_PRESETS_SEC of features/videos/domain/duration.ts (a test keeps them equal); config cannot import features.
 export const DURATION_PRESETS_SEC = [30, 45, 60, 90, 120, 180, 240, 300] as const;
+// Mirrors PACES of features/videos/domain/pace.ts (a test keeps them equal).
+export const PACES = ["STANDARD", "FAST", "FASTER"] as const;
 
 const positiveInt = (fallback: number) => z.coerce.number().int().positive().default(fallback);
 
@@ -78,15 +80,15 @@ const envSchema = z
 
     TTS_MODE: z.enum(["upload", "edge-tts"]).default("edge-tts"),
     TTS_VOICE: z.string().min(1).default("vi-VN-NamMinhNeural"),
-    TTS_SPEED: z.coerce.number().int().min(-50).max(50).default(0),
     EDGE_TTS_COMMAND: z.string().min(1).default("edge-tts"),
-    SCENE_AUDIO_PADDING_MS: z.coerce.number().int().min(0).max(2000).default(300),
     MAX_AUDIO_UPLOAD_MB: z.coerce.number().positive().max(100).default(20),
 
     VIDEO_PROFILE: z.literal("SHORT_VERTICAL").default("SHORT_VERTICAL"),
     // The range a new video or batch starts with; MAX_VIDEO_DURATION_SEC is also the longest a range may reach.
     DEFAULT_MIN_VIDEO_DURATION_SEC: durationPreset.default(30),
     MAX_VIDEO_DURATION_SEC: durationPreset.default(300),
+    // The reading pace a new video or batch starts with: voice speed, pause after each scene and the AI's word budget.
+    DEFAULT_PACE: z.enum(PACES).default("STANDARD"),
     RENDER_WIDTH: positiveInt(1080),
     RENDER_HEIGHT: positiveInt(1920),
     RENDER_FPS: positiveInt(30),
@@ -138,9 +140,7 @@ export interface AppConfig {
   tts: {
     mode: "upload" | "edge-tts";
     voice: string;
-    speed: number;
     edgeTtsCommand: string;
-    paddingMs: number;
     maxUploadBytes: number;
   };
   video: {
@@ -149,6 +149,7 @@ export interface AppConfig {
     durationPresetsSec: readonly number[];
     defaultMinDurationSec: number;
     maxDurationSec: number;
+    defaultPace: (typeof PACES)[number];
     final: { width: number; height: number; fps: number };
     draft: { width: number; height: number; fps: number };
   };
@@ -213,9 +214,7 @@ export function parseAppConfig(source: Record<string, string | undefined>): AppC
     tts: {
       mode: env.TTS_MODE,
       voice: env.TTS_VOICE,
-      speed: env.TTS_SPEED,
       edgeTtsCommand: env.EDGE_TTS_COMMAND,
-      paddingMs: env.SCENE_AUDIO_PADDING_MS,
       maxUploadBytes: Math.round(env.MAX_AUDIO_UPLOAD_MB * 1024 * 1024),
     },
     video: {
@@ -224,6 +223,7 @@ export function parseAppConfig(source: Record<string, string | undefined>): AppC
       durationPresetsSec: DURATION_PRESETS_SEC,
       defaultMinDurationSec: env.DEFAULT_MIN_VIDEO_DURATION_SEC,
       maxDurationSec: env.MAX_VIDEO_DURATION_SEC,
+      defaultPace: env.DEFAULT_PACE,
       final: { width: env.RENDER_WIDTH, height: env.RENDER_HEIGHT, fps: env.RENDER_FPS },
       draft: { width: env.DRAFT_RENDER_WIDTH, height: env.DRAFT_RENDER_HEIGHT, fps: env.RENDER_FPS },
     },

@@ -4,7 +4,7 @@ import { prisma } from "@/server/db/client";
 export function findSceneWithVideo(sceneId: string) {
   return prisma.videoScene.findFirst({
     where: { id: sceneId, video: { book: { deletedAt: null } } },
-    include: { video: { select: { id: true, bookId: true } } },
+    include: { video: { select: { id: true, bookId: true, pace: true } } },
   });
 }
 
@@ -16,6 +16,15 @@ export function listVisibleScenesWithoutAudio(videoId: string) {
   });
 }
 
+// Every visible scene with what is needed to tell which voice it has: its narration and the clip it points at.
+export function listVisibleScenesForVoice(videoId: string) {
+  return prisma.videoScene.findMany({
+    where: { videoId, hidden: false },
+    orderBy: { order: "asc" },
+    select: { id: true, narration: true, audioAssetId: true, mediaAssets: { select: { id: true, provider: true } } },
+  });
+}
+
 export function createVoiceoverAsset(data: {
   videoId: string;
   sceneId: string;
@@ -24,7 +33,7 @@ export function createVoiceoverAsset(data: {
   durationMs: number;
   fileSizeBytes: number;
   contentHash: string;
-  provider: "edge-tts" | "upload";
+  provider: string;
   settings: Prisma.InputJsonObject;
 }): Promise<MediaAsset> {
   const { settings, ...rest } = data;

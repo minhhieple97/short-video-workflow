@@ -29,6 +29,7 @@ async function planFor(variant = "") {
     sources: [],
     lesson: { ...SAMPLE_LESSON, title: `${SAMPLE_LESSON.title}${variant}` },
     range: { minDurationSec: 30, maxDurationSec: 60 },
+    pace: "STANDARD" as const,
     revisionNote: null,
   });
   const plan: ScenePlan = await new MockScenePlanCompiler().compile({
@@ -36,6 +37,7 @@ async function planFor(variant = "") {
     lesson: SAMPLE_LESSON,
     targetDurationSec: 60,
     range: { minDurationSec: 30, maxDurationSec: 60 },
+    pace: "STANDARD" as const,
     revisionNote: null,
   });
   return createScenePlanArtifact({

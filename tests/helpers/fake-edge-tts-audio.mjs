@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Stand-in for the edge-tts CLI that writes a real MP3 as long as the text takes to read (about four syllables a
-// second, at least one second), so the whole voice-over path (silence trim, probe, store) and the length checks can run. Every call is counted in FAKE_EDGE_TTS_COUNTER, and FAKE_EDGE_TTS_FAIL_ON makes a call fail when the text file
+// second at --rate=+0%, shorter at a faster rate, at least one second), so the whole voice-over path (silence trim, probe, store) and the length checks can run. Every call is counted in FAKE_EDGE_TTS_COUNTER, and FAKE_EDGE_TTS_FAIL_ON makes a call fail when the text file
 // it was given contains that marker.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -24,7 +24,8 @@ if (marker && text.includes(marker)) {
   process.exit(1);
 }
 const syllables = text.split(/\s+/).filter((token) => /[\p{L}\p{N}]/u.test(token)).length;
-const seconds = Math.max(1, Math.round((syllables / 4) * 10) / 10);
+const rate = Number(/^--rate=([+-]?\d+)%$/.exec(args.find((arg) => arg.startsWith("--rate=")) ?? "")?.[1] ?? 0);
+const seconds = Math.max(1, Math.round((syllables / (4 * (1 + rate / 100))) * 10) / 10);
 execFileSync("ffmpeg", [
   "-hide_banner",
   "-loglevel",

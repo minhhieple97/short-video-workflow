@@ -125,6 +125,7 @@ describe("NotebookLmScriptStudio", () => {
       sources: [source],
       lesson: SAMPLE_LESSON,
       range: { minDurationSec: 30, maxDurationSec: 45 },
+      pace: "STANDARD" as const,
       revisionNote: "Giữ đúng trích đoạn.",
     });
 
@@ -153,6 +154,7 @@ describe("NotebookLmScriptStudio", () => {
       sources: [first, second],
       lesson: SAMPLE_LESSON,
       range: { minDurationSec: 30, maxDurationSec: 45 },
+      pace: "STANDARD" as const,
       revisionNote: null,
     });
 
@@ -177,6 +179,7 @@ describe("NotebookLmScriptStudio", () => {
         sources: [source],
         lesson: SAMPLE_LESSON,
         range: { minDurationSec: 30, maxDurationSec: 60 },
+        pace: "STANDARD" as const,
         revisionNote: null,
       }),
     ).rejects.toMatchObject({ code: "DRAFT_LENGTH_OUT_OF_RANGE", kind: "REJECTED" });
@@ -196,6 +199,7 @@ describe("NotebookLmScriptStudio", () => {
         sources: [source],
         lesson: SAMPLE_LESSON,
         range: { minDurationSec: 30, maxDurationSec: 60 },
+        pace: "STANDARD" as const,
         revisionNote: null,
       }),
     ).rejects.toMatchObject({ code: "DRAFT_INVALID", kind: "REJECTED" });
@@ -207,6 +211,7 @@ describe("NotebookLmScriptStudio", () => {
       sources: remoteIds.map((remoteId) => ({ key: "k", remoteId })),
       lesson: SAMPLE_LESSON,
       range: { minDurationSec: 30, maxDurationSec: 60 },
+      pace: "STANDARD" as const,
       revisionNote: null,
     });
 

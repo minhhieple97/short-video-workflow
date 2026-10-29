@@ -416,15 +416,16 @@ The interface is Vietnamese; the Vietnamese label of each action is given in par
 Everything lives in `.env` (validated by Zod at start-up; a wrong value stops the process with a clear message). The most
 useful settings:
 
-| Variable                                               | Default                                | Purpose                                                             |
-| ------------------------------------------------------ | -------------------------------------- | ------------------------------------------------------------------- |
-| `AI_MODE`                                              | `cli-task`                             | `mock`, `cli-task` or `cli-auto` ([AI modes](#ai-modes))            |
-| `TTS_MODE`, `TTS_VOICE`, `TTS_SPEED`                   | `edge-tts`, `vi-VN-NamMinhNeural`, `0` | Voice-over engine, voice and speed                                  |
-| `WORKER_CONCURRENCY`, `RENDER_CONCURRENCY`             | `1`, `1`                               | Keep at 1 until you have benchmarked your machine                   |
-| `MAX_PDF_SIZE_MB`, `MAX_PDF_PAGES`                     | `500`, `1000`                          | PDF upload limits                                                   |
-| `OCR_COST_CEILING_USD`, `MISTRAL_API_KEY`              | `3`, _(empty)_                         | Per-book OCR budget and your own Mistral key                        |
-| `NOTEBOOKLM_PROFILE`                                   | _(empty)_                              | Logged-in NotebookLM profile, needed for PDF batch with real AI     |
-| `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` | _(empty)_                              | Your own Desktop-app OAuth client; leave empty to keep videos local |
+| Variable                                               | Default                           | Purpose                                                             |
+| ------------------------------------------------------ | --------------------------------- | ------------------------------------------------------------------- |
+| `AI_MODE`                                              | `cli-task`                        | `mock`, `cli-task` or `cli-auto` ([AI modes](#ai-modes))            |
+| `TTS_MODE`, `TTS_VOICE`                                | `edge-tts`, `vi-VN-NamMinhNeural` | Voice-over engine and voice                                         |
+| `DEFAULT_PACE`                                         | `STANDARD`                        | Reading pace new videos start with: `STANDARD`, `FAST`, `FASTER`    |
+| `WORKER_CONCURRENCY`, `RENDER_CONCURRENCY`             | `1`, `1`                          | Keep at 1 until you have benchmarked your machine                   |
+| `MAX_PDF_SIZE_MB`, `MAX_PDF_PAGES`                     | `500`, `1000`                     | PDF upload limits                                                   |
+| `OCR_COST_CEILING_USD`, `MISTRAL_API_KEY`              | `3`, _(empty)_                    | Per-book OCR budget and your own Mistral key                        |
+| `NOTEBOOKLM_PROFILE`                                   | _(empty)_                         | Logged-in NotebookLM profile, needed for PDF batch with real AI     |
+| `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` | _(empty)_                         | Your own Desktop-app OAuth client; leave empty to keep videos local |
 
 The full table, with limits and troubleshooting, is in [`docs/operations.md`](docs/operations.md).
 

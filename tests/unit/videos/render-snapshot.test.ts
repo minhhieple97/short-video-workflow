@@ -104,6 +104,18 @@ describe("render snapshot", () => {
     expect(props.scenes[0]?.illustration).toEqual({ setting: "CAFE", action: "TALKING" });
   });
 
+  it("keeps the pace a render was made at, and reads a snapshot stored before paces existed as the default", () => {
+    const old = snapshot();
+    expect(old.video.pace).toBeUndefined();
+    expect(toCompositionProps(toCompositionSource(old)).paceFactor).toBe(1);
+
+    const fast = snapshot({ video: { ...old.video, pace: "FASTER" } });
+    const reread = readStoredRenderSnapshot(JSON.parse(JSON.stringify(fast)), fingerprintRenderSnapshot(fast));
+    expect(reread?.video.pace).toBe("FASTER");
+    expect(toCompositionProps(toCompositionSource(fast)).paceFactor).toBe(1.2);
+    expect(fingerprintRenderSnapshot(fast)).not.toBe(fingerprintRenderSnapshot(old));
+  });
+
   it("has a fingerprint that changes with any captured detail", () => {
     const base = fingerprintRenderSnapshot(snapshot());
     const edited = snapshot({

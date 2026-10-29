@@ -10,7 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LESSON_STATUS_LABELS } from "@/features/lessons/domain/lesson-fields";
 import { DurationRangePicker } from "@/features/videos/components/duration-range-picker";
+import { PaceSelect } from "@/features/videos/components/pace-select";
 import { formatRange, type DurationRange } from "@/features/videos/domain/duration";
+import type { Pace } from "@/features/videos/domain/pace";
 import { errorMessage, sendJson } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
@@ -23,11 +25,13 @@ export function ProductionRequestForm({
   bookId,
   lessons,
   defaultRange,
+  defaultPace,
   ceilingSec,
 }: Readonly<{
   bookId: string;
   lessons: readonly CatalogueLessonDto[];
   defaultRange: DurationRange;
+  defaultPace: Pace;
   ceilingSec: number;
 }>) {
   const router = useRouter();
@@ -35,6 +39,7 @@ export function ProductionRequestForm({
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [selected, setSelected] = useState<string[]>([]);
   const [duration, setDuration] = useState<DurationRange>(defaultRange);
+  const [pace, setPace] = useState<Pace>(defaultPace);
   const [pending, setPending] = useState(false);
 
   const selectable = useMemo(() => lessons.filter((lesson) => lesson.unavailableReason === null), [lessons]);
@@ -54,6 +59,7 @@ export function ProductionRequestForm({
         lessonIds,
         idempotencyKey,
         ...duration,
+        pace,
       });
       toast.success(`Đã xếp ${production.items.length} video vào hàng sản xuất.`);
       router.push(`/productions/${production.id}`);
@@ -147,6 +153,13 @@ export function ProductionRequestForm({
           Khoảng thời lượng mỗi video (9:16 · 1080×1920 · 30 FPS)
         </h2>
         <DurationRangePicker id="production-duration" value={duration} onChange={setDuration} ceilingSec={ceilingSec} />
+      </section>
+
+      <section aria-labelledby="pace-heading" className="flex flex-col gap-2">
+        <h2 id="pace-heading" className="text-lg font-bold">
+          Nhịp độ đọc
+        </h2>
+        <PaceSelect id="production-pace" value={pace} onChange={setPace} />
       </section>
 
       <div className="bg-card shadow-card sticky bottom-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4">

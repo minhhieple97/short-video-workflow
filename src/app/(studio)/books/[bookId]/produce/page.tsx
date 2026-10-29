@@ -36,6 +36,7 @@ export default async function ProduceVideosPage({ params }: Readonly<{ params: P
           bookId={catalogue.book.id}
           lessons={catalogue.lessons}
           defaultRange={defaultDurationRange()}
+          defaultPace={getAppConfig().video.defaultPace}
           ceilingSec={getAppConfig().video.maxDurationSec}
         />
       )}

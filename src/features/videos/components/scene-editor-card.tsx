@@ -26,9 +26,11 @@ interface SceneEditorCardProps {
   videoId: string;
   scene: SceneDto;
   sceneIds: readonly string[];
+  // How fast this video's narration is voiced, for the estimated reading time while typing.
+  syllablesPerSecond: number;
 }
 
-export function SceneEditorCard({ videoId, scene, sceneIds }: Readonly<SceneEditorCardProps>) {
+export function SceneEditorCard({ videoId, scene, sceneIds, syllablesPerSecond }: Readonly<SceneEditorCardProps>) {
   const { pending, run, runJob } = useVideoAction();
   const locked = useScriptLocked();
   const [title, setTitle] = useState(scene.title ?? "");
@@ -39,7 +41,7 @@ export function SceneEditorCard({ videoId, scene, sceneIds }: Readonly<SceneEdit
 
   const isHook = scene.type === "HOOK";
   const index = sceneIds.indexOf(scene.id);
-  const seconds = estimateNarrationSeconds(narration);
+  const seconds = estimateNarrationSeconds(narration, syllablesPerSecond);
   const dirty =
     title !== (scene.title ?? "") ||
     narration !== scene.narration ||

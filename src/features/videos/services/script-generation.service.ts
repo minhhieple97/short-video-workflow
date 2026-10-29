@@ -21,9 +21,10 @@ import { AppError, NotFoundError } from "@/shared/errors";
 import { toSafeErrorMessage } from "@/shared/logger";
 
 import { formatRange, isWithinRange } from "../domain/duration";
+import { toPace } from "../domain/pace";
 import { describeStoryOrderProblem, findStorySceneOrderProblem } from "../domain/narrative-beats";
 import { replaceScript, updateSceneRecord } from "../repositories/video.repository";
-import { buildSceneRecord, parseIllustration } from "./scene-records";
+import { buildSceneRecord, narrationRateOf, parseIllustration } from "./scene-records";
 import { lessonSnapshotsOf } from "./video-mapper";
 import { requireVideo } from "./video.service";
 
@@ -108,6 +109,7 @@ export async function runScriptGeneration(
     title: video.title,
     minDurationSec: video.minDurationSec,
     maxDurationSec: video.maxDurationSec,
+    pace: toPace(video.pace),
     videoProfile: "SHORT_VERTICAL",
     lessons: lessonSnapshotsOf(video),
     promptVersion: VIDEO_SCRIPT_PROMPT_VERSION,
@@ -143,17 +145,21 @@ export async function runScriptGeneration(
       );
     }
 
+    const rate = narrationRateOf(video);
     const scenes = [
-      buildSceneRecord({
-        type: "HOOK",
-        title: "Hook",
-        narration: hook.narration,
-        onScreenText: hook.onScreenText,
-        visualVariant: hook.visualVariant,
-        hookVariant: hook.variant,
-        illustration: hook.illustration ?? null,
-      }),
-      ...output.scenes.map((scene) => buildSceneRecord(toSceneContent(scene))),
+      buildSceneRecord(
+        {
+          type: "HOOK",
+          title: "Hook",
+          narration: hook.narration,
+          onScreenText: hook.onScreenText,
+          visualVariant: hook.visualVariant,
+          hookVariant: hook.variant,
+          illustration: hook.illustration ?? null,
+        },
+        rate,
+      ),
+      ...output.scenes.map((scene) => buildSceneRecord(toSceneContent(scene), rate)),
     ];
     await replaceScript(video.id, {
       hookOptions: output.hookOptions,
@@ -180,6 +186,7 @@ export async function runSceneRegeneration(
     sceneId: scene.id,
     attempt: scene.version,
     targetDurationSec: video.targetDurationSec,
+    pace: toPace(video.pace),
     lessons: lessonSnapshotsOf(video),
     scene: storyboardSceneSchema.parse({
       type: scene.type,
@@ -204,11 +211,14 @@ export async function runSceneRegeneration(
     const output = sceneRegenerationOutputSchema.parse(result.output);
     if (output.sceneId !== scene.id) throw new AppError("INVALID_AI_OUTPUT", "Kết quả AI không khớp cảnh.", 422);
     // Rewriting changes the words only; the scene keeps its picture.
-    const record = buildSceneRecord({
-      ...toSceneContent(output.scene),
-      type: scene.type,
-      illustration: parseIllustration(scene.illustrationJson),
-    });
+    const record = buildSceneRecord(
+      {
+        ...toSceneContent(output.scene),
+        type: scene.type,
+        illustration: parseIllustration(scene.illustrationJson),
+      },
+      narrationRateOf(video),
+    );
     await updateSceneRecord(video.id, scene.id, record, {
       contentChanged: record.contentHash !== scene.contentHash,
       narrationChanged: record.narration !== scene.narration,

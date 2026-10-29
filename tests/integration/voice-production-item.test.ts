@@ -94,6 +94,7 @@ beforeEach(async () => {
     sources: [],
     lesson: SAMPLE_LESSON,
     range: { minDurationSec: 30, maxDurationSec: 60 },
+    pace: "STANDARD" as const,
     revisionNote: null,
   });
   const plan = await new MockScenePlanCompiler().compile({
@@ -101,6 +102,7 @@ beforeEach(async () => {
     lesson: SAMPLE_LESSON,
     targetDurationSec: 60,
     range: { minDurationSec: 30, maxDurationSec: 60 },
+    pace: "STANDARD" as const,
     revisionNote: null,
   });
   await apply.applyScenePlan({

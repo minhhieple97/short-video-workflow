@@ -7,6 +7,7 @@ import { stableStringify } from "@/shared/stable-json";
 import { RENDER_TEMPLATE_VERSION, SHORT_VIDEO_COMPOSITION_ID, type CompositionSource } from "./composition-props";
 import type { PreflightInput } from "./preflight";
 import { illustrationSchema } from "./illustration";
+import { PACES } from "./pace";
 import { HOOK_VARIANTS, SCENE_TYPES, VISUAL_VARIANTS } from "./scene-types";
 
 export const RENDER_SNAPSHOT_VERSION = "render-snapshot-v1";
@@ -26,6 +27,8 @@ export const renderSnapshotSchema = z.object({
     // Optional without a default so a snapshot taken before ranges existed keeps its bytes (and its hash).
     minDurationSec: z.number().int().positive().optional(),
     maxDurationSec: z.number().int().positive().optional(),
+    // Optional without a default for the same reason: a snapshot taken before paces existed reads as the default pace.
+    pace: z.enum(PACES).optional(),
     scriptVersion: z.number().int().positive(),
     // What the script gate saw when the render was requested, so the preflight is judged on the same facts later.
     status: z.string(),
@@ -101,7 +104,7 @@ export function currentSnapshotIdentity(): Pick<RenderSnapshot, "schemaVersion" 
 
 export function toCompositionSource(snapshot: RenderSnapshot): CompositionSource {
   const scenes = [...snapshot.scenes].sort((left, right) => left.order - right.order);
-  return { title: snapshot.video.title, book: { title: snapshot.video.bookTitle }, scenes };
+  return { title: snapshot.video.title, book: { title: snapshot.video.bookTitle }, pace: snapshot.video.pace, scenes };
 }
 
 export function toPreflightInput(snapshot: RenderSnapshot): PreflightInput {

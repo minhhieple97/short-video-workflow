@@ -1,5 +1,6 @@
 import { lessonSnapshotSchema, type LessonSnapshot } from "@/features/videos/domain/lesson-snapshot";
 import { formatRange, isDurationPreset, isWithinRange, type DurationRange } from "@/features/videos/domain/duration";
+import { toPace, type Pace } from "@/features/videos/domain/pace";
 import { findRenderRecord } from "@/features/videos/repositories/render.repository";
 import { SCENE_PLAN_PROMPT_VERSION } from "@/server/ai/prompts/scene-plan-prompt";
 import { IntegrationError } from "@/server/integrations/integration-error";
@@ -95,6 +96,8 @@ function lostClaim(): AppError {
   return new AppError("PRODUCTION_CLAIM_LOST", "Mục sản xuất đã bị thay đổi trong lúc xử lý; dừng bước này.", 409);
 }
 
+const paceOf = (item: ProductionItemForRun): Pace => toPace(item.video?.pace);
+
 async function draftStep(
   item: ProductionItemForRun,
   claimToken: string,
@@ -104,12 +107,14 @@ async function draftStep(
   const lesson = lessonOf(item);
   const videoId = requireVideoId(item);
   const range = rangeOf(item);
+  const pace = paceOf(item);
   const sources = await deps.resolveSources({ bookId: item.batch.bookId, lesson, signal });
   const revisionNote = item.aiCorrectionTarget === "SCRIPT_STUDIO" ? item.aiCorrectionNote : null;
   const cacheKey = draftCacheKey(deps.scriptStudio, {
     lessonId: lesson.lessonId,
     lessonContentHash: lesson.contentHash,
     ...range,
+    pace,
     sourceRemoteIds: sources.map((source) => source.remoteId),
     revisionNote,
   });
@@ -118,7 +123,7 @@ async function draftStep(
     // script studio's quota is spent once per request.
     let draft = await readCachedDraft(cacheKey);
     if (!draft) {
-      draft = await deps.scriptStudio.writeDraft({ sources, lesson, range, revisionNote }, { signal });
+      draft = await deps.scriptStudio.writeDraft({ sources, lesson, range, pace, revisionNote }, { signal });
       await cacheDraft(cacheKey, deps.scriptStudio, draft);
     }
     if (!isWithinRange(draft.targetDurationSec, range)) {
@@ -156,6 +161,7 @@ async function compileStep(
         lesson,
         targetDurationSec,
         range: rangeOf(item),
+        pace: paceOf(item),
         revisionNote: item.aiCorrectionTarget === "SCENE_COMPILER" ? item.aiCorrectionNote : null,
       },
       { signal },

@@ -24,6 +24,7 @@ async function sample(): Promise<{ draft: ScriptDraft; plan: ScenePlan }> {
     sources: [],
     lesson: SAMPLE_LESSON,
     range: { minDurationSec: 30, maxDurationSec: 60 },
+    pace: "STANDARD" as const,
     revisionNote: null,
   });
   const plan = await new MockScenePlanCompiler().compile({
@@ -31,6 +32,7 @@ async function sample(): Promise<{ draft: ScriptDraft; plan: ScenePlan }> {
     lesson: SAMPLE_LESSON,
     targetDurationSec: 60,
     range: { minDurationSec: 30, maxDurationSec: 60 },
+    pace: "STANDARD" as const,
     revisionNote: null,
   });
   return { draft, plan };
@@ -193,10 +195,12 @@ describe("scene plan task input", () => {
       "lesson",
       "maxDurationSec",
       "minDurationSec",
+      "pace",
       "promptVersion",
       "revisionNote",
       "targetDurationSec",
     ]);
+    expect(input.pace).toBe("STANDARD");
   });
 
   it("rejects a length that is not one of the allowed ones", async () => {

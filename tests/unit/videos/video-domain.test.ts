@@ -107,6 +107,7 @@ describe("mock video script", () => {
     title: "Video thử",
     minDurationSec: 30 as const,
     maxDurationSec: 120 as const,
+    pace: "STANDARD" as const,
     videoProfile: "SHORT_VERTICAL" as const,
     lessons: [LESSON],
     promptVersion: VIDEO_SCRIPT_PROMPT_VERSION,
@@ -144,7 +145,7 @@ describe("mock video script", () => {
   it("proposes the shortest allowed length that holds its narration, and says why", () => {
     const output = videoScriptOutputSchema.parse(mockVideoScript(input));
     const seconds = [output.hookOptions[0]!.narration, ...output.scenes.map((scene) => scene.narration)]
-      .map(estimateNarrationSeconds)
+      .map((text) => estimateNarrationSeconds(text))
       .reduce((sum, value) => sum + value, 0);
 
     expect(output.targetDurationSec).toBe(fitToRange(seconds, input));
@@ -162,6 +163,16 @@ describe("mock video script", () => {
     expect(prompt).toContain('"targetDurationSec", "durationReason"');
   });
 
+  it("offers more narration for the same lengths at a faster pace, in both the script and the rewrite prompt", () => {
+    const fast = buildVideoScriptPrompt({ ...input, pace: "FASTER" });
+
+    expect(fast).toContain("30 (30 giây) ≈ 156 âm tiết");
+    expect(fast).toContain("120 (2 phút) ≈ 624 âm tiết");
+    expect(fast).toContain("nhịp rất nhanh (khoảng 5,2 âm tiết/giây)");
+    expect(fast).not.toContain("Không nói nhanh để vừa");
+    expect(VIDEO_SCRIPT_PROMPT_VERSION).toBe("video-script-v7");
+  });
+
   it("rewrites a scene differently on each attempt while keeping its type", () => {
     const scene = mockVideoScript(input).scenes[1]!;
     const regenerate = (attempt: number) =>
@@ -170,6 +181,7 @@ describe("mock video script", () => {
         sceneId: "scene-2",
         attempt,
         targetDurationSec: 60,
+        pace: "STANDARD",
         lessons: [LESSON],
         scene,
         promptVersion: VIDEO_SCRIPT_PROMPT_VERSION,
@@ -195,6 +207,7 @@ describe("mock video script", () => {
       sceneId: "scene-2",
       attempt: 1,
       targetDurationSec: 60,
+      pace: "STANDARD",
       lessons: [LESSON],
       scene: mockVideoScript(input).scenes[0]!,
       promptVersion: VIDEO_SCRIPT_PROMPT_VERSION,

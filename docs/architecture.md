@@ -134,8 +134,8 @@ tối đa 8 lần liên tiếp; sản xuất 10 phút, 5 lần; archive 30 phút
   `claude auth status`; chạy `claude -p --output-format json --tools "" --strict-mcp-config --no-session-persistence --json-schema …` từ
   mảng đối số, prompt qua stdin; env bỏ `CLAUDECODE*`/`CLAUDE_CODE_*` (không lồng phiên) và `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN`;
   timeout và huỷ → `SIGTERM`. Lỗi có mã ổn định (`AI_CLI_AUTH`, `AI_QUOTA_EXCEEDED`, `AI_CLI_TIMEOUT`, `INVALID_AI_OUTPUT`…).
-- Prompt có phiên bản; đổi chữ là tăng phiên bản: `chapter-analysis-v1`, `video-script-v6` (v1.1, cùng khung kể với sản xuất, đề xuất độ dài); `scene-plan-v5`
-  (biên dịch cảnh); `notebooklm-chapter-detection-v2`, `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v4` (đề xuất độ dài),
+- Prompt có phiên bản; đổi chữ là tăng phiên bản: `chapter-analysis-v1`, `video-script-v7` (v1.1, cùng khung kể với sản xuất, đề xuất độ dài, ngân sách chữ theo nhịp độ); `scene-plan-v6`
+  (biên dịch cảnh); `notebooklm-chapter-detection-v2`, `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v5` (đề xuất độ dài, ngân sách chữ theo nhịp độ),
   `notebooklm-chat-persona-v1` (vai trò của notebook); `draftVersion` của cache = phiên bản bản thảo + phiên bản vai trò. Danh sách độ dài được chọn và ngân sách lời của từng mức sinh từ `prompts/duration-choice.ts`.
 
 **Kiểm soát nội dung:**
@@ -156,7 +156,9 @@ tối đa 8 lần liên tiếp; sản xuất 10 phút, 5 lần; archive 30 phút
   chỉ đọc. Parser chương dùng chung cho sách PDF.
 - `ANALYZE_CHAPTER` → `analyzeChapter` → Zod → kiểm trích đoạn → thay bài nháp AI cũ. `GENERATE_VIDEO_SCRIPT` tạo 2–3 phương án hook +
   các cảnh từ snapshot bài học. Sửa kịch bản đã duyệt → `NEEDS_REVIEW`.
-- `runSceneTts`: khoá `sha256(TTS_ENGINE_VERSION, giọng, tốc độ, lời dẫn)`; trượt thì `edge-tts` (lời dẫn qua tệp, không qua dòng lệnh) →
+- `runSceneTts`: khoá `sha256(engineVersion của provider, giọng, tốc độ, lời dẫn)`; trượt thì provider TTS (cổng `TtsProvider`, chọn bằng
+  `TTS_MODE`; hiện chỉ có `edge-tts`, lời dẫn qua tệp, không qua dòng lệnh; lỗi là `IntegrationError` mã `TTS_*`, hết lần thử là `TRANSIENT` nên
+  đường ống sản xuất hoãn và thử lại) →
   cắt lặng đầu/cuối (ffmpeg) → đo (ffprobe) → `videos/<videoId>/audio/<hash>.mp3`. Audio tải lên (nhận bằng chữ ký byte) chỉ được đo.
 
 ## 6. Trích xuất PDF
@@ -334,7 +336,7 @@ status:     PENDING ─claim─► RUNNING ─┬─► COMPLETED
 - `planCorrection`: `SOURCE_MISSING`, `DRAFT_INVALID`, `DRAFT_LENGTH_OUT_OF_RANGE`, `UNDER_MIN` → script studio (lùi về `NONE`; chỉ
   nó kể thêm được từ nguồn); dài hơn mức dài nhất, hook, cảnh trống, đầu ra sai, khẳng định không căn cứ → compiler (lùi về `DRAFTED`);
   có cả hai thì chọn bước sớm hơn. Mã khác không sửa được và không tiêu lượt. Ghi chú (≤ 600 ký tự, lời của hệ thống; mã không có
-  hướng dẫn riêng thì dùng chính thông điệp lỗi) không bao giờ cho nới khoảng hay đổi tốc độ đọc; code không đổi khoảng hay tốc độ TTS. Tiêu
+  hướng dẫn riêng thì dùng chính thông điệp lỗi) không bao giờ cho nới khoảng hay đổi tốc độ đọc; code không đổi khoảng hay nhịp độ. Tiêu
   lượt là một `UPDATE` có điều kiện: đúng một lời gọi thắng, còn lại → item `FAILED`.
 - Lỗi tạm → hoãn (§3.3); `AUTH`, `REJECTED` không sửa được, `AppError` → `FAILED` kèm mã; lỗi bất ngờ → `FAILED` để item không bao giờ
   "đang chạy" mà không có job.
@@ -347,8 +349,16 @@ status:     PENDING ─claim─► RUNNING ─┬─► COMPLETED
 
 - `toCompositionProps()` là nơi duy nhất biến video thành props cho composition `ShortVideo`; Player và render dùng chung nó và
   `shortVideoPropsSchema` nên bản xem trước là bản sẽ render. `src/remotion/**` là React thuần (không `process.env`, DB, mạng); font Be Vietnam Pro đóng gói cục bộ.
-- Độ dài cảnh = `ceil((durationMs + SCENE_AUDIO_PADDING_MS) / 1000 × 30)` theo audio thật, tối thiểu 2 giây; trước khi có audio ước lượng
-  4 âm tiết/giây. Không bao giờ cắt lời hay tăng tốc để vừa khoảng. Phụ đề tách theo dấu câu, ≤ 9 từ mỗi cụm, thời gian chia theo âm tiết.
+- **Nhịp độ** (`domain/pace.ts`, `Video.pace`/`ProductionBatch.pace`): bảng `STANDARD`/`FAST`/`FASTER` là nơi duy nhất nói tốc độ giọng, khoảng
+  nghỉ, âm tiết/giây và hệ số hoạt cảnh. `runSceneTts` lấy tốc độ và khoảng nghỉ từ video của cảnh; khoá cache chứa tốc độ nên về nhịp cũ thì
+  dùng lại giọng cũ (frame được tính lại theo khoảng nghỉ hiện tại). Prompt, ước lượng thời lượng và khoá cache bản nháp đều nhận nhịp độ.
+  Giọng đã tạo ở tốc độ khác nhịp độ hiện tại là "lệch nhịp": `toVideoDetail` đếm `staleVoiceSceneCount`, preflight cảnh báo
+  `VOICE_PACE_MISMATCH`, tab Giọng đọc cho tạo lại (`scope: "all"`). Trong composition, `paceFactor` (từ `toCompositionProps`) bọc **riêng**
+  `SceneRenderer` trong `<Sequence playbackRate>`; phụ đề, nhãn sách và âm thanh nằm ngoài nên giữ thời gian thật; render ở ×1 không bọc gì
+  cả. Snapshot lưu `video.pace` (tuỳ chọn, bản cũ đọc là Chuẩn). Cổng `TtsProvider` (`server/tts/`) nhận `speedPercent`, adapter tự đổi sang
+  tham số của dịch vụ.
+- Độ dài cảnh = `ceil((durationMs + paddingMs của nhịp độ) / 1000 × 30)` theo audio thật, tối thiểu 2 giây; trước khi có audio ước lượng
+  theo âm tiết/giây của nhịp độ (4 ở Chuẩn). Không bao giờ cắt lời hay tự tăng tốc để vừa khoảng. Phụ đề tách theo dấu câu, ≤ 9 từ mỗi cụm, thời gian chia theo âm tiết.
 - Audio được phục vụ cho Chromium bởi asset server tạm ở `127.0.0.1:<cổng ngẫu nhiên>`, chỉ đúng các tệp snapshot nêu.
 - `RENDER_TEMPLATE_VERSION` (`composition-props.ts`) ghi vào mọi snapshot; tăng khi thay đổi Remotion làm cùng props trông khác.
   Vùng an toàn chỉ là lớp phủ trong editor, không vào MP4.
@@ -510,7 +520,7 @@ DATA_DIR/                     mặc định ./data; bị từ chối nếu nằm
 - **NotebookLM đọc theo phần với `source_ids` tường minh; trang lấy nơi tìm thấy** — chương dài cần chia; không lẫn nguồn cũ; không tin số
   trang mô hình khai.
 - **Chọn bài học ≠ duyệt; readiness do máy kiểm sau khi có audio** — sản xuất hàng loạt không có người duyệt; thời lượng thật chỉ biết sau TTS.
-- **Một lượt sửa AI, không nới khoảng hay đổi tốc độ đọc** — giới hạn chi phí và vòng lặp; video không vừa thì thất bại rõ ràng.
+- **Một lượt sửa AI, không nới khoảng hay đổi nhịp độ** — giới hạn chi phí và vòng lặp; video không vừa thì thất bại rõ ràng.
 - **Khoảng do người, độ dài do AI** — AI viết lời thấy nội dung nên chọn được độ dài hợp; người giữ giới hạn. Trần là giới hạn cứng,
   đề xuất chỉ là mục tiêu viết, nên dài hơn đề xuất mà còn trong khoảng không tốn lượt sửa.
 - **Hai artifact tách có fingerprint, cache bản thảo** — Claude lỗi không tốn lại NotebookLM; nháp không lẫn kết quả cuối.

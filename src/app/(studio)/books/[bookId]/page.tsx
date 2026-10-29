@@ -139,6 +139,7 @@ export default async function BookDetailPage({ params, searchParams }: Readonly<
                   bookId={book.id}
                   lessons={approvedLessons.map(({ id, title, usedInVideoCount }) => ({ id, title, usedInVideoCount }))}
                   defaultRange={defaultDurationRange()}
+                  defaultPace={getAppConfig().video.defaultPace}
                   ceilingSec={getAppConfig().video.maxDurationSec}
                 />
               </div>

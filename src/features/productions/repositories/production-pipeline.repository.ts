@@ -8,6 +8,7 @@ const RUN_INCLUDE = {
       id: true,
       minDurationSec: true,
       maxDurationSec: true,
+      pace: true,
       videoLessons: { orderBy: { position: "asc" }, take: 1, select: { lessonSnapshotJson: true } },
     },
   },

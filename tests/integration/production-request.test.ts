@@ -124,6 +124,21 @@ describe("requestProduction", () => {
     }
   });
 
+  it("gives the batch and each of its videos the pace asked for, the default pace when none is", async () => {
+    const fast = await productions.requestProduction(request({ pace: "FAST" }));
+    const plain = await productions.requestProduction(request());
+
+    for (const [production, pace] of [
+      [fast.production, "FAST"],
+      [plain.production, "STANDARD"],
+    ] as const) {
+      expect((await db.prisma.productionBatch.findUniqueOrThrow({ where: { id: production.id } })).pace).toBe(pace);
+      for (const item of production.items) {
+        expect((await db.prisma.video.findUniqueOrThrow({ where: { id: item.videoId ?? "" } })).pace).toBe(pace);
+      }
+    }
+  });
+
   it("turns three selected lessons into three items and three videos", async () => {
     const { production } = await productions.requestProduction(request());
 
@@ -217,6 +232,9 @@ describe("requestProduction", () => {
       httpStatus: 409,
     });
     await expect(productions.requestProduction({ ...input, maxDurationSec: 45 })).rejects.toMatchObject({
+      code: "IDEMPOTENCY_KEY_REUSED",
+    });
+    await expect(productions.requestProduction({ ...input, pace: "FASTER" })).rejects.toMatchObject({
       code: "IDEMPOTENCY_KEY_REUSED",
     });
     expect(await db.prisma.productionBatch.count()).toBe(1);

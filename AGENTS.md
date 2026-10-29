@@ -22,6 +22,8 @@ Hard constraints (do not relax without an explicit user decision):
   rendered videos. Each lives behind its own port in `src/server/` (`OcrProvider`, `ScriptStudioProvider`, `ScenePlanCompiler`,
   `VideoArchiveProvider`); do not add other cloud services, and do not route them through `AiProvider`. They are implemented and tested
   against local fakes only; acceptance with real accounts is still to do (`docs/operations.md`). Tests never reach them (`tests/helpers/offline-env.ts`).
+  Voice-over goes through the `TtsProvider` port (edge-tts, run locally, is the only adapter); a cloud or paid TTS adapter would be a new
+  outbound integration, so it needs the owner's decision first.
 - **Vertical video only:** 9:16, final 1080×1920 / draft 720×1280, 30 FPS, H.264 + AAC, 30 s – 5 min. The user sets a length range;
   the AI proposes the length inside it (§11). Still one lesson per batch-produced video. No 16:9.
 - **Vietnamese (vi-VN)** for UI copy, scripts, narration, on-screen text and captions. Code, identifiers, file names: English.
@@ -105,7 +107,7 @@ src/
     chapters/          chapter listing/reading/rename, analysis runner (worker) + analysis requests (web, server-only);
                        PDF chapters are catalogued by NotebookLM part by part when it is set up (`notebook-chapter-analysis`)
     lessons/           lesson domain (fields, excerpt verification), repository, review service, library/review UI
-    videos/            short-form domain (scene types, layouts, duration budget, snapshots), script generation/editing, editor UI
+    videos/            short-form domain (scene types, layouts, duration budget, pace, snapshots), script generation/editing, editor UI
     jobs/              job payload schemas, JobRecord/AiRun repositories, enqueue/retry/cancel services, jobs dashboard UI
     notebooklm/        v1.2 NotebookLM bindings: one notebook per book and account, one source per part and revision (title marker);
                        `NotebookLmScriptStudio` (the real `ScriptStudioProvider`: one MCP process per run, `notebookId#sourceId` refs,
@@ -123,7 +125,9 @@ src/
     ai/                AiProvider interface, MockAiProvider, LocalCliTaskProvider, AutomatedCliProvider, contracts/ (Zod I/O),
                        prompts/ (versioned), cli-task/ (task files, ask-claude.ts + runner + output parsing; shared by `pnpm ai:run`
                        and cli-auto)
-    tts/               edge-tts adapter (spawned with argv, text via file, retries the service's transient no-audio failures)
+    tts/               `TtsProvider` port (`tts-provider.ts`, vendor-free) + `createTtsProvider()` (`index.ts`, picks the adapter from `TTS_MODE`);
+                       `edge/` holds the edge-tts adapter (spawned with argv, text via file, retries the service's transient no-audio failures).
+                       Failures are `IntegrationError`s with a `TTS_*` code; the contract suite is `tests/helpers/contracts/tts-provider-contract.ts`
     diagnostics/       health checks aggregated for /settings, /api/health and `pnpm diagnose`
     render/            Remotion bundle + renderMedia wrapper and localhost asset server (worker only), webpack "@/" alias
     media/             ffprobe wrapper, silence trim/measure (ffmpeg)
@@ -241,8 +245,8 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - Never add `@anthropic-ai/sdk`, never create `ANTHROPIC_API_KEY`, never read/copy/log Claude tokens, cookies or credentials.
 - Run subprocesses with `spawn`/`execFile` and an argument array — **never** build shell strings from input, never use `exec` with interpolation.
 - Never use `--dangerously-skip-permissions`. When the model only needs to emit JSON, do not grant file-write/shell tools.
-- Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v6`, `scene-plan-v5`, and for NotebookLM `notebooklm-chapter-detection-v2`,
-  `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v4`, and the notebook's chat persona `notebooklm-chat-persona-v1`, applied once per
+- Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v7`, `scene-plan-v6`, and for NotebookLM `notebooklm-chapter-detection-v2`,
+  `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v5`, and the notebook's chat persona `notebooklm-chat-persona-v1`, applied once per
   notebook through `chat_configure` and re-applied when its version changes); changing a prompt's text means bumping its version (the draft and
   persona versions also key the draft cache). Book content is passed as quoted untrusted data.
 - Validate model output with Zod; on schema failure mark the job `FAILED` and store nothing. No unbounded retries (respect quota errors). Timeouts + best-effort cancel.
@@ -265,9 +269,16 @@ Dependency direction: `app → features/*/services → features/*/repositories �
   server-side). The AI proposes `targetDurationSec` inside it with a reason (`durationReason`): Claude with the manual script, NotebookLM
   with the batch draft; a proposal outside the range is rejected. The hard limit is the range's maximum (`OVER_TARGET`); under the
   minimum is a warning by hand and blocking in batch readiness (`UNDER_MIN`, corrected by the script studio). Never widen a range, cut
-  narration or change the reading speed to fit. Up to `MAX_STORY_SCENES` (30) scenes or draft beats after the hook.
+  narration or change the pace to fit. Up to `MAX_STORY_SCENES` (30) scenes or draft beats after the hook.
 - First scene is `HOOK`: starts at frame 0, ≤ 120 frames (`HOOK_MAX_FRAMES`, 4 s), text visible and narration audible immediately; no logo/intro/silence before it.
-- Real audio duration (ffprobe) + padding determines timing. Never cut narration or speed it up unnaturally to fit.
+- Real audio duration (ffprobe) + padding determines timing. Never cut narration or speed it up beyond the pace the user chose.
+- **Pace is the one reading-speed control, and only the user sets it** (`features/videos/domain/pace.ts`: `STANDARD` 0%, `FAST` +15%, `FASTER` +30%;
+  `Video.pace` and `ProductionBatch.pace`, new ones start from `DEFAULT_PACE`). It sets the voice speed, the pause after each scene
+  (`framesForAudio`), the AI's word budget (`syllablesPerSecond` in the three prompts, the estimates and the draft cache key) and how
+  fast scene pictures play (`paceFactor`: a `<Sequence playbackRate>` around `SceneRenderer` only, so the voice, captions and scene length
+  never follow it). Nothing changes a pace by itself: not `UNDER_MIN`, not `OVER_TARGET`, not the AI correction. A voice made at another
+  speed stays until the user regenerates it (`staleVoiceSceneCount`, `POST /api/videos/:id/tts` with `scope: "all"`; an uploaded clip is never
+  replaced). Adding a pace or changing a number in the table changes what the same props look like, so bump `RENDER_TEMPLATE_VERSION`.
 - Preview and render share the same composition and the same Zod-validated input props. No hardcoded book titles, lesson counts or narration inside Remotion components.
 - Safe-zone overlays are editor-only guides (configurable per platform), never rendered into the MP4.
 - Prefer CSS/SVG/text animation; no 3D, no GPU requirement, no network fetches at render time; local assets only. Scene illustrations

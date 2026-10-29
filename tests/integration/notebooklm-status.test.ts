@@ -106,6 +106,7 @@ describe("NotebookLM status", () => {
           capturedAt: "2026-10-28T00:00:00.000Z",
         },
         range: { minDurationSec: 30, maxDurationSec: 60 },
+        pace: "STANDARD" as const,
         revisionNote: null,
       }),
     ).rejects.toMatchObject({ kind: "AUTH" });

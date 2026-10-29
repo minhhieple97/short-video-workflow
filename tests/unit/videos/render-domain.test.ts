@@ -92,6 +92,40 @@ describe("composition props", () => {
   });
 });
 
+describe("animation pace in the composition props", () => {
+  const sourceFor = (pace?: string) => ({
+    title: "Video",
+    book: { title: "Sách" },
+    ...(pace ? { pace } : {}),
+    scenes: [
+      {
+        id: "h",
+        type: "HOOK" as const,
+        visualVariant: "HOOK_QUESTION" as const,
+        narration: "Vì sao?",
+        onScreenText: "Vì sao?",
+        durationFrames: 90,
+        hidden: false,
+        audioAssetId: null,
+      },
+    ],
+  });
+
+  it("plays animation as designed for the standard pace and for a source that never had one", () => {
+    expect(toCompositionProps(sourceFor()).paceFactor).toBe(1);
+    expect(toCompositionProps(sourceFor("STANDARD")).paceFactor).toBe(1);
+  });
+
+  it("speeds the pictures up for a faster pace, and the schema keeps the factor", () => {
+    expect(toCompositionProps(sourceFor("FAST")).paceFactor).toBe(1.1);
+    expect(shortVideoPropsSchema.parse(toCompositionProps(sourceFor("FASTER"))).paceFactor).toBe(1.2);
+  });
+
+  it("never changes how long the video is: scene length comes from the audio, not the animation", () => {
+    expect(totalFrames(toCompositionProps(sourceFor("FASTER")))).toBe(totalFrames(toCompositionProps(sourceFor())));
+  });
+});
+
 describe("preflight", () => {
   it("passes an approved script that fits its preset, warning only about missing audio", () => {
     const report = runPreflight(input({ scenes: [hook, scene({ audioAssetId: null })] }), "FINAL");

@@ -53,14 +53,30 @@ describe("NotebookLM prompts for books in English or Vietnamese", () => {
     const prompt = buildScriptDraftPrompt({
       lesson: SAMPLE_LESSON,
       range: { minDurationSec: 30, maxDurationSec: 60 },
+      pace: "STANDARD",
       revisionNote: null,
     });
 
-    expect(SCRIPT_DRAFT_PROMPT_VERSION).toBe("notebooklm-script-draft-v4");
+    expect(SCRIPT_DRAFT_PROMPT_VERSION).toBe("notebooklm-script-draft-v5");
     expect(prompt).toContain("Lời dẫn LUÔN bằng tiếng Việt");
     expect(prompt).toContain("HOOK → SITUATION → MISTAKE → LESSON → RESOLUTION → ACTION");
     expect(prompt).toContain("đúng ngôn ngữ của nguồn (không dịch)");
     expect(prompt).toContain("dưới 4 giây");
+  });
+
+  it("budgets the words for the chosen pace, so a faster pace gets more words for the same lengths", () => {
+    const draft = (pace: "STANDARD" | "FASTER") =>
+      buildScriptDraftPrompt({
+        lesson: SAMPLE_LESSON,
+        range: { minDurationSec: 30, maxDurationSec: 60 },
+        pace,
+        revisionNote: null,
+      });
+
+    expect(draft("STANDARD")).toContain("30 (30 giây) ≈ 108 từ");
+    expect(draft("FASTER")).toContain("30 (30 giây) ≈ 140 từ");
+    expect(draft("FASTER")).toContain("nhịp rất nhanh (khoảng 5,2 âm tiết/giây)");
+    expect(draft("FASTER")).not.toContain("không đọc nhanh để vừa");
   });
 
   it("sets a notebook persona for longer answers that never overrides the JSON and lengths each question asks for", () => {

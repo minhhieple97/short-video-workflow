@@ -104,12 +104,11 @@ Ba giới hạn `DRIVE_*` là của riêng ứng dụng, không phải quota Goo
 | `AI_TASK_TIMEOUT_SEC`            | `600`                 | Thời gian tối đa một lần gọi Claude                                                |
 | `TTS_MODE`                       | `edge-tts`            | `edge-tts`, hoặc `upload` (chỉ âm thanh tải lên)                                   |
 | `TTS_VOICE`                      | `vi-VN-NamMinhNeural` | Giọng edge-tts                                                                     |
-| `TTS_SPEED`                      | `0`                   | Tốc độ theo phần trăm, −50..50 (0 = tự nhiên)                                      |
 | `EDGE_TTS_COMMAND`               | `edge-tts`            | Lệnh edge-tts (đường dẫn tuyệt đối cũng được)                                      |
-| `SCENE_AUDIO_PADDING_MS`         | `300`                 | Khoảng nghỉ sau mỗi đoạn đọc (0–2000)                                              |
 | `MAX_AUDIO_UPLOAD_MB`            | `20`                  | Giới hạn âm thanh tải lên (tối đa 100)                                             |
 | `VIDEO_PROFILE`                  | `SHORT_VERTICAL`      | Giá trị duy nhất được nhận                                                         |
 | `DEFAULT_MIN_VIDEO_DURATION_SEC` | `30`                  | Mức ngắn nhất mặc định của khoảng (30, 45, 60, 90, 120, 180, 240, 300)             |
+| `DEFAULT_PACE`                   | `STANDARD`            | Nhịp độ video và lô mới: `STANDARD`, `FAST` (+15%) hoặc `FASTER` (+30%)            |
 | `MAX_VIDEO_DURATION_SEC`         | `300`                 | Mức dài nhất mặc định và trần của mọi khoảng (cùng các mức trên); server cũng kiểm |
 | `RENDER_WIDTH`                   | `1080`                | Chiều rộng bản cuối                                                                |
 | `RENDER_HEIGHT`                  | `1920`                | Chiều cao bản cuối; tỉ lệ phải đúng 9:16                                           |
@@ -203,7 +202,8 @@ Gói được ghim (`NOTEBOOKLM_MCP_PACKAGE`) vì dùng API không chính thức
   (sau 2, 5, 10 giây). Lỗi 403 nghĩa là bản edge-tts đã cũ.
 - Tải lên MP3/WAV (≤ `MAX_AUDIO_UPLOAD_MB`): giữ nguyên tệp, chỉ đo; cảnh báo nếu khoảng lặng đầu quá 0,5 giây.
   `TTS_MODE=upload` tắt hẳn TTS; sản xuất hàng loạt luôn lồng tiếng bằng edge-tts nên cần `TTS_MODE=edge-tts`.
-- Độ dài cảnh = âm thanh thật + `SCENE_AUDIO_PADDING_MS`; Studio không cắt lời hay đổi tốc độ đọc cho vừa khoảng thời lượng. Sửa chữ trên
+- Độ dài cảnh = âm thanh thật + khoảng nghỉ của nhịp độ video; Studio không cắt lời hay tự đổi nhịp độ cho vừa khoảng thời lượng. `TTS_SPEED` và
+  `SCENE_AUDIO_PADDING_MS` đã bỏ: tốc độ giọng và khoảng nghỉ nay theo nhịp độ chọn cho từng video (giá trị lạ trong `.env` bị bỏ qua). Sửa chữ trên
   màn hình giữ audio; sửa lời dẫn gỡ audio cũ.
 
 ## 4. Vận hành hằng ngày

@@ -9,6 +9,8 @@ export interface DraftRequestIdentity {
   // The draft proposes its own length inside this range, so the range (not a length) is part of the request.
   minDurationSec: number;
   maxDurationSec: number;
+  // How fast the narration will be voiced: the draft is written to the words that fit at that speed.
+  pace: string;
   // Remote source references change with every new revision of a source's text.
   sourceRemoteIds: readonly string[];
   revisionNote: string | null;

@@ -5,9 +5,11 @@ import { createHash } from "node:crypto";
 import { getBook } from "@/features/books/services/book.service";
 import { buildLessonSnapshot } from "@/features/videos/services/lesson-snapshot-builder";
 import { assertDurationRangeAllowed } from "@/features/videos/services/video.service";
+import { getAppConfig } from "@/shared/config/env";
 import { AppError, NotFoundError } from "@/shared/errors";
 import { createLogger } from "@/shared/logger";
 
+import { DEFAULT_PACE, type Pace } from "@/features/videos/domain/pace";
 import { toBatchStatus, toItemCheckpoint, toItemStatus } from "../domain/production-status";
 import {
   createProduction,
@@ -45,7 +47,7 @@ export function toProductionDto(record: ProductionRecord): ProductionDto {
 }
 
 // What was asked for, in order: the selection order becomes the item order.
-const fingerprintOf = (input: CreateProductionInput): string =>
+const fingerprintOf = (input: CreateProductionInput, pace: Pace): string =>
   createHash("sha256")
     .update(
       JSON.stringify({
@@ -53,6 +55,8 @@ const fingerprintOf = (input: CreateProductionInput): string =>
         lessonIds: input.lessonIds,
         minDurationSec: input.minDurationSec,
         maxDurationSec: input.maxDurationSec,
+        // Left out at the default so a request made before paces existed keeps its fingerprint.
+        ...(pace === DEFAULT_PACE ? {} : { pace }),
       }),
     )
     .digest("hex");
@@ -79,7 +83,8 @@ export async function requestProduction(
   input: CreateProductionInput,
 ): Promise<{ production: ProductionDto; reused: boolean }> {
   assertDurationRangeAllowed(input);
-  const fingerprint = fingerprintOf(input);
+  const pace = input.pace ?? getAppConfig().video.defaultPace;
+  const fingerprint = fingerprintOf(input, pace);
   const existing = await findProductionByKey(input.idempotencyKey);
   if (existing) return replay(existing, fingerprint);
 
@@ -115,6 +120,7 @@ export async function requestProduction(
       idempotencyKey: input.idempotencyKey,
       fingerprint,
       range: { minDurationSec: input.minDurationSec, maxDurationSec: input.maxDurationSec },
+      pace,
       items: input.lessonIds.flatMap((lessonId, index) => {
         const lesson = byId.get(lessonId);
         return lesson

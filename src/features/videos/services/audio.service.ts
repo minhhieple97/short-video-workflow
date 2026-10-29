@@ -17,8 +17,10 @@ import {
   type AudioFormat,
 } from "../domain/audio";
 import { estimateNarrationSeconds, secondsToFrames } from "../domain/duration";
+import { paceProfile, toPace, type PaceProfile } from "../domain/pace";
 import { createVoiceoverAsset, findSceneWithVideo, findVoiceoverByHash } from "../repositories/audio.repository";
 import { setSceneAudio } from "../repositories/video.repository";
+import { narrationRateOf } from "./scene-records";
 import { assertScriptNotGenerating } from "./video.service";
 
 const ACCEPTED_UPLOAD_MIME = new Set([
@@ -39,13 +41,17 @@ export async function requireScene(sceneId: string) {
   return scene;
 }
 
+// What the video's pace sets for its voice-over: the voice speed and the pause after each scene.
+export const sceneProfile = (scene: { video: { pace: string } }): PaceProfile => paceProfile(toPace(scene.video.pace));
+
 interface StoreAudioInput {
   videoId: string;
   sceneId: string;
   tempFile: string;
   format: AudioFormat;
-  provider: "edge-tts" | "upload";
+  provider: string;
   contentHash: string;
+  paddingMs: number;
   settings: Record<string, string | number>;
 }
 
@@ -78,15 +84,21 @@ export async function storeSceneAudio(input: StoreAudioInput): Promise<void> {
     });
     await setSceneAudio(input.videoId, input.sceneId, {
       audioAssetId: asset.id,
-      durationFrames: framesForAudio(probe.durationMs, getAppConfig().tts.paddingMs),
+      durationFrames: framesForAudio(probe.durationMs, input.paddingMs),
     });
   } finally {
     await fs.rm(input.tempFile, { force: true });
   }
 }
 
-// Identical narration + voice + speed reuses the clip already generated for this video.
-export async function reuseCachedVoiceover(videoId: string, sceneId: string, contentHash: string): Promise<boolean> {
+// Identical narration + voice + speed reuses the clip already generated for this video; the scene length is worked out
+// again with the video's current pause, so changing the pace never needs a new voice for a scene that has one.
+export async function reuseCachedVoiceover(
+  videoId: string,
+  sceneId: string,
+  contentHash: string,
+  paddingMs: number,
+): Promise<boolean> {
   const cached = await findVoiceoverByHash(videoId, contentHash);
   if (!cached?.durationMs) return false;
   const exists = await fs.stat(dataPath(cached.path)).then(
@@ -96,7 +108,7 @@ export async function reuseCachedVoiceover(videoId: string, sceneId: string, con
   if (!exists) return false;
   await setSceneAudio(videoId, sceneId, {
     audioAssetId: cached.id,
-    durationFrames: framesForAudio(cached.durationMs, getAppConfig().tts.paddingMs),
+    durationFrames: framesForAudio(cached.durationMs, paddingMs),
   });
   return true;
 }
@@ -126,6 +138,7 @@ export async function uploadSceneAudio(
     format,
     provider: "upload",
     contentHash,
+    paddingMs: sceneProfile(scene).paddingMs,
     settings: { originalName: path.basename(file.name).slice(0, 120) },
   });
 }
@@ -135,6 +148,6 @@ export async function detachSceneAudio(sceneId: string): Promise<void> {
   await assertScriptNotGenerating(scene.video.id);
   await setSceneAudio(scene.video.id, sceneId, {
     audioAssetId: null,
-    durationFrames: secondsToFrames(estimateNarrationSeconds(scene.narration)),
+    durationFrames: secondsToFrames(estimateNarrationSeconds(scene.narration, narrationRateOf(scene.video))),
   });
 }

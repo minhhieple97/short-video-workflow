@@ -46,6 +46,7 @@ export class ClaudeScenePlanCompiler implements ScenePlanCompiler {
       lesson: request.lesson,
       targetDurationSec: request.targetDurationSec,
       ...request.range,
+      pace: request.pace,
       revisionNote: request.revisionNote,
       promptVersion: SCENE_PLAN_PROMPT_VERSION,
     });

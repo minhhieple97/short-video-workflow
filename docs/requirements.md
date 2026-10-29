@@ -191,7 +191,7 @@ sửa tên/tác giả, xoá có giải thích ảnh hưởng. Tổng quan: tác 
 
 ### 5.6. Giọng đọc
 
-- Mỗi cảnh: edge-tts (giọng, tốc độ cấu hình được) hoặc tải MP3/WAV; tạo mọi cảnh còn thiếu; nghe; thay. Không dùng TTS trả phí.
+- Mỗi cảnh: edge-tts (giọng cấu hình được, tốc độ theo nhịp độ của video, xem §6.2) hoặc tải MP3/WAV; tạo mọi cảnh còn thiếu; nghe; thay. Không dùng TTS trả phí.
 - Đo bằng ffprobe; độ dài cảnh = âm thanh thật + khoảng đệm. Chỉ tạo lại khi lời dẫn, giọng hoặc tốc độ đổi.
 - edge-tts: cắt khoảng lặng đầu/cuối, tự thử lại vài lần khi dịch vụ không trả âm thanh. Âm thanh tải lên giữ nguyên, chỉ đo.
 - edge-tts không chính thức nên luồng thủ công luôn cho tải âm thanh lên. Luồng hàng loạt luôn dùng edge-tts, từng cảnh, chạy lại
@@ -269,11 +269,18 @@ H.264 + AAC. Font Be Vietnam Pro đóng gói sẵn; dấu tiếng Việt đúng 
   dài hơn; ý đơn giản thì ngắn; không kéo dài cho đủ. Đề xuất ngoài khoảng bị từ chối. Đổi khoảng giữ đề xuất nếu còn nằm trong
   khoảng, không thì kéo về đầu gần nhất.
 - Giới hạn cứng là **mức dài nhất**: bản cuối dài hơn thì chặn. Dài hơn đề xuất nhưng vẫn trong khoảng thì vẫn đạt. Ngắn hơn mức
-  ngắn nhất: luồng thủ công chỉ cảnh báo; luồng hàng loạt chặn và dùng lượt sửa AI. Không bao giờ tự nới khoảng, cắt lời hay đổi tốc
-  độ đọc.
+  ngắn nhất: luồng thủ công chỉ cảnh báo; luồng hàng loạt chặn và dùng lượt sửa AI. Không bao giờ tự nới khoảng, cắt lời hay đổi nhịp
+  độ.
 - Video dài kể sâu hơn, **không thêm bài học**; tối đa 30 cảnh sau hook (khoảng 8–15 giây mỗi cảnh). Quá 60 giây có thể không còn
   được tính là Shorts/Reels; người dùng tự cân nhắc khi đăng.
-- Lập kế hoạch theo khoảng 4 âm tiết/giây; thời lượng thật = âm thanh đo được + khoảng đệm; mỗi cảnh hiện ít nhất 2 giây.
+- Lập kế hoạch theo nhịp độ của video (xem dưới): khoảng 4 âm tiết/giây ở nhịp Chuẩn; thời lượng thật = âm thanh đo được + khoảng đệm;
+  mỗi cảnh hiện ít nhất 2 giây.
+- **Nhịp độ đọc** do người dùng chọn cho từng video (lúc tạo hoặc trong cài đặt) và cho cả lô sản xuất; mặc định `DEFAULT_PACE`. Có ba mức:
+  **Chuẩn** (giọng +0%, nghỉ 300 ms, 4 âm tiết/giây), **Nhanh** (+15%, 200 ms, 4,6) và **Rất nhanh** (+30%, 120 ms, 5,2). Một lựa chọn quyết
+  định cùng lúc tốc độ giọng, khoảng nghỉ giữa các cảnh, số chữ AI được viết cho một độ dài (nhịp nhanh hơn thì cùng thời lượng chứa thêm
+  khoảng 15–30% lời dẫn) và tốc độ chạy hình của cảnh. Hệ thống không bao giờ tự đổi nhịp độ, kể cả khi video ngắn hay dài hơn khoảng.
+  Đổi nhịp độ không tự đổi giọng đã tạo: tab Giọng đọc báo số cảnh có giọng ở nhịp khác và cho tạo lại tất cả (cảnh đúng tốc độ dùng lại
+  giọng cũ; âm thanh tải lên không bị thay).
 
 ### 6.3. Hook
 

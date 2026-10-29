@@ -24,7 +24,13 @@ describe("MockScriptStudioProvider", () => {
     };
     const range = { minDurationSec: 45, maxDurationSec: 90 };
 
-    const draft = await new MockScriptStudioProvider().writeDraft({ sources: [], lesson, range, revisionNote: null });
+    const draft = await new MockScriptStudioProvider().writeDraft({
+      sources: [],
+      lesson,
+      range,
+      pace: "STANDARD",
+      revisionNote: null,
+    });
     const seconds = draft.beats.reduce((sum, beat) => sum + estimateNarrationSeconds(beat.narration), 0);
 
     expect(seconds).toBeGreaterThanOrEqual(45);

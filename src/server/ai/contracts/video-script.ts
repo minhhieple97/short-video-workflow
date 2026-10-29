@@ -3,6 +3,7 @@ import { z } from "zod";
 import { DURATION_PRESETS_SEC, MAX_STORY_SCENES } from "@/features/videos/domain/duration";
 import { illustrationSchema } from "@/features/videos/domain/illustration";
 import { lessonSnapshotSchema } from "@/features/videos/domain/lesson-snapshot";
+import { PACES } from "@/features/videos/domain/pace";
 import { BODY_SCENE_TYPES, HOOK_VARIANTS, VISUAL_VARIANTS } from "@/features/videos/domain/scene-types";
 
 const narration = z.string().trim().min(1).max(600);
@@ -34,6 +35,8 @@ export const videoScriptInputSchema = z.object({
   // The lengths the user allows; the AI proposes one of them with the script.
   minDurationSec: durationPreset,
   maxDurationSec: durationPreset,
+  // How fast the narration will be voiced, so the script is written to that many words for its length.
+  pace: z.enum(PACES).default("STANDARD"),
   videoProfile: z.literal("SHORT_VERTICAL"),
   lessons: z.array(lessonSnapshotSchema).min(1),
   promptVersion: z.string(),
@@ -53,6 +56,7 @@ export const sceneRegenerationInputSchema = z.object({
   sceneId: z.string(),
   attempt: z.number().int().nonnegative(),
   targetDurationSec: z.number().int(),
+  pace: z.enum(PACES).default("STANDARD"),
   lessons: z.array(lessonSnapshotSchema).min(1),
   scene: storyboardSceneSchema,
   promptVersion: z.string(),

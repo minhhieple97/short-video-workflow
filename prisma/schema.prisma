@@ -170,6 +170,8 @@ model Video {
   // The lengths the user allows; the AI picks targetDurationSec inside them and the final render may not exceed the max.
   minDurationSec         Int                  @default(30)
   maxDurationSec         Int                  @default(300)
+  // PACES in features/videos/domain/pace.ts: sets the voice speed, the pause after each scene and the AI's word budget.
+  pace                   String               @default("STANDARD")
   // Why the AI chose targetDurationSec, in Vietnamese; null until a script or a production draft proposed a length.
   durationReason         String?
   scriptVersion          Int                  @default(1)
@@ -534,6 +536,7 @@ model ProductionBatch {
   targetDurationSec Int
   minDurationSec    Int       @default(30)
   maxDurationSec    Int       @default(300)
+  pace              String    @default("STANDARD")
   // QUEUED | RUNNING | COMPLETED | PARTIAL | FAILED | CANCELLED (a read model derived from the items).
   status            String
   createdAt         DateTime  @default(now())
