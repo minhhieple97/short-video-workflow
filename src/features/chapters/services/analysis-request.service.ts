@@ -69,6 +69,13 @@ export async function requestChapterAnalysis(chapterId: string, force: boolean):
 export async function requestBookAnalysis(bookId: string): Promise<{ jobs: JobDto[]; skipped: number }> {
   const book = await getBook(bookId);
   const chapters = await listChaptersByBook(bookId);
+  if (chapters.length === 0) {
+    throw new AppError(
+      "BOOK_HAS_NO_CHAPTERS",
+      "Sách chưa có chương để phân tích. Với PDF, hãy hoàn tất trích xuất và tạo chương trước.",
+      409,
+    );
+  }
   const jobs: JobDto[] = [];
   let skipped = 0;
 

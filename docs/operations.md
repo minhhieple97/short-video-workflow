@@ -298,6 +298,14 @@ pnpm, không phải chẩn đoán này.
 `MISTRAL_UPLOAD_SIZE_MISMATCH`: kích thước PDF OCR lưu tại Mistral khác tệp gửi; kiểm tra tệp/kết nối rồi **Thử lại**.
 JSONL của Batch có thể được Mistral chuẩn hoá và tăng kích thước; ứng dụng chỉ đối chiếu byte của PDF OCR.
 
+`BOOK_HAS_NO_CHAPTERS`: sách chưa có chương để phân tích. Với PDF, hoàn tất trích xuất và tạo chương trước; nút
+**Phân tích tất cả chương** bị vô hiệu khi chưa có chương.
+
+PDF trộn lớp chữ và OCR có thể sinh heading Markdown không phải chương. Nếu parser bỏ sót một dấu "Chương N" hoặc tạo hai
+chương trùng số trong cùng một phần (thường là mục lục), ứng dụng dùng NotebookLM để kiểm tra cấu trúc từ dàn ý giới hạn theo
+trang, gồm ứng viên giữa trang.
+Chưa cấu hình NotebookLM hoặc đề xuất không khớp văn bản → **Chưa xác định chương**, không tạo chương từ cấu trúc mơ hồ.
+
 ## 7. Dữ liệu, sao lưu và khôi phục
 
 ```

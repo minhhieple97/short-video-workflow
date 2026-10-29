@@ -135,7 +135,7 @@ tối đa 8 lần liên tiếp; sản xuất 10 phút, 5 lần; archive 30 phút
   mảng đối số, prompt qua stdin; env bỏ `CLAUDECODE*`/`CLAUDE_CODE_*` (không lồng phiên) và `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN`;
   timeout và huỷ → `SIGTERM`. Lỗi có mã ổn định (`AI_CLI_AUTH`, `AI_QUOTA_EXCEEDED`, `AI_CLI_TIMEOUT`, `INVALID_AI_OUTPUT`…).
 - Prompt có phiên bản; đổi chữ là tăng phiên bản: `chapter-analysis-v1`, `video-script-v6` (v1.1, cùng khung kể với sản xuất, đề xuất độ dài); `scene-plan-v5`
-  (biên dịch cảnh); `notebooklm-chapter-detection-v1`, `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v4` (đề xuất độ dài;
+  (biên dịch cảnh); `notebooklm-chapter-detection-v2`, `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v4` (đề xuất độ dài;
   cũng là `draftVersion` của cache). Danh sách độ dài được chọn và ngân sách lời của từng mức sinh từ `prompts/duration-choice.ts`.
 
 **Kiểm soát nội dung:**
@@ -227,10 +227,13 @@ theo số dòng, không trích nội dung. `cleanup` xoá tệp yêu cầu **cu�
 - `assembleExtractionDocument` ghép văn bản các trang (cách nhau `\n\n`, trang trống không chiếm chỗ) thành
   `extractions/<id>/canonical.md` kèm `pageOffsets` `[start, end)` đơn vị UTF-16, cùng đơn vị với offset chương, để `pageAtOffset` đổi
   offset về trang PDF. Thiếu hay lỗi trang nào → `EXTRACTION_INCOMPLETE`, không ghi gì. Offset không lưu mà tính lại từ các trang.
-- Chương: **cùng parser cục bộ** với sách Markdown chạy trên `canonical.md`; không thấy ranh giới → `DETECTING_CHAPTERS`. Không bao giờ
-  lấy cả sách làm một chương.
-- **Xác định chương bằng NotebookLM:** NotebookLM nhận "dàn ý theo trang" (mỗi trang `[Trang N]` + 160 ký tự đầu) cùng các dòng giống mục
-  lục, trả `[{title, startPage, endPage, startAnchor}]`. `verifyProposedChapters` chỉ chấp nhận khi **mọi** chương đạt: anchor (≥ 4 ký tự)
+- Chương: **cùng parser cục bộ** với sách Markdown chạy trên `canonical.md`. Không thấy ranh giới, hoặc chương tìm được không khớp
+  dấu "Chương N" của sách → `DETECTING_CHAPTERS`. Không khớp là: có dấu mà không chương nào mang số đó (heading OCR che mất, dấu
+  không có dòng trống phía trước), hoặc hai chương trong cùng một phần trùng số (mục lục bị tách thành chương). Dòng chỉ nhắc tới
+  một chương đã có, hay đánh số lại từ 1 ở mỗi phần, không tính. Không bao giờ lấy cả sách làm một chương.
+- **Xác định chương bằng NotebookLM:** NotebookLM nhận "dàn ý theo trang" (mỗi trang `[Trang N]` + 160 ký tự đầu), tối đa 3 ứng viên dấu
+  chương mỗi trang và 200 ứng viên cả sách (dấu chương + một dòng sau, mỗi dòng ≤ 120 ký tự), cùng các dòng giống mục lục; trả
+  `[{title, startPage, endPage, startAnchor}]`. `verifyProposedChapters` chỉ chấp nhận khi **mọi** chương đạt: anchor (≥ 4 ký tự)
   có thật ở trang bắt đầu hoặc trang kế; không bắt đầu ở trang mục lục; thứ tự tăng; trong phạm vi sách; không chương nào phủ ≥ 90 % sách
   từ 20 trang. Phần đầu sách trước chương đầu không thuộc chương nào. Không đạt → `NEEDS_CHAPTERS`, không tạo gì.
 

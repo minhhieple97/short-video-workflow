@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 
 import { parseBookStructure } from "@/features/books/domain/book-structure";
 import { normalizeChapterContent } from "@/features/books/domain/chapter-content";
-import { compileExtraPatterns } from "@/features/books/domain/chapter-markers";
+import { compileExtraPatterns, parseChapterMarker } from "@/features/books/domain/chapter-markers";
 import type { NewChapterRecord } from "@/features/books/repositories/book.repository";
 import { chapterFilePath, writeChapterFile } from "@/features/books/services/book-files";
 import { dataPath } from "@/server/storage/paths";
@@ -33,15 +33,46 @@ export interface ChapterRange {
 const sha256 = (text: string) => createHash("sha256").update(text, "utf8").digest("hex");
 
 // The chapters the local parser (the same one Markdown imports use) finds in the canonical document. Empty when it finds
-// no chapter boundary: its whole-book fallback is never returned as a structure.
+// no chapter boundary or its chapters disagree with the book's own chapter markers: neither its whole-book fallback nor an
+// uncertain structure is returned, so the detector decides instead.
 export function parseChapterRanges(markdown: string, extraChapterPatterns?: readonly string[]): ChapterRange[] {
   const structure = parseBookStructure(markdown, "md", {
     extraPatterns: compileExtraPatterns(extraChapterPatterns ?? getAppConfig().import.extraChapterPatterns),
   });
   if (structure.method === "none") return [];
-  return structure.sections
+  const ranges = structure.sections
     .filter((section) => section.include && section.kind === "chapter")
     .map(({ title, start, end }) => ({ title, start, end }));
+  return disagreesWithChapterMarkers(markdown, ranges) ? [] : ranges;
+}
+
+// A PDF mixes text-layer lines with OCR Markdown, so the parser can miss a "Chương N" marker (an OCR heading wins, or no
+// blank line precedes it) or turn table-of-contents lines into chapters. Both show in the numbers: a marker whose number
+// no chapter starts with, or two chapters of one part with the same number. A line that merely mentions an existing
+// chapter, and numbering that restarts in each part, are not disagreements.
+function disagreesWithChapterMarkers(markdown: string, ranges: readonly ChapterRange[]): boolean {
+  const starts = new Set(
+    ranges.map((range) => range.start + Math.max(0, markdown.slice(range.start, range.end).search(/\S/u))),
+  );
+  const chapterNumbers = new Set<string>();
+  const markerNumbers = new Set<string>();
+  let numbersInPart = new Set<string>();
+  let offset = 0;
+  for (const line of markdown.split("\n")) {
+    const marker = parseChapterMarker(line);
+    if (marker?.level === "part") numbersInPart = new Set();
+    if (marker?.level === "chapter") {
+      const number = marker.numeral.toLocaleLowerCase("vi");
+      markerNumbers.add(number);
+      if (starts.has(offset + line.search(/\S/u))) {
+        if (numbersInPart.has(number)) return true;
+        numbersInPart.add(number);
+        chapterNumbers.add(number);
+      }
+    }
+    offset += line.length + 1;
+  }
+  return [...markerNumbers].some((number) => !chapterNumbers.has(number));
 }
 
 // Writes one chapter file per range and creates the chapters while completing the run, in one transaction that moves the

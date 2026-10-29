@@ -480,6 +480,84 @@ describe.skipIf(!poppler)("runExtraction (needs poppler-utils)", () => {
     };
   };
 
+  const mixedStructurePages = [
+    `# OCR cover heading\n${BODY.join("\n")}`,
+    `${BODY.join("\n").repeat(3)}\nCHƯƠNG 1\nThói quen nhỏ\n${BODY.join("\n")}`,
+    `CHƯƠNG 2\nBản sắc mới\n${BODY.join("\n")}`,
+    `CHƯƠNG 3\nMôi trường sống\n${BODY.join("\n")}`,
+    "Mục lục\nCHƯƠNG 1\nThói quen nhỏ\nCHƯƠNG 2\nBản sắc mới\nCHƯƠNG 3\nMôi trường sống",
+  ];
+  const mixedStructureProposals = [
+    { title: "Thói quen nhỏ", startPage: 2, endPage: 2, startAnchor: "Thói quen nhỏ" },
+    { title: "Bản sắc mới", startPage: 3, endPage: 3, startAnchor: "Bản sắc mới" },
+    { title: "Môi trường sống", startPage: 4, endPage: 4, startAnchor: "Môi trường sống" },
+  ];
+  async function seedMixedStructure() {
+    const seeded = await seedPdf(mixedStructurePages.map(() => ({ lines: BODY })));
+    await db.prisma.bookExtraction.update({
+      where: { id: seeded.extractionId },
+      data: { status: "ASSEMBLING", pageCount: mixedStructurePages.length },
+    });
+    await db.prisma.extractionPage.createMany({
+      data: mixedStructurePages.map((text, index) => ({
+        extractionId: seeded.extractionId,
+        pageNumber: index + 1,
+        text,
+        status: "EXTRACTED",
+        method: index === 0 ? "OCR" : "TEXT",
+      })),
+    });
+    return seeded;
+  }
+
+  it("uses verified detector ranges when OCR headings conflict with real markers and a trailing table of contents", async () => {
+    const { bookId, extractionId } = await seedMixedStructure();
+    const { asked, detector: chapterDetector } = detector(async () => mixedStructureProposals);
+
+    await expect(run.runExtraction(extractionId, { ...deps(), chapterDetector })).resolves.toEqual({
+      kind: "COMPLETED",
+    });
+
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toContain("[Trang 2] Ứng viên chương: CHƯƠNG 1 / Thói quen nhỏ");
+    expect((await chapters(bookId)).map((chapter) => chapter.title)).toEqual([
+      "Thói quen nhỏ",
+      "Bản sắc mới",
+      "Môi trường sống",
+    ]);
+    const stored = await chapters(bookId);
+    const contents = stored.map((chapter) =>
+      fs.readFileSync(path.join(env.dataDir, chapter.contentPath ?? ""), "utf8"),
+    );
+    expect(contents[0]?.startsWith("Thói quen nhỏ")).toBe(true);
+    expect(contents.join("\n")).not.toMatch(/OCR cover heading|Mục lục/u);
+    expect(await operations(extractionId)).toEqual([]);
+  });
+
+  it("creates no chapters from a conflicting local structure when no detector is configured", async () => {
+    const { bookId, extractionId } = await seedMixedStructure();
+
+    await expect(run.runExtraction(extractionId, deps())).resolves.toMatchObject({ kind: "NEEDS_CHAPTERS" });
+
+    expect(await chapters(bookId)).toEqual([]);
+    expect(await extraction(extractionId)).toMatchObject({
+      status: "NEEDS_CHAPTERS",
+      errorCode: "CHAPTERS_NOT_DETECTED",
+    });
+    expect(await operations(extractionId)).toEqual([]);
+  });
+
+  it("rejects detector proposals that select repeated chapter titles on the trailing table of contents", async () => {
+    const { bookId, extractionId } = await seedMixedStructure();
+    const wrong = mixedStructureProposals.map((chapter) => ({ ...chapter, startPage: 5, endPage: 5 }));
+
+    await expect(
+      run.runExtraction(extractionId, { ...deps(), chapterDetector: detector(async () => wrong).detector }),
+    ).resolves.toMatchObject({ kind: "STOPPED", status: "NEEDS_CHAPTERS", code: "CHAPTER_DETECTION_REJECTED" });
+
+    expect(await chapters(bookId)).toEqual([]);
+  });
+
   it("asks the detector when the local parser finds no chapter and creates the chapters it proposes once they check out", async () => {
     const { bookId, extractionId } = await seedPdf(UNMARKED_BOOK);
     const { asked, detector: chapterDetector } = detector(async () => proposals);

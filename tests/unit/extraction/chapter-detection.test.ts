@@ -134,4 +134,34 @@ describe("buildChapterOutline", () => {
   it("gives no hints when no page reads like a table of contents", () => {
     expect(buildChapterOutline([{ pageNumber: 1, text: "Chương 1 .... 3\nChỉ một dòng" }]).hints).toEqual([]);
   });
+
+  it("includes mid-page chapter markers and their following title line without the surrounding body", () => {
+    const outline = buildChapterOutline([
+      {
+        pageNumber: 12,
+        text: `${"Đoạn kết chương trước. ".repeat(40)}\nCHƯƠNG 2\nBản sắc và thói quen\nKhông gửi toàn bộ nội dung chương này.`,
+      },
+    ]);
+
+    expect(outline.markdown.split("\n")).toHaveLength(2);
+    expect(outline.markdown).toContain("[Trang 12] Ứng viên chương: CHƯƠNG 2 / Bản sắc và thói quen");
+    expect(outline.markdown).not.toContain("Không gửi toàn bộ nội dung chương này.");
+  });
+
+  it("bounds candidate counts per page and globally, and limits each title fragment", () => {
+    const pages = Array.from({ length: 100 }, (_, index) => ({
+      pageNumber: index + 1,
+      text: [
+        "Dòng đầu trang.",
+        ...Array.from({ length: 10 }, (_, number) => `CHƯƠNG ${number + 1}\n${"Tên chương dài ".repeat(100)}`),
+      ].join("\n"),
+    }));
+    const lines = buildChapterOutline(pages).markdown.split("\n");
+    const candidates = lines.filter((line) => line.includes("Ứng viên chương:"));
+
+    expect(candidates).toHaveLength(200);
+    expect(candidates.filter((line) => line.startsWith("[Trang 1]"))).toHaveLength(3);
+    expect(candidates.every((line) => line.length <= 280)).toBe(true);
+    expect(lines.filter((line) => !line.includes("Ứng viên chương:"))).toHaveLength(100);
+  });
 });

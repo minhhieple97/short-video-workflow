@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type * as Canonical from "@/features/extraction/services/canonical-document.service";
+import type * as ExtractionChapters from "@/features/extraction/services/extraction-chapters.service";
 import type * as DbClient from "@/server/db/client";
 
 import { setupTestEnvironment, type TestEnvironment } from "../helpers/test-environment";
@@ -11,6 +12,7 @@ import { setupTestEnvironment, type TestEnvironment } from "../helpers/test-envi
 let env: TestEnvironment;
 let db: typeof DbClient;
 let canonical: typeof Canonical;
+let extractionChapters: typeof ExtractionChapters;
 let bookId: string;
 let extractionId: string;
 
@@ -46,6 +48,7 @@ beforeAll(async () => {
   env = setupTestEnvironment();
   db = await import("@/server/db/client");
   canonical = await import("@/features/extraction/services/canonical-document.service");
+  extractionChapters = await import("@/features/extraction/services/extraction-chapters.service");
 }, 60_000);
 
 beforeEach(() => {
@@ -55,6 +58,75 @@ beforeEach(() => {
 afterAll(async () => {
   await db.prisma.$disconnect();
   env.cleanup();
+});
+
+describe("PDF local chapter boundaries", () => {
+  const body = "Nội dung chương được giữ nguyên. ".repeat(10);
+
+  it("keeps complete plain-text and Markdown boundaries local, including leading whitespace", () => {
+    for (const prefix of ["", "# "]) {
+      const text = `\n  ${prefix}CHƯƠNG 1\n${body}\n\n${prefix}CHƯƠNG 2\n${body}`;
+      const ranges = extractionChapters.parseChapterRanges(text, []);
+
+      expect(ranges.map((range) => range.title)).toEqual(["CHƯƠNG 1", "CHƯƠNG 2"]);
+      expect(ranges.map((range) => text.slice(range.start, range.end))).toEqual([
+        expect.stringContaining("CHƯƠNG 1"),
+        expect.stringContaining("CHƯƠNG 2"),
+      ]);
+    }
+  });
+
+  it("defers when OCR Markdown headings hide explicit text-layer chapter markers", () => {
+    const text = `# Bìa OCR\n${body}\nCHƯƠNG 1\nTiêu đề thứ nhất\n${body}\n\nCHƯƠNG 2\n${body}`;
+
+    expect(extractionChapters.parseChapterRanges(text, [])).toEqual([]);
+  });
+
+  it("defers when a marker without a preceding blank line was missed", () => {
+    const text = `${body}\nCHƯƠNG 1\n${body}\n\nCHƯƠNG 2\n${body}`;
+
+    expect(extractionChapters.parseChapterRanges(text, [])).toEqual([]);
+  });
+
+  it("defers repeated chapter numbers from a trailing table of contents even if every marker was parsed", () => {
+    const text = `CHƯƠNG 1\n${body}\n\nCHƯƠNG 2\n${body}\n\nMỤC LỤC\n\nCHƯƠNG 1\nTiêu đề thứ nhất\n\nCHƯƠNG 2\nTiêu đề thứ hai`;
+
+    expect(extractionChapters.parseChapterRanges(text, [])).toEqual([]);
+  });
+
+  it("defers when a leading table of contents is split into chapters of its own", () => {
+    const text = `Mục lục\n\nChương 1: Một ........ 3\nChương 2: Hai ........ 9\n\nChương 1: Một\n\n${body}\n\nChương 2: Hai\n\n${body}`;
+
+    expect(extractionChapters.parseChapterRanges(text, [])).toEqual([]);
+  });
+
+  it("stays local when a printed line merely starts by mentioning an existing chapter, in any letter case", () => {
+    for (const [first, second, mention] of [
+      ["1", "2", "1"],
+      ["MỘT", "HAI", "một"],
+    ]) {
+      const text = `CHƯƠNG ${first}\n${body}\n\nCHƯƠNG ${second}\n${body}\nNhư đã thấy ở\nChương ${mention} thói quen nhỏ rất quan trọng.\n${body}`;
+
+      expect(extractionChapters.parseChapterRanges(text, []).map((range) => range.title)).toEqual([
+        `CHƯƠNG ${first}`,
+        `CHƯƠNG ${second}`,
+      ]);
+    }
+  });
+
+  it("stays local when each part numbers its chapters from one again", () => {
+    const text = [
+      `Phần 1: Nền tảng\n\nChương 1: Một\n\n${body}\n\nChương 2: Hai\n\n${body}`,
+      `Phần 2: Thực hành\n\nChương 1: Ba\n\n${body}\n\nChương 2: Bốn\n\n${body}`,
+    ].join("\n\n");
+
+    expect(extractionChapters.parseChapterRanges(text, []).map((range) => range.title)).toEqual([
+      "Chương 1: Một",
+      "Chương 2: Hai",
+      "Chương 1: Ba",
+      "Chương 2: Bốn",
+    ]);
+  });
 });
 
 describe("assembleExtractionDocument", () => {

@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -88,6 +89,56 @@ beforeAll(async () => {
 afterAll(async () => {
   await db.prisma.$disconnect();
   env.cleanup();
+});
+
+describe("book analysis prerequisites", () => {
+  it("rejects a book without chapters before creating or dispatching a job", async () => {
+    const emptyBook = await db.prisma.book.create({
+      data: {
+        title: "PDF chưa có chương",
+        sourceFilePath: "books/pending/original.pdf",
+        sourceFileName: "pending.pdf",
+        sourceHash: "pending-pdf",
+        sourceFormat: "pdf",
+        sourceSizeBytes: 1,
+        status: "ACTIVE",
+      },
+    });
+    const jobsBefore = await db.prisma.jobRecord.count();
+    const dispatchesBefore = await db.prisma.jobDispatch.count();
+
+    await expect(analysisRequest.requestBookAnalysis(emptyBook.id)).rejects.toMatchObject({
+      code: "BOOK_HAS_NO_CHAPTERS",
+      httpStatus: 409,
+    });
+
+    expect(await db.prisma.jobRecord.count()).toBe(jobsBefore);
+    expect(await db.prisma.jobDispatch.count()).toBe(dispatchesBefore);
+  });
+
+  it("still skips every chapter when the book has already been analysed", async () => {
+    const importedBook = await db.prisma.book.findUniqueOrThrow({ where: { id: bookId } });
+    const completedBook = await db.prisma.book.create({
+      data: { ...importedBook, id: undefined, title: "Sách đã phân tích" },
+    });
+    const source = await db.prisma.chapter.findUniqueOrThrow({ where: { id: chapterIds[0] } });
+    const content = "Nội dung sách đã phân tích.";
+    const chapter = await db.prisma.chapter.create({
+      data: {
+        ...source,
+        id: undefined,
+        bookId: completedBook.id,
+        content,
+        contentHash: createHash("sha256").update(content).digest("hex"),
+        contentPath: null,
+      },
+    });
+    await analysis.runChapterAnalysis({ chapterId: chapter.id, jobRecordId: null, force: false });
+    const jobsBefore = await db.prisma.jobRecord.count();
+
+    await expect(analysisRequest.requestBookAnalysis(completedBook.id)).resolves.toEqual({ jobs: [], skipped: 1 });
+    expect(await db.prisma.jobRecord.count()).toBe(jobsBefore);
+  });
 });
 
 describe("Redis unavailable", () => {
