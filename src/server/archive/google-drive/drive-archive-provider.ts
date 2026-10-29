@@ -2,15 +2,16 @@ import { hashFile } from "@/server/storage/file-hash";
 import type { CallOptions } from "@/server/integrations/call-options";
 import { IntegrationError } from "@/server/integrations/integration-error";
 
-import type {
-  ArchiveDestination,
-  ArchiveDestinationRequest,
-  ArchiveUploadOptions,
-  ArchiveUploadRequest,
-  ArchiveUploadResult,
-  ArchiveVerification,
-  ArchiveVerifyRequest,
-  VideoArchiveProvider,
+import {
+  remoteFileId,
+  type ArchiveDestination,
+  type ArchiveDestinationRequest,
+  type ArchiveUploadOptions,
+  type ArchiveUploadRequest,
+  type ArchiveUploadResult,
+  type ArchiveVerification,
+  type ArchiveVerifyRequest,
+  type VideoArchiveProvider,
 } from "../video-archive-provider";
 import type { DriveCapacityGuard } from "./drive-capacity";
 import { DriveFolderTree, type ArchiveFolderStore } from "./drive-folder-tree";
@@ -57,7 +58,10 @@ export class GoogleDriveArchiveProvider implements VideoArchiveProvider {
   // Compares what Drive holds with the local file now, rather than trusting an earlier upload answer. The checksum
   // encoding is not stated in Drive's reference; hex (as Drive returns for md5Checksum) is compared case-insensitively.
   async verify(request: ArchiveVerifyRequest, options?: CallOptions): Promise<ArchiveVerification> {
-    const remote = await this.drive.getFileMetadata(request.destination.fileIds[request.file.kind], options?.signal);
+    const remote = await this.drive.getFileMetadata(
+      remoteFileId(request.destination, request.file.kind),
+      options?.signal,
+    );
     if (!remote) return { status: "missing" };
     if (remote.trashed) return { status: "mismatch", reason: "Tệp trên Drive đã bị chuyển vào thùng rác." };
 

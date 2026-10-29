@@ -27,7 +27,7 @@ async function open(page: Page, url: string): Promise<void> {
   await page.waitForLoadState("networkidle");
 }
 
-function mp4Files(): string[] {
+function videoFiles(suffix: string): string[] {
   const found: string[] = [];
   const stack = [path.join(E2E_DATA_DIR, "videos")];
   while (stack.length > 0) {
@@ -35,7 +35,7 @@ function mp4Files(): string[] {
     for (const entry of fs.existsSync(directory) ? fs.readdirSync(directory, { withFileTypes: true }) : []) {
       const full = path.join(directory, entry.name);
       if (entry.isDirectory()) stack.push(full);
-      else if (entry.name.endsWith(".mp4")) found.push(full);
+      else if (entry.name.endsWith(suffix)) found.push(full);
     }
   }
   return found;
@@ -49,7 +49,8 @@ test("E2E-02: PDF → catalogue → chosen lesson → vertical video archived to
     pdfFile,
     buildPdf([{ lines: ["Chapter 1", ...BODY] }, { lines: BODY }, { lines: ["Chapter 2", ...BODY] }]),
   );
-  const mp4Before = new Set(mp4Files());
+  const mp4Before = new Set(videoFiles(".mp4"));
+  const publishBefore = new Set(videoFiles("-publish.txt"));
 
   await test.step("upload the PDF and wait for its chapters", async () => {
     const connection = new Redis(E2E_ENV.REDIS_URL ?? "", { maxRetriesPerRequest: null });
@@ -138,8 +139,16 @@ test("E2E-02: PDF → catalogue → chosen lesson → vertical video archived to
     await expect(page.getByText(/^AI đề xuất \d+ (giây|phút): .+/)).toBeVisible();
   });
 
+  await test.step("the archive carries the title, caption and hashtags written with the scene plan", async () => {
+    const [publish, ...others] = videoFiles("-publish.txt").filter((file) => !publishBefore.has(file));
+    expect(others).toHaveLength(0);
+    expect(fs.readFileSync(publish ?? "", "utf8")).toMatch(
+      /^TIÊU ĐỀ\n.+\n\nCAPTION\n[\s\S]+\n\n#sachhay .*#booktok\n$/,
+    );
+  });
+
   await test.step("the render is a 9:16 H.264 + AAC MP4 and the lesson was never approved", async () => {
-    const created = mp4Files().filter((file) => !mp4Before.has(file));
+    const created = videoFiles(".mp4").filter((file) => !mp4Before.has(file));
     expect(created).toHaveLength(1);
     const probe = JSON.parse(
       execFileSync("ffprobe", [

@@ -7,6 +7,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type * as UsageRepository from "@/features/archive/repositories/drive-usage.repository";
 import { DriveCapacityGuard, type DriveCapacity } from "@/server/archive/google-drive/drive-capacity";
 import { GoogleDriveArchiveProvider } from "@/server/archive/google-drive/drive-archive-provider";
+import { remoteFileId } from "@/server/archive/video-archive-provider";
 import { DriveRequestMeter, type DriveUsageLedger } from "@/server/archive/google-drive/drive-request-meter";
 import { UPLOAD_CHUNK_UNIT } from "@/server/archive/google-drive/drive-resumable-upload";
 import { GoogleDriveClient } from "@/server/archive/google-drive/google-drive-client";
@@ -280,7 +281,7 @@ describe("DriveCapacityGuard", () => {
     expect(google.requests.some((entry) => entry.path === "/upload/drive/v3/files")).toBe(false);
 
     const session = await drive.startResumableUpload({
-      id: destination.fileIds.VIDEO,
+      id: remoteFileId(destination, "VIDEO"),
       name: "v.mp4",
       parentId: destination.folderId,
       mimeType: "video/mp4",

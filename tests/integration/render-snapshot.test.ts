@@ -66,6 +66,19 @@ afterAll(async () => {
 });
 
 describe("captureRenderSnapshot", () => {
+  it("carries the current title, caption and hashtags, and leaves out a set written for an earlier script", async () => {
+    const { snapshot } = await snapshots.captureRenderSnapshot(videoId, "FINAL");
+    expect(snapshot.publish?.hashtags).toEqual(expect.arrayContaining(["sachhay", "booktok"]));
+    expect(Object.keys(snapshot.publish ?? {}).sort()).toEqual(["caption", "hashtags", "title"]);
+
+    await db.prisma.videoScene.updateMany({
+      where: { videoId, type: "SITUATION" },
+      data: { narration: "Một tình huống khác hẳn." },
+    });
+    const { snapshot: later } = await snapshots.captureRenderSnapshot(videoId, "FINAL");
+    expect(later.publish).toBeUndefined();
+  });
+
   it("records the scenes in order with their audio, the lesson sources and the gate state", async () => {
     const { snapshot, hash } = await snapshots.captureRenderSnapshot(videoId, "FINAL");
 

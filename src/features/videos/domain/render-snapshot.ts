@@ -76,6 +76,9 @@ export const renderSnapshotSchema = z.object({
       sources: z.array(z.object({ chapterId: z.string(), chapterTitle: z.string(), excerpt: z.string().nullable() })),
     }),
   ),
+  // The title, caption and hashtags to post the video with, when a current set existed at request time (archived as
+  // publish.txt). Optional without a default, like the fields above, so older snapshots keep their hash.
+  publish: z.object({ title: z.string(), caption: z.string(), hashtags: z.array(z.string()) }).optional(),
 });
 
 export type RenderSnapshot = z.infer<typeof renderSnapshotSchema>;

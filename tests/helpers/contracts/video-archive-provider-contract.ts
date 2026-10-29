@@ -48,7 +48,7 @@ export function describeVideoArchiveProviderContract(name: string, createHarness
 
       expect(destination.folderId.length).toBeGreaterThan(0);
       const ids = ARCHIVE_FILE_KINDS.map((kind) => destination.fileIds[kind]);
-      expect(ids.every((id) => id.length > 0)).toBe(true);
+      expect(ids.every((id) => (id ?? "").length > 0)).toBe(true);
       expect(new Set(ids).size).toBe(ARCHIVE_FILE_KINDS.length);
       expect(remoteObjectCount()).toBe(0);
     });

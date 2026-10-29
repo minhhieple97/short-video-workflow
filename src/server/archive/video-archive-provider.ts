@@ -1,7 +1,12 @@
 import type { CallOptions } from "@/server/integrations/call-options";
 
-export const ARCHIVE_FILE_KINDS = ["VIDEO", "SCRIPT", "MANIFEST"] as const;
+// PUBLISH (publish.txt) is archived only for a render whose snapshot carries a title, caption and hashtags.
+export const ARCHIVE_FILE_KINDS = ["VIDEO", "SCRIPT", "PUBLISH", "MANIFEST"] as const;
 export type ArchiveFileKind = (typeof ARCHIVE_FILE_KINDS)[number];
+
+export function isArchiveFileKind(value: string): value is ArchiveFileKind {
+  return ARCHIVE_FILE_KINDS.some((kind) => kind === value);
+}
 
 export interface ArchiveDestinationRequest {
   bookId: string;
@@ -9,10 +14,17 @@ export interface ArchiveDestinationRequest {
   renderId: string;
 }
 
-// Remote IDs are allocated before any upload, so a retry after a lost response targets the same objects.
+// Remote IDs are allocated before any upload, so a retry after a lost response targets the same objects. A new
+// destination has one for every kind; an archive stored before a kind existed has none for it and never uploads one.
 export interface ArchiveDestination {
   folderId: string;
-  fileIds: Record<ArchiveFileKind, string>;
+  fileIds: Partial<Record<ArchiveFileKind, string>>;
+}
+
+export function remoteFileId(destination: ArchiveDestination, kind: ArchiveFileKind): string {
+  const id = destination.fileIds[kind];
+  if (!id) throw new Error(`The archive destination has no remote ID for ${kind}.`);
+  return id;
 }
 
 export interface ArchiveFileSource {

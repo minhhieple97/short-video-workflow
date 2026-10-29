@@ -4,10 +4,11 @@ import { createJobIntentWithin } from "@/features/jobs/repositories/job-dispatch
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import { ACTIVE_JOB_STATUSES } from "@/shared/types/job";
-import type {
-  ArchiveDestination,
-  ArchiveFileKind,
-  ArchiveUploadCheckpoint,
+import {
+  isArchiveFileKind,
+  type ArchiveDestination,
+  type ArchiveFileKind,
+  type ArchiveUploadCheckpoint,
 } from "@/server/archive/video-archive-provider";
 
 import { UNFINISHED_ARCHIVE_STATUSES } from "../domain/archive-status";
@@ -80,13 +81,15 @@ export async function saveRemoteIds(archiveId: string, destination: ArchiveDesti
   });
 }
 
+// The IDs of this archive's own files; null until every one of them has its ID.
 export function storedDestination(archive: RenderArchiveRecord): ArchiveDestination | null {
-  const ids = new Map(archive.files.map((file) => [file.kind, file.remoteFileId]));
-  const video = ids.get("VIDEO");
-  const script = ids.get("SCRIPT");
-  const manifest = ids.get("MANIFEST");
-  if (!archive.remoteFolderId || !video || !script || !manifest) return null;
-  return { folderId: archive.remoteFolderId, fileIds: { VIDEO: video, SCRIPT: script, MANIFEST: manifest } };
+  if (!archive.remoteFolderId) return null;
+  const fileIds: Partial<Record<ArchiveFileKind, string>> = {};
+  for (const file of archive.files) {
+    if (!file.remoteFileId || !isArchiveFileKind(file.kind)) return null;
+    fileIds[file.kind] = file.remoteFileId;
+  }
+  return { folderId: archive.remoteFolderId, fileIds };
 }
 
 // The local file is fixed when it is handed to the archive; a file already being uploaded keeps what it started with.

@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 
 import type { CallOptions } from "@/server/integrations/call-options";
 import {
+  remoteFileId,
   type ArchiveDestination,
   type ArchiveDestinationRequest,
   type ArchiveUploadOptions,
@@ -34,14 +35,19 @@ export class FakeVideoArchiveProvider implements VideoArchiveProvider {
     const prefix = `fake-${this.destinations}`;
     return {
       folderId: `${prefix}-folder`,
-      fileIds: { VIDEO: `${prefix}-video`, SCRIPT: `${prefix}-script`, MANIFEST: `${prefix}-manifest` },
+      fileIds: {
+        VIDEO: `${prefix}-video`,
+        SCRIPT: `${prefix}-script`,
+        PUBLISH: `${prefix}-publish`,
+        MANIFEST: `${prefix}-manifest`,
+      },
     };
   }
 
   async upload(request: ArchiveUploadRequest, options?: ArchiveUploadOptions): Promise<ArchiveUploadResult> {
     options?.signal?.throwIfAborted();
     const content = await fs.readFile(request.file.localPath);
-    this.remote.set(request.destination.fileIds[request.file.kind], {
+    this.remote.set(remoteFileId(request.destination, request.file.kind), {
       bytes: content.byteLength,
       sha256: sha256Of(content),
     });
@@ -50,7 +56,7 @@ export class FakeVideoArchiveProvider implements VideoArchiveProvider {
 
   async verify(request: ArchiveVerifyRequest, options?: CallOptions): Promise<ArchiveVerification> {
     options?.signal?.throwIfAborted();
-    const stored = this.remote.get(request.destination.fileIds[request.file.kind]);
+    const stored = this.remote.get(remoteFileId(request.destination, request.file.kind));
     if (!stored) return { status: "missing" };
 
     const content = await fs.readFile(request.file.localPath);

@@ -6,6 +6,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { GoogleDriveArchiveProvider } from "@/server/archive/google-drive/drive-archive-provider";
+import { remoteFileId } from "@/server/archive/video-archive-provider";
 import { UPLOAD_CHUNK_UNIT } from "@/server/archive/google-drive/drive-resumable-upload";
 import { GoogleDriveClient } from "@/server/archive/google-drive/google-drive-client";
 import type {
@@ -178,7 +179,7 @@ describe("upload after a lost answer", () => {
 
     expect(replay).toEqual({ bytes: SIZE });
     expect(videoObjects()).toHaveLength(1);
-    expect(google.requests.at(-1)?.path).toBe(`/drive/v3/files/${destination.fileIds.VIDEO}`);
+    expect(google.requests.at(-1)?.path).toBe(`/drive/v3/files/${remoteFileId(destination, "VIDEO")}`);
   });
 
   it("names the problem when the render's folder was removed in Drive", async () => {
@@ -201,7 +202,7 @@ describe("verify", () => {
 
   it("verifies the remote file against the local one with SHA-256", async () => {
     expect(await verify()).toEqual({ status: "verified" });
-    const [get] = google.requestsTo(`/drive/v3/files/${destination.fileIds.VIDEO}`);
+    const [get] = google.requestsTo(`/drive/v3/files/${remoteFileId(destination, "VIDEO")}`);
     expect(get?.query.get("fields")).toBe("id,size,md5Checksum,sha256Checksum,trashed");
   });
 
@@ -232,11 +233,11 @@ describe("verify", () => {
     expect(await verify()).toMatchObject({ status: "mismatch", reason: expect.stringContaining("Kích thước") });
     fs.writeFileSync(file.localPath, content);
 
-    const object = google.objects.get(destination.fileIds.VIDEO);
+    const object = google.objects.get(remoteFileId(destination, "VIDEO"));
     if (object) object.trashed = true;
     expect(await verify()).toMatchObject({ status: "mismatch" });
 
-    google.objects.delete(destination.fileIds.VIDEO);
+    google.objects.delete(remoteFileId(destination, "VIDEO"));
     expect(await verify()).toEqual({ status: "missing" });
   });
 });

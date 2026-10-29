@@ -1,3 +1,4 @@
+import { readStoredRenderSnapshot } from "@/features/videos/domain/render-snapshot";
 import { readDriveCredential } from "@/server/archive/google-drive/drive-credential-store";
 import { GOOGLE_DRIVE_PROVIDER_ID } from "@/server/archive/google-drive/drive-archive-provider";
 import { createLogger } from "@/shared/logger";
@@ -41,9 +42,11 @@ export async function requestRenderArchive(
     return { status: "NOT_ARCHIVABLE" };
   }
   const names = archiveFileNames(render);
+  const withPublish = readStoredRenderSnapshot(render.snapshotJson, render.snapshotHash)?.publish !== undefined;
   const { archiveId, created } = await createArchiveWithJob({ renderId, ...target }, [
     { kind: "VIDEO", remoteName: names.VIDEO },
     { kind: "SCRIPT", remoteName: names.SCRIPT },
+    ...(withPublish ? [{ kind: "PUBLISH" as const, remoteName: names.PUBLISH }] : []),
     { kind: "MANIFEST", remoteName: names.MANIFEST },
   ]);
   if (created) logger.info("Archive requested", { renderId, archiveId });

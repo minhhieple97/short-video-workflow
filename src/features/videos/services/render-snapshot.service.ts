@@ -116,6 +116,10 @@ export async function captureRenderSnapshot(
         sources: lesson.success ? lesson.data.sources : [],
       };
     }),
+    // A set written for an earlier script is left out rather than posted with a video it no longer describes.
+    ...(video.publish && !video.publish.outdated
+      ? { publish: { title: video.publish.title, caption: video.publish.caption, hashtags: video.publish.hashtags } }
+      : {}),
   };
   return { snapshot, hash: fingerprintRenderSnapshot(snapshot), video };
 }

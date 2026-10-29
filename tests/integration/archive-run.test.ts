@@ -6,7 +6,9 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 
 import type * as FolderRepository from "@/features/archive/repositories/archive-folder.repository";
 import type * as ArchiveRepository from "@/features/archive/repositories/render-archive.repository";
+import type * as ArchiveRequest from "@/features/archive/services/archive-request.service";
 import type * as ArchiveRun from "@/features/archive/services/archive-run.service";
+import { formatPublishText } from "@/features/videos/domain/publish-metadata";
 import {
   currentSnapshotIdentity,
   fingerprintRenderSnapshot,
@@ -26,6 +28,7 @@ let db: typeof DbClient;
 let repo: typeof ArchiveRepository;
 let folders: typeof FolderRepository;
 let run: typeof ArchiveRun;
+let requests: typeof ArchiveRequest;
 let google: FakeGoogleServer;
 
 let videoId: string;
@@ -139,6 +142,7 @@ beforeAll(async () => {
   repo = await import("@/features/archive/repositories/render-archive.repository");
   folders = await import("@/features/archive/repositories/archive-folder.repository");
   run = await import("@/features/archive/services/archive-run.service");
+  requests = await import("@/features/archive/services/archive-request.service");
 }, 60_000);
 
 beforeEach(async () => {
@@ -207,6 +211,58 @@ afterAll(async () => {
 });
 
 describe("runRenderArchive", () => {
+  it("adds publish.txt, listed in the manifest, when the render carries a title, caption and hashtags", async () => {
+    const publish = {
+      title: "Vì sao bạn cứ hẹn ngày mai?",
+      caption: "Vì sao bạn cứ hẹn ngày mai?\nSách: Sách thói quen\nLưu lại để thử tối nay!",
+      hashtags: ["sachhay", "thoiquen", "booktok"],
+    };
+    const snapshot = { ...snapshotFor(videoId), publish };
+    await db.prisma.renderArchive.deleteMany();
+    await db.prisma.renderRecord.update({
+      where: { id: renderId },
+      data: { snapshotJson: snapshot, snapshotHash: fingerprintRenderSnapshot(snapshot), archiveIntentAt: new Date() },
+    });
+
+    const requested = await requests.requestRenderArchive(renderId, {
+      provider: "google-drive",
+      destinationKey: "permission-1",
+    });
+    if (requested.status !== "REQUESTED") throw new Error("The render is archivable.");
+    archiveId = requested.archiveId;
+    expect((await archive()).files.map((file) => file.kind).sort()).toEqual(["MANIFEST", "PUBLISH", "SCRIPT", "VIDEO"]);
+
+    expect(await run.runRenderArchive({ archiveId, provider: provider() })).toEqual({ kind: "COMPLETED" });
+
+    expect(uploadStarts().map((start) => (JSON.parse(start.body) as { name: string }).name)).toEqual([
+      `video_s4_${renderId}_1080x1920.mp4`,
+      "script.json",
+      "publish.txt",
+      "manifest.json",
+    ]);
+    const text = formatPublishText(publish);
+    expect(filesByName().get("publish.txt")?.content?.toString("utf8")).toBe(text);
+    expect(readLocal(`videos/${videoId}/renders/${renderId}-publish.txt`)).toBe(text);
+    const manifest = JSON.parse(readLocal(`videos/${videoId}/renders/${renderId}-manifest.json`)) as {
+      files: Record<string, unknown>;
+    };
+    expect(manifest.files.publish).toEqual({
+      name: "publish.txt",
+      bytes: Buffer.byteLength(text),
+      sha256: createHash("sha256").update(text).digest("hex"),
+    });
+  });
+
+  it("archives only the three files of a render without a publish set", async () => {
+    await run.runRenderArchive({ archiveId, provider: provider() });
+
+    expect([...filesByName().keys()]).not.toContain("publish.txt");
+    const manifest = JSON.parse(readLocal(`videos/${videoId}/renders/${renderId}-manifest.json`)) as {
+      files: Record<string, unknown>;
+    };
+    expect(Object.keys(manifest.files).sort()).toEqual(["script", "video"]);
+  });
+
   it("uploads the MP4, then the script, then the manifest into the render's folder and completes once all are verified", async () => {
     expect(await run.runRenderArchive({ archiveId, provider: provider() })).toEqual({ kind: "COMPLETED" });
 
@@ -300,7 +356,7 @@ describe("runRenderArchive", () => {
     });
 
     expect(readLocal(`videos/${videoId}/renders/${renderId}-manifest.json`)).toBe(first);
-    expect(again.MANIFEST.sha256).toBe((await archive()).files.find((file) => file.kind === "MANIFEST")?.sha256);
+    expect(again.MANIFEST?.sha256).toBe((await archive()).files.find((file) => file.kind === "MANIFEST")?.sha256);
   });
 
   it("resumes an interrupted run from where each file stood, without a second copy of anything", async () => {

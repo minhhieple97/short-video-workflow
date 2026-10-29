@@ -18,11 +18,13 @@ export interface ArchiveRenderFacts {
   completedAt: string;
 }
 
-// Remote names follow the plan's layout: video_s<script version>_<renderId>_<width>x<height>.mp4, script.json, manifest.json.
+// Remote names follow the plan's layout: video_s<script version>_<renderId>_<width>x<height>.mp4, script.json,
+// publish.txt (only when the render carries a title, caption and hashtags), manifest.json.
 export function archiveFileNames(render: { id: string; scriptVersion: number; width: number; height: number }) {
   return {
     VIDEO: `video_s${render.scriptVersion}_${render.id}_${render.width}x${render.height}.mp4`,
     SCRIPT: "script.json",
+    PUBLISH: "publish.txt",
     MANIFEST: "manifest.json",
   } as const;
 }
@@ -81,7 +83,7 @@ function illustrativeScenes(snapshot: RenderSnapshot): { illustrativeScenes?: nu
 export function buildArchiveManifest(
   snapshot: RenderSnapshot,
   facts: ArchiveRenderFacts,
-  files: { video: ArchiveFileDigest; script: ArchiveFileDigest },
+  files: { video: ArchiveFileDigest; script: ArchiveFileDigest; publish?: ArchiveFileDigest },
 ) {
   return {
     schemaVersion: ARCHIVE_MANIFEST_VERSION,

@@ -166,7 +166,8 @@ export function PublishMetadataPanel({
               <Alert>
                 <AlertTitle>Kịch bản đã đổi sau khi viết bộ này</AlertTitle>
                 <AlertDescription>
-                  Hãy đọc lại và sửa cho khớp rồi bấm Lưu, hoặc bấm “Tạo lại” để AI viết theo kịch bản mới.
+                  Hãy đọc lại và sửa cho khớp rồi bấm Lưu, hoặc bấm “Tạo lại” để AI viết theo kịch bản mới. Cho tới lúc
+                  đó, bản render cuối không kèm publish.txt khi lưu lên Google Drive.
                 </AlertDescription>
               </Alert>
             ) : null}

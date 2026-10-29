@@ -90,8 +90,11 @@ export class DriveFolderTree {
     }
     if (!parent) throw new Error("The archive folder chain is never empty.");
 
-    const [video = "", script = "", manifest = ""] = ids.slice(missing.length);
-    return { folderId: parent.remoteId, fileIds: { VIDEO: video, SCRIPT: script, MANIFEST: manifest } };
+    const fileIds = ids.slice(missing.length);
+    return {
+      folderId: parent.remoteId,
+      fileIds: Object.fromEntries(ARCHIVE_FILE_KINDS.map((kind, index) => [kind, fileIds[index] ?? ""])),
+    };
   }
 
   private async createFolder(

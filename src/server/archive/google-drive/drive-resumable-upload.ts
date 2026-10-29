@@ -2,7 +2,12 @@ import fs from "node:fs/promises";
 
 import { IntegrationError } from "@/server/integrations/integration-error";
 
-import type { ArchiveUploadOptions, ArchiveUploadRequest, ArchiveUploadResult } from "../video-archive-provider";
+import {
+  remoteFileId,
+  type ArchiveUploadOptions,
+  type ArchiveUploadRequest,
+  type ArchiveUploadResult,
+} from "../video-archive-provider";
 import { googleStatusOf, type DriveUploadState, type GoogleDriveClient } from "./google-drive-client";
 
 // Google requires every chunk but the last to be a multiple of 256 KiB.
@@ -120,7 +125,7 @@ export class DriveResumableUpload {
     signal: AbortSignal | undefined,
   ): Promise<{ kind: "session"; session: string } | { kind: "complete"; size: number }> {
     const { file, destination } = request;
-    const fileId = destination.fileIds[file.kind];
+    const fileId = remoteFileId(destination, file.kind);
     try {
       const session = await this.drive.startResumableUpload(
         {

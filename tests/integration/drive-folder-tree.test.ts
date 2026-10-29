@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type * as FolderRepository from "@/features/archive/repositories/archive-folder.repository";
 import type * as DriveClient from "@/server/archive/google-drive/google-drive-client";
 import type * as FolderTree from "@/server/archive/google-drive/drive-folder-tree";
+import { ARCHIVE_FILE_KINDS } from "@/server/archive/video-archive-provider";
 import type * as DbClient from "@/server/db/client";
 
 import { FakeGoogleServer } from "../helpers/fake-google-server";
@@ -70,7 +71,7 @@ describe("archiveFolderChain", () => {
 });
 
 describe("DriveFolderTree.prepare", () => {
-  it("creates the whole chain with IDs it reserved first, and hands out three fresh file IDs", async () => {
+  it("creates the whole chain with IDs it reserved first, and hands out a fresh ID for every file kind", async () => {
     const destination = await tree().prepare(REQUEST);
 
     const bodies = createdBodies();
@@ -90,10 +91,10 @@ describe("DriveFolderTree.prepare", () => {
     expect(bodies.every((body) => body.mimeType === "application/vnd.google-apps.folder")).toBe(true);
     expect(destination.folderId).toBe(bodies.at(-1)?.id);
     const fileIds = Object.values(destination.fileIds);
-    expect(new Set(fileIds).size).toBe(3);
+    expect(new Set(fileIds).size).toBe(ARCHIVE_FILE_KINDS.length);
     expect(fileIds.some((id) => google.objects.has(id))).toBe(false);
     expect(google.requestsTo("/drive/v3/files/generateIds").map((request) => request.query.get("count"))).toEqual([
-      "10",
+      "11",
     ]);
 
     const bindings = await db.prisma.archiveFolder.findMany({ orderBy: { path: "asc" } });
@@ -116,8 +117,8 @@ describe("DriveFolderTree.prepare", () => {
     expect(createdBodies()[7]?.parents).toEqual([createdBodies()[5]?.id]);
     expect(second.folderId).not.toBe(first.folderId);
     expect(google.requestsTo("/drive/v3/files/generateIds").map((request) => request.query.get("count"))).toEqual([
-      "10",
-      "4",
+      "11",
+      "5",
     ]);
   });
 

@@ -1,9 +1,5 @@
 import { readStoredRenderSnapshot } from "@/features/videos/domain/render-snapshot";
-import {
-  ARCHIVE_FILE_KINDS,
-  type ArchiveFileKind,
-  type VideoArchiveProvider,
-} from "@/server/archive/video-archive-provider";
+import { type ArchiveFileKind, type VideoArchiveProvider } from "@/server/archive/video-archive-provider";
 import { IntegrationError } from "@/server/integrations/integration-error";
 import { NotFoundError } from "@/shared/errors";
 import { createLogger } from "@/shared/logger";
@@ -28,8 +24,8 @@ const logger = createLogger("archive.run");
 
 export type ArchiveRunOutcome = { kind: "COMPLETED" } | { kind: "FAILED"; code: string; message: string };
 
-// The manifest describes the other two files, so it goes last.
-const UPLOAD_ORDER: readonly ArchiveFileKind[] = ["VIDEO", "SCRIPT", "MANIFEST"];
+// The manifest describes the other files, so it goes last.
+const UPLOAD_ORDER: readonly ArchiveFileKind[] = ["VIDEO", "SCRIPT", "PUBLISH", "MANIFEST"];
 
 async function fail(archiveId: string, code: string, message: string): Promise<ArchiveRunOutcome> {
   await setArchiveStatus(archiveId, "FAILED", { code, message });
@@ -37,15 +33,17 @@ async function fail(archiveId: string, code: string, message: string): Promise<A
   return { kind: "FAILED", code, message };
 }
 
-function entryOf(archive: RenderArchiveRecord, kind: ArchiveFileKind) {
-  const entry = archive.files.find((file) => file.kind === kind);
-  if (!entry) throw new Error(`Archive ${archive.id} has no ${kind} entry.`);
-  return entry;
+// The files this archive was created with, in upload order. An archive created before publish.txt existed has no such
+// entry and never gets one.
+function entriesOf(archive: RenderArchiveRecord) {
+  return UPLOAD_ORDER.flatMap((kind) =>
+    archive.files.filter((file) => file.kind === kind).map((entry) => ({ kind, entry })),
+  );
 }
 
-// Archives one finished render: its MP4 plus the script and manifest built from its snapshot. Each file is uploaded into
-// the remote ID reserved for it, resumed from its checkpoint, and verified against the local copy; the archive completes
-// only once all three are verified. It never renders, voices or calls an AI again. A remote failure is thrown for the
+// Archives one finished render: its MP4 plus the script, the publish text and the manifest built from its snapshot. Each
+// file is uploaded into the remote ID reserved for it, resumed from its checkpoint, and verified against the local copy;
+// the archive completes only once all of them are verified. It never renders, voices or calls an AI again. A remote failure is thrown for the
 // caller to wait and retry; what cannot be fixed by waiting fails the archive with its reason.
 export async function runRenderArchive(input: {
   archiveId: string;
@@ -78,9 +76,12 @@ export async function runRenderArchive(input: {
     },
     videoOutputPath: render.outputPath,
   });
-  for (const kind of ARCHIVE_FILE_KINDS) {
-    const entry = entryOf(archive, kind);
+  const entries = entriesOf(archive);
+  for (const { kind, entry } of entries) {
     const local = files[kind];
+    if (!local) {
+      return fail(archiveId, "ARCHIVE_LOCAL_FILE_MISSING", "Snapshot của bản render không có tệp cần lưu trữ.");
+    }
     if (entry.status === "PENDING") {
       await saveLocalFile(archiveId, kind, {
         localPath: local.relativePath,
@@ -102,8 +103,10 @@ export async function runRenderArchive(input: {
       ),
     ));
 
-  for (const kind of UPLOAD_ORDER) {
-    const outcome = await archiveFile(archiveId, entryOf(archive, kind), files[kind], destination, provider, signal);
+  for (const { kind, entry } of entries) {
+    const local = files[kind];
+    if (!local) continue;
+    const outcome = await archiveFile(archiveId, entry, local, destination, provider, signal);
     if (outcome) return outcome;
   }
   await completeArchive(archiveId);

@@ -104,6 +104,17 @@ describe("render snapshot", () => {
     expect(props.scenes[0]?.illustration).toEqual({ setting: "CAFE", action: "TALKING" });
   });
 
+  it("keeps the hash of a snapshot stored before renders carried a publish set, and round-trips one that does", () => {
+    const old = snapshot();
+    expect(readStoredRenderSnapshot(JSON.parse(JSON.stringify(old)), fingerprintRenderSnapshot(old))).toEqual(old);
+
+    const withPublish = snapshot({ publish: { title: "Tiêu đề", caption: "Caption.", hashtags: ["sachhay"] } });
+    expect(fingerprintRenderSnapshot(withPublish)).not.toBe(fingerprintRenderSnapshot(old));
+    expect(
+      readStoredRenderSnapshot(JSON.parse(JSON.stringify(withPublish)), fingerprintRenderSnapshot(withPublish)),
+    ).toEqual(withPublish);
+  });
+
   it("has a fingerprint that changes with any captured detail", () => {
     const base = fingerprintRenderSnapshot(snapshot());
     const edited = snapshot({
