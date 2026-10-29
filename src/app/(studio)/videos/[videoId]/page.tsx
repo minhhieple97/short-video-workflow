@@ -10,12 +10,14 @@ import { Button } from "@/components/ui/button";
 import { ScriptSourcePanel } from "@/features/productions/components/script-source-panel";
 import { ITEM_STATUS_LABELS, productionStep } from "@/features/productions/domain/production-labels";
 import { getVideoProduction } from "@/features/productions/services/video-production.service";
+import { PUBLISH_JOB_LABELS, scriptJobLabels } from "@/features/videos/components/active-job-labels";
 import { ActiveJobWatcher } from "@/features/videos/components/active-job-watcher";
 import { AddSceneControl } from "@/features/videos/components/add-scene-control";
 import { DurationBudgetBar } from "@/features/videos/components/duration-budget-bar";
 import { EditorWorkspace } from "@/features/videos/components/editor-workspace";
 import { HookOptions } from "@/features/videos/components/hook-options";
 import { VideoPreview } from "@/features/videos/components/preview/video-preview";
+import { PublishMetadataPanel } from "@/features/videos/components/publish/publish-metadata-panel";
 import { VoicePanel } from "@/features/videos/components/voice/voice-panel";
 import { SceneEditorCard } from "@/features/videos/components/scene-editor-card";
 import { ScriptLock } from "@/features/videos/components/script-lock";
@@ -30,15 +32,16 @@ import { toCompositionProps } from "@/features/videos/domain/composition-props";
 import { durationLabel, HOOK_MAX_SECONDS } from "@/features/videos/domain/duration";
 import { toPlatformPreviewMode } from "@/features/videos/domain/safe-zones";
 import { mediaAssetUrl } from "@/features/videos/services/video-mapper";
+import { findActivePublishJob } from "@/features/videos/services/publish-request.service";
 import { findActiveVideoJob, getVideo } from "@/features/videos/services/video.service";
 import { getAppConfig } from "@/shared/config/env";
 import { orNotFound } from "@/server/http/page-helpers";
 
 export const dynamic = "force-dynamic";
 
-const TABS = ["hook", "story", "voice", "sources", "preview"] as const;
+const TABS = ["hook", "story", "voice", "sources", "publish", "preview"] as const;
 const SCRIPT_LOCKED_NOTE =
-  "Trong lúc này cài đặt, hook, kịch bản, giọng đọc, render và xoá video tạm khoá, vì nội dung kịch bản sắp được thay mới.";
+  "Trong lúc này cài đặt, hook, kịch bản, giọng đọc, tiêu đề đăng, render và xoá video tạm khoá, vì nội dung kịch bản sắp được thay mới.";
 
 interface VideoEditorPageProps {
   params: Promise<{ videoId: string }>;
@@ -48,7 +51,11 @@ interface VideoEditorPageProps {
 export default async function VideoEditorPage({ params, searchParams }: Readonly<VideoEditorPageProps>) {
   const [{ videoId }, { tab }] = await Promise.all([params, searchParams]);
   const video = await orNotFound(getVideo(videoId));
-  const [activeJob, production] = await Promise.all([findActiveVideoJob(videoId), getVideoProduction(videoId)]);
+  const [activeJob, production, publishJob] = await Promise.all([
+    findActiveVideoJob(videoId),
+    getVideoProduction(videoId),
+    findActivePublishJob(videoId),
+  ]);
   const inProduction = production?.inProgress === true;
   const locked = activeJob !== null || inProduction;
   const busyLabel = activeJob
@@ -107,7 +114,11 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
       />
 
       {activeJob ? (
-        <ActiveJobWatcher job={activeJob.job} sceneNumber={activeJob.sceneNumber} lockedNote={SCRIPT_LOCKED_NOTE} />
+        <ActiveJobWatcher
+          job={activeJob.job}
+          labels={scriptJobLabels(activeJob.sceneNumber)}
+          note={SCRIPT_LOCKED_NOTE}
+        />
       ) : null}
 
       {production ? (
@@ -244,6 +255,23 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
                   }}
                 />
               </ScriptLock>
+            ),
+          },
+          {
+            value: "publish",
+            label: "Đăng tải",
+            content: (
+              <div className="flex flex-col gap-4">
+                {publishJob ? <ActiveJobWatcher job={publishJob} labels={PUBLISH_JOB_LABELS} /> : null}
+                <PublishMetadataPanel
+                  key={video.publish?.updatedAt ?? "none"}
+                  videoId={video.id}
+                  publish={video.publish}
+                  hasScript={video.scenes.some((scene) => !scene.hidden)}
+                  busy={publishJob !== null}
+                  locked={locked}
+                />
+              </div>
             ),
           },
         ]}

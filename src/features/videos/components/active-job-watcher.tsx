@@ -13,18 +13,23 @@ import { aiRunCommand, type JobDto } from "@/shared/types/job";
 const POLL_MS = 3_000;
 const MAX_POLLS = 1_200;
 
-interface ActiveJobWatcherProps {
-  job: JobDto;
-  sceneNumber: number | null;
-  lockedNote: string;
+export interface ActiveJobLabels {
+  running: string;
+  cancel: string;
+  cancelled: string;
 }
 
-// Shown while a script job queued earlier (possibly from another tab) is unfinished: the whole script, or one scene when
-// `sceneNumber` is set. It follows the job through WAITING_FOR_CLI (the user runs the command) until it really settles,
-// then refreshes the page.
-export function ActiveJobWatcher({ job: initial, sceneNumber, lockedNote }: Readonly<ActiveJobWatcherProps>) {
+interface ActiveJobWatcherProps {
+  job: JobDto;
+  labels: ActiveJobLabels;
+  // What stays locked until the job settles, if anything.
+  note?: string;
+}
+
+// Shown while an AI job for this video queued earlier (possibly from another tab) is unfinished. It follows the job
+// through WAITING_FOR_CLI (the user runs the command) until it really settles, then refreshes the page.
+export function ActiveJobWatcher({ job: initial, labels, note }: Readonly<ActiveJobWatcherProps>) {
   const router = useRouter();
-  const rewriting = sceneNumber !== null;
   const [job, setJob] = useState(initial);
   const [cancelling, setCancelling] = useState(false);
 
@@ -50,7 +55,7 @@ export function ActiveJobWatcher({ job: initial, sceneNumber, lockedNote }: Read
     setCancelling(true);
     try {
       setJob(await sendJson<JobDto>(`/api/jobs/${job.id}/cancel`, "POST"));
-      toast.success(rewriting ? "Đã huỷ viết lại cảnh." : "Đã huỷ tạo kịch bản.");
+      toast.success(labels.cancelled);
       router.refresh();
     } catch (error) {
       toast.error(errorMessage(error));
@@ -61,7 +66,6 @@ export function ActiveJobWatcher({ job: initial, sceneNumber, lockedNote }: Read
 
   const waiting = job.status === "WAITING_FOR_CLI";
   const stopping = job.status === "CANCEL_REQUESTED";
-  const runningLabel = rewriting ? `Worker đang viết lại cảnh ${sceneNumber}…` : "Worker đang tạo kịch bản…";
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border p-3 text-sm" role="status">
@@ -72,12 +76,12 @@ export function ActiveJobWatcher({ job: initial, sceneNumber, lockedNote }: Read
           ) : (
             <Loader2 className="size-4 animate-spin" aria-hidden />
           )}
-          {waiting ? "Đang chờ bạn chạy Claude Code" : stopping ? "Đang huỷ…" : runningLabel}
+          {waiting ? "Đang chờ bạn chạy Claude Code" : stopping ? "Đang huỷ…" : labels.running}
         </p>
         {stopping ? null : (
           <Button size="sm" variant="outline" disabled={cancelling} onClick={() => void cancel()}>
             <X aria-hidden />
-            {rewriting ? "Huỷ viết lại cảnh" : "Huỷ tạo kịch bản"}
+            {labels.cancel}
           </Button>
         )}
       </div>
@@ -89,7 +93,7 @@ export function ActiveJobWatcher({ job: initial, sceneNumber, lockedNote }: Read
           <code className="bg-muted w-fit rounded px-2 py-1 text-xs break-all">{aiRunCommand(job.id)}</code>
         </>
       ) : null}
-      <p className="text-muted-foreground">{lockedNote}</p>
+      {note ? <p className="text-muted-foreground">{note}</p> : null}
     </div>
   );
 }

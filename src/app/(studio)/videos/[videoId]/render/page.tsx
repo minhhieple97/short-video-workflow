@@ -6,6 +6,7 @@ import { getVideoArchives } from "@/features/archive/services/archive-control.se
 import { getDriveConnectionStatus } from "@/features/drive/services/drive-connection.service";
 import { JobsAutoRefresh } from "@/features/jobs/components/jobs-auto-refresh";
 import { getVideoProduction } from "@/features/productions/services/video-production.service";
+import { scriptJobLabels } from "@/features/videos/components/active-job-labels";
 import { ActiveJobWatcher } from "@/features/videos/components/active-job-watcher";
 import { PreflightList } from "@/features/videos/components/render/preflight-list";
 import { RenderButtons } from "@/features/videos/components/render/render-buttons";
@@ -59,8 +60,8 @@ export default async function VideoRenderPage({ params }: Readonly<{ params: Pro
       {activeJob ? (
         <ActiveJobWatcher
           job={activeJob.job}
-          sceneNumber={activeJob.sceneNumber}
-          lockedNote="Chưa thể render cho tới khi kịch bản được cập nhật xong (hoặc tác vụ bị huỷ)."
+          labels={scriptJobLabels(activeJob.sceneNumber)}
+          note="Chưa thể render cho tới khi kịch bản được cập nhật xong (hoặc tác vụ bị huỷ)."
         />
       ) : null}
 

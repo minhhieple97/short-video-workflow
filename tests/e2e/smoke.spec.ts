@@ -109,6 +109,20 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
     return url;
   });
 
+  await test.step("the script came with a title, caption and hashtags that can be edited and saved", async () => {
+    await open(page, `${videoA}?tab=publish`);
+    const title = page.getByLabel("Tiêu đề", { exact: true });
+    await expect(title).not.toHaveValue("");
+    await expect(page.getByLabel("Caption", { exact: true })).toHaveValue(/Sách: .+ – James Clear/);
+    await expect(page.getByText("AI viết", { exact: true })).toBeVisible();
+    await title.fill("Bắt đầu từ một việc thật nhỏ");
+    await page.getByLabel("Hashtag", { exact: true }).fill("#SáchHay #ThóiQuen #booktok");
+    await page.getByRole("button", { name: "Lưu", exact: true }).click();
+    await expect(page.getByText("Đã lưu tiêu đề, caption và hashtag.")).toBeVisible();
+    await expect(page.getByText("Đã sửa tay", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Hashtag", { exact: true })).toHaveValue("#sachhay #thoiquen #booktok");
+  });
+
   await test.step("create video B (two lessons, up to 90 s) and edit one scene only", async () => {
     const url = await createVideo(page, bookUrl, [1, 2], "90 giây");
     await expect(page.getByText("Khoảng 30 giây – 90 giây")).toBeVisible();
