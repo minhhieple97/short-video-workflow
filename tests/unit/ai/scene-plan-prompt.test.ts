@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { CHARACTER_ACTIONS, ILLUSTRATION_SETTINGS } from "@/features/videos/domain/illustration";
 import { PUBLISH_RULE } from "@/server/ai/prompts/publish-rule";
 import { buildScenePlanPrompt, SCENE_PLAN_PROMPT_VERSION } from "@/server/ai/prompts/scene-plan-prompt";
+import { SCENE_EDIT_RULE } from "@/server/ai/prompts/storytelling-rule";
 import type { ScenePlanTaskInput } from "@/server/scene-plan/handoff";
 
 import { SAMPLE_BOOK, SAMPLE_LESSON } from "../../helpers/contracts/script-studio-provider-contract";
@@ -81,6 +82,26 @@ describe("buildScenePlanPrompt", () => {
 
     expect(prompt).toContain('"illustration":{"setting","action"}');
     for (const value of [...ILLUSTRATION_SETTINGS, ...CHARACTER_ACTIONS]) expect(prompt).toContain(value);
+  });
+
+  it("edits the draft as a story: keeps its people, lines and turns, and swaps a general opening question for a moment from it", () => {
+    const prompt = buildScenePlanPrompt(input());
+
+    expect(SCENE_PLAN_PROMPT_VERSION).toBe("scene-plan-v8");
+    expect(prompt).toContain(SCENE_EDIT_RULE);
+    expect(prompt).toContain("đừng làm phẳng chúng thành câu tóm tắt");
+    expect(prompt).toContain(
+      "thay bằng khoảnh khắc cụ thể lấy từ chính tình huống bản thảo đã kể, không thêm sự kiện mới",
+    );
+  });
+
+  it("tells the compiler to keep each quoted line and number exactly as the draft wrote it, because the source check compares them", () => {
+    const prompt = buildScenePlanPrompt(input());
+
+    expect(prompt).toContain("giữ đúng từng chữ như bản thảo");
+    expect(prompt).toContain("bản thảo viết “ba ngày” thì không đổi thành “3 ngày”");
+    expect(prompt).toContain("câu thoại đã có trong bản thảo thì giữ");
+    expect(prompt).toContain("KHÔNG thêm trích dẫn");
   });
 
   it("keeps illustrative scenarios illustrative", () => {

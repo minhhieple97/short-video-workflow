@@ -324,6 +324,24 @@ Bài học trong sách và điều rút ra (`KEY_TAKEAWAY`) → Quay lại xử 
   có thêm loại **Tổng kết**; khung chỉ ràng buộc kịch bản do AI viết. Video nhiều bài học kể thành một câu chuyện theo cùng khung;
   hai bài học chỉ hợp lý khi chúng bổ trợ nhau.
 
+**Kể cho cuốn hút, không chỉ đủ ý.** Khung chỉ quyết định thứ tự; cách kể do prompt quyết định, cho cả hai luồng:
+
+- Hook mở giữa một khoảnh khắc cụ thể (một hành động, một câu thoại, một chi tiết lạ) và để lửng điều chưa giải thích, không mở
+  bằng khuôn câu hỏi chung chung ("Có phải bạn…", "Bạn có biết…", "Tại sao bạn luôn…").
+- Tình huống được dựng thành cảnh: nhân vật có tên (hoặc "bạn"), nơi chốn, vật nhìn thấy được; sai lầm có cái giá; có một cú
+  "tưởng là A, hoá ra là B" trước bài học; thoại ngắn trong ngoặc kép, chỉ của nhân vật tự nghĩ ra; câu ngắn để đọc thành tiếng.
+- Bài học là điều vừa nhìn ra chứ không phải bài giảng; cách giải quyết chiếu lại đúng khoảnh khắc mở đầu với kết quả khác; hành
+  động đủ cụ thể để hình dung (làm gì, lúc nào, ở đâu).
+
+**Góc kể tự động.** Mỗi video được giao một trong sáu góc kể, đều nằm trong khung trên: Bắt đầu từ đỉnh điểm, Cuộc đối thoại, Hai
+lối rẽ, Phá một niềm tin, Cú đảo chiều, Leo thang từng bước. Người dùng không chọn và không thấy góc; hệ thống xoay góc để các
+video không cùng một dáng, và không lưu gì thêm:
+
+- **Thủ công:** theo video và số phiên bản kịch bản, nên **Tạo lại kịch bản** ra góc kế tiếp.
+- **Hàng loạt:** theo đợt và vị trí của mục trong đợt, nên sáu video liên tiếp của một đợt có sáu góc khác nhau; thử lại hay
+  phục hồi sau sự cố giữ nguyên góc. Cùng một bài học sản xuất lại ở đợt khác thường ra góc khác, tức một bản thảo mới (một lượt
+  NotebookLM).
+
 ### 6.5. Bố cục và hoạt cảnh
 
 - Năm bố cục dọc: Câu hỏi lớn, Chia đôi sai lầm / giải pháp, Thẻ tình huống, Chữ lớn ghi nhớ, Danh sách hành động.
@@ -383,8 +401,13 @@ không thử lại vô hạn.
 - Tình huống AI sáng tác là **minh hoạ**, không bao giờ trình bày như chuyện trong sách hay lời tác giả: trường tình huống của bài
   học luôn mang nhãn minh hoạ; nhịp bản thảo do AI tự nghĩ ra được đánh dấu và hiện ở tab Nguồn kịch bản; Claude phải giữ nó là
   minh hoạ khi biên tập; hồ sơ lưu Drive ghi rõ cảnh nào là minh hoạ (§5.9).
+- Nhân vật, nơi chốn và câu thoại AI tự nghĩ ra (§6.4) cũng là minh hoạ: không gắn cho tác giả hay cuốn sách, không nói là chuyện
+  có thật, không kể ngôi "tôi" như trải nghiệm của người làm video. Bản thảo đánh dấu minh hoạ mọi nhịp có chi tiết bịa, không
+  chỉ nhịp tình huống. Video làm tay không có bản thảo, nên các cảnh Hook, Tình huống, Sai lầm và Cách xử lý đều được đánh dấu
+  minh hoạ; bài học và hành động là của sách.
 - Claude được sửa lời cho dễ nghe, đúng thời lượng nhưng **không thêm** trích dẫn, số liệu, tên nghiên cứu hay khẳng định ngoài bản
-  thảo và bài học. Một kiểm tra cơ học chặn số và trích dẫn không có trong nguồn — lưới an toàn, không phải bằng chứng trung thực.
+  thảo và bài học; câu thoại đã có trong bản thảo thì giữ nguyên chữ. Một kiểm tra cơ học chặn số và trích dẫn không có trong
+  nguồn (so khớp theo chữ, bỏ qua hoa thường, khoảng trắng và dấu câu) — lưới an toàn, không phải bằng chứng trung thực.
 - Không clickbait sai lệch, không sao chép dài. Độ tin cậy OCR và "trích đoạn khớp nguồn" là hai bằng chứng riêng.
 - Tiêu đề, caption, hashtag (§5.13) chỉ dùng ý có trong kịch bản, bài học và tên sách; video phải trả lời được điều tiêu đề hứa.
   Kiểm tra cơ học như trên chặn số và trích dẫn không có trong kịch bản, bài học, tên sách và tác giả.

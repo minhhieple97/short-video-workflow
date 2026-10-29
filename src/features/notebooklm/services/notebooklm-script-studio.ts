@@ -123,6 +123,7 @@ export class NotebookLmScriptStudio implements ScriptStudioProvider {
         lesson: request.lesson,
         range: request.range,
         pace: request.pace,
+        storyAngle: request.storyAngle,
         revisionNote: request.revisionNote,
       }),
       "DRAFT_INVALID",

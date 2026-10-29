@@ -29,6 +29,7 @@ export async function seedVoicedVideo(deps: {
     lesson: SAMPLE_LESSON,
     range: { minDurationSec: 30, maxDurationSec: 60 },
     pace: "STANDARD" as const,
+    storyAngle: "PEAK_FIRST" as const,
     revisionNote: null,
   });
   const plan = await new MockScenePlanCompiler().compile({

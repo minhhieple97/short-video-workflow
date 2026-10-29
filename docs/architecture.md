@@ -143,12 +143,23 @@ tối đa 8 lần liên tiếp; sản xuất 10 phút, 5 lần; archive 30 phút
   `claude auth status`; chạy `claude -p --output-format json --tools "" --strict-mcp-config --no-session-persistence --json-schema …` từ
   mảng đối số, prompt qua stdin; env bỏ `CLAUDECODE*`/`CLAUDE_CODE_*` (không lồng phiên) và `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN`;
   timeout và huỷ → `SIGTERM`. Lỗi có mã ổn định (`AI_CLI_AUTH`, `AI_QUOTA_EXCEEDED`, `AI_CLI_TIMEOUT`, `INVALID_AI_OUTPUT`…).
-- Prompt có phiên bản; đổi chữ là tăng phiên bản: `chapter-analysis-v1`, `video-script-v8` (v1.1, cùng khung kể với sản xuất, đề xuất độ
-  dài, ngân sách chữ theo nhịp độ, kèm tiêu đề/caption/hashtag); `scene-plan-v7` (biên dịch cảnh, kèm tiêu đề/caption/hashtag);
+- Prompt có phiên bản; đổi chữ là tăng phiên bản: `chapter-analysis-v1`, `video-script-v9` (v1.1, cùng khung kể với sản xuất, đề xuất độ
+  dài, ngân sách chữ theo nhịp độ, kèm tiêu đề/caption/hashtag, quy tắc kể chuyện và góc kể); `scene-plan-v8` (biên dịch cảnh, kèm
+  tiêu đề/caption/hashtag, quy tắc biên tập giữ sức hút của bản thảo);
   `publish-metadata-v1` (chỉ viết lại tiêu đề/caption/hashtag); ba prompt này dùng chung quy tắc `prompts/publish-rule.ts`, đổi chữ ở đó
-  là tăng cả ba; `notebooklm-chapter-detection-v2`, `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v5` (đề xuất độ dài,
-  ngân sách chữ theo nhịp độ),
-  `notebooklm-chat-persona-v1` (vai trò của notebook); `draftVersion` của cache = phiên bản bản thảo + phiên bản vai trò. Danh sách độ dài được chọn và ngân sách lời của từng mức sinh từ `prompts/duration-choice.ts`.
+  là tăng cả ba; `notebooklm-chapter-detection-v2`, `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v6` (đề xuất độ dài,
+  ngân sách chữ theo nhịp độ, quy tắc kể chuyện và góc kể),
+  `notebooklm-chat-persona-v2` (vai trò của notebook); `draftVersion` của cache = phiên bản bản thảo + phiên bản vai trò. Danh sách độ dài được chọn và ngân sách lời của từng mức sinh từ `prompts/duration-choice.ts`.
+  Chữ kể chuyện nằm ở `prompts/storytelling-rule.ts`: `STORYTELLING_RULE` và mô tả từng góc dùng chung cho kịch bản thủ công và bản
+  thảo NotebookLM, `STORY_REWRITE_RULE` cho "Viết lại cảnh", `SCENE_EDIT_RULE` cho biên tập cảnh; đổi chữ ở đó là tăng phiên bản của
+  mọi prompt dùng nó. Không tăng `chapter-analysis` và `lesson-extraction` khi đổi cách kể: tăng sẽ bắt phân tích lại mọi chương.
+- **Góc kể** (`features/videos/domain/story-angle.ts`): sáu góc (`PEAK_FIRST`, `DIALOGUE`, `TWO_PATHS`, `MYTH_BUST`, `TWIST`,
+  `ESCALATION`) kể cùng một khung sáu phần; khung và các kiểm tra thứ tự không đổi. `pickStoryAngle(seed, step)` =
+  `STORY_ANGLES[(fnv1a(seed) + step) % 6]`, thuần và tất định, không lưu gì: kịch bản thủ công dùng `(video.id, video.scriptVersion)`
+  (lưu kịch bản làm `scriptVersion` tăng nên tạo lại ra góc kế tiếp); sản xuất hàng loạt dùng `(item.batchId, item.position)`
+  (`position` duy nhất trong đợt nên mục liền kề khác góc; thử lại và phục hồi dùng lại đúng góc). Góc là trường bắt buộc của
+  `videoScriptInputSchema` và `WriteDraftRequest`, và nằm trong khoá cache bản thảo. Bước biên tập cảnh không nhận góc: bản thảo đã
+  mang dáng kể, `SCENE_EDIT_RULE` bảo nó giữ chi tiết, thoại và cú đảo chiều.
 
 **Kiểm soát nội dung:**
 
@@ -281,8 +292,8 @@ theo số dòng, không trích nội dung. `cleanup` xoá tệp yêu cầu **cu�
   để còn truy nguồn bài học cũ.
 - Tạo mất phản hồi → `UNKNOWN_OUTCOME`; lần sau **tìm dấu** trong `notebook_list`/`notebook_get` trước rồi mới tạo lại.
 - Trước câu hỏi đầu tiên (`openBookNotebook`, lối vào của mọi nguồn), notebook được đặt "Configure chat" qua `chat_configure`: vai trò
-  tuỳ chỉnh `notebooklm-chat-persona-v1` (phân tích sách + biên kịch video dọc, bám nguồn, câu hỏi đòi định dạng nào trả đúng định dạng
-  đó) và câu trả lời `longer`. Phiên bản đã áp lưu ở `NotebookBinding.chatPersonaVersion` — chỉ ghi khi NotebookLM xác nhận; notebook
+  tuỳ chỉnh `notebooklm-chat-persona-v2` (phân tích sách + biên kịch video dọc, kể bằng khoảnh khắc cụ thể khi viết bản thảo, bám
+  nguồn, câu hỏi đòi định dạng nào trả đúng định dạng đó) và câu trả lời `longer`. Phiên bản đã áp lưu ở `NotebookBinding.chatPersonaVersion` — chỉ ghi khi NotebookLM xác nhận; notebook
   cũ hơn phiên bản hiện hành được áp lại ở lần dùng sau. Đặt lại cùng cấu hình vô hại nên mất phản hồi là `TRANSIENT`, không
   `UNKNOWN_OUTCOME`.
 - Câu hỏi luôn truyền **`source_ids` tường minh** (chỉ phiên bản hiện hành) trong hội thoại mới, vì NotebookLM mặc định dùng mọi nguồn.
@@ -301,8 +312,8 @@ cũ của chương và ghi `AiRun(mode=notebooklm)`.
 - `writeDraft` đọc mọi phần của mọi chương bài học trích dẫn (cùng khoá với lúc lập danh mục nên không tải lại). Prompt ép mạch kể HOOK →
   tình huống → sai lầm → bài học → giải quyết → hành động; sai định dạng hay sai thứ tự → `DRAFT_INVALID`. Bản thảo kèm
   `targetDurationSec` (một mức trong khoảng của video) và `durationReason`; ngoài khoảng → `DRAFT_LENGTH_OUT_OF_RANGE`.
-- `ScriptDraftCache.cacheKey` = sha256(provider, `draftVersion`, bài học + `contentHash`, khoảng thời lượng, **tập** remote ID nguồn, ghi
-  chú sửa).
+- `ScriptDraftCache.cacheKey` = sha256(provider, `draftVersion`, bài học + `contentHash`, khoảng thời lượng, nhịp độ, góc kể, **tập**
+  remote ID nguồn, ghi chú sửa). Cùng bài học kể theo góc khác là bản thảo khác.
   Bước bản thảo hỏi cache trước; trượt thì gọi NotebookLM rồi lưu ngay.
 
 ## 8. Pipeline sản xuất
@@ -434,8 +445,9 @@ render FINAL COMPLETED + archiveIntentAt ─► requestRenderArchive | sweepRend
   render. Processor **chỉ upload**.
 - `script.json` và `manifest.json` (thông số render, `snapshotHash`, tên + byte + SHA-256 của MP4 và script) dựng **chỉ từ snapshot**,
   không có đường dẫn local, JSON khoá sắp xếp nên dựng lại ra cùng byte. Cảnh minh hoạ: snapshot ghi `illustrative` cho từng cảnh lúc
-  chụp (nhịp bản thảo có `illustrative` của item sản xuất, ánh xạ sang loại cảnh bằng `SCENE_TYPE_FOR_BEAT`; video làm tay thì là
-  cảnh `SITUATION`, vì nó lấy từ tình huống minh hoạ của bài học); `script.json` ghi cờ theo cảnh, `manifest.json` liệt kê
+  chụp (nhịp bản thảo có `illustrative` của item sản xuất, ánh xạ sang loại cảnh bằng `SCENE_TYPE_FOR_BEAT`; video làm tay không có
+  bản thảo nên là các cảnh `HOOK`, `SITUATION`, `COMMON_MISTAKE`, `BETTER_APPROACH`, nơi truyện bịa của kịch bản chạy qua; chỉ snapshot
+  mới chụp theo quy tắc này, snapshot đã lưu bất biến); `script.json` ghi cờ theo cảnh, `manifest.json` liệt kê
   `illustrativeScenes`. Snapshot cũ không có cờ thì hai tệp giữ đúng byte như trước để archive dở không báo tệp đổi.
 - `publish.txt` (tiêu đề, rồi caption + hashtag sẵn để dán; `formatPublishText`) chỉ có khi snapshot có `publish`: archive tạo hàng
   `PUBLISH` lúc được yêu cầu, `manifest.json` thêm `files.publish`. Archive chạy theo **chính các hàng tệp của nó**, nên archive tạo

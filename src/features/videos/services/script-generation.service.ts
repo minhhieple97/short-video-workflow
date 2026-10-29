@@ -15,6 +15,7 @@ import { AppError, NotFoundError } from "@/shared/errors";
 import { formatRange, isWithinRange } from "../domain/duration";
 import { toPace } from "../domain/pace";
 import { describeStoryOrderProblem, findStorySceneOrderProblem } from "../domain/narrative-beats";
+import { pickStoryAngle } from "../domain/story-angle";
 import { replaceScript, updateSceneRecord } from "../repositories/video.repository";
 import { inputHash, withAiRun, type AiWaitingForCli } from "./ai-run";
 import { publishWriteFor } from "./publish-proposal";
@@ -54,6 +55,8 @@ export async function runScriptGeneration(
     minDurationSec: video.minDurationSec,
     maxDurationSec: video.maxDurationSec,
     pace: toPace(video.pace),
+    // scriptVersion grows each time a script is stored, so writing the script again moves on to the next angle.
+    storyAngle: pickStoryAngle(video.id, video.scriptVersion),
     videoProfile: "SHORT_VERTICAL",
     book: { title: video.book.title, author: video.book.author },
     lessons: lessonSnapshotsOf(video),

@@ -44,6 +44,7 @@ async function runMockAiCheck(taskId: string) {
       minDurationSec: 30,
       maxDurationSec: 60,
       pace: "STANDARD",
+      storyAngle: "PEAK_FIRST",
       videoProfile: "SHORT_VERTICAL",
       book: { title: "Kiểm tra", author: null },
       lessons: [

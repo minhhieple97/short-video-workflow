@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import type { StoryAngle } from "@/features/videos/domain/story-angle";
 import type { ScriptStudioProvider } from "@/server/script-studio/script-studio-provider";
 
 export interface DraftRequestIdentity {
@@ -11,6 +12,8 @@ export interface DraftRequestIdentity {
   maxDurationSec: number;
   // How fast the narration will be voiced: the draft is written to the words that fit at that speed.
   pace: string;
+  // The same lesson told another way is another draft.
+  storyAngle: StoryAngle;
   // Remote source references change with every new revision of a source's text.
   sourceRemoteIds: readonly string[];
   revisionNote: string | null;

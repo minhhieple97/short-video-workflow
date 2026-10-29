@@ -91,6 +91,37 @@ describe("findUnsupportedClaims", () => {
     expect(findUnsupportedClaims(planWith({ scene: `Sách nói “${decomposed}”.` }), DRAFT, LESSON).quotes).toEqual([]);
   });
 
+  it("accepts a quotation that differs from its source only by punctuation or marks, so a changed comma is not a made-up line", () => {
+    const quoted = (text: string) =>
+      findUnsupportedClaims(planWith({ scene: `Sách nói “${text}”.` }), DRAFT, LESSON).quotes;
+
+    expect(quoted("Bắt đầu, bằng hai phút đầu tiên!")).toEqual([]);
+    expect(quoted("bắt đầu bằng hai phút đầu tiên…")).toEqual([]);
+    expect(quoted("bắt đầu - bằng hai phút (đầu tiên)")).toEqual([]);
+  });
+
+  it("keeps a line of dialogue the draft wrote, however the plan punctuates or places it", () => {
+    const dialogueDraft: ScriptDraft = {
+      ...DRAFT,
+      beats: DRAFT.beats.map((item) =>
+        item.beat === "SITUATION" ? { ...item, narration: "“Mai làm tiếp nhé,” Hà nói. Rồi cô tắt đèn." } : item,
+      ),
+    };
+
+    expect(
+      findUnsupportedClaims(planWith({ scene: "Hà nói: “Mai làm tiếp nhé.”" }), dialogueDraft, LESSON).quotes,
+    ).toEqual([]);
+  });
+
+  it("still flags a quotation whose words are not in the sources, punctuation aside", () => {
+    expect(
+      findUnsupportedClaims(planWith({ scene: "Sách nói “bắt đầu bằng ba phút đầu tiên!”." }), DRAFT, LESSON).quotes,
+    ).toEqual(["bắt đầu bằng ba phút đầu tiên!"]);
+    expect(findUnsupportedClaims(planWith({ scene: "Hà nói: “Mai ta làm tiếp nhé.”" }), DRAFT, LESSON).quotes).toEqual([
+      "Mai ta làm tiếp nhé.",
+    ]);
+  });
+
   it("ignores very short quoted words that are not quotations", () => {
     expect(findUnsupportedClaims(planWith({ scene: 'Gọi nó là "ok" thôi.' }), DRAFT, LESSON).quotes).toEqual([]);
   });

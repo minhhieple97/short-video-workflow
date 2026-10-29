@@ -107,6 +107,7 @@ describe("NotebookLM status", () => {
         },
         range: { minDurationSec: 30, maxDurationSec: 60 },
         pace: "STANDARD" as const,
+        storyAngle: "PEAK_FIRST" as const,
         revisionNote: null,
       }),
     ).rejects.toMatchObject({ kind: "AUTH" });

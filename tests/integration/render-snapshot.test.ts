@@ -108,18 +108,19 @@ describe("captureRenderSnapshot", () => {
     expect(hash).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("marks the made-up scenarios: the draft's illustrative beats, or the situation when there is no draft", async () => {
+  it("marks the made-up scenarios: the draft's illustrative beats, or the scenes of the made-up story when there is no draft", async () => {
     const illustrativeTypes = async () =>
       (await snapshots.captureRenderSnapshot(videoId, "FINAL")).snapshot.scenes
         .filter((scene) => scene.illustrative)
         .map((scene) => scene.type);
-    expect(await illustrativeTypes()).toEqual(["SITUATION"]);
+    expect(await illustrativeTypes()).toEqual(["HOOK", "SITUATION", "COMMON_MISTAKE", "BETTER_APPROACH"]);
 
     const draft = await new MockScriptStudioProvider().writeDraft({
       sources: [],
       lesson: SAMPLE_LESSON,
       range: { minDurationSec: 30, maxDurationSec: 60 },
       pace: "STANDARD" as const,
+      storyAngle: "PEAK_FIRST" as const,
       revisionNote: null,
     });
     const storeDraft = (illustrative: string[]) =>

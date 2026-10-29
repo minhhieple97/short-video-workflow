@@ -5,9 +5,10 @@ import type { ScenePlanTaskInput } from "@/server/scene-plan/handoff";
 
 import { ILLUSTRATION_JSON, ILLUSTRATION_RULE } from "./illustration-rule";
 import { PUBLISH_JSON, PUBLISH_RULE } from "./publish-rule";
+import { SCENE_EDIT_RULE } from "./storytelling-rule";
 import { fenceUntrustedText, UNTRUSTED_TEXT_RULE } from "./untrusted-text";
 
-export const SCENE_PLAN_PROMPT_VERSION = "scene-plan-v7";
+export const SCENE_PLAN_PROMPT_VERSION = "scene-plan-v8";
 
 export function buildScenePlanPrompt(input: ScenePlanTaskInput): string {
   const rate = syllablesPerSecond(input.pace);
@@ -22,7 +23,8 @@ export function buildScenePlanPrompt(input: ScenePlanTaskInput): string {
     "## Quy tắc",
     `- ${UNTRUSTED_TEXT_RULE}`,
     "- Bạn chỉ biên tập lời dẫn: làm cho dễ nghe, tự nhiên, đúng thời lượng. Bản thảo và bài học là toàn bộ căn cứ.",
-    "- KHÔNG thêm trích dẫn, câu nói nguyên văn, số liệu, tỷ lệ, tên nghiên cứu hay khẳng định nào không có trong bản thảo hoặc bài học nguồn. Thiếu chỗ thì bỏ ý, đừng bịa thêm.",
+    "- KHÔNG thêm trích dẫn, câu nói nguyên văn, số liệu, tỷ lệ, tên nghiên cứu hay khẳng định nào không có trong bản thảo hoặc bài học nguồn (câu thoại đã có trong bản thảo thì giữ). Thiếu chỗ thì bỏ ý, đừng bịa thêm.",
+    SCENE_EDIT_RULE,
     "- Cảnh có `illustrative: true` là tình huống minh hoạ do AI sáng tác: giữ nó là tình huống minh hoạ, đừng trình bày như lời tác giả.",
     "- Mạch kể bắt buộc: hook → tình huống đời thường → sai lầm → bài học trong sách → quay lại xử lý tình huống ban đầu → hành động cụ thể. Phần giải pháp phải quay lại đúng tình huống mở đầu và giải quyết lời hứa của hook.",
     "- Tên sách và bài học chỉ được nhắc từ cảnh bài học trở đi, không nhắc trong hook, tình huống và sai lầm.",

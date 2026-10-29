@@ -9,7 +9,14 @@ export interface UnsupportedClaims {
 const NUMBER = /\d+(?:[.,]\d+)*/g;
 const QUOTED = /[“"«]([^”"»]{3,})[”"»]/g;
 
-const normalize = (text: string): string => text.normalize("NFC").toLowerCase().replace(/\s+/g, " ").trim();
+// Only the words of a quotation count: a line whose comma became a full stop, or whose marks changed, is still the same line.
+const normalize = (text: string): string =>
+  text
+    .normalize("NFC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 const canonicalNumber = (token: string): string => token.replace(",", ".").replace(/\.0+$/, "");
 
 export function findUnsupportedClaimsIn(texts: readonly string[], sources: readonly string[]): UnsupportedClaims {

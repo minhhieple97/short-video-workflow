@@ -126,6 +126,7 @@ describe("NotebookLmScriptStudio", () => {
       lesson: SAMPLE_LESSON,
       range: { minDurationSec: 30, maxDurationSec: 45 },
       pace: "STANDARD" as const,
+      storyAngle: "PEAK_FIRST" as const,
       revisionNote: "Giữ đúng trích đoạn.",
     });
 
@@ -155,6 +156,7 @@ describe("NotebookLmScriptStudio", () => {
       lesson: SAMPLE_LESSON,
       range: { minDurationSec: 30, maxDurationSec: 45 },
       pace: "STANDARD" as const,
+      storyAngle: "PEAK_FIRST" as const,
       revisionNote: null,
     });
 
@@ -180,6 +182,7 @@ describe("NotebookLmScriptStudio", () => {
         lesson: SAMPLE_LESSON,
         range: { minDurationSec: 30, maxDurationSec: 60 },
         pace: "STANDARD" as const,
+        storyAngle: "PEAK_FIRST" as const,
         revisionNote: null,
       }),
     ).rejects.toMatchObject({ code: "DRAFT_LENGTH_OUT_OF_RANGE", kind: "REJECTED" });
@@ -200,6 +203,7 @@ describe("NotebookLmScriptStudio", () => {
         lesson: SAMPLE_LESSON,
         range: { minDurationSec: 30, maxDurationSec: 60 },
         pace: "STANDARD" as const,
+        storyAngle: "PEAK_FIRST" as const,
         revisionNote: null,
       }),
     ).rejects.toMatchObject({ code: "DRAFT_INVALID", kind: "REJECTED" });
@@ -212,6 +216,7 @@ describe("NotebookLmScriptStudio", () => {
       lesson: SAMPLE_LESSON,
       range: { minDurationSec: 30, maxDurationSec: 60 },
       pace: "STANDARD" as const,
+      storyAngle: "PEAK_FIRST" as const,
       revisionNote: null,
     });
 

@@ -9,6 +9,7 @@ const request = {
   minDurationSec: 30,
   maxDurationSec: 60,
   pace: "STANDARD",
+  storyAngle: "PEAK_FIRST" as const,
   sourceRemoteIds: ["nb#a", "nb#b"],
   revisionNote: null,
 };
@@ -32,6 +33,7 @@ describe("draftCacheKey", () => {
       draftCacheKey(studio, { ...request, revisionNote: "Rút gọn." }),
       draftCacheKey(studio, { ...request, lessonId: "lesson-2" }),
       draftCacheKey(studio, { ...request, pace: "FASTER" }),
+      draftCacheKey(studio, { ...request, storyAngle: "DIALOGUE" }),
     ];
     expect(new Set([base, ...variants]).size).toBe(variants.length + 1);
   });

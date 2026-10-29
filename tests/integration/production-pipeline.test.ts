@@ -5,6 +5,7 @@ import type * as Pipeline from "@/features/productions/services/production-pipel
 import type * as ProductionRender from "@/features/productions/services/production-render.service";
 import type * as ProductionRequest from "@/features/productions/services/production-request.service";
 import { Prisma } from "@/generated/prisma/client";
+import { pickStoryAngle } from "@/features/videos/domain/story-angle";
 import type * as DbClient from "@/server/db/client";
 import { IntegrationError } from "@/server/integrations/integration-error";
 import { JobCancelledError } from "@/shared/errors";
@@ -236,6 +237,56 @@ describe("runProductionPipeline", () => {
     expect(calls.drafts[1]?.revisionNote).toContain("mạch kể");
     expect(calls.compiles[0]?.revisionNote).toBeNull();
     expect(await item()).toMatchObject({ aiCorrectionTarget: "SCRIPT_STUDIO", checkpoint: "READY" });
+  });
+
+  it("draws the story angle from the batch and the item's position, and keeps it for the correction", async () => {
+    const { deps, calls } = makeDeps({ proposeSec: (attempt) => (attempt === 1 ? 90 : 45) });
+
+    await run(deps);
+
+    const { batchId, position } = await item();
+    const expected = pickStoryAngle(batchId, position);
+    expect(calls.drafts).toHaveLength(2);
+    expect(calls.drafts.map((draft) => draft.storyAngle)).toEqual([expected, expected]);
+  });
+
+  it("tells neighbouring items of a batch differently, and uses every angle once in each run of six", async () => {
+    const { itemIds } = await seedProduction({ db, productions, lessonCount: 7 });
+    const { deps, calls } = makeDeps();
+
+    for (const id of itemIds) {
+      await claim.claimProductionItem(id, TOKEN, 600_000);
+      expect(await pipeline.runProductionStep({ itemId: id, claimToken: TOKEN, deps })).toEqual({ kind: "CONTINUE" });
+    }
+
+    const angles = calls.drafts.map((draft) => draft.storyAngle);
+    expect(angles).toHaveLength(7);
+    expect(new Set(angles.slice(0, 6)).size).toBe(6);
+    for (const [index, angle] of angles.entries()) expect(angle).not.toBe(angles[index - 1]);
+  });
+
+  it("reuses a cached draft for the same angle but writes a new one when the lesson is told another way", async () => {
+    const draftStep = (deps: Pipeline.PipelineDeps) => pipeline.runProductionStep({ itemId, claimToken: TOKEN, deps });
+    const startAgain = (position?: number) =>
+      db.prisma.productionItem.update({
+        where: { id: itemId },
+        data: { checkpoint: "NONE", draftArtifactJson: Prisma.DbNull, ...(position === undefined ? {} : { position }) },
+      });
+
+    const first = makeDeps();
+    await draftStep(first.deps);
+    const { batchId, position } = await item();
+    expect(first.calls.drafts).toHaveLength(1);
+
+    await startAgain();
+    const sameAngle = makeDeps();
+    await draftStep(sameAngle.deps);
+    expect(sameAngle.calls.drafts).toHaveLength(0);
+
+    await startAgain(position + 1);
+    const otherAngle = makeDeps();
+    await draftStep(otherAngle.deps);
+    expect(otherAngle.calls.drafts.map((draft) => draft.storyAngle)).toEqual([pickStoryAngle(batchId, position + 1)]);
   });
 
   it("fails with the reason when the corrected attempt is rejected too", async () => {

@@ -112,7 +112,7 @@ src/
     chapters/          chapter listing/reading/rename, analysis runner (worker) + analysis requests (web, server-only);
                        PDF chapters are catalogued by NotebookLM part by part when it is set up (`notebook-chapter-analysis`)
     lessons/           lesson domain (fields, excerpt verification), repository, review service, library/review UI
-    videos/            short-form domain (scene types, layouts, duration budget, pace, snapshots), script generation/editing, editor UI;
+    videos/            short-form domain (scene types, layouts, duration budget, pace, story angles, snapshots), script generation/editing, editor UI;
                        the title/caption/hashtag set to post with (`domain/publish-metadata.ts`: rules + hashtag normalizing,
                        `publish-proposal.ts` for the set written with a script, `publish-generation`/`publish-request` services,
                        Đăng tải tab in `components/publish/`)
@@ -265,11 +265,13 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - Never add `@anthropic-ai/sdk`, never create `ANTHROPIC_API_KEY`, never read/copy/log Claude tokens, cookies or credentials.
 - Run subprocesses with `spawn`/`execFile` and an argument array — **never** build shell strings from input, never use `exec` with interpolation.
 - Never use `--dangerously-skip-permissions`. When the model only needs to emit JSON, do not grant file-write/shell tools.
-- Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v8`, `scene-plan-v7`, `publish-metadata-v1` — the three last share
+- Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v9`, `scene-plan-v8`, `publish-metadata-v1` — the three last share
   `prompts/publish-rule.ts`, so editing it bumps all three — and for NotebookLM `notebooklm-chapter-detection-v2`,
-  `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v5`, and the notebook's chat persona `notebooklm-chat-persona-v1`, applied once per
+  `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v6`, and the notebook's chat persona `notebooklm-chat-persona-v2`, applied once per
   notebook through `chat_configure` and re-applied when its version changes); changing a prompt's text means bumping its version (the draft and
-  persona versions also key the draft cache). Book content is passed as quoted untrusted data.
+  persona versions also key the draft cache). Book content is passed as quoted untrusted data. The storytelling text lives in
+  `prompts/storytelling-rule.ts` and is shared like `publish-rule.ts`: editing it bumps every prompt that uses it. Telling a story better is
+  done when the script is written, never by bumping `chapter-analysis` or `lesson-extraction` (that re-analyses every chapter).
 - Validate model output with Zod; on schema failure mark the job `FAILED` and store nothing. No unbounded retries (respect quota errors). Timeouts + best-effort cancel.
 
 ## 10. Storage & security
@@ -300,6 +302,14 @@ Dependency direction: `app → features/*/services → features/*/repositories �
   never follow it). Nothing changes a pace by itself: not `UNDER_MIN`, not `OVER_TARGET`, not the AI correction. A voice made at another
   speed stays until the user regenerates it (`staleVoiceSceneCount`, `POST /api/videos/:id/tts` with `scope: "all"`; an uploaded clip is never
   replaced). Adding a pace or changing a number in the table changes what the same props look like, so bump `RENDER_TEMPLATE_VERSION`.
+- **Story angle** (`features/videos/domain/story-angle.ts`): six ways to tell the same six-part story (`PEAK_FIRST`, `DIALOGUE`, `TWO_PATHS`,
+  `MYTH_BUST`, `TWIST`, `ESCALATION`), given by `pickStoryAngle(seed, step)`, which is pure and stores nothing: a manual script uses
+  `(video.id, video.scriptVersion)` (writing it again moves to the next angle), a production item `(item.batchId, item.position)` (neighbours
+  differ; a retry keeps its angle). `storyAngle` is required in `videoScriptInputSchema` and `WriteDraftRequest` and is part of the draft cache
+  key; the frame, its order checks, the scene types and hook variants do not change. The characters, places and lines a story makes up are
+  illustrative: the draft flags every beat that has them, and a video made by hand flags its hook, situation, mistake and resolution scenes
+  (`illustrativeSceneTypes`). A quotation the compiler keeps must read as the draft wrote it; the source check ignores case, spacing and
+  punctuation, never the words.
 - Preview and render share the same composition and the same Zod-validated input props. No hardcoded book titles, lesson counts or narration inside Remotion components.
 - Safe-zone overlays are editor-only guides (configurable per platform), never rendered into the MP4.
 - Prefer CSS/SVG/text animation; no 3D, no GPU requirement, no network fetches at render time; local assets only. Scene illustrations

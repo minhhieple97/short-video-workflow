@@ -20,11 +20,15 @@ import { dimensionsFor } from "./render.service";
 import { toVideoDetail } from "./video-mapper";
 import { requireVideo } from "./video.service";
 
+// A video made by hand has no draft saying which parts the AI made up. Its story (characters, places, lines) runs through
+// the hook, the situation, the mistake and the way it is put right; only the lesson and the action come from the book.
+const MADE_UP_WITHOUT_DRAFT: readonly SceneType[] = ["HOOK", "SITUATION", "COMMON_MISTAKE", "BETTER_APPROACH"];
+
 // The parts of the story that are scenarios made up for the video, not taken from the book: what the production's draft
-// marked as illustrative, or, for a video made by hand, the situation (it comes from the lesson's illustrative scenario).
+// marked as illustrative, or, for a video made by hand, the scenes that tell the made-up story.
 async function illustrativeSceneTypes(videoId: string): Promise<ReadonlySet<SceneType>> {
   const artifact = scriptDraftArtifactSchema.safeParse(await findProductionDraftForVideo(videoId));
-  if (!artifact.success) return new Set<SceneType>(["SITUATION"]);
+  if (!artifact.success) return new Set(MADE_UP_WITHOUT_DRAFT);
   return new Set(
     artifact.data.draft.beats.filter((beat) => beat.illustrative).map((beat) => SCENE_TYPE_FOR_BEAT[beat.beat]),
   );

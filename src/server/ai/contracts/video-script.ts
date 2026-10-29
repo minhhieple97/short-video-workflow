@@ -5,6 +5,7 @@ import { illustrationSchema } from "@/features/videos/domain/illustration";
 import { lessonSnapshotSchema } from "@/features/videos/domain/lesson-snapshot";
 import { PACES } from "@/features/videos/domain/pace";
 import { BODY_SCENE_TYPES, HOOK_VARIANTS, VISUAL_VARIANTS } from "@/features/videos/domain/scene-types";
+import { STORY_ANGLES } from "@/features/videos/domain/story-angle";
 
 import { publishBookSchema, publishMetadataDraftSchema } from "./publish-metadata";
 
@@ -39,6 +40,8 @@ export const videoScriptInputSchema = z.object({
   maxDurationSec: durationPreset,
   // How fast the narration will be voiced, so the script is written to that many words for its length.
   pace: z.enum(PACES).default("STANDARD"),
+  // How this script is told, so neighbouring videos are not the same story shape.
+  storyAngle: z.enum(STORY_ANGLES),
   videoProfile: z.literal("SHORT_VERTICAL"),
   book: publishBookSchema,
   lessons: z.array(lessonSnapshotSchema).min(1),

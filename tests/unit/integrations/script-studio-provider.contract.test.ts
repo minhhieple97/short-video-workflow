@@ -29,6 +29,7 @@ describe("MockScriptStudioProvider", () => {
       lesson,
       range,
       pace: "STANDARD",
+      storyAngle: "PEAK_FIRST",
       revisionNote: null,
     });
     const seconds = draft.beats.reduce((sum, beat) => sum + estimateNarrationSeconds(beat.narration), 0);

@@ -21,6 +21,7 @@ import { sceneContentHash } from "@/features/videos/services/scene-records";
 import { hookOptionSchema, storyboardSceneSchema, videoScriptOutputSchema } from "@/server/ai/contracts/video-script";
 import { mockSceneRegeneration, mockVideoScript } from "@/server/ai/mock-video-script";
 import { PUBLISH_RULE } from "@/server/ai/prompts/publish-rule";
+import { STORY_REWRITE_RULE, STORYTELLING_RULE, storyAngleRule } from "@/server/ai/prompts/storytelling-rule";
 import {
   buildSceneRegenerationPrompt,
   buildVideoScriptPrompt,
@@ -110,6 +111,7 @@ describe("mock video script", () => {
     minDurationSec: 30 as const,
     maxDurationSec: 120 as const,
     pace: "STANDARD" as const,
+    storyAngle: "PEAK_FIRST" as const,
     videoProfile: "SHORT_VERTICAL" as const,
     book: { title: "Thói quen nguyên tử", author: "James Clear" },
     lessons: [LESSON],
@@ -173,7 +175,48 @@ describe("mock video script", () => {
     expect(fast).toContain("120 (2 phút) ≈ 624 âm tiết");
     expect(fast).toContain("nhịp rất nhanh (khoảng 5,2 âm tiết/giây)");
     expect(fast).not.toContain("Không nói nhanh để vừa");
-    expect(VIDEO_SCRIPT_PROMPT_VERSION).toBe("video-script-v8");
+    expect(VIDEO_SCRIPT_PROMPT_VERSION).toBe("video-script-v9");
+  });
+
+  it("tells the story the way the assigned angle says, with the shared craft rules", () => {
+    const prompt = buildVideoScriptPrompt({ ...input, storyAngle: "DIALOGUE" });
+
+    expect(prompt).toContain(STORYTELLING_RULE);
+    expect(prompt).toContain(storyAngleRule("DIALOGUE"));
+    expect(prompt).toContain("“Cuộc đối thoại”");
+    expect(prompt).not.toContain(storyAngleRule("PEAK_FIRST"));
+    expect(prompt).toContain("Phương án đầu theo góc kể được giao");
+    expect(prompt).not.toContain("câu hỏi đánh trúng vấn đề");
+  });
+
+  it("does not let the ban on invented quotations forbid the lines of a character it makes up", () => {
+    const prompt = buildVideoScriptPrompt(input);
+
+    expect(prompt).toContain("trích dẫn của sách và tác giả (thoại của nhân vật tự nghĩ ra là tình huống minh hoạ");
+    expect(prompt).toContain("chỉ của nhân vật tự nghĩ ra");
+  });
+
+  it("changes only the angle between two angles, so the rest of the instructions stay the same", () => {
+    const strip = (angle: "TWIST" | "MYTH_BUST") =>
+      buildVideoScriptPrompt({ ...input, storyAngle: angle }).replace(storyAngleRule(angle), "");
+
+    expect(strip("TWIST")).toBe(strip("MYTH_BUST"));
+  });
+
+  it("gives a rewritten scene the short craft rule, and no angle, because it keeps the story it belongs to", () => {
+    const rewrite = buildSceneRegenerationPrompt({
+      videoId: "video-1",
+      sceneId: "scene-2",
+      attempt: 1,
+      targetDurationSec: 60,
+      pace: "STANDARD",
+      lessons: [LESSON],
+      scene: mockVideoScript(input).scenes[1]!,
+      promptVersion: VIDEO_SCRIPT_PROMPT_VERSION,
+    });
+
+    expect(rewrite).toContain(STORY_REWRITE_RULE);
+    expect(rewrite).not.toContain("Góc kể được giao");
   });
 
   it("rewrites a scene differently on each attempt while keeping its type", () => {

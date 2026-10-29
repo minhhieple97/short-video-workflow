@@ -1,6 +1,7 @@
 import { lessonSnapshotSchema, type LessonSnapshot } from "@/features/videos/domain/lesson-snapshot";
 import { formatRange, isDurationPreset, isWithinRange, type DurationRange } from "@/features/videos/domain/duration";
 import { toPace, type Pace } from "@/features/videos/domain/pace";
+import { pickStoryAngle } from "@/features/videos/domain/story-angle";
 import { findRenderRecord } from "@/features/videos/repositories/render.repository";
 import { SCENE_PLAN_PROMPT_VERSION } from "@/server/ai/prompts/scene-plan-prompt";
 import { IntegrationError } from "@/server/integrations/integration-error";
@@ -112,6 +113,8 @@ async function draftStep(
   const videoId = requireVideoId(item);
   const range = rangeOf(item);
   const pace = paceOf(item);
+  // The position is unique in the batch, so neighbouring videos are told differently, and a retry finds the same angle.
+  const storyAngle = pickStoryAngle(item.batchId, item.position);
   const sources = await deps.resolveSources({ bookId: item.batch.bookId, lesson, signal });
   const revisionNote = item.aiCorrectionTarget === "SCRIPT_STUDIO" ? item.aiCorrectionNote : null;
   const cacheKey = draftCacheKey(deps.scriptStudio, {
@@ -119,6 +122,7 @@ async function draftStep(
     lessonContentHash: lesson.contentHash,
     ...range,
     pace,
+    storyAngle,
     sourceRemoteIds: sources.map((source) => source.remoteId),
     revisionNote,
   });
@@ -127,7 +131,11 @@ async function draftStep(
     // script studio's quota is spent once per request.
     let draft = await readCachedDraft(cacheKey);
     if (!draft) {
-      draft = await deps.scriptStudio.writeDraft({ sources, lesson, range, pace, revisionNote }, { signal });
+      logger.info("Draft requested", { itemId: item.id, storyAngle });
+      draft = await deps.scriptStudio.writeDraft(
+        { sources, lesson, range, pace, storyAngle, revisionNote },
+        { signal },
+      );
       await cacheDraft(cacheKey, deps.scriptStudio, draft);
     }
     if (!isWithinRange(draft.targetDurationSec, range)) {

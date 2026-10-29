@@ -12,6 +12,7 @@ import type * as VideoService from "@/features/videos/services/video.service";
 import type * as DbClient from "@/server/db/client";
 import type { SceneRegenerationInput, VideoScriptInput } from "@/server/ai/contracts/video-script";
 import { MockAiProvider } from "@/server/ai/mock-ai-provider";
+import { pickStoryAngle } from "@/features/videos/domain/story-angle";
 
 import { SAMPLE_BOOK_PATH, setupTestEnvironment, type TestEnvironment } from "../helpers/test-environment";
 
@@ -131,6 +132,21 @@ class OutOfRangeAi extends MockAiProvider {
   override async generateVideoScript(input: VideoScriptInput) {
     const result = await super.generateVideoScript(input);
     if (result.status !== "completed") return result;
+    return { ...result, output: { ...result.output, targetDurationSec: 300 as const } };
+  }
+}
+
+class AngleRecordingAi extends MockAiProvider {
+  readonly angles: string[] = [];
+
+  constructor(private readonly outOfRange = false) {
+    super();
+  }
+
+  override async generateVideoScript(input: VideoScriptInput) {
+    this.angles.push(input.storyAngle);
+    const result = await super.generateVideoScript(input);
+    if (!this.outOfRange || result.status !== "completed") return result;
     return { ...result, output: { ...result.output, targetDurationSec: 300 as const } };
   }
 }
@@ -309,6 +325,37 @@ describe("script generation and editing", () => {
       narration: "Đây là một câu hook quá dài, kéo dài hơn ba giây rất nhiều nên sẽ bị chặn khi duyệt kịch bản.",
     });
     await expect(videos.approveScript(videoId)).rejects.toMatchObject({ code: "HOOK_INVALID" });
+  });
+});
+
+describe("the story angle of a script", () => {
+  it("is drawn from the video and its script version, and the next angle is used each time the script is written again", async () => {
+    const { video } = await create([approved[0]!], 60);
+    const ai = new AngleRecordingAi();
+    const version = async () => (await db.prisma.video.findUniqueOrThrow({ where: { id: video.id } })).scriptVersion;
+
+    const first = await version();
+    await generation.runScriptGeneration({ videoId: video.id, jobRecordId: null, provider: ai });
+    const second = await version();
+    await generation.runScriptGeneration({ videoId: video.id, jobRecordId: null, provider: ai });
+
+    expect(second).toBeGreaterThan(first);
+    expect(ai.angles).toEqual([pickStoryAngle(video.id, first), pickStoryAngle(video.id, second)]);
+    expect(ai.angles[1]).not.toBe(ai.angles[0]);
+  });
+
+  it("is the same on a retry after a refused script, because a refused script changes nothing", async () => {
+    const { video } = await create([approved[0]!], 60);
+    const refused = new AngleRecordingAi(true);
+    const retry = new AngleRecordingAi();
+
+    await expect(
+      generation.runScriptGeneration({ videoId: video.id, jobRecordId: null, provider: refused }),
+    ).rejects.toMatchObject({ code: "INVALID_AI_OUTPUT" });
+    await generation.runScriptGeneration({ videoId: video.id, jobRecordId: null, provider: retry });
+
+    expect(refused.angles).toHaveLength(1);
+    expect(retry.angles).toEqual(refused.angles);
   });
 });
 

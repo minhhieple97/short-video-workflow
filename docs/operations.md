@@ -180,6 +180,11 @@ khi `AI_MODE=cli-auto` và đã đặt `NOTEBOOKLM_PROFILE`.
 
 Gói được ghim (`NOTEBOOKLM_MCP_PACKAGE`) vì dùng API không chính thức; đừng nâng phiên bản khi chưa kiểm tra lại.
 
+Bản thảo của mỗi video được viết theo một góc kể (xoay tự động theo đợt và vị trí của mục, [requirements.md](requirements.md) §6.4).
+Khi nâng cấp lên persona v2 và bản thảo v6: persona được áp lại một lần cho mỗi notebook ở lần mở sau; bản thảo đã cache với phiên
+bản cũ không được dùng lại, nên video sản xuất sau nâng cấp tốn một lượt NotebookLM cho bản thảo (video đã có bản thảo giữ nguyên).
+Sản xuất lại cùng bài học ở đợt khác thường ra góc kể khác, tức một lượt NotebookLM mới.
+
 ### 3.5 Google Drive
 
 1. Trong Google Cloud project của bạn: bật Google Drive API, tạo OAuth client loại **Desktop app**; màn hình đồng ý ở
@@ -366,7 +371,9 @@ data/                                   # không commit
   trang trong phản hồi; cơ số tham số `page` khi liệt kê job (đang dùng 0) và việc danh sách trả `metadata`; danh sách
   job nhất quán ngay sau khi tạo; lô `FAILED`/`TIMEOUT_EXCEEDED` không bị tính tiền.
 - **NotebookLM:** `notebooklm-mcp-cli` dùng API không chính thức; các mẫu văn bản lỗi ngoài "No authentication found";
-  chất lượng JSON trả về.
+  chất lượng JSON trả về; câu hỏi bản thảo (khoảng 6.000 ký tự gồm quy tắc kể chuyện và góc kể) có được nhận nguyên vẹn không;
+  bản thảo kể chuyện có đẩy lời dẫn vượt độ dài (`OVER_TARGET`) hay thiếu (`UNDER_MIN`) nhiều hơn trước không, và thoại ngắn có
+  bị Claude đổi chữ làm hỏng kiểm tra trích dẫn (`SCENE_PLAN_UNSUPPORTED_CLAIM`) không.
 - **Google Drive:** mã hoá của `sha256Checksum`/`md5Checksum` (đang so dạng hex, không phân biệt hoa thường); redirect
   loopback không có path được chấp nhận.
 
@@ -394,6 +401,10 @@ Drive; không mất tiến độ khi khởi động lại, không chạy lại c
 
 - [ ] Chương được xác định; **Phân tích tất cả chương** tạo bài học có trích đoạn và số trang khớp sách.
 - [ ] Ghi lại văn bản lỗi thật nếu gặp (đăng nhập, hạn mức).
+- [ ] Sản xuất một đợt từ sáu bài học trở lên: các video liền kề khác góc kể; hook mở bằng khoảnh khắc cụ thể (không phải câu
+      hỏi chung chung); tab **Nguồn kịch bản** đánh dấu minh hoạ ở mọi nhịp có nhân vật hay thoại bịa. Ghi lại tỷ lệ
+      `OVER_TARGET`, `UNDER_MIN` và `SCENE_PLAN_UNSUPPORTED_CLAIM`; nếu NotebookLM từ chối hay cắt câu hỏi bản thảo, chuyển
+      `STORYTELLING_RULE` sang persona (xem `docs/architecture.md`, mục Prompt).
 
 **Video và Drive**
 
