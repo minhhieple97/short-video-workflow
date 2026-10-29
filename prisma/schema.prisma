@@ -185,15 +185,36 @@ model Video {
   createdAt              DateTime             @default(now())
   updatedAt              DateTime             @updatedAt
 
-  videoLessons   VideoLesson[]
-  scenes         VideoScene[]
-  renders        RenderRecord[]
-  mediaAssets    MediaAsset[]
-  productionItem ProductionItem?
+  videoLessons    VideoLesson[]
+  scenes          VideoScene[]
+  renders         RenderRecord[]
+  mediaAssets     MediaAsset[]
+  productionItem  ProductionItem?
+  publishMetadata VideoPublishMetadata?
 
   @@index([bookId])
   @@index([status])
   @@index([createdAt])
+}
+
+// The title, caption and hashtags proposed for posting the video: one set for TikTok, Facebook Reels and YouTube Shorts.
+model VideoPublishMetadata {
+  id             String   @id @default(cuid())
+  videoId        String   @unique
+  video          Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  title          String
+  caption        String
+  // Normalized tags without "#" (string[]).
+  hashtagsJson   Json
+  // PUBLISH_ORIGINS in features/videos/domain/publish-metadata.ts (AI | EDITED).
+  origin         String
+  // The prompt that wrote the AI's version; kept after a hand edit.
+  promptVersion  String?
+  // scriptTextHash() of the visible scenes when this was written or last saved; a different hash means the script's text
+  // changed since. Not the scriptVersion, which voice-overs bump without changing a word.
+  sourceTextHash String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model VideoLesson {

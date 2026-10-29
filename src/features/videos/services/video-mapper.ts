@@ -10,13 +10,15 @@ import {
   VIDEO_FPS,
 } from "../domain/duration";
 import { lessonSnapshotSchema } from "../domain/lesson-snapshot";
+import { toPublishOrigin } from "../domain/publish-metadata";
 import { toSceneType, toVisualVariant, HOOK_VARIANTS, type HookVariant } from "../domain/scene-types";
 import { toVideoStatus } from "../domain/video-status";
 import type { VideoDetailRecord } from "../repositories/video.repository";
-import type { SceneAudioDto, SceneDto, VideoDetail } from "../schemas/video.dto";
-import { parseIllustration } from "./scene-records";
+import type { PublishMetadataDto, SceneAudioDto, SceneDto, VideoDetail } from "../schemas/video.dto";
+import { parseIllustration, scriptTextHash } from "./scene-records";
 
 const hookOptionsSchema = z.array(hookOptionSchema).catch([]);
+const hashtagsSchema = z.array(z.string()).catch([]);
 
 function toHookVariant(value: string | null): HookVariant | null {
   return HOOK_VARIANTS.find((variant) => variant === value) ?? null;
@@ -53,6 +55,19 @@ function toSceneAudio(scene: VideoDetailRecord["scenes"][number]): SceneAudioDto
     durationMs: asset.durationMs ?? 0,
     leadingSilenceMs: audioSettingsSchema.parse(asset.generationSettingsJson ?? {}).leadingSilenceMs,
     url: mediaAssetUrl(asset.id),
+  };
+}
+
+function toPublishMetadataDto(video: VideoDetailRecord): PublishMetadataDto | null {
+  const row = video.publishMetadata;
+  if (!row) return null;
+  return {
+    title: row.title,
+    caption: row.caption,
+    hashtags: hashtagsSchema.parse(row.hashtagsJson),
+    origin: toPublishOrigin(row.origin),
+    outdated: row.sourceTextHash !== scriptTextHash(video.scenes),
+    updatedAt: row.updatedAt.toISOString(),
   };
 }
 
@@ -119,6 +134,7 @@ export function toVideoDetail(video: VideoDetailRecord): VideoDetail {
       maxDurationSec: video.maxDurationSec,
     }),
     hookIssues: hookIssues(scenes),
+    publish: toPublishMetadataDto(video),
     createdAt: video.createdAt.toISOString(),
     updatedAt: video.updatedAt.toISOString(),
   };

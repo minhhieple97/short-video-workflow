@@ -24,6 +24,17 @@ export function sceneContentHash(
   return createHash("sha256").update(JSON.stringify(parts)).digest("hex");
 }
 
+// The words viewers see and hear, in order: what a caption is written from. Audio, pictures and layouts are left out, so a
+// voice-over or a new illustration does not make the caption outdated.
+export function scriptTextHash(
+  scenes: readonly (Pick<SceneContent, "type" | "title" | "narration" | "onScreenText"> & { hidden?: boolean })[],
+): string {
+  const parts = scenes
+    .filter((scene) => scene.hidden !== true)
+    .map((scene) => [scene.type, scene.title, scene.narration, scene.onScreenText]);
+  return createHash("sha256").update(JSON.stringify(parts)).digest("hex");
+}
+
 export function parseIllustration(json: string | null): Illustration | null {
   if (!json) return null;
   try {

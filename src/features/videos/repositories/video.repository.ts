@@ -1,6 +1,8 @@
 import type { Prisma, Video, VideoScene } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 
+import { upsertPublishMetadataWithin, type PublishMetadataWrite } from "./publish-metadata.repository";
+
 type Tx = Prisma.TransactionClient;
 
 const DETAIL_INCLUDE = {
@@ -18,6 +20,7 @@ const DETAIL_INCLUDE = {
       },
     },
   },
+  publishMetadata: true,
 };
 
 export type VideoDetailRecord = NonNullable<Awaited<ReturnType<typeof findVideoDetail>>>;
@@ -154,6 +157,8 @@ export type ReplacementScript = {
   scenes: readonly NewSceneRecord[];
   // The length the AI wrote this script for, when it proposed one with it.
   duration?: { targetDurationSec: number; durationReason: string };
+  // The title, caption and hashtags the AI wrote with the script; without them the previous set stays, marked outdated.
+  publish?: PublishMetadataWrite;
 };
 
 // The one place a whole script is written, so the manual flow and the production flow cannot drift apart. The caller
@@ -163,6 +168,7 @@ export async function replaceScriptWithin(tx: Tx, videoId: string, script: Repla
   await tx.videoScene.createMany({
     data: script.scenes.map((scene, order) => ({ ...scene, videoId, order })),
   });
+  if (script.publish) await upsertPublishMetadataWithin(tx, videoId, script.publish);
   return bumpScript(tx, videoId, { hookOptionsJson: script.hookOptions, ...script.duration });
 }
 

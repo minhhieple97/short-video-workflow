@@ -1,4 +1,5 @@
 import type { DurationBudget } from "../domain/duration";
+import type { PublishOrigin } from "../domain/publish-metadata";
 import type { HookVariant, SceneType, VisualVariant } from "../domain/scene-types";
 import type { VideoStatus } from "../domain/video-status";
 import type { Illustration } from "../domain/illustration";
@@ -47,6 +48,17 @@ export interface VideoLessonDto {
   changedSinceSnapshot: boolean;
 }
 
+export interface PublishMetadataDto {
+  title: string;
+  caption: string;
+  // Without "#".
+  hashtags: string[];
+  origin: PublishOrigin;
+  // The script's text changed after this set was written or last saved.
+  outdated: boolean;
+  updatedAt: string;
+}
+
 export interface VideoSummary {
   id: string;
   title: string;
@@ -89,6 +101,8 @@ export interface VideoDetail {
   scenes: SceneDto[];
   budget: DurationBudget;
   hookIssues: string[];
+  // Title, caption and hashtags for posting; null until an AI wrote them.
+  publish: PublishMetadataDto | null;
   createdAt: string;
   updatedAt: string;
 }
