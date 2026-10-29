@@ -24,7 +24,7 @@ describe("the scene-plan task kind", () => {
     );
   });
 
-  it("writes a JSON schema for Claude that asks for a hook and the story scenes", async () => {
+  it("writes a JSON schema for Claude that asks for a hook, the story scenes and an optional publish set", async () => {
     await taskFiles.writeTaskFiles(
       {
         taskId: "scene-plan-1",
@@ -45,7 +45,8 @@ describe("the scene-plan task kind", () => {
       $schema?: string;
     };
     expect(schema.required).toEqual(expect.arrayContaining(["hook", "scenes"]));
-    expect(Object.keys(schema.properties).sort()).toEqual(["hook", "scenes"]);
+    expect(Object.keys(schema.properties).sort()).toEqual(["hook", "publish", "scenes"]);
+    expect(schema.required).not.toContain("publish");
     expect(schema.$schema).toBeUndefined();
   });
 

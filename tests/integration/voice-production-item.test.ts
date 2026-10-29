@@ -12,7 +12,7 @@ import type * as DbClient from "@/server/db/client";
 import { createScenePlanArtifact } from "@/server/scene-plan/handoff";
 import { MockScenePlanCompiler } from "@/server/scene-plan/mock-scene-plan-compiler";
 
-import { SAMPLE_LESSON } from "../helpers/contracts/script-studio-provider-contract";
+import { SAMPLE_BOOK, SAMPLE_LESSON } from "../helpers/contracts/script-studio-provider-contract";
 import { MockScriptStudioProvider } from "@/server/script-studio/mock-script-studio-provider";
 import { setupTestEnvironment, type TestEnvironment } from "../helpers/test-environment";
 
@@ -99,11 +99,14 @@ beforeEach(async () => {
   const plan = await new MockScenePlanCompiler().compile({
     draft,
     lesson: SAMPLE_LESSON,
+    book: SAMPLE_BOOK,
     targetDurationSec: 60,
     range: { minDurationSec: 30, maxDurationSec: 60 },
     revisionNote: null,
   });
   await apply.applyScenePlan({
+    lesson: SAMPLE_LESSON,
+    book: SAMPLE_BOOK,
     itemId,
     claimToken: TOKEN,
     artifact: createScenePlanArtifact({

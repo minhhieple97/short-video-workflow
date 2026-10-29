@@ -3,9 +3,10 @@ import { STORY_SCENE_ORDER } from "@/features/videos/domain/narrative-beats";
 import type { ScenePlanTaskInput } from "@/server/scene-plan/handoff";
 
 import { ILLUSTRATION_JSON, ILLUSTRATION_RULE } from "./illustration-rule";
+import { PUBLISH_JSON, PUBLISH_RULE } from "./publish-rule";
 import { fenceUntrustedText, UNTRUSTED_TEXT_RULE } from "./untrusted-text";
 
-export const SCENE_PLAN_PROMPT_VERSION = "scene-plan-v5";
+export const SCENE_PLAN_PROMPT_VERSION = "scene-plan-v6";
 
 export function buildScenePlanPrompt(input: ScenePlanTaskInput): string {
   const hookSyllables = HOOK_MAX_SECONDS * SYLLABLES_PER_SECOND - 1;
@@ -30,14 +31,15 @@ export function buildScenePlanPrompt(input: ScenePlanTaskInput): string {
     "- Lời dẫn và chữ trên màn hình LUÔN bằng tiếng Việt tự nhiên, có dấu, kể cả khi trích đoạn nguồn bằng tiếng Anh (không chép câu tiếng Anh lên màn hình, trừ tên riêng, tên sách). onScreenText cô đọng (từ khoá, tối đa 120 ký tự; hook tối đa 60 ký tự), không phải đoạn văn.",
     "- visualVariant thuộc: HOOK_QUESTION, SPLIT_MISTAKE_SOLUTION, SCENARIO_CARD, BIG_TAKEAWAY, ACTION_CHECKLIST.",
     ILLUSTRATION_RULE,
+    PUBLISH_RULE,
     ...(input.revisionNote
       ? ["", "## Lần sửa duy nhất", `Chỉ sửa đúng điều sau và giữ nguyên phần còn lại: ${input.revisionNote}`]
       : []),
     "",
     "## Định dạng đầu ra",
-    `Chỉ trả về JSON: {"hook": {"variant","narration","onScreenText","visualVariant",${ILLUSTRATION_JSON}}, "scenes": [{"type","title","narration","onScreenText","visualVariant",${ILLUSTRATION_JSON}}]}. variant của hook thuộc QUESTION, MISTAKE, CONTRAST.`,
+    `Chỉ trả về JSON: {"hook": {"variant","narration","onScreenText","visualVariant",${ILLUSTRATION_JSON}}, "scenes": [{"type","title","narration","onScreenText","visualVariant",${ILLUSTRATION_JSON}}], ${PUBLISH_JSON}}. variant của hook thuộc QUESTION, MISTAKE, CONTRAST.`,
     "",
-    "## Bản thảo và bài học nguồn",
-    fenceUntrustedText(JSON.stringify({ draft: input.draft, lesson: input.lesson }, null, 2)),
+    "## Bản thảo, bài học và sách nguồn",
+    fenceUntrustedText(JSON.stringify({ draft: input.draft, lesson: input.lesson, book: input.book }, null, 2)),
   ].join("\n");
 }

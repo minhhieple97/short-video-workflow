@@ -2,7 +2,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 
 const RUN_INCLUDE = {
-  batch: { select: { bookId: true } },
+  batch: { select: { bookId: true, book: { select: { title: true, author: true } } } },
   video: {
     select: {
       id: true,

@@ -15,7 +15,7 @@ import { stableStringify } from "@/shared/stable-json";
 import type { ScenePlan } from "@/server/scene-plan/scene-plan-compiler";
 import type { ScriptDraft } from "@/server/script-studio/script-studio-contracts";
 
-import { SAMPLE_LESSON } from "../../helpers/contracts/script-studio-provider-contract";
+import { SAMPLE_BOOK, SAMPLE_LESSON } from "../../helpers/contracts/script-studio-provider-contract";
 import { MockScenePlanCompiler } from "@/server/scene-plan/mock-scene-plan-compiler";
 import { MockScriptStudioProvider } from "@/server/script-studio/mock-script-studio-provider";
 
@@ -29,6 +29,7 @@ async function sample(): Promise<{ draft: ScriptDraft; plan: ScenePlan }> {
   const plan = await new MockScenePlanCompiler().compile({
     draft,
     lesson: SAMPLE_LESSON,
+    book: SAMPLE_BOOK,
     targetDurationSec: 60,
     range: { minDurationSec: 30, maxDurationSec: 60 },
     revisionNote: null,
@@ -175,12 +176,13 @@ describe("scene plan artifact", () => {
 });
 
 describe("scene plan task input", () => {
-  it("carries the draft's story and the lesson snapshot, without fingerprint bookkeeping", async () => {
+  it("carries the draft's story, the lesson snapshot and the book's name, without fingerprint bookkeeping", async () => {
     const { draft } = await sample();
 
     const input = scenePlanTaskInputSchema.parse({
       draft,
       lesson: SAMPLE_LESSON,
+      book: SAMPLE_BOOK,
       targetDurationSec: 60,
       minDurationSec: 30,
       maxDurationSec: 90,
@@ -189,6 +191,7 @@ describe("scene plan task input", () => {
     });
 
     expect(Object.keys(input).sort()).toEqual([
+      "book",
       "draft",
       "lesson",
       "maxDurationSec",
@@ -205,6 +208,7 @@ describe("scene plan task input", () => {
       scenePlanTaskInputSchema.safeParse({
         draft,
         lesson: SAMPLE_LESSON,
+        book: SAMPLE_BOOK,
         ...lengths,
         revisionNote: null,
         promptVersion: "p",

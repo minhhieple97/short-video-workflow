@@ -162,7 +162,7 @@ export async function runScriptGeneration(
       scenes,
       duration: { targetDurationSec: output.targetDurationSec, durationReason: output.durationReason },
       publish: publishWriteFor(output.publish, {
-        videoId: video.id,
+        logIds: { videoId: video.id },
         promptVersion: VIDEO_SCRIPT_PROMPT_VERSION,
         book: input.book,
         lessons: input.lessons,

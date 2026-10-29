@@ -77,6 +77,8 @@ function lessonOf(item: ProductionItemForRun): LessonSnapshot {
   return parsed.data;
 }
 
+const bookOf = (item: ProductionItemForRun) => ({ title: item.batch.book.title, author: item.batch.book.author });
+
 // The video carries the range (set from the batch, changeable in its settings while it is not running).
 function rangeOf(item: ProductionItemForRun): DurationRange {
   const range = { minDurationSec: item.video?.minDurationSec ?? 0, maxDurationSec: item.video?.maxDurationSec ?? 0 };
@@ -154,6 +156,7 @@ async function compileStep(
       {
         draft: draftArtifact.data.draft,
         lesson,
+        book: bookOf(item),
         targetDurationSec,
         range: rangeOf(item),
         revisionNote: item.aiCorrectionTarget === "SCENE_COMPILER" ? item.aiCorrectionNote : null,
@@ -231,7 +234,13 @@ async function executeStep(
     case "DRAFTED":
       return compileStep(item, claimToken, signal, deps);
     case "COMPILED":
-      await applyScenePlan({ itemId: item.id, claimToken, artifact: item.scenePlanArtifactJson });
+      await applyScenePlan({
+        itemId: item.id,
+        claimToken,
+        artifact: item.scenePlanArtifactJson,
+        lesson: lessonOf(item),
+        book: bookOf(item),
+      });
       return { kind: "CONTINUE" };
     case "APPLIED":
       await voiceProductionItem({

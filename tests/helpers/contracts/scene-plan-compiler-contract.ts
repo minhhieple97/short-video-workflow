@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ScriptDraft } from "@/server/script-studio/script-studio-contracts";
 import { scenePlanSchema, type ScenePlanCompiler } from "@/server/scene-plan/scene-plan-compiler";
 
-import { SAMPLE_LESSON } from "./script-studio-provider-contract";
+import { SAMPLE_BOOK, SAMPLE_LESSON } from "./script-studio-provider-contract";
 
 const DRAFT: ScriptDraft = {
   lessonId: SAMPLE_LESSON.lessonId,
@@ -34,6 +34,7 @@ export function describeScenePlanCompilerContract(name: string, createCompiler: 
     const request = {
       draft: DRAFT,
       lesson: SAMPLE_LESSON,
+      book: SAMPLE_BOOK,
       targetDurationSec: 60 as const,
       range: { minDurationSec: 30, maxDurationSec: 60 },
       revisionNote: null,

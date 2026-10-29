@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { CHARACTER_ACTIONS, ILLUSTRATION_SETTINGS } from "@/features/videos/domain/illustration";
+import { PUBLISH_RULE } from "@/server/ai/prompts/publish-rule";
 import { buildScenePlanPrompt, SCENE_PLAN_PROMPT_VERSION } from "@/server/ai/prompts/scene-plan-prompt";
 import type { ScenePlanTaskInput } from "@/server/scene-plan/handoff";
 
-import { SAMPLE_LESSON } from "../../helpers/contracts/script-studio-provider-contract";
+import { SAMPLE_BOOK, SAMPLE_LESSON } from "../../helpers/contracts/script-studio-provider-contract";
 
 const input = (overrides: Partial<ScenePlanTaskInput> = {}): ScenePlanTaskInput => ({
   draft: {
@@ -19,6 +20,7 @@ const input = (overrides: Partial<ScenePlanTaskInput> = {}): ScenePlanTaskInput 
     })),
   },
   lesson: SAMPLE_LESSON,
+  book: SAMPLE_BOOK,
   targetDurationSec: 60,
   minDurationSec: 30,
   maxDurationSec: 90,
@@ -28,6 +30,14 @@ const input = (overrides: Partial<ScenePlanTaskInput> = {}): ScenePlanTaskInput 
 });
 
 describe("buildScenePlanPrompt", () => {
+  it("asks for the shared title, caption and hashtags, with the book fenced as data", () => {
+    const prompt = buildScenePlanPrompt(input());
+
+    expect(prompt).toContain(PUBLISH_RULE);
+    expect(prompt).toContain('"publish":{"title","caption","hashtags":[]}');
+    expect(prompt.slice(prompt.indexOf("<<<BEGIN_UNTRUSTED_SOURCE_TEXT>>>"))).toContain(SAMPLE_BOOK.title);
+  });
+
   it("keeps narration and on-screen text in Vietnamese even when the book's excerpts are in English", () => {
     const prompt = buildScenePlanPrompt(input());
 

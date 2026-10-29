@@ -1,4 +1,7 @@
+import type { LessonSnapshot } from "@/features/videos/domain/lesson-snapshot";
+import { publishWriteFor } from "@/features/videos/services/publish-proposal";
 import { buildSceneRecord } from "@/features/videos/services/scene-records";
+import type { PublishBook } from "@/server/ai/contracts/publish-metadata";
 import { scenePlanArtifactSchema } from "@/server/scene-plan/handoff";
 import { AppError, NotFoundError } from "@/shared/errors";
 import { createLogger } from "@/shared/logger";
@@ -9,18 +12,43 @@ const logger = createLogger("productions.apply-plan");
 
 export type ApplyScenePlanOutcome = "APPLIED" | "ALREADY_APPLIED";
 
-// Writes a compiled scene plan onto the item's video. The artifact is re-validated first (its fingerprint must still
-// match its content), and the same plan applied again is a no-op, so replaying the step keeps the scenes and their audio.
+// Writes a compiled scene plan onto the item's video, with the title, caption and hashtags Claude wrote for it when they
+// pass the publish rules. The artifact is re-validated first (its fingerprint must still match its content), and the same
+// plan applied again is a no-op, so replaying the step keeps the scenes and their audio.
 export async function applyScenePlan(input: {
   itemId: string;
   claimToken: string;
   artifact: unknown;
+  lesson: LessonSnapshot;
+  book: PublishBook;
 }): Promise<ApplyScenePlanOutcome> {
   const parsed = scenePlanArtifactSchema.safeParse(input.artifact);
   if (!parsed.success) {
     throw new AppError("INVALID_SCENE_PLAN_ARTIFACT", "Kế hoạch cảnh đã lưu bị hỏng hoặc không khớp fingerprint.", 422);
   }
-  const { plan, fingerprint } = parsed.data;
+  const { plan, fingerprint, promptVersion } = parsed.data;
+  const scenes = [
+    buildSceneRecord({
+      type: "HOOK",
+      title: "Hook",
+      narration: plan.hook.narration,
+      onScreenText: plan.hook.onScreenText,
+      visualVariant: plan.hook.visualVariant,
+      hookVariant: plan.hook.variant,
+      illustration: plan.hook.illustration ?? null,
+    }),
+    ...plan.scenes.map((scene) =>
+      buildSceneRecord({
+        type: scene.type,
+        title: scene.title ?? null,
+        narration: scene.narration,
+        onScreenText: scene.onScreenText,
+        visualVariant: scene.visualVariant,
+        hookVariant: null,
+        illustration: scene.illustration ?? null,
+      }),
+    ),
+  ];
 
   const result = await applyScenePlanOnce({
     itemId: input.itemId,
@@ -28,28 +56,14 @@ export async function applyScenePlan(input: {
     planFingerprint: fingerprint,
     script: {
       hookOptions: [plan.hook],
-      scenes: [
-        buildSceneRecord({
-          type: "HOOK",
-          title: "Hook",
-          narration: plan.hook.narration,
-          onScreenText: plan.hook.onScreenText,
-          visualVariant: plan.hook.visualVariant,
-          hookVariant: plan.hook.variant,
-          illustration: plan.hook.illustration ?? null,
-        }),
-        ...plan.scenes.map((scene) =>
-          buildSceneRecord({
-            type: scene.type,
-            title: scene.title ?? null,
-            narration: scene.narration,
-            onScreenText: scene.onScreenText,
-            visualVariant: scene.visualVariant,
-            hookVariant: null,
-            illustration: scene.illustration ?? null,
-          }),
-        ),
-      ],
+      scenes,
+      publish: publishWriteFor(plan.publish, {
+        logIds: { itemId: input.itemId },
+        promptVersion,
+        book: input.book,
+        lessons: [input.lesson],
+        scenes,
+      }),
     },
   });
 

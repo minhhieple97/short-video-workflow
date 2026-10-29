@@ -13,7 +13,8 @@ const logger = createLogger("videos.publish");
 export function publishWriteFor(
   proposal: PublishMetadataDraft | undefined,
   context: {
-    videoId: string;
+    // Only for the log line.
+    logIds: { videoId: string } | { itemId: string };
     promptVersion: string;
     book: { title: string; author: string | null };
     lessons: readonly LessonSnapshot[];
@@ -21,12 +22,12 @@ export function publishWriteFor(
   },
 ): PublishMetadataWrite | undefined {
   if (!proposal) {
-    logger.warn("AI wrote no publish metadata", { videoId: context.videoId });
+    logger.warn("AI wrote no publish metadata", context.logIds);
     return undefined;
   }
   const { metadata, issue } = acceptPublishMetadata(proposal, publishClaimSources(context));
   if (issue) {
-    logger.warn("Publish metadata dropped", { videoId: context.videoId, code: issue.code });
+    logger.warn("Publish metadata dropped", { ...context.logIds, code: issue.code });
     return undefined;
   }
   return {

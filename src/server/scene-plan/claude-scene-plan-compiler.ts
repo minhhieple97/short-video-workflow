@@ -44,6 +44,7 @@ export class ClaudeScenePlanCompiler implements ScenePlanCompiler {
     const input = scenePlanTaskInputSchema.parse({
       draft: request.draft,
       lesson: request.lesson,
+      book: request.book,
       targetDurationSec: request.targetDurationSec,
       ...request.range,
       revisionNote: request.revisionNote,

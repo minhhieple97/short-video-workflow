@@ -1,5 +1,6 @@
 import type { CharacterAction } from "@/features/videos/domain/illustration";
 import { SCENE_TYPE_FOR_BEAT, type NarrativeBeat } from "@/features/videos/domain/narrative-beats";
+import { mockPublishMetadata } from "@/server/ai/mock-publish-metadata";
 import type { CallOptions } from "@/server/integrations/call-options";
 import type { ScenePlan, ScenePlanCompiler, ScenePlanRequest } from "@/server/scene-plan/scene-plan-compiler";
 
@@ -21,11 +22,12 @@ export class MockScenePlanCompiler implements ScenePlanCompiler {
     options?.signal?.throwIfAborted();
     const [hookBeat, ...bodyBeats] = request.draft.beats;
     if (hookBeat?.beat !== "HOOK") throw new Error("The draft must open with a HOOK beat.");
+    const hookNarration = hookBeat.narration.slice(0, 120);
 
     return {
       hook: {
         variant: "QUESTION",
-        narration: hookBeat.narration.slice(0, 120),
+        narration: hookNarration,
         onScreenText: hookBeat.narration.slice(0, 60),
         visualVariant: "HOOK_QUESTION",
         illustration: { setting: "OFFICE", action: ACTION_FOR_BEAT.HOOK },
@@ -40,6 +42,7 @@ export class MockScenePlanCompiler implements ScenePlanCompiler {
           illustration: { setting: "OFFICE" as const, action: ACTION_FOR_BEAT[beat.beat] },
         };
       }),
+      publish: mockPublishMetadata({ book: request.book, lessons: [request.lesson], hook: hookNarration }),
     };
   }
 }

@@ -9,7 +9,7 @@ import { createScenePlanArtifact } from "@/server/scene-plan/handoff";
 import { MockScenePlanCompiler } from "@/server/scene-plan/mock-scene-plan-compiler";
 import type { ScenePlan } from "@/server/scene-plan/scene-plan-compiler";
 
-import { SAMPLE_LESSON } from "../helpers/contracts/script-studio-provider-contract";
+import { SAMPLE_BOOK, SAMPLE_LESSON } from "../helpers/contracts/script-studio-provider-contract";
 import { MockScriptStudioProvider } from "@/server/script-studio/mock-script-studio-provider";
 import { setupTestEnvironment, type TestEnvironment } from "../helpers/test-environment";
 
@@ -23,6 +23,7 @@ let videos: typeof VideoService;
 let itemId: string;
 let videoId: string;
 const TOKEN = "worker-a";
+const SOURCES = { lesson: SAMPLE_LESSON, book: SAMPLE_BOOK };
 
 async function planFor(variant = "") {
   const draft = await new MockScriptStudioProvider().writeDraft({
@@ -34,6 +35,7 @@ async function planFor(variant = "") {
   const plan: ScenePlan = await new MockScenePlanCompiler().compile({
     draft,
     lesson: SAMPLE_LESSON,
+    book: SAMPLE_BOOK,
     targetDurationSec: 60,
     range: { minDurationSec: 30, maxDurationSec: 60 },
     revisionNote: null,
@@ -110,10 +112,55 @@ afterAll(async () => {
 });
 
 describe("applyScenePlan", () => {
+  it("stores the title, caption and hashtags Claude wrote with the plan", async () => {
+    const artifact = await planFor();
+
+    await apply.applyScenePlan({ ...SOURCES, itemId, claimToken: TOKEN, artifact });
+
+    const { publish } = await videos.getVideo(videoId);
+    expect(publish).toMatchObject({ origin: "AI", outdated: false });
+    expect(publish?.caption).toContain(`Sách: ${SAMPLE_BOOK.title} – ${SAMPLE_BOOK.author}`);
+    const row = await db.prisma.videoPublishMetadata.findUniqueOrThrow({ where: { videoId } });
+    expect(row.promptVersion).toBe(artifact.promptVersion);
+  });
+
+  it("still applies a plan stored before plans carried a caption", async () => {
+    const { plan } = await planFor();
+    const legacy = createScenePlanArtifact({
+      plan: { ...plan, publish: undefined },
+      draftFingerprint: "a".repeat(64),
+      promptVersion: "scene-plan-v5",
+      targetDurationSec: 60,
+    });
+
+    await expect(
+      apply.applyScenePlan({ ...SOURCES, itemId, claimToken: TOKEN, artifact: JSON.parse(JSON.stringify(legacy)) }),
+    ).resolves.toBe("APPLIED");
+    expect((await scenes()).length).toBe(6);
+    expect((await videos.getVideo(videoId)).publish).toBeNull();
+  });
+
+  it("applies the scenes but drops a caption with a number found in no source", async () => {
+    const { plan } = await planFor();
+    const artifact = createScenePlanArtifact({
+      plan: {
+        ...plan,
+        publish: { title: "Một tiêu đề", caption: "90% người bỏ lỡ điều này.", hashtags: ["a", "b", "c"] },
+      },
+      draftFingerprint: "a".repeat(64),
+      promptVersion: "scene-plan-v6",
+      targetDurationSec: 60,
+    });
+
+    await expect(apply.applyScenePlan({ ...SOURCES, itemId, claimToken: TOKEN, artifact })).resolves.toBe("APPLIED");
+    expect((await scenes()).length).toBe(6);
+    expect((await videos.getVideo(videoId)).publish).toBeNull();
+  });
+
   it("puts a HOOK and the story scenes on the video, and moves the item to APPLIED", async () => {
     const artifact = await planFor();
 
-    await expect(apply.applyScenePlan({ itemId, claimToken: TOKEN, artifact })).resolves.toBe("APPLIED");
+    await expect(apply.applyScenePlan({ ...SOURCES, itemId, claimToken: TOKEN, artifact })).resolves.toBe("APPLIED");
 
     expect((await scenes()).map((scene) => [scene.order, scene.type])).toEqual([
       [0, "HOOK"],
@@ -144,7 +191,7 @@ describe("applyScenePlan", () => {
 
   it("changes nothing when the same plan is applied again, so the audio on the scenes survives a replay", async () => {
     const artifact = await planFor();
-    await apply.applyScenePlan({ itemId, claimToken: TOKEN, artifact });
+    await apply.applyScenePlan({ ...SOURCES, itemId, claimToken: TOKEN, artifact });
     const before = await scenes();
     const asset = await db.prisma.mediaAsset.create({
       data: {
@@ -163,7 +210,9 @@ describe("applyScenePlan", () => {
     });
     const versionBefore = (await db.prisma.video.findUniqueOrThrow({ where: { id: videoId } })).scriptVersion;
 
-    await expect(apply.applyScenePlan({ itemId, claimToken: TOKEN, artifact })).resolves.toBe("ALREADY_APPLIED");
+    await expect(apply.applyScenePlan({ ...SOURCES, itemId, claimToken: TOKEN, artifact })).resolves.toBe(
+      "ALREADY_APPLIED",
+    );
 
     const after = await scenes();
     expect(after.map((scene) => scene.id)).toEqual(before.map((scene) => scene.id));
@@ -176,7 +225,7 @@ describe("applyScenePlan", () => {
     const artifact = await planFor();
 
     const outcomes = await Promise.all(
-      Array.from({ length: 5 }, () => apply.applyScenePlan({ itemId, claimToken: TOKEN, artifact })),
+      Array.from({ length: 5 }, () => apply.applyScenePlan({ ...SOURCES, itemId, claimToken: TOKEN, artifact })),
     );
 
     expect(outcomes.filter((outcome) => outcome === "APPLIED")).toHaveLength(1);
@@ -187,7 +236,7 @@ describe("applyScenePlan", () => {
 
   it("refuses a caller that does not hold the item and leaves the video alone", async () => {
     await expect(
-      apply.applyScenePlan({ itemId, claimToken: "intruder", artifact: await planFor() }),
+      apply.applyScenePlan({ ...SOURCES, itemId, claimToken: "intruder", artifact: await planFor() }),
     ).rejects.toMatchObject({
       code: "PRODUCTION_CLAIM_LOST",
       httpStatus: 409,
@@ -200,7 +249,9 @@ describe("applyScenePlan", () => {
   it("refuses to apply before the plan has been compiled", async () => {
     await setCheckpoint("DRAFTED");
 
-    await expect(apply.applyScenePlan({ itemId, claimToken: TOKEN, artifact: await planFor() })).rejects.toMatchObject({
+    await expect(
+      apply.applyScenePlan({ ...SOURCES, itemId, claimToken: TOKEN, artifact: await planFor() }),
+    ).rejects.toMatchObject({
       code: "PRODUCTION_STEP_OUT_OF_ORDER",
       details: { checkpoint: "DRAFTED" },
     });
@@ -209,11 +260,11 @@ describe("applyScenePlan", () => {
 
   it("refuses a different plan once one is applied, until the checkpoint is deliberately moved back", async () => {
     const first = await planFor();
-    await apply.applyScenePlan({ itemId, claimToken: TOKEN, artifact: first });
+    await apply.applyScenePlan({ ...SOURCES, itemId, claimToken: TOKEN, artifact: first });
     const before = await scenes();
 
     await expect(
-      apply.applyScenePlan({ itemId, claimToken: TOKEN, artifact: await planFor(" khác") }),
+      apply.applyScenePlan({ ...SOURCES, itemId, claimToken: TOKEN, artifact: await planFor(" khác") }),
     ).rejects.toMatchObject({
       code: "PRODUCTION_STEP_OUT_OF_ORDER",
       details: { checkpoint: "APPLIED" },
@@ -229,7 +280,9 @@ describe("applyScenePlan", () => {
       plan: { ...artifact.plan, hook: { ...artifact.plan.hook, narration: "Bị sửa tay" } },
     };
 
-    await expect(apply.applyScenePlan({ itemId, claimToken: TOKEN, artifact: tampered })).rejects.toMatchObject({
+    await expect(
+      apply.applyScenePlan({ ...SOURCES, itemId, claimToken: TOKEN, artifact: tampered }),
+    ).rejects.toMatchObject({
       code: "INVALID_SCENE_PLAN_ARTIFACT",
       httpStatus: 422,
     });
@@ -238,11 +291,13 @@ describe("applyScenePlan", () => {
 
   it("reports an item without a video and an unknown item distinctly", async () => {
     await db.prisma.productionItem.update({ where: { id: itemId }, data: { videoId: null } });
-    await expect(apply.applyScenePlan({ itemId, claimToken: TOKEN, artifact: await planFor() })).rejects.toMatchObject({
+    await expect(
+      apply.applyScenePlan({ ...SOURCES, itemId, claimToken: TOKEN, artifact: await planFor() }),
+    ).rejects.toMatchObject({
       code: "PRODUCTION_ITEM_HAS_NO_VIDEO",
     });
     await expect(
-      apply.applyScenePlan({ itemId: "missing", claimToken: TOKEN, artifact: await planFor() }),
+      apply.applyScenePlan({ ...SOURCES, itemId: "missing", claimToken: TOKEN, artifact: await planFor() }),
     ).rejects.toMatchObject({
       code: "PRODUCTION_ITEM_NOT_FOUND",
       httpStatus: 404,

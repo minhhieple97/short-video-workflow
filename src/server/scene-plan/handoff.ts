@@ -5,6 +5,7 @@ import { z } from "zod";
 import { DURATION_PRESETS_SEC } from "@/features/videos/domain/duration";
 import { lessonSnapshotSchema } from "@/features/videos/domain/lesson-snapshot";
 import { stableStringify } from "@/shared/stable-json";
+import { publishBookSchema } from "@/server/ai/contracts/publish-metadata";
 import { scriptDraftSchema, type ScriptDraft } from "@/server/script-studio/script-studio-contracts";
 
 import { scenePlanSchema, type ScenePlan } from "./scene-plan-compiler";
@@ -116,6 +117,7 @@ export function createScenePlanArtifact(input: {
 export const scenePlanTaskInputSchema = z.object({
   draft: scriptDraftSchema,
   lesson: lessonSnapshotSchema,
+  book: publishBookSchema,
   targetDurationSec: z.literal(DURATION_PRESETS_SEC),
   minDurationSec: z.literal(DURATION_PRESETS_SEC),
   maxDurationSec: z.literal(DURATION_PRESETS_SEC),

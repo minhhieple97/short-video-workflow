@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { PublishBook } from "@/server/ai/contracts/publish-metadata";
 
 import type { LessonSnapshot } from "@/features/videos/domain/lesson-snapshot";
 import {
@@ -7,6 +8,8 @@ import {
   scriptDraftSchema,
 } from "@/server/script-studio/script-studio-contracts";
 import type { ScriptStudioProvider } from "@/server/script-studio/script-studio-provider";
+
+export const SAMPLE_BOOK: PublishBook = { title: "Thói quen nguyên tử", author: "James Clear" };
 
 export const SAMPLE_LESSON: LessonSnapshot = {
   lessonId: "lesson-1",

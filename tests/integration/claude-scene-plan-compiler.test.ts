@@ -12,7 +12,7 @@ import type { ScenePlan, ScenePlanRequest } from "@/server/scene-plan/scene-plan
 import type { ScriptDraft } from "@/server/script-studio/script-studio-contracts";
 
 import { describeScenePlanCompilerContract } from "../helpers/contracts/scene-plan-compiler-contract";
-import { SAMPLE_LESSON } from "../helpers/contracts/script-studio-provider-contract";
+import { SAMPLE_BOOK, SAMPLE_LESSON } from "../helpers/contracts/script-studio-provider-contract";
 import { setupTestEnvironment, type TestEnvironment } from "../helpers/test-environment";
 
 const FAKE_CLAUDE = path.join(import.meta.dirname, "../helpers/fake-claude.mjs");
@@ -40,6 +40,7 @@ const DRAFT: ScriptDraft = {
 const REQUEST: ScenePlanRequest = {
   draft: DRAFT,
   lesson: SAMPLE_LESSON,
+  book: SAMPLE_BOOK,
   targetDurationSec: 60,
   range: { minDurationSec: 30, maxDurationSec: 60 },
   revisionNote: null,
