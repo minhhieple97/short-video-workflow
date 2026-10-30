@@ -203,6 +203,13 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
     await expect(dock.getByRole("button", { name: `Xem ${HOOK_MAX_SECONDS} giây đầu` })).toBeVisible();
     await expect(page.getByRole("tab", { name: "Xem trước" })).toHaveCount(0);
 
+    // The Player swallows a render error into its fallback, so the controls above prove nothing about the picture.
+    const { scenes } = (await (await request.get(`/api/videos/${videoA.split("/").at(-1) ?? ""}`)).json()) as {
+      scenes: { onScreenText: string }[];
+    };
+    await expect(dock.getByText(scenes[0]?.onScreenText.split(/\s+/)[0] ?? "", { exact: true }).first()).toBeVisible();
+    await expect(dock.getByText("Không phát được bản xem trước. Hãy tải lại trang.")).toHaveCount(0);
+
     const wav = path.join(E2E_DATA_DIR, "hook.wav");
     execFileSync("ffmpeg", [
       "-loglevel",

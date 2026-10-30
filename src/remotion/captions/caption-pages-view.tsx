@@ -4,12 +4,13 @@ import { interpolate, useCurrentFrame } from "remotion";
 
 import { activeWordIndex, type CaptionPage } from "@/features/videos/domain/caption-pages";
 
+import { useFontCheck } from "../text/use-font-check";
 import { ACTIVE_WORD, FONT_FAMILY, INK, LAYOUT, SAFE_BOX } from "../theme/tokens";
 
 const MAX_FONT = 70;
 const MIN_FONT = 52;
 
-function fontSizeFor(page: CaptionPage): number {
+function fontSizeFor(page: CaptionPage, validateFontIsLoaded: boolean): number {
   // Measuring needs the browser and the loaded font; outside it (markup tests) the largest size stands in.
   if (typeof document === "undefined") return MAX_FONT;
   const widest = Math.min(
@@ -20,7 +21,7 @@ function fontSizeFor(page: CaptionPage): number {
           withinWidth: LAYOUT.contentWidth - 40,
           fontFamily: FONT_FAMILY,
           fontWeight: 800,
-          validateFontIsLoaded: true,
+          validateFontIsLoaded,
         }).fontSize,
     ),
   );
@@ -31,7 +32,8 @@ const wordsBefore = (lines: readonly (readonly unknown[])[], lineIndex: number) 
   lines.slice(0, lineIndex).reduce((sum, line) => sum + line.length, 0);
 
 function PageView({ page, frame, highlight }: { page: CaptionPage; frame: number; highlight: boolean }) {
-  const fontSize = useMemo(() => fontSizeFor(page), [page]);
+  const fontCheck = useFontCheck();
+  const fontSize = useMemo(() => fontSizeFor(page, fontCheck), [page, fontCheck]);
   const active = highlight ? activeWordIndex(page, frame) : -1;
   const entrance = interpolate(frame - page.startFrame, [0, 6], [0, 1], {
     extrapolateLeft: "clamp",

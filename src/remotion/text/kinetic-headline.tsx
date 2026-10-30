@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { spring, useCurrentFrame, useVideoConfig } from "remotion";
 
 import { ACCENT, FONT_FAMILY, INK, LAYOUT, SAFE_BOX } from "../theme/tokens";
+import { useFontCheck } from "./use-font-check";
 
 export interface KineticHeadlineProps {
   lines: readonly string[];
@@ -21,7 +22,7 @@ export interface KineticHeadlineProps {
 
 const key = (word: string) => word.toLocaleLowerCase("vi").replace(/[.,;:!?…"“”]+$/u, "");
 
-function sizeFor(lines: readonly string[], max: number): number {
+function sizeFor(lines: readonly string[], max: number, validateFontIsLoaded: boolean): number {
   if (typeof document === "undefined") return max;
   const fits = lines.map(
     (line) =>
@@ -30,7 +31,7 @@ function sizeFor(lines: readonly string[], max: number): number {
         withinWidth: LAYOUT.contentWidth,
         fontFamily: FONT_FAMILY,
         fontWeight: 800,
-        validateFontIsLoaded: true,
+        validateFontIsLoaded,
       }).fontSize,
   );
   // Blocks behind emphasised words add a little width the measurement does not see.
@@ -53,7 +54,8 @@ export function KineticHeadline({
   const { fps } = useVideoConfig();
   // Measuring touches the DOM, so it runs once per text, not once per frame (callers may pass a new array each frame).
   const text = lines.join("\n");
-  const fontSize = useMemo(() => sizeFor(text.split("\n"), maxFontSize), [text, maxFontSize]);
+  const fontCheck = useFontCheck();
+  const fontSize = useMemo(() => sizeFor(text.split("\n"), maxFontSize, fontCheck), [text, maxFontSize, fontCheck]);
   const strong = new Set(emphasis.flatMap((phrase) => phrase.split(/\s+/).map(key)));
   const words = lines.map((line) => line.split(/\s+/));
   return (
