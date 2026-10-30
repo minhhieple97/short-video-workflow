@@ -239,6 +239,15 @@ tiền cho một trang hai lần. Chuyển trạng thái là `UPDATE` có điề
 Poppler (`server/pdf/poppler.ts`) chạy từ mảng đối số với đường dẫn tuyệt đối, env tối thiểu, timeout; lỗi được phân loại mà không chép
 thông điệp của công cụ. `pdftotext` chạy một lần cho cả sách rồi tách theo form feed; `pdfimages -list` đếm hình mỗi trang.
 
+Trước khi phân loại, `repairTextLayer` (`domain/text-layer-repair.ts`, thuần) xét **cả cuốn**: một số máy in PDF vẽ đúng glyph đ/Đ
+nhưng ghi mã `ñ` (U+00F1) / `ð` (U+00F0) vào lớp chữ. Khi ≥ 20 ký tự `ñðÑÐ` chiếm ≥ 20 % tổng `ñðÑÐđĐ`, mọi `ñ→đ`, `ð→Đ`, `Ñ→Đ`,
+`Ð→Đ` (một ký tự đổi một ký tự, nên mọi offset vẫn đúng); dưới ngưỡng thì giữ nguyên (tên Tây Ban Nha trong sách tiếng Việt). Trang
+OCR không đi qua bước này. `text-layer-repair.service.ts` làm cùng việc cho sách đã nhập: sửa trang đã lưu, `canonical.md`, tên và
+file chương (kèm `contentHash`), `LessonSource.sourceExcerpt`, và ghi lại các lần phân tích chương đã xong dưới hash mới
+(`analysis-hash-changes.ts`) để chương không bị coi là cần phân tích lại. File được ghi trước, cơ sở dữ liệu sau trong một giao
+dịch, nên chạy lại sau sự cố sẽ hoàn tất; không chạy khi còn chương đang phân tích; sao lưu cơ sở dữ liệu (`VACUUM INTO`) và các
+file cũ vào `data/backups/before-text-repair-*` trước khi ghi.
+
 `classifyPage` (thuần, NFC): không chữ cái, không hình → `EMPTY` (trang trống hợp lệ, khác `FAILED`); < 20 chữ cái mà có hình → OCR
 (scan); > 2 % ký tự chỉ có trong font TCVN3/VNI → OCR (font cũ); > 5 % ký tự thay thế/vùng riêng → OCR (lỗi mã hoá); còn lại `TEXT`. Lý do
 OCR lưu bằng tiếng Việt trên từng trang vì OCR tốn tiền. Chạy lại không đặt lại trang đã gửi OCR, đã có kết quả hay đã lỗi.

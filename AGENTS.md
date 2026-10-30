@@ -49,6 +49,7 @@ Hard constraints (do not relax without an explicit user decision):
 | List / run Claude CLI tasks (AI_MODE=cli-task) | `pnpm ai:run --list` · `pnpm ai:run --job <jobId> [--dry-run]`    |
 | Environment diagnostics                        | `pnpm diagnose`                                                   |
 | Telegram test / retry one failed notification  | `pnpm telegram --test` · `pnpm telegram --retry <notificationId>` |
+| Repair đ/Đ read as ñ/ð in imported PDF books   | `pnpm text:repair [--book <id>] [--apply]`                        |
 | Remotion Studio (inspect compositions)         | `pnpm remotion:studio`                                            |
 | Render fixture: contact sheet / ms per frame   | `pnpm render:stills` · `pnpm bench:render`                        |
 | Regenerate character / prop art                | `pnpm peeps:generate` · `pnpm props:generate --source <dir>`      |
@@ -111,7 +112,8 @@ src/
     books/             import parser (domain/), staging + immutable original/chapter files, import wizard, library/detail UI
     extraction/        v1.2 PDF books: streamed upload (`pdf-import.service.ts`), `EXTRACT_PDF` run (`extraction-run.service.ts`:
                        text layer → OCR batches → canonical Markdown → chapters), retry/reconcile, OCR budget and results,
-                       PDF upload tab + extraction progress card (`components/`)
+                       PDF upload tab + extraction progress card (`components/`); `domain/text-layer-repair.ts` fixes đ/Đ that a text
+                       layer writes as ñ/ð (whole book or nothing), `text-layer-repair.service.ts` + `pnpm text:repair` do it for books already imported
     chapters/          chapter listing/reading/rename, analysis runner (worker) + analysis requests (web, server-only; the chapters tab ticks
                        chapters through `useChapterSelection`, shared by the analyse button and the table);
                        PDF chapters are catalogued by NotebookLM part by part when it is set up (`notebook-chapter-analysis`)

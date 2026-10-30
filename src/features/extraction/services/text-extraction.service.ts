@@ -6,6 +6,7 @@ import { NotFoundError } from "@/shared/errors";
 import { createLogger } from "@/shared/logger";
 
 import { classifyPage } from "../domain/page-classification";
+import { repairTextLayer } from "../domain/text-layer-repair";
 import {
   countExtractedByMethod,
   countPagesByStatus,
@@ -72,7 +73,11 @@ export async function extractPdfPages(
       }
       await moveExtractionStatus(extractionId, BEFORE_OCR, { status: "EXTRACTING", pageCount: info.pageCount });
       const workFile = dataPath(bookDirectory(extraction.book.id), "extractions", extractionId, "text-layer.txt");
-      const texts = await extractTextLayer(source, info.pageCount, workFile, deps.poppler, signal);
+      const layer = await extractTextLayer(source, info.pageCount, workFile, deps.poppler, signal);
+      const { texts, repairedCharacters } = repairTextLayer(layer);
+      if (repairedCharacters > 0) {
+        logger.info("Repaired đ/Đ that the text layer wrote as ñ/ð", { extractionId, repairedCharacters });
+      }
       const images = await countPageImages(source, deps.poppler, signal);
       await storeClassifiedPages(
         extractionId,

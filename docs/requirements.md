@@ -165,6 +165,8 @@ Chưa phân trang: danh mục chọn bài để sản xuất, các đợt nhập
 - Tải qua tab riêng (mặc định tối đa 500 MiB, 1.000 trang); tiến độ là số byte thật, huỷ được, quá cỡ bị chặn ngay.
 - PDF hỏng hoặc có mật khẩu báo lỗi trước khi gọi dịch vụ trả phí và không thử lại được.
 - Đọc lớp chữ từng trang; chỉ trang không có chữ dùng được (scan, font tiếng Việt cũ TCVN3/VNI, lỗi mã hoá) mới đi OCR.
+- Lớp chữ ghi đ/Đ thành ñ/ð (PDF in từ Word bằng một số máy in PDF) được sửa tại chỗ cho cả cuốn trước khi phân loại trang: chính
+  xác, miễn phí và không gửi OCR. Sách đã nhập từ trước sửa bằng `pnpm text:repair`; không bao giờ sửa chữ khi chưa chắc cả cuốn bị lỗi.
 - Chỉ ghép văn bản chuẩn khi mọi trang đã có chữ hoặc là trang trống hợp lệ; không trang nào thiếu âm thầm. Trang OCR lỗi (hay kết
   quả đã hết hạn lưu) → **Còn trang lỗi** kèm số trang; **Thử lại** chỉ gửi lại các trang đó.
 - **Trần chi phí OCR** mỗi sách, mặc định 3 USD: hiện đã chi / đang giữ chỗ / trần; chỉnh được (0–100 USD, không thấp hơn khoản đã

@@ -91,6 +91,27 @@ describe.skipIf(!poppler)("extractPdfPages (needs poppler-utils)", () => {
     expect((await extraction(id)).status).toBe("ASSEMBLING");
   });
 
+  it("reads the đ and Đ that a text layer writes as ñ and ð instead of sending the book to OCR", async () => {
+    const line = "ðoc gia ñoc ñen ñay, ñe ñieu ñó ñuoc ñoi.";
+    const id = await seedPdf([{ lines: [line, line, line] }, { lines: ["Chuong 2", line] }]);
+
+    expect(await service.extractPdfPages(id, deps())).toMatchObject({ status: "ASSEMBLING", ocr: 0 });
+
+    const repaired = "Đoc gia đoc đen đay, đe đieu đó đuoc đoi.";
+    expect((await pages(id)).map((page) => page.text)).toEqual([
+      [repaired, repaired, repaired].join("\n"),
+      ["Chuong 2", repaired].join("\n"),
+    ]);
+  });
+
+  it("leaves a Spanish name alone in a book whose text layer is sound", async () => {
+    const id = await seedPdf([{ lines: ["Señor Peña vive en Madrid."] }]);
+
+    await service.extractPdfPages(id, deps());
+
+    expect((await pages(id))[0]?.text).toBe("Señor Peña vive en Madrid.");
+  });
+
   it("does not undo OCR progress when it runs again", async () => {
     const id = await seedPdf(BOOK_PAGES);
     await service.extractPdfPages(id, deps());

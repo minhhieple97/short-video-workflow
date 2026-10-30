@@ -364,6 +364,21 @@ chương trùng số trong cùng một phần (thường là mục lục), ứng
 trang, gồm ứng viên giữa trang.
 Chưa cấu hình NotebookLM hoặc đề xuất không khớp văn bản → **Chưa xác định chương**, không tạo chương từ cấu trúc mơ hồ.
 
+### Chữ "đ" hiện thành "ñ" (hoặc "Đ" thành "ð") trong sách PDF
+
+Lớp chữ của một số PDF in từ Word ghi sai mã của đ/Đ (`ñiện tử`, `ðông Nam Á`). Sách nhập từ bản này trở đi được sửa ngay khi
+trích xuất (log `Repaired đ/Đ that the text layer wrote as ñ/ð`). Sách nhập trước đó:
+
+```bash
+pnpm text:repair                       # chỉ báo cáo từng sách PDF, không sửa gì
+pnpm text:repair --book <bookId> --apply
+```
+
+Lệnh sửa trang đã lưu, `canonical.md`, tên và file chương, trích dẫn của bài học và giữ nguyên trạng thái "đã phân tích". Nó từ chối
+chạy khi còn chương đang phân tích hay xếp hàng (chờ xong rồi chạy lại) và sao lưu cơ sở dữ liệu cùng các file cũ vào
+`data/backups/before-text-repair-<bookId>-<giờ>/` trước khi ghi; khôi phục như mục 7. Lần dùng NotebookLM kế tiếp sẽ tải bản chương
+đã sửa lên như một phiên bản nguồn mới. Chạy lại lệnh là an toàn.
+
 ## 7. Dữ liệu, sao lưu và khôi phục
 
 ```
@@ -398,6 +413,8 @@ data/                                   # không commit
 - Chưa hỗ trợ EPUB. Không có NotebookLM thì sách PDF không có tiêu đề chương dừng ở "Chưa xác định chương"; chưa có công
   cụ tách chương thủ công cho sách PDF.
 - Phát hiện font tiếng Việt cũ (TCVN3/VNI) dựa trên tỉ lệ ký tự lạ; văn bản rất ngắn có thể bị bỏ sót hoặc gửi OCR thừa.
+- Sửa `ñ/ð → đ/Đ` chỉ theo quy ước đã gặp (`ñ` là đ thường, `ð` là Đ hoa). Lớp chữ dùng quy ước khác, hay trộn với chữ sai kiểu khác,
+  sẽ không được sửa hoặc phải qua OCR; cần mẫu thật để thêm.
 - Một lô OCR mở mỗi lần trích xuất; sách nghìn trang scan chạy tuần tự.
 - Bài học trùng giữa các chương không tự gộp (chỉ trong cùng chương); hãy gộp tay.
 - Phụ đề chỉ sáng từng từ với giọng edge-tts có mốc từ; âm thanh tải lên và giọng cũ chạy theo ước lượng. Độ lệch giữa chữ và tiếng
