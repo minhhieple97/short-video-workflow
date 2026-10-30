@@ -173,8 +173,8 @@ src/
 prisma/                schema.prisma, migrations/ (committed), seed.ts
 scripts/               CLI entrypoints: run-claude-task.ts, diagnose.ts, worker-status.ts (`pnpm worker:status` and the guard in front of
                        `worker:dev`/`worker:start`), dev-all.ts (`pnpm dev:all`), export-render-fixture.ts / render-stills.ts / bench-render.ts
-                       (render fixtures under DATA_DIR/fixtures, contact sheets, ms/frame); lib/ holds their service runner, fixture loader and
-                       Vietnamese status text
+                       (render fixtures under DATA_DIR/fixtures, contact sheets, ms/frame); lib/ holds their service runner, fixture loader,
+                       Vietnamese status text and the `pnpm dev:all` startup block (`dev-banner.ts`) and readable log lines
 tests/                 unit/ + integration/ (Vitest), e2e/ (Playwright smoke + isolated stack), helpers/
 docs/                  requirements.md (product spec), architecture.md (technical design), operations.md (setup, env, troubleshooting)
 data/                  Runtime data (gitignored): studio.db, books/, ai-tasks/, videos/, diagnostics/

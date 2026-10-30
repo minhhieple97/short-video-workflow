@@ -19,6 +19,8 @@ export interface StackOptions {
   stdout: OutputSink;
   stderr: OutputSink;
   color: boolean;
+  // Rewrites each output line before it is tagged and printed (for example JSON logs into readable text).
+  formatLine?: (line: string) => string;
   // How long a stopping service gets before it and whatever it left behind are killed.
   stopTimeoutMs: number;
 }
@@ -99,8 +101,9 @@ export function startServices(services: readonly Service[], options: StackOption
       stdio: ["ignore", "pipe", "pipe"],
       env: options.color ? { ...process.env, FORCE_COLOR: "1" } : process.env,
     });
-    pipeLines(child.stdout, (line) => options.stdout.write(`${tag} ${line}\n`));
-    pipeLines(child.stderr, (line) => options.stderr.write(`${tag} ${line}\n`));
+    const shown = (line: string): string => (options.formatLine ? options.formatLine(line) : line);
+    pipeLines(child.stdout, (line) => options.stdout.write(`${tag} ${shown(line)}\n`));
+    pipeLines(child.stderr, (line) => options.stderr.write(`${tag} ${shown(line)}\n`));
     return { service, child, exited: false };
   });
 

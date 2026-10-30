@@ -74,6 +74,20 @@ describe("startServices", () => {
     expect(out.text()).not.toContain("oops");
   });
 
+  it("rewrites every output line with formatLine before tagging it, on stdout and stderr alike", async () => {
+    const out = collector();
+    const err = collector();
+    const stack = startServices(
+      [node("web", `console.log("one"); console.error("two");`)],
+      options(out, err, { formatLine: (line) => `<${line.toUpperCase()}>` }),
+    );
+
+    await stack.finished;
+
+    expect(out.lines()).toEqual(["[web] <ONE>"]);
+    expect(err.lines()).toContain("[web] <TWO>");
+  });
+
   it("colours the tags and asks the services for colour when the terminal can show it", async () => {
     const out = collector();
     const stack = startServices(

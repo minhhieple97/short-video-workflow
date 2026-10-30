@@ -223,10 +223,16 @@ Sản xuất lại cùng bài học ở đợt khác thường ra góc kể khá
 
 ## 4. Vận hành hằng ngày
 
-Chạy Redis rồi `pnpm dev:all` (web và worker trong một terminal, log gắn nhãn `[web]` / `[worker]`, Ctrl+C dừng cả hai), mở
-`http://127.0.0.1:3000`. Hoặc mỗi tiến trình một terminal: `pnpm worker:dev`, `pnpm dev`. Bản production: `pnpm build && pnpm start`
-kèm `pnpm worker:start`. Web vẫn mở khi Redis hoặc worker tắt (Cài đặt báo "suy giảm"); worker thoát mã 1 nếu không tới
-được Redis.
+Chạy Redis rồi `pnpm dev:all`: **một lệnh cho web, worker và Telegram** (Telegram do worker gửi, không có tiến trình riêng).
+Ctrl+C dừng cả hai. Mở `http://127.0.0.1:3000`.
+
+- Lệnh mở đầu bằng một bảng: địa chỉ web, worker (không dùng cổng, chạy nền), Telegram bật hay tắt, chế độ AI, Redis, thư mục dữ liệu.
+  Sau đó log mang nhãn `[web]` / `[worker]`; dòng log JSON của ứng dụng được in thành chữ đọc được (`18:18:00 info worker Worker started …`).
+- Cổng web đang bị chiếm: nếu đó là web của dự án (`/api/status` trả lời) thì lệnh nói đã chạy sẵn và không khởi động thêm; nếu là tiến trình lạ
+  thì nêu PID, lệnh và thư mục của nó, rồi gợi ý `kill <PID>` hoặc `PORT=3001 pnpm dev:all`. Render Remotion cũng mở cổng từ 3000 trở lên
+  trong lúc chạy, nên đừng chạy `pnpm test:e2e`, `pnpm bench:render` hay `pnpm render:stills` cùng lúc với việc bật web. Hoặc mỗi tiến trình một terminal: `pnpm worker:dev`, `pnpm dev`. Bản production: `pnpm build && pnpm start`
+  kèm `pnpm worker:start`. Web vẫn mở khi Redis hoặc worker tắt (Cài đặt báo "suy giảm"); worker thoát mã 1 nếu không tới
+  được Redis.
 
 **Chỉ một worker mỗi Redis DB.** Hai worker sẽ cùng nhận tác vụ và phá giới hạn "một việc AI, một lượt render một lúc", nên worker
 giữ khoá `studio:worker:lock` (PID, máy, giờ khởi động, thư mục dữ liệu; hết hạn sau 30 giây nếu heartbeat không gia hạn). Nếu đã có
