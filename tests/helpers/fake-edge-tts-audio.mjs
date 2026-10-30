@@ -1,11 +1,15 @@
 #!/usr/bin/env node
-// Stand-in for the edge-tts CLI that writes a real MP3 as long as the text takes to read (about four syllables a
+// Stand-in for edge-tts-words.py (run in place of its Python, so the script path arrives first and is ignored) that writes a real MP3 as long as the text takes to read (about four syllables a
 // second at --rate=+0%, shorter at a faster rate, at least one second), so the whole voice-over path (silence trim, probe, store) and the length checks can run. Every call is counted in FAKE_EDGE_TTS_COUNTER, and FAKE_EDGE_TTS_FAIL_ON makes a call fail when the text file
 // it was given contains that marker.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 
 const args = process.argv.slice(2);
+if (args.includes("--version")) {
+  process.stdout.write("edge-tts 7.3.1 (fake)\n");
+  process.exit(0);
+}
 const valueOf = (flag) => args[args.indexOf(flag) + 1];
 const output = valueOf("--write-media");
 const text = fs.readFileSync(valueOf("--file"), "utf8");
@@ -41,3 +45,15 @@ execFileSync("ffmpeg", [
   "1",
   output,
 ]);
+// Word timings like the service's: one per word, spread over the speech after a 100 ms lead, in 100-ns ticks.
+const boundariesFile = args.includes("--write-boundaries") ? valueOf("--write-boundaries") : null;
+if (boundariesFile) {
+  const words = text.split(/\s+/).filter((token) => /[\p{L}\p{N}]/u.test(token));
+  const step = ((seconds - 0.1) * 1e7) / Math.max(1, words.length);
+  const events = words.map((word, index) => ({
+    text: word.replace(/[^\p{L}\p{N}]/gu, ""),
+    offset: Math.round(1e6 + index * step),
+    duration: Math.round(step * 0.85),
+  }));
+  fs.writeFileSync(boundariesFile, JSON.stringify(events));
+}

@@ -16,7 +16,7 @@ const DETAIL_INCLUDE = {
     include: {
       mediaAssets: {
         where: { kind: "VOICEOVER" as const },
-        select: { id: true, provider: true, durationMs: true, generationSettingsJson: true },
+        select: { id: true, provider: true, durationMs: true, generationSettingsJson: true, wordBoundariesJson: true },
       },
     },
   },

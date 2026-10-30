@@ -141,7 +141,8 @@ src/
                        prompts/ (versioned), cli-task/ (task files, ask-claude.ts + runner + output parsing; shared by `pnpm ai:run`
                        and cli-auto)
     tts/               `TtsProvider` port (`tts-provider.ts`, vendor-free) + `createTtsProvider()` (`index.ts`, picks the adapter from `TTS_MODE`);
-                       `edge/` holds the edge-tts adapter (spawned with argv, text via file, retries the service's transient no-audio failures).
+                       `edge/` holds the edge-tts adapter: it spawns `edge-tts-words.py` (edge-tts's Python API, for word timings) with argv
+                       under the Python from `edge-tts-python.ts`, text via file, and retries the service's transient no-audio failures.
                        Failures are `IntegrationError`s with a `TTS_*` code; the contract suite is `tests/helpers/contracts/tts-provider-contract.ts`
     diagnostics/       health checks aggregated for /settings, /api/health and `pnpm diagnose`
     render/            Remotion bundle + renderMedia wrapper and localhost asset server (worker only), webpack "@/" alias
@@ -328,8 +329,9 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - **One voice, several shots.** A scene is one narration clip; its picture is cut into shots (`features/videos/domain/scene-shots.ts`, 2.5–5 s,
   on caption page starts) under the same voice. The pictures overlap in transitions, but each picture is lengthened by the transition after
   it (`d_i = f_i + t_i`, `src/remotion/timeline/scene-transitions.ts`), so it starts on its voice's first frame and the video keeps Σ
-  scene frames. Captions are pages (`domain/caption-pages.ts`, ≤ 2 lines); word timings are estimated by syllables until the voice
-  provides them, and only voice timings light up the spoken word (`karaoke`).
+  scene frames. Captions are pages (`domain/caption-pages.ts`, ≤ 2 lines); word timings come from the voice (edge-tts word
+  boundaries on `MediaAsset.wordBoundariesJson`, matched to the narration by `alignWordTimings`) or are estimated by syllables (uploads,
+  older voices), and only voice timings light up the spoken word (`karaoke`).
 - **Art:** characters are Open Peeps and props are Fluent Emoji Flat, turned into path data by `pnpm peeps:generate` / `pnpm props:generate`
   (never edit `*.generated.ts`; `THIRD_PARTY_NOTICES.md` names sources and licences). Settings and actions come from the fixed lists in
   `features/videos/domain/illustration.ts`, props from `domain/props.ts`; `src/remotion/stage/cast.ts` maps each action to a pose, faces
@@ -350,7 +352,8 @@ Dependency direction: `app → features/*/services → features/*/repositories �
   flow) and `pdf-production.spec.ts` (E2E-02: PDF → chapters → catalogue → chosen lesson → batch production → Drive, no approval;
   skipped without Poppler, run it with `TEST_POPPLER_BIN_DIR` when Poppler is not on PATH). The stack: temp DB + `DATA_DIR`, Redis logical
   DB 14 (flushed on every run), worker, `next start` on port 3100, `OFFLINE_INTEGRATIONS_ENV` (`AI_MODE=mock`, no real credentials), a fake
-  Google (token + Drive) in the start-stack process with Drive pre-connected, and a fake edge-tts that writes real MP3s. It reuses
+  Google (token + Drive) in the start-stack process with Drive pre-connected, and a fake edge-tts (run as `EDGE_TTS_PYTHON`) that writes real
+  MP3s and word timings. It reuses
   Remotion's headless Chromium (no `playwright install`). Keep each spec one end-to-end path; put edge cases in integration tests.
 - Tests must assert real behavior — no `expect(true)` placeholders. Prefer real SQLite (temp file) and real BullMQ/Redis over mocks for queue code.
 - Add tests with the code: parsers (Unicode, BOM, ambiguous headings), path guards, Zod schemas, duration/preflight rules.

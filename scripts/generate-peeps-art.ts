@@ -142,7 +142,13 @@ function piecePaths(name: string, component: ComponentType<{ strokeColor: string
       if (fill !== "S" && fill !== "F") throw new Error(`${name}: unexpected fill "${fill}"`);
       const d = attrs.get("d") ?? "";
       if (!/^[MmLlHhVvCcSsQqTtZz\d\s.,e-]+$/.test(d)) throw new Error(`${name}: unexpected path data`);
-      paths.push([compactPath(d), fill === "S" ? 0 : 1, round(ox + tx), round(oy + ty), attrs.get("fill-rule") === "evenodd" ? 1 : 0]);
+      paths.push([
+        compactPath(d),
+        fill === "S" ? 0 : 1,
+        round(ox + tx),
+        round(oy + ty),
+        attrs.get("fill-rule") === "evenodd" ? 1 : 0,
+      ]);
     } else if (!tag.startsWith("</")) {
       throw new Error(`${name}: unsupported element <${element}>`);
     }

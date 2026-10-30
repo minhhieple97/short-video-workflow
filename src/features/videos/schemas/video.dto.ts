@@ -1,3 +1,4 @@
+import type { TimedWord } from "../domain/caption-pages";
 import type { DurationBudget } from "../domain/duration";
 import type { PublishOrigin } from "../domain/publish-metadata";
 import type { Pace } from "../domain/pace";
@@ -41,6 +42,8 @@ export interface SceneAudioDto {
   // The speed the voice was made at, relative to normal; null for an uploaded clip.
   speedPercent: number | null;
   url: string;
+  // When each word is spoken in the clip, if the voice reported it (null for uploads and older voices).
+  wordBoundaries: TimedWord[] | null;
 }
 
 export interface VideoLessonDto {

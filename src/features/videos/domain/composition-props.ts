@@ -6,7 +6,8 @@ import { DEFAULT_ILLUSTRATION, illustrationSchema, type Illustration } from "./i
 import { paceProfile, toPace } from "./pace";
 import { alternateShotSize, buildSceneShots, renderModeFor, SHOT_SIZES, type ShotSize } from "./scene-shots";
 import { SCENE_TYPE_LABELS, SCENE_TYPES, VISUAL_VARIANTS, type SceneType, type VisualVariant } from "./scene-types";
-import { estimateWordTimings } from "./word-timing";
+import type { TimedWord } from "./caption-pages";
+import { alignWordTimings, estimateWordTimings } from "./word-timing";
 
 const captionWordSchema = z.object({
   text: z.string(),
@@ -72,8 +73,12 @@ export interface CompositionSource {
     audioAssetId: string | null;
     // Absent for scenes made before illustrations existed; they get the default picture for their type.
     illustration?: Illustration | null;
-    // Where the voice sits in its clip, to spread the caption words over the spoken part.
-    audio?: { durationMs: number | null; leadingSilenceMs: number } | null;
+    // Where the voice sits in its clip, and when each word is spoken if the voice reported it.
+    audio?: {
+      durationMs: number | null;
+      leadingSilenceMs: number;
+      wordBoundaries?: readonly TimedWord[] | null;
+    } | null;
   }[];
 }
 
@@ -107,8 +112,10 @@ export function toCompositionProps(
     const durationInFrames = effectiveSceneFrames(scene.durationFrames);
     const illustration = scene.illustration ?? DEFAULT_ILLUSTRATION[scene.type];
     const mode = renderModeFor(scene.visualVariant);
+    // Captions follow the voice when its word timings match the narration; otherwise they are spread by syllables.
+    const voiced = scene.audio?.wordBoundaries ? alignWordTimings(scene.narration, scene.audio.wordBoundaries) : null;
     const captionPages = buildCaptionPages(
-      estimateWordTimings(scene.narration, spokenSpan(scene, durationInFrames)),
+      voiced ?? estimateWordTimings(scene.narration, spokenSpan(scene, durationInFrames)),
       VIDEO_FPS,
       durationInFrames,
     );
@@ -133,7 +140,7 @@ export function toCompositionProps(
       audioSrc: scene.audioAssetId ? audioUrl(scene.audioAssetId) : null,
       illustration,
       captionPages,
-      karaoke: false,
+      karaoke: voiced !== null,
       shots,
     };
   });

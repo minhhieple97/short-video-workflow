@@ -54,7 +54,7 @@ beforeAll(async () => {
   env = setupTestEnvironment();
   // Nothing listens here: every enqueue must fail fast instead of hanging.
   process.env.REDIS_URL = "redis://127.0.0.1:6399";
-  process.env.EDGE_TTS_COMMAND = "/nonexistent/edge-tts";
+  process.env.EDGE_TTS_PYTHON = "/nonexistent/python";
   process.env.TTS_MODE = "edge-tts";
 
   db = await import("@/server/db/client");

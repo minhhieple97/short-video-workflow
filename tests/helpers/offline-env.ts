@@ -9,4 +9,7 @@ export const OFFLINE_INTEGRATIONS_ENV: Record<string, string> = {
   GOOGLE_OAUTH_CLIENT_SECRET: "",
   GOOGLE_API_BASE_URL: "",
   NOTEBOOKLM_PROFILE: "",
+  // Without these, the Python found through a real `edge-tts` on the developer's PATH would voice scenes online.
+  EDGE_TTS_PYTHON: "/nonexistent/edge-tts-python",
+  EDGE_TTS_COMMAND: "/nonexistent/edge-tts",
 };

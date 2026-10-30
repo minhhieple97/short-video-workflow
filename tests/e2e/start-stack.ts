@@ -41,7 +41,8 @@ const env = {
   GOOGLE_OAUTH_CLIENT_ID: "e2e-client.apps.googleusercontent.com",
   GOOGLE_OAUTH_CLIENT_SECRET: "e2e-secret",
   // Writes a real, short MP3 per scene, so batch production can voice its videos offline.
-  EDGE_TTS_COMMAND: path.join(import.meta.dirname, "../helpers/fake-edge-tts-audio.mjs"),
+  // Runs in place of the Python of edge-tts-words.py.
+  EDGE_TTS_PYTHON: path.join(import.meta.dirname, "../helpers/fake-edge-tts-audio.mjs"),
   POPPLER_BIN_DIR: process.env.TEST_POPPLER_BIN_DIR ?? "",
 };
 

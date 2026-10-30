@@ -28,10 +28,21 @@ export async function trimSilence(inputFile: string, outputFile: string): Promis
   );
 }
 
-export async function measureLeadingSilenceMs(file: string): Promise<number> {
+// `minSilenceSec` is the shortest pause counted; word timings use a short one so the few tens of milliseconds the trim
+// leaves are measured too.
+export async function measureLeadingSilenceMs(file: string, minSilenceSec = 0.1): Promise<number> {
   const { stderr } = await execFileAsync(
     "ffmpeg",
-    ["-hide_banner", "-i", file, "-af", `silencedetect=noise=${SILENCE_THRESHOLD}:d=0.1`, "-f", "null", "-"],
+    [
+      "-hide_banner",
+      "-i",
+      file,
+      "-af",
+      `silencedetect=noise=${SILENCE_THRESHOLD}:d=${minSilenceSec}`,
+      "-f",
+      "null",
+      "-",
+    ],
     { timeout: 60_000 },
   );
   const start = /silence_start: ([\d.]+)/.exec(stderr);

@@ -50,6 +50,7 @@ describe("hook checks with narration", () => {
     leadingSilenceMs: 0,
     speedPercent: null,
     url: "/x",
+    wordBoundaries: null,
   };
 
   it("uses the real clip length once audio is attached", () => {

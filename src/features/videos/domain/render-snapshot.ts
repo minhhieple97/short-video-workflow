@@ -9,6 +9,7 @@ import type { PreflightInput } from "./preflight";
 import { illustrationSchema } from "./illustration";
 import { PACES } from "./pace";
 import { HOOK_VARIANTS, SCENE_TYPES, VISUAL_VARIANTS } from "./scene-types";
+import { timedWordsSchema } from "./word-timing";
 
 export const RENDER_SNAPSHOT_VERSION = "render-snapshot-v1";
 
@@ -70,6 +71,8 @@ export const renderSnapshotSchema = z.object({
       durationMs: z.number().int().nullable(),
       leadingSilenceMs: z.number().int().nonnegative(),
       provider: z.string().nullable(),
+      // When each word is spoken, for a voice that reported it. Optional without a default so older snapshots keep their hash.
+      wordBoundaries: timedWordsSchema.optional(),
     }),
   ),
   lessons: z.array(

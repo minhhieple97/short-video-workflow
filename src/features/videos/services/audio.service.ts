@@ -16,8 +16,10 @@ import {
   MAX_AUDIO_SECONDS,
   type AudioFormat,
 } from "../domain/audio";
+import type { TimedWord } from "../domain/caption-pages";
 import { estimateNarrationSeconds, secondsToFrames } from "../domain/duration";
 import { paceProfile, toPace, type PaceProfile } from "../domain/pace";
+import { shiftWordTimings } from "../domain/word-timing";
 import { createVoiceoverAsset, findSceneWithVideo, findVoiceoverByHash } from "../repositories/audio.repository";
 import { setSceneAudio } from "../repositories/video.repository";
 import { narrationRateOf } from "./scene-records";
@@ -53,6 +55,8 @@ interface StoreAudioInput {
   contentHash: string;
   paddingMs: number;
   settings: Record<string, string | number>;
+  // When each word is spoken in this file, if the voice reported it.
+  wordBoundaries?: readonly TimedWord[] | null;
 }
 
 // Validates with ffprobe, files the clip under its content hash and sets the scene length from the real duration.
@@ -81,6 +85,9 @@ export async function storeSceneAudio(input: StoreAudioInput): Promise<void> {
       contentHash: input.contentHash,
       provider: input.provider,
       settings: { ...input.settings, leadingSilenceMs },
+      wordBoundaries: input.wordBoundaries
+        ? shiftWordTimings(input.wordBoundaries, 0, probe.durationMs).map((word) => ({ ...word }))
+        : undefined,
     });
     await setSceneAudio(input.videoId, input.sceneId, {
       audioAssetId: asset.id,

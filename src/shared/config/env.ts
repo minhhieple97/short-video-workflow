@@ -81,6 +81,8 @@ const envSchema = z
     TTS_MODE: z.enum(["upload", "edge-tts"]).default("edge-tts"),
     TTS_VOICE: z.string().min(1).default("vi-VN-NamMinhNeural"),
     EDGE_TTS_COMMAND: z.string().min(1).default("edge-tts"),
+    // The Python that has the edge_tts module; empty means "the one the edge-tts command runs with", else python3.
+    EDGE_TTS_PYTHON: z.preprocess((value) => (value === "" ? undefined : value), z.string().min(1).optional()),
     MAX_AUDIO_UPLOAD_MB: z.coerce.number().positive().max(100).default(20),
 
     VIDEO_PROFILE: z.literal("SHORT_VERTICAL").default("SHORT_VERTICAL"),
@@ -141,6 +143,7 @@ export interface AppConfig {
     mode: "upload" | "edge-tts";
     voice: string;
     edgeTtsCommand: string;
+    edgeTtsPython: string | undefined;
     maxUploadBytes: number;
   };
   video: {
@@ -215,6 +218,7 @@ export function parseAppConfig(source: Record<string, string | undefined>): AppC
       mode: env.TTS_MODE,
       voice: env.TTS_VOICE,
       edgeTtsCommand: env.EDGE_TTS_COMMAND,
+      edgeTtsPython: env.EDGE_TTS_PYTHON,
       maxUploadBytes: Math.round(env.MAX_AUDIO_UPLOAD_MB * 1024 * 1024),
     },
     video: {

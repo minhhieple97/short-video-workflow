@@ -282,6 +282,8 @@ model MediaAsset {
   contentHash            String?
   provider               String?
   generationSettingsJson Json?
+  // When each word is spoken, in ms of this file (a TTS voice that reported them); null for uploads and older voices.
+  wordBoundariesJson     Json?
   createdAt              DateTime       @default(now())
   updatedAt              DateTime       @updatedAt
 

@@ -192,6 +192,18 @@ tối đa 8 lần liên tiếp; sản xuất 10 phút, 5 lần; archive 30 phút
   `TTS_MODE`; hiện chỉ có `edge-tts`, lời dẫn qua tệp, không qua dòng lệnh; lỗi là `IntegrationError` mã `TTS_*`, hết lần thử là `TRANSIENT` nên
   đường ống sản xuất hoãn và thử lại) →
   cắt lặng đầu/cuối (ffmpeg) → đo (ffprobe) → `videos/<videoId>/audio/<hash>.mp3`. Audio tải lên (nhận bằng chữ ký byte) chỉ được đo.
+- **Mốc từng từ:**
+  - `synthesize` trả `{ boundaries }`, tính theo mili giây của audio thô.
+  - Adapter edge-tts chạy `edge-tts-words.py` bằng argv: API Python của edge-tts với `boundary="WordBoundary"`, vì CLI chỉ cho mốc
+    câu.
+  - Python lấy từ `EDGE_TTS_PYTHON`, nếu trống thì từ shebang của `EDGE_TTS_COMMAND`, cuối cùng `python3`
+    (`edge-tts-python.ts`).
+  - Script thoát mã 3 khi thiếu module, adapter báo `TTS_UNAVAILABLE`. Tệp mốc hỏng chỉ làm mất mốc, giọng vẫn giữ.
+  - `runSceneTts` trừ phần lặng bị cắt (lặng đầu của audio thô − của audio đã cắt, đo ngưỡng 20 ms) rồi lưu vào
+    `MediaAsset.wordBoundariesJson`; upload để null.
+  - `EDGE_TTS_ENGINE_VERSION = "edge-tts-words-v1"`: khoá cache đổi, nên "tạo lại giọng" tạo mới; không gì tự lồng tiếng lại.
+  - `alignWordTimings` (`domain/word-timing.ts`) ghép mốc với các từ của lời dẫn (bỏ dấu, NFC, nhìn trước 3 từ). Khớp dưới 90 % hoặc
+    mốc chạy lùi thì quay về ước lượng và tắt `karaoke`.
 
 ## 6. Trích xuất PDF
 

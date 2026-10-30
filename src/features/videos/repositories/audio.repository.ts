@@ -35,9 +35,12 @@ export function createVoiceoverAsset(data: {
   contentHash: string;
   provider: string;
   settings: Prisma.InputJsonObject;
+  wordBoundaries?: Prisma.InputJsonArray;
 }): Promise<MediaAsset> {
-  const { settings, ...rest } = data;
-  return prisma.mediaAsset.create({ data: { ...rest, kind: "VOICEOVER", generationSettingsJson: settings } });
+  const { settings, wordBoundaries, ...rest } = data;
+  return prisma.mediaAsset.create({
+    data: { ...rest, kind: "VOICEOVER", generationSettingsJson: settings, wordBoundariesJson: wordBoundaries },
+  });
 }
 
 export function findVoiceoverByHash(videoId: string, contentHash: string): Promise<MediaAsset | null> {

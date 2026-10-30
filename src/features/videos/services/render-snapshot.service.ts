@@ -11,6 +11,7 @@ import {
 import type { RenderQuality } from "../domain/preflight";
 import { lessonSnapshotSchema } from "../domain/lesson-snapshot";
 import { SCENE_TYPE_FOR_BEAT } from "../domain/narrative-beats";
+import { timedWordsSchema } from "../domain/word-timing";
 import type { SceneType } from "../domain/scene-types";
 import { findMediaAssets } from "../repositories/audio.repository";
 import { saveRenderSnapshotIfMissing } from "../repositories/render.repository";
@@ -99,6 +100,7 @@ export async function captureRenderSnapshot(
     })),
     audio: audioIds.flatMap((assetId) => {
       const asset = assets.get(assetId);
+      const wordBoundaries = asset ? timedWordsSchema.safeParse(asset.wordBoundariesJson).data : undefined;
       return asset
         ? [
             {
@@ -109,6 +111,7 @@ export async function captureRenderSnapshot(
               durationMs: asset.durationMs,
               leadingSilenceMs: silenceByAsset.get(assetId) ?? 0,
               provider: asset.provider,
+              ...(wordBoundaries ? { wordBoundaries } : {}),
             },
           ]
         : [];

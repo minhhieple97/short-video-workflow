@@ -37,7 +37,7 @@ const checkpoint = async () => (await db.prisma.productionItem.findUniqueOrThrow
 
 beforeAll(async () => {
   env = setupTestEnvironment();
-  Object.assign(process.env, { TTS_MODE: "edge-tts", EDGE_TTS_COMMAND: FAKE_EDGE_TTS });
+  Object.assign(process.env, { TTS_MODE: "edge-tts", EDGE_TTS_PYTHON: FAKE_EDGE_TTS });
   db = await import("@/server/db/client");
   claim = await import("@/features/productions/repositories/production-claim.repository");
   apply = await import("@/features/productions/services/scene-plan-apply.service");

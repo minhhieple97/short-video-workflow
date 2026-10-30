@@ -1,8 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { framesForAudio } from "@/features/videos/domain/audio";
+import { toCompositionProps } from "@/features/videos/domain/composition-props";
 import { estimateNarrationSeconds, secondsToFrames } from "@/features/videos/domain/duration";
 import { syllablesPerSecond } from "@/features/videos/domain/pace";
+import { timedWordsSchema } from "@/features/videos/domain/word-timing";
 import type * as VideoService from "@/features/videos/services/video.service";
 import type * as TtsRunner from "@/features/videos/services/tts-runner";
 import type * as DbClient from "@/server/db/client";
@@ -162,5 +164,28 @@ describe("voice-over at the video's pace", () => {
 
     expect(provider.requests.map((request) => request.speedPercent)).toEqual([0]);
     expect((await videos.getVideo(videoId)).pace).toBe("STANDARD");
+  });
+});
+
+describe("word timings of a generated voice", () => {
+  it("keeps when each word is spoken with the clip, and the preview's captions follow the voice", async () => {
+    await voice();
+
+    const asset = await assetOf();
+    const words = timedWordsSchema.parse(asset.wordBoundariesJson);
+    expect(words).toHaveLength(NARRATION.split(/\s+/).length);
+    expect(words.every((word) => word.endMs <= (asset.durationMs ?? 0))).toBe(true);
+
+    const detail = await videos.getVideo(videoId);
+    expect(detail.scenes[0]?.audio?.wordBoundaries).toEqual(words);
+    expect(toCompositionProps(detail).scenes[0]?.karaoke).toBe(true);
+  });
+
+  it("stores no timings for a voice that gives none, and the captions are estimated", async () => {
+    provider = new FakeTtsProvider({ boundaries: false });
+    await voice();
+
+    expect((await assetOf()).wordBoundariesJson).toBeNull();
+    expect(toCompositionProps(await videos.getVideo(videoId)).scenes[0]?.karaoke).toBe(false);
   });
 });

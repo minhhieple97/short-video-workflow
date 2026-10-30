@@ -12,7 +12,13 @@ describeTtsProviderContract("FakeTtsProvider", () => ({
 
 const FAKE_EDGE_TTS_AUDIO = path.join(import.meta.dirname, "../../helpers/fake-edge-tts-audio.mjs");
 
-describeTtsProviderContract("EdgeTtsProvider (fake edge-tts command)", () => ({
-  provider: new EdgeTtsProvider({ command: FAKE_EDGE_TTS_AUDIO, timeoutMs: 20_000 }),
-  failing: () => new EdgeTtsProvider({ command: "/nonexistent/edge-tts" }),
+describeTtsProviderContract("FakeTtsProvider without word timings", () => ({
+  provider: new FakeTtsProvider({ boundaries: false }),
+  failing: () => new FakeTtsProvider({ fail: true }),
+}));
+
+// The fake stands in for the Python that runs edge-tts-words.py.
+describeTtsProviderContract("EdgeTtsProvider (fake edge-tts Python)", () => ({
+  provider: new EdgeTtsProvider({ python: FAKE_EDGE_TTS_AUDIO, script: "edge-tts-words.py", timeoutMs: 20_000 }),
+  failing: () => new EdgeTtsProvider({ python: "/nonexistent/python", script: "edge-tts-words.py" }),
 }));

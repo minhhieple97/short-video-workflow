@@ -51,6 +51,21 @@ export function describeTtsProviderContract(name: string, createHarness: () => T
       expect(probe.durationMs).toBeGreaterThan(0);
     });
 
+    it("gives word timings in order and inside the audio, or none at all", async () => {
+      const { provider } = createHarness();
+
+      const { boundaries } = await provider.synthesize(request());
+
+      const probe = await probeMedia(path.join(dir, "out.mp3"));
+      if (boundaries === null) return;
+      expect(boundaries.length).toBeGreaterThan(0);
+      for (const [index, word] of boundaries.entries()) {
+        expect(word.endMs).toBeGreaterThanOrEqual(word.startMs);
+        expect(word.endMs).toBeLessThanOrEqual(probe.durationMs + 50);
+        if (index > 0) expect(word.startMs).toBeGreaterThanOrEqual(boundaries[index - 1]?.startMs ?? 0);
+      }
+    });
+
     it("is never slower at a higher speed", async () => {
       const { provider } = createHarness();
 

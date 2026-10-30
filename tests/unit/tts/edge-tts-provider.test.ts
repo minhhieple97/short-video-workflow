@@ -9,7 +9,14 @@ import { EdgeTtsProvider, formatEdgeTtsRate } from "@/server/tts/edge/edge-tts-p
 const FAKE_EDGE_TTS = path.join(import.meta.dirname, "../../helpers/fake-edge-tts.mjs");
 let dir: string;
 
-const provider = () => new EdgeTtsProvider({ command: FAKE_EDGE_TTS, timeoutMs: 10_000, retryDelaysMs: [20, 20, 20] });
+// The fake stands in for the Python that runs edge-tts-words.py, so the script path is only passed through.
+const provider = () =>
+  new EdgeTtsProvider({
+    python: FAKE_EDGE_TTS,
+    script: "edge-tts-words.py",
+    timeoutMs: 10_000,
+    retryDelaysMs: [20, 20, 20],
+  });
 
 function request() {
   return {
@@ -29,7 +36,8 @@ beforeEach(() => {
 
 afterEach(() => {
   fs.rmSync(dir, { recursive: true, force: true });
-  for (const key of ["FAKE_EDGE_TTS_COUNTER", "FAKE_EDGE_TTS_MODE", "FAKE_EDGE_TTS_FAILS"]) delete process.env[key];
+  for (const key of ["FAKE_EDGE_TTS_COUNTER", "FAKE_EDGE_TTS_MODE", "FAKE_EDGE_TTS_FAILS", "FAKE_EDGE_TTS_BOUNDARIES"])
+    delete process.env[key];
 });
 
 describe("formatEdgeTtsRate", () => {
@@ -44,7 +52,7 @@ describe("formatEdgeTtsRate", () => {
 
 describe("edge-tts adapter", () => {
   it("identifies itself with a stable cache version", () => {
-    expect(provider()).toMatchObject({ id: "edge-tts", engineVersion: "edge-tts-trimmed-v1" });
+    expect(provider()).toMatchObject({ id: "edge-tts", engineVersion: "edge-tts-words-v1" });
   });
 
   it("retries when the service briefly returns no audio, then succeeds", async () => {
@@ -85,8 +93,34 @@ describe("edge-tts adapter", () => {
     expect(calls()).toBe(1);
   });
 
-  it("reports a missing edge-tts command as unavailable", async () => {
-    const missing = new EdgeTtsProvider({ command: path.join(dir, "no-such-edge-tts") });
+  it("returns when each word is spoken, in milliseconds, and leaves no timings file behind", async () => {
+    const { boundaries } = await provider().synthesize(request());
+    expect(boundaries?.slice(0, 2)).toEqual([
+      { text: "Vì", startMs: 100, endMs: 350 },
+      { text: "sao", startMs: 400, endMs: 650 },
+    ]);
+    expect(boundaries?.at(-1)?.text).toBe("ngày");
+    expect(fs.readdirSync(dir).filter((file) => file.endsWith(".json"))).toEqual([]);
+  });
+
+  it("keeps the audio without timings when the timings cannot be read", async () => {
+    process.env.FAKE_EDGE_TTS_BOUNDARIES = "broken";
+    await expect(provider().synthesize(request())).resolves.toEqual({ boundaries: null });
+    expect(fs.statSync(path.join(dir, "out.mp3")).size).toBeGreaterThan(0);
+  });
+
+  it("reports a Python without edge_tts as unavailable, without retrying", async () => {
+    process.env.FAKE_EDGE_TTS_MODE = "no-module";
+    await expect(provider().synthesize(request())).rejects.toMatchObject({
+      code: "TTS_UNAVAILABLE",
+      kind: "REJECTED",
+      message: expect.stringContaining("EDGE_TTS_PYTHON"),
+    });
+    expect(calls()).toBe(1);
+  });
+
+  it("reports a missing Python as unavailable", async () => {
+    const missing = new EdgeTtsProvider({ python: path.join(dir, "no-such-python"), script: "edge-tts-words.py" });
     await expect(missing.synthesize(request())).rejects.toMatchObject({ code: "TTS_UNAVAILABLE", kind: "REJECTED" });
     expect(fs.readdirSync(dir)).not.toContain("out.mp3.txt");
   });

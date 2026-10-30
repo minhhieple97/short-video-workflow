@@ -37,7 +37,7 @@ Hai luồng dùng chung sách, chương, bài học, trình biên tập, mẫu v
 - SaaS, nhiều người dùng, hosting/render trên đám mây; tự đăng video, theo dõi lượt xem, công cụ SEO ngoài bộ tiêu đề / caption /
   hashtag đề xuất (§5.13), kiếm tiền, thumbnail AI.
 - Claude API/SDK/API key; lấy token hay cookie từ tài khoản Claude.
-- Google Sheets; duyệt từng kịch bản trong luồng hàng loạt; phụ đề khớp chính xác từng từ.
+- Google Sheets; duyệt từng kịch bản trong luồng hàng loạt.
 
 ## 2. Nguyên tắc
 
@@ -209,6 +209,9 @@ Chưa phân trang: danh mục chọn bài để sản xuất, các đợt nhập
 - Mỗi cảnh: edge-tts (giọng cấu hình được, tốc độ theo nhịp độ của video, xem §6.2) hoặc tải MP3/WAV; tạo mọi cảnh còn thiếu; nghe; thay. Không dùng TTS trả phí.
 - Đo bằng ffprobe; độ dài cảnh = âm thanh thật + khoảng đệm. Chỉ tạo lại khi lời dẫn, giọng hoặc tốc độ đổi.
 - edge-tts: cắt khoảng lặng đầu/cuối, tự thử lại vài lần khi dịch vụ không trả âm thanh. Âm thanh tải lên giữ nguyên, chỉ đo.
+- edge-tts cho biết **lúc đọc từng từ**: lưu cùng giọng, đã trừ phần lặng bị cắt, để phụ đề sáng đúng từ đang đọc.
+  - Âm thanh tải lên và giọng tạo trước khi có tính năng này không có mốc này; phụ đề của chúng ước lượng theo âm tiết.
+  - Muốn có karaoke cho video cũ thì tạo lại giọng.
 - edge-tts không chính thức nên luồng thủ công luôn cho tải âm thanh lên. Luồng hàng loạt luôn dùng edge-tts, từng cảnh, chạy lại
   thì tiếp từ cảnh chưa có giọng.
 
@@ -407,8 +410,8 @@ video không cùng một dáng, và không lưu gì thêm:
   - Mỗi trang tối đa 2 dòng ngắn, khoảng 22 ký tự mỗi dòng, và 8 từ.
   - Ngắt sau dấu kết câu, sau dấu phẩy khi trang đã dài, và ở chỗ ngừng của giọng.
   - Chữ đậm, viền đen, đặt ở 1/3 dưới.
-  - Thời gian từng từ hiện ước lượng theo số âm tiết trong phần có lời của clip giọng (bỏ khoảng lặng đầu). Chưa sáng từng từ theo
-    giọng.
+  - Khi giọng có mốc từng từ khớp lời dẫn (edge-tts), phụ đề theo đúng giọng và **từ đang đọc sáng màu** (karaoke).
+  - Không có mốc (âm thanh tải lên, giọng cũ) hoặc mốc không khớp lời: thời gian ước lượng theo âm tiết, không sáng từng từ.
 - Vùng an toàn TikTok / YouTube Shorts / Facebook Reels là **mặc định ước lượng, chỉnh được**, không phải thông số chính thức; nội
   dung đặt trong vùng chặt nhất của cả ba nên một bản render dùng cho mọi nền tảng. Lớp vùng an toàn chỉ có trong trình biên tập,
   **không bao giờ** vào MP4.
@@ -620,4 +623,4 @@ Thiếu thời gian thì ưu tiên lát cắt chạy thật bằng AI mẫu + â
 | Lưu Google Drive                                                        | Có trong mã; **chỉ kiểm thử với Google giả**                          |
 | Tiêu đề, caption, hashtag (cùng kịch bản, Tạo lại, `publish.txt`)       | Đã triển khai; E2E chạy với AI mẫu; **chưa đánh giá với Claude thật** |
 | Nghiệm thu với tài khoản Mistral, NotebookLM, Google thật               | **Chưa thực hiện**                                                    |
-| Nhạc nền; EPUB; tách chương thủ công cho PDF; phụ đề khớp từng từ       | Chưa có                                                               |
+| Nhạc nền; EPUB; tách chương thủ công cho PDF                            | Chưa có                                                               |

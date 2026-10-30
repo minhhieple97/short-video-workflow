@@ -14,6 +14,7 @@ import { toPublishOrigin } from "../domain/publish-metadata";
 import { isVoiceStale, paceProfile, syllablesPerSecond, toPace } from "../domain/pace";
 import { toSceneType, toVisualVariant, HOOK_VARIANTS, type HookVariant } from "../domain/scene-types";
 import { toVideoStatus } from "../domain/video-status";
+import { timedWordsSchema } from "../domain/word-timing";
 import type { VideoDetailRecord } from "../repositories/video.repository";
 import type { PublishMetadataDto, SceneAudioDto, SceneDto, VideoDetail } from "../schemas/video.dto";
 import { parseIllustration, scriptTextHash } from "./scene-records";
@@ -60,6 +61,7 @@ function toSceneAudio(scene: VideoDetailRecord["scenes"][number]): SceneAudioDto
     leadingSilenceMs: settings.leadingSilenceMs,
     speedPercent: settings.speed ?? null,
     url: mediaAssetUrl(asset.id),
+    wordBoundaries: timedWordsSchema.safeParse(asset.wordBoundariesJson).data ?? null,
   };
 }
 
