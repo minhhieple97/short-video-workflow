@@ -1,10 +1,9 @@
 "use client";
 
 import { Clapperboard } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { toast } from "sonner";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,34 +12,28 @@ import { DurationRangePicker } from "@/features/videos/components/duration-range
 import { PaceSelect } from "@/features/videos/components/pace-select";
 import { formatRange, type DurationRange } from "@/features/videos/domain/duration";
 import type { Pace } from "@/features/videos/domain/pace";
-import { errorMessage, sendJson } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
 import type { CatalogueLessonDto } from "../schemas/catalogue.dto";
-import type { ProductionDto } from "../schemas/production.dto";
+import type { ProductionSettingsDto } from "../schemas/production-settings.dto";
+import { useStartProduction } from "./use-start-production";
 
 // One video per chosen lesson. Choosing is not approving: the lessons keep their status, and the scripts are checked by
 // the machine after voicing instead of by hand.
 export function ProductionRequestForm({
   bookId,
   lessons,
-  defaultRange,
-  defaultPace,
-  ceilingSec,
+  settings,
 }: Readonly<{
   bookId: string;
   lessons: readonly CatalogueLessonDto[];
-  defaultRange: DurationRange;
-  defaultPace: Pace;
-  ceilingSec: number;
+  settings: ProductionSettingsDto;
 }>) {
-  const router = useRouter();
-  // One key per visit of this form, so a double submit or a retry after a lost answer is the same request.
-  const [idempotencyKey] = useState(() => crypto.randomUUID());
+  const { pending, start } = useStartProduction(bookId);
   const [selected, setSelected] = useState<string[]>([]);
-  const [duration, setDuration] = useState<DurationRange>(defaultRange);
-  const [pace, setPace] = useState<Pace>(defaultPace);
-  const [pending, setPending] = useState(false);
+  const [duration, setDuration] = useState<DurationRange>(settings.defaultRange);
+  const [pace, setPace] = useState<Pace>(settings.defaultPace);
+  const { ceilingSec, unavailable } = settings;
 
   const selectable = useMemo(() => lessons.filter((lesson) => lesson.unavailableReason === null), [lessons]);
   const allSelected = selectable.length > 0 && selected.length === selectable.length;
@@ -49,28 +42,21 @@ export function ProductionRequestForm({
     setSelected((current) => (checked ? [...current, id] : current.filter((value) => value !== id)));
   }
 
-  async function submit(): Promise<void> {
-    setPending(true);
-    try {
-      // Items follow the catalogue order, whatever order the boxes were ticked in.
-      const lessonIds = lessons.filter((lesson) => selected.includes(lesson.id)).map((lesson) => lesson.id);
-      const production = await sendJson<ProductionDto & { reused: boolean }>("/api/productions", "POST", {
-        bookId,
-        lessonIds,
-        idempotencyKey,
-        ...duration,
-        pace,
-      });
-      toast.success(`Đã xếp ${production.items.length} video vào hàng sản xuất.`);
-      router.push(`/productions/${production.id}`);
-    } catch (error) {
-      toast.error(errorMessage(error));
-      setPending(false);
-    }
-  }
+  // Items follow the catalogue order, whatever order the boxes were ticked in.
+  const submit = () =>
+    start({
+      lessonIds: lessons.filter((lesson) => selected.includes(lesson.id)).map((lesson) => lesson.id),
+      range: duration,
+      pace,
+    });
 
   return (
     <div className="flex flex-col gap-6">
+      {unavailable ? (
+        <Alert variant="destructive">
+          <AlertDescription>{unavailable}</AlertDescription>
+        </Alert>
+      ) : null}
       <section aria-labelledby="catalogue-heading" className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 id="catalogue-heading" className="text-lg font-bold">
@@ -168,7 +154,7 @@ export function ProductionRequestForm({
             ? "Chọn ít nhất một bài học."
             : `${selected.length} bài học → ${selected.length} video, mỗi video ${formatRange(duration)}.`}
         </p>
-        <Button onClick={() => void submit()} disabled={pending || selected.length === 0}>
+        <Button onClick={() => void submit()} disabled={pending || selected.length === 0 || unavailable !== null}>
           <Clapperboard aria-hidden />
           Sản xuất {selected.length > 0 ? `${selected.length} video` : "video"}
         </Button>

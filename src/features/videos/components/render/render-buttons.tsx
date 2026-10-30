@@ -15,9 +15,18 @@ interface RenderButtonsProps {
   videoId: string;
   blocked: Record<RenderQuality, boolean>;
   dims: Record<RenderQuality, string>;
+  driveConnected: boolean;
 }
 
-export function RenderButtons({ videoId, blocked, dims }: Readonly<RenderButtonsProps>) {
+// What happens to a finished render, said when it finishes: only the FINAL one goes to Google Drive, by itself.
+function finishedMessage(quality: RenderQuality, driveConnected: boolean): string {
+  if (quality === "DRAFT") return "Render nháp xong. Bản nháp chỉ để xem, không lưu lên Drive.";
+  return driveConnected
+    ? "Render xong. Bản cuối đang được lưu lên Google Drive; link hiện ở mục Google Drive bên dưới video."
+    : "Render xong. Chưa kết nối Google Drive nên bản cuối chưa được lưu lên Drive.";
+}
+
+export function RenderButtons({ videoId, blocked, dims, driveConnected }: Readonly<RenderButtonsProps>) {
   const router = useRouter();
   const [running, setRunning] = useState<RenderQuality | null>(null);
   const [progress, setProgress] = useState(0);
@@ -40,7 +49,7 @@ export function RenderButtons({ videoId, blocked, dims }: Readonly<RenderButtons
         onUpdate: (update) => setProgress(update.progress),
       });
       if (controller.signal.aborted) return;
-      if (job?.status === "COMPLETED") toast.success("Render xong. Có thể xem và tải MP4 bên dưới.");
+      if (job?.status === "COMPLETED") toast.success(finishedMessage(quality, driveConnected), { duration: 8_000 });
       else toast.error(job?.errorMessage ?? "Render vẫn đang chạy nền. Tải lại trang sau.");
       router.refresh();
     } catch (error) {

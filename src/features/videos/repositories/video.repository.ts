@@ -68,33 +68,42 @@ export function countVideoRecords(filter: { bookId?: string }): Promise<number> 
   return prisma.video.count({ where: { bookId: filter.bookId, book: { deletedAt: null } } });
 }
 
-export function createVideoRecord(input: {
+export interface NewVideoRecord {
   bookId: string;
   title: string;
   description: string | null;
   range: { minDurationSec: number; maxDurationSec: number };
   pace: string;
   lessons: { lessonId: string; snapshot: Prisma.InputJsonObject }[];
-}): Promise<Video> {
-  return prisma.video.create({
-    data: {
-      bookId: input.bookId,
-      title: input.title,
-      description: input.description,
-      ...input.range,
-      pace: input.pace,
-      // Until a script proposes a length, the plan is the longest the user allows.
-      targetDurationSec: input.range.maxDurationSec,
-      status: "DRAFT",
-      videoLessons: {
-        create: input.lessons.map((lesson, index) => ({
-          lessonId: lesson.lessonId,
-          position: index + 1,
-          lessonSnapshotJson: lesson.snapshot,
-        })),
-      },
+}
+
+function newVideoData(input: NewVideoRecord): Prisma.VideoUncheckedCreateInput {
+  return {
+    bookId: input.bookId,
+    title: input.title,
+    description: input.description,
+    ...input.range,
+    pace: input.pace,
+    // Until a script proposes a length, the plan is the longest the user allows.
+    targetDurationSec: input.range.maxDurationSec,
+    status: "DRAFT",
+    videoLessons: {
+      create: input.lessons.map((lesson, index) => ({
+        lessonId: lesson.lessonId,
+        position: index + 1,
+        lessonSnapshotJson: lesson.snapshot,
+      })),
     },
-  });
+  };
+}
+
+export function createVideoRecord(input: NewVideoRecord): Promise<Video> {
+  return prisma.video.create({ data: newVideoData(input) });
+}
+
+// All or none: a request for several videos never leaves some of them behind when one cannot be written.
+export function createVideoRecords(inputs: readonly NewVideoRecord[]): Promise<Video[]> {
+  return prisma.$transaction(inputs.map((input) => prisma.video.create({ data: newVideoData(input) })));
 }
 
 export function updateVideoMetadata(

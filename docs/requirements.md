@@ -115,6 +115,13 @@ xuất** (`ProductionBatch`) gồm các mục (`ProductionItem`): mỗi mục = 
   có xác nhận) hoặc **Trả về nháp** đúng các bài đã chọn trong một yêu cầu; số trên nút là số bài thật sự đổi được theo luật chuyển
   trạng thái (ví dụ bài đã lưu trữ không duyệt thẳng được), nút tắt khi không đổi được bài nào. Bài không đổi được vì trạng thái đã
   thay đổi sau khi trang hiện ra được đếm và báo, không làm hỏng cả yêu cầu. Chỉ các bài ở trang đang xem mới tính; bỏ chọn sau khi gửi.
+- Cùng thanh đó có **Tạo N video**: làm video tự động từ các bài đã chọn bằng luồng hàng loạt (§5.8), không cần duyệt từng bài hay
+  từng kịch bản, trạng thái bài học giữ nguyên. N là số bài tạo được; bài đã lưu trữ, bài chưa có trích đoạn nguồn và bài đang được
+  sản xuất trong một đợt khác bị bỏ qua và dòng trạng thái của thanh nói rõ mỗi loại bao nhiêu bài. Bài đang sản xuất hiện nhãn
+  **Đang sản xuất** (bấm để xem tiến độ), danh sách tự cập nhật cho tới khi xong, nên không vô tình làm một video hai lần. Hộp thoại
+  xác nhận liệt kê bài sẽ làm và bài bị bỏ qua kèm lý do, cho chọn khoảng thời lượng và nhịp độ, rồi chuyển tới trang tiến độ. Khi
+  máy chưa chạy được sản xuất tự động (`AI_MODE=cli-task`, hoặc `cli-auto` chưa đặt `NOTEBOOKLM_PROFILE`) hộp thoại nói rõ điều cần
+  đặt và khoá nút xác nhận, thay vì để từng video lỗi. Thanh này có cả ở trang chi tiết một chương.
 
 ### 4.4. Video, snapshot và duyệt
 
@@ -195,8 +202,12 @@ Chưa phân trang: danh mục chọn bài để sản xuất, các đợt nhập
 
 ### 5.5. Tạo video và trình biên tập
 
-- Tạo video thủ công: chọn bài đã duyệt, tiêu đề, mô tả, khoảng thời lượng (§6.2); hiện mức tải nội dung, quá tải thì khuyên bỏ
-  bớt bài, tách video hoặc nới khoảng. Video tạo được khi chưa có kịch bản. Khoảng đổi được trong cài đặt video.
+- Tạo video thủ công: chọn bài đã duyệt (có **Chọn tất cả** / **Bỏ chọn**, danh sách cuộn riêng), khoảng thời lượng (§6.2) và nhịp
+  độ. Khi chọn từ hai bài, hộp thoại hỏi rõ cách tạo: **Mỗi bài học một video** (mặc định; tối đa 30 video mỗi lần, tạo cùng lúc,
+  đặt tên theo bài; xong, hộp thoại liệt kê mọi video vừa tạo kèm liên kết) hoặc **Ghép thành một video** (tối đa 5 bài, có tiêu đề
+  và mô tả riêng; hiện mức tải nội dung, quá tải thì khuyên bỏ bớt bài, tách video hoặc nới khoảng). Giới hạn được báo ngay trong
+  hộp thoại. Video tạo được khi chưa có kịch bản; muốn tự làm hết các bước thì dùng **Tạo N video** ở tab Bài học (§4.3). Khoảng
+  đổi được trong cài đặt video.
 - **Hook**: 2–3 phương án theo ba kiểu — câu hỏi đánh trúng vấn đề, sai lầm thường gặp, tương phản trước/sau — có lời dẫn, chữ,
   bố cục, hoạt cảnh; chọn rồi sửa được.
 - **Cảnh**: sửa lời dẫn, chữ, bố cục, hoạt cảnh; ẩn, xoá, thêm theo loại, sắp xếp; **Viết lại cảnh này** chỉ đổi đúng cảnh đó.
@@ -216,6 +227,10 @@ Chưa phân trang: danh mục chọn bài để sản xuất, các đợt nhập
   - Muốn có karaoke cho video cũ thì tạo lại giọng.
 - edge-tts không chính thức nên luồng thủ công luôn cho tải âm thanh lên. Luồng hàng loạt luôn dùng edge-tts, từng cảnh, chạy lại
   thì tiếp từ cảnh chưa có giọng.
+- **Hàng đợi giọng đọc nằm ở server**, không ở trạng thái của trang: cảnh đã có việc tạo giọng đang chờ hay đang chạy hiện nhãn
+  **Đang chờ trong hàng đợi** / **Đang tạo giọng…**; nút tạo giọng, tải lên và gỡ của cảnh đó tắt, nút tạo cho các cảnh còn thiếu chỉ
+  tính (và nêu số) cảnh chưa vào hàng đợi. Rời tab hay đóng trang rồi quay lại vẫn thấy đúng và không bấm trùng. Tab tự cập nhật
+  trong lúc còn việc, báo một lần khi hàng đợi xong, và cảnh chưa có giọng mà lần tạo gần nhất lỗi hiện lý do kèm **Thử lại**.
 
 ### 5.7. Xem trước và render
 
@@ -223,6 +238,10 @@ Chưa phân trang: danh mục chọn bài để sản xuất, các đợt nhập
   TikTok / Shorts / Reels; **Xem 4 giây đầu**.
 - Render nháp và bản cuối (§6.7), mỗi lần một bản; lịch sử ghi chất lượng, phiên bản kịch bản, trạng thái, nhãn lỗi thời, trạng
   thái Drive của bản cuối (kèm nút lưu/thử lại chỉ upload); tải đúng tệp.
+- Ngay dưới video vừa render có thẻ **Google Drive** cho bản cuối mới nhất: chưa có bản cuối, chưa kết nối Drive (kèm lối tới Cài
+  đặt), chưa lưu (kèm nút lưu), đang lưu (số tệp đã xác minh), đã lưu, hoặc lỗi (kèm lý do và thử lại); khi đã có, thẻ có **Mở
+  video trên Drive**, **Sao chép link** và **Mở thư mục Drive** (§5.9). Render xong, thông báo nói luôn bản cuối đang được lưu lên
+  Drive hay chưa kết nối; bản nháp không lên Drive.
 
 ### 5.8. Sản xuất hàng loạt
 
@@ -254,6 +273,11 @@ Chưa phân trang: danh mục chọn bài để sản xuất, các đợt nhập
 - Lưu Drive là việc riêng: lỗi Drive không xoá MP4, không chạy lại AI, giọng đọc hay render. **Đã lưu Drive** chỉ khi mọi tệp đã
   xác minh (kích thước + checksum); upload tiếp tục được, mất phản hồi không tạo tệp trùng. Drive đầy, mất quyền, đổi tài khoản →
   **Lưu Drive lỗi** kèm lý do; thử lại từ lịch sử render hoặc trang Tác vụ.
+- **Link Drive của video** (`drive.google.com/file/d/<id>/view`) hiện ngay khi tệp MP4 đã xác minh, kể cả khi các tệp còn lại đang
+  lên; link **thư mục** chỉ hiện khi mọi tệp đã xác minh. Trạng thái Drive và link video hiện ở mọi nơi video được xem: thẻ Google
+  Drive và lịch sử ở trang Render, đầu trang video, cột **Google Drive** của danh sách video (trang Video và tab Video của sách) và
+  trang tiến độ sản xuất. Danh sách và đầu trang nói về bản render cuối hoàn tất mới nhất của video (**Chưa render bản cuối** nếu
+  chưa có, **Chưa lưu Drive** nếu chưa có bản lưu); kịch bản đã đổi sau bản đó thì gắn nhãn **Bản cũ**, vì Drive đang giữ bản cũ.
 
 ### 5.10. Tác vụ
 
@@ -550,18 +574,20 @@ Không thêm dịch vụ đám mây khác, không Anthropic API, không gộp OC
 
 1. Nhập sách mẫu `.md` ≥ 3 chương, đổi tên một chương, xác nhận; phân tích bằng AI mẫu; duyệt 3 bài học.
 2. Video A từ bài 1 (khoảng 30–60 giây; AI đề xuất độ dài), chọn hook; tab **Đăng tải** có tiêu đề, caption, hashtag viết cùng
-   kịch bản, sửa và lưu được, hashtag được chuẩn hoá. Video B từ bài 2 + 3 (khoảng 30–90 giây); sửa một cảnh, các cảnh khác không
-   đổi.
+   kịch bản, sửa và lưu được, hashtag được chuẩn hoá. Video B từ bài 2 + 3, chọn **Ghép thành một video** (khoảng 30–90 giây); sửa
+   một cảnh, các cảnh khác không đổi.
 3. Sửa bài 1 → snapshot của video A không đổi.
 4. Tải âm thanh cho hook; chữ hook có ngay ở frame 0 trong xem trước.
 5. Duyệt kịch bản, render nháp và bản cuối; ffprobe: H.264 + AAC, 720×1280 / 1080×1920, 30 FPS, không vượt mức dài nhất.
-6. Tải lại trang, khởi động lại web → mọi dữ liệu còn nguyên.
+6. Bản cuối lên Drive (giả): thẻ ở trang Render, đầu trang video và danh sách video đều nói **Đã lưu Drive** kèm link video.
+7. Tải lại trang, khởi động lại web → mọi dữ liệu còn nguyên.
+8. Chọn hai bài trong hộp thoại tạo video (cách mặc định) → hai video, hộp thoại liệt kê cả hai, danh sách có đủ.
 
 ### 10.2. E2E-02 — PDF tới Drive, không bước duyệt (hàng loạt)
 
-Tải PDF ở "Sách PDF" → trích xuất, có chương → **Phân tích tất cả chương** → chọn một bài **vẫn là bản nháp** → **Sản xuất 1
-video** → video hoàn tất, **Đã lưu Drive** kèm liên kết thư mục và `publish.txt` → MP4 1080×1920 H.264 + AAC; bài học vẫn
-**Bản nháp**.
+Tải PDF ở "Sách PDF" → trích xuất, có chương → **Phân tích tất cả chương** → ở tab Bài học tick một bài **vẫn là bản nháp** →
+**Tạo 1 video** (xác nhận trong hộp thoại) → video hoàn tất, **Đã lưu Drive** kèm liên kết video, liên kết thư mục và
+`publish.txt` → MP4 1080×1920 H.264 + AAC; bài học vẫn **Bản nháp**.
 
 ### 10.3. Trường hợp biên và lỗi
 

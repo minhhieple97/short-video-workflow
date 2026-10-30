@@ -15,6 +15,11 @@ export function isTerminalItemStatus(status: ItemStatus): boolean {
   return TERMINAL_ITEM_STATUSES.includes(status);
 }
 
+// An item in one of these is still being made; once it leaves them the lesson may be produced again.
+export const ACTIVE_ITEM_STATUSES: readonly ItemStatus[] = ITEM_STATUSES.filter(
+  (status) => !isTerminalItemStatus(status),
+);
+
 export function hasReachedCheckpoint(current: ItemCheckpoint, target: ItemCheckpoint): boolean {
   return ITEM_CHECKPOINTS.indexOf(current) >= ITEM_CHECKPOINTS.indexOf(target);
 }

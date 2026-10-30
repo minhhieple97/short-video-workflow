@@ -7,6 +7,9 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { VideoDriveStatus } from "@/features/archive/components/video-drive-status";
+import { getVideoDriveLinks } from "@/features/archive/services/archive-control.service";
+import { JobsAutoRefresh } from "@/features/jobs/components/jobs-auto-refresh";
 import { ScriptSourcePanel } from "@/features/productions/components/script-source-panel";
 import { ITEM_STATUS_LABELS, productionStep } from "@/features/productions/domain/production-labels";
 import { getVideoProduction } from "@/features/productions/services/video-production.service";
@@ -35,6 +38,7 @@ import { toPlatformPreviewMode } from "@/features/videos/domain/safe-zones";
 import { mediaAssetUrl } from "@/features/videos/services/video-mapper";
 import { findActivePublishJob } from "@/features/videos/services/publish-request.service";
 import { findActiveVideoJob, getVideo } from "@/features/videos/services/video.service";
+import { getVoiceJobs } from "@/features/videos/services/voice-jobs.service";
 import { getAppConfig } from "@/shared/config/env";
 import { orNotFound } from "@/server/http/page-helpers";
 
@@ -52,11 +56,16 @@ interface VideoEditorPageProps {
 export default async function VideoEditorPage({ params, searchParams }: Readonly<VideoEditorPageProps>) {
   const [{ videoId }, { tab }] = await Promise.all([params, searchParams]);
   const video = await orNotFound(getVideo(videoId));
-  const [activeJob, production, publishJob] = await Promise.all([
+  const [activeJob, production, publishJob, voiceJobs, drives] = await Promise.all([
     findActiveVideoJob(videoId),
     getVideoProduction(videoId),
     findActivePublishJob(videoId),
+    getVoiceJobs(videoId),
+    getVideoDriveLinks([videoId]),
   ]);
+  const drive = drives[videoId];
+  // The page follows an upload to Drive until it ends, so the link shows up in the header without a reload.
+  const uploading = drive?.archive ? !["COMPLETED", "FAILED"].includes(drive.archive.status) : false;
   const inProduction = production?.inProgress === true;
   const locked = activeJob !== null || inProduction;
   const busyLabel = activeJob
@@ -71,6 +80,7 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
 
   return (
     <section className="flex flex-col gap-6">
+      <JobsAutoRefresh active={uploading} />
       <Breadcrumbs
         items={[
           { label: "Video", href: "/videos" },
@@ -90,6 +100,7 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
               {durationLabel({ ...video, proposed: video.durationReason !== null })}
             </Badge>
             <span>Kịch bản v{video.scriptVersion}</span>
+            <VideoDriveStatus videoId={video.id} drive={drive} />
           </div>
         }
         actions={
@@ -258,6 +269,7 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
                   }}
                   pace={video.pace}
                   staleCount={video.staleVoiceSceneCount}
+                  jobs={voiceJobs}
                 />
               </ScriptLock>
             ),

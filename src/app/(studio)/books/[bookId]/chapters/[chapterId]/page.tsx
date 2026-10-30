@@ -10,6 +10,8 @@ import { getChapter } from "@/features/chapters/services/chapter.service";
 import { LessonList } from "@/features/lessons/components/lesson-list";
 import { LESSON_PAGE_PARAM, LESSON_PAGE_SIZE } from "@/features/lessons/domain/paging";
 import { listLessonsPage } from "@/features/lessons/services/lesson.service";
+import { getActiveProductionsByLesson } from "@/features/productions/services/production-lesson-state.service";
+import { getProductionSettings } from "@/features/productions/services/production-settings.service";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { orNotFound } from "@/server/http/page-helpers";
 import { toPageRequest } from "@/shared/pagination";
@@ -33,6 +35,7 @@ export default async function ChapterPage({
     { chapterId },
     toPageRequest(query[LESSON_PAGE_PARAM], LESSON_PAGE_SIZE),
   );
+  const activeProductions = await getActiveProductionsByLesson(lessons.items.map((lesson) => lesson.id));
 
   return (
     <section className="flex flex-col gap-6">
@@ -72,6 +75,8 @@ export default async function ChapterPage({
         <LessonList
           bookId={bookId}
           lessons={lessons}
+          production={getProductionSettings()}
+          activeProductions={activeProductions}
           emptyHint="Bấm “Phân tích” để AI đề xuất bài học từ chương này."
         />
       </div>

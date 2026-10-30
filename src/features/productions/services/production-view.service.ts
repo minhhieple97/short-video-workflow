@@ -1,6 +1,6 @@
 import "server-only";
 
-import { archiveFolderUrl, toArchiveStatus } from "@/features/archive/domain/archive-labels";
+import { archiveFolderUrl, archiveVideoUrl, toArchiveStatus } from "@/features/archive/domain/archive-labels";
 import { NotFoundError } from "@/shared/errors";
 import { loadPage, mapPage, type Page, type PageRequest } from "@/shared/pagination";
 
@@ -61,7 +61,11 @@ export async function getProductionView(productionId: string): Promise<Productio
       correction: item.aiCorrectionTarget ? (CORRECTION_LABELS[item.aiCorrectionTarget] ?? null) : null,
       render: item.renderId && render ? { id: item.renderId, status: render } : null,
       archive: archive
-        ? { status: archive.status, folderUrl: archiveFolderUrl(archive.status, archive.remoteFolderId) }
+        ? {
+            status: archive.status,
+            folderUrl: archiveFolderUrl(archive.status, archive.remoteFolderId),
+            videoUrl: archiveVideoUrl(archive.files[0]),
+          }
         : null,
       canRetry: status === "FAILED" || status === "CANCELLED",
       canCancel: !isTerminalItemStatus(status),

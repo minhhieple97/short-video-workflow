@@ -3,15 +3,16 @@ import "server-only";
 import { AppError, NotFoundError } from "@/shared/errors";
 import { createLogger } from "@/shared/logger";
 
-import { archiveFolderUrl } from "../domain/archive-labels";
+import { archiveFolderUrl, archiveVideoUrl } from "../domain/archive-labels";
 import {
   findRenderArchive,
   findRenderForArchive,
+  listFinalRendersWithArchive,
   listRenderArchives,
   listVideoArchives,
   type RenderArchiveRecord,
 } from "../repositories/render-archive.repository";
-import type { ArchiveDto, RenderArchivesDto } from "../schemas/archive.dto";
+import type { ArchiveDto, RenderArchivesDto, VideoDriveDto } from "../schemas/archive.dto";
 import { currentArchiveDestination, requestRenderArchive } from "./archive-request.service";
 import { retryArchiveRecord } from "./archive-retry.service";
 
@@ -28,6 +29,7 @@ export function toArchiveDto(archive: RenderArchiveRecord): ArchiveDto {
     createdAt: archive.createdAt.toISOString(),
     completedAt: archive.completedAt?.toISOString() ?? null,
     folderUrl: archiveFolderUrl(archive.status, archive.remoteFolderId),
+    videoUrl: archiveVideoUrl(archive.files.find((file) => file.kind === "VIDEO")),
     files: archive.files.map((file) => ({
       kind: file.kind,
       remoteName: file.remoteName,
@@ -50,6 +52,20 @@ export async function getVideoArchives(videoId: string): Promise<Record<string, 
   const latest: Record<string, ArchiveDto> = {};
   for (const archive of await listVideoArchives(videoId)) latest[archive.renderId] ??= toArchiveDto(archive);
   return latest;
+}
+
+// Where each of these videos stands on Drive, by video id. A video with no finished FINAL render is left out.
+export async function getVideoDriveLinks(videoIds: readonly string[]): Promise<Record<string, VideoDriveDto>> {
+  const links: Record<string, VideoDriveDto> = {};
+  for (const render of await listFinalRendersWithArchive(videoIds)) {
+    const [archive] = render.archives;
+    links[render.videoId] = {
+      renderId: render.id,
+      archive: archive ? toArchiveDto(archive) : null,
+      outdated: render.scriptVersion < render.video.scriptVersion,
+    };
+  }
+  return links;
 }
 
 export async function getRenderArchives(renderId: string): Promise<RenderArchivesDto> {

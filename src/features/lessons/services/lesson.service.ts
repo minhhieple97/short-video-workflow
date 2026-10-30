@@ -3,6 +3,7 @@ import { AppError, NotFoundError } from "@/shared/errors";
 import { loadPage, mapPage, type Page, type PageRequest } from "@/shared/pagination";
 
 import { canMoveLesson, pickLessonText, type LessonStatus } from "../domain/lesson-fields";
+import { hasSourceExcerpt } from "../domain/source-excerpts";
 import {
   countLessonRecords,
   createLessonRecord,
@@ -35,6 +36,7 @@ function toLessonSummary(lesson: LessonListRecord): LessonSummary {
     origin: lesson.origin,
     chapters: uniqueChapters(lesson.sources),
     usedInVideoCount: lesson._count.videoLessons,
+    hasSourceExcerpt: hasSourceExcerpt(lesson.sources),
     createdAt: lesson.createdAt.toISOString(),
   };
 }

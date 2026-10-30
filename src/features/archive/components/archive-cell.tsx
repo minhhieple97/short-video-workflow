@@ -34,7 +34,9 @@ export function ArchiveCell({ renderId, archive, archivable, driveConnected }: R
       <div className="flex flex-wrap items-center gap-1.5">
         <Badge variant={status.tone}>{status.label}</Badge>
         {archive.status !== "COMPLETED" ? (
-          <span className="text-muted-foreground text-xs tabular-nums">{verified}/3 tệp đã xác minh</span>
+          <span className="text-muted-foreground text-xs tabular-nums">
+            {verified}/{archive.files.length} tệp đã xác minh
+          </span>
         ) : null}
       </div>
       {archive.errorMessage ? (
@@ -45,6 +47,17 @@ export function ArchiveCell({ renderId, archive, archivable, driveConnected }: R
         >
           {archive.errorMessage}
         </p>
+      ) : null}
+      {archive.videoUrl ? (
+        <a
+          href={archive.videoUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 text-xs font-medium hover:underline"
+        >
+          Mở video trên Drive
+          <ExternalLink className="size-3" aria-hidden />
+        </a>
       ) : null}
       {archive.folderUrl ? (
         <a

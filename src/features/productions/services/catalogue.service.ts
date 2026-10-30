@@ -3,6 +3,7 @@ import "server-only";
 import { getBook } from "@/features/books/services/book.service";
 import { pageFromLocator } from "@/features/lessons/domain/source-excerpts";
 
+import { PRODUCTION_BLOCK_REASONS } from "../domain/producible-lesson";
 import { findCatalogueLessons } from "../repositories/production.repository";
 import type { CatalogueDto } from "../schemas/catalogue.dto";
 
@@ -37,7 +38,7 @@ export async function getCatalogue(bookId: string): Promise<CatalogueDto> {
         status: lesson.status,
         usedInVideoCount: lesson._count.videoLessons,
         sources,
-        unavailableReason: sources.length === 0 ? "Chưa có trích đoạn nguồn trong sách." : null,
+        unavailableReason: sources.length === 0 ? PRODUCTION_BLOCK_REASONS.NO_SOURCE : null,
       };
     }),
   };

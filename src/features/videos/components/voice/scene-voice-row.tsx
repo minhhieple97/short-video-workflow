@@ -1,6 +1,6 @@
 "use client";
 
-import { Mic, Trash2, Upload } from "lucide-react";
+import { Loader2, Mic, Trash2, Upload } from "lucide-react";
 import { useRef } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -10,13 +10,28 @@ import { cn } from "@/lib/utils";
 
 import { LEADING_SILENCE_WARNING_MS } from "../../domain/audio";
 import { SCENE_TYPE_LABELS } from "../../domain/scene-types";
-import type { SceneDto } from "../../schemas/video.dto";
+import { activeVoiceJob, voiceJobLabel } from "../../domain/voice-queue";
+import type { SceneDto, SceneVoiceJobDto } from "../../schemas/video.dto";
 import { SCENE_TONE } from "../scene-tone";
 import { useVideoAction } from "../use-video-action";
+import { useVoiceRequest } from "./use-voice-request";
 
-export function SceneVoiceRow({ scene, ttsEnabled }: Readonly<{ scene: SceneDto; ttsEnabled: boolean }>) {
-  const { pending, run, runJob } = useVideoAction();
+interface SceneVoiceRowProps {
+  scene: SceneDto;
+  ttsEnabled: boolean;
+  // The newest voice job of this scene that is unfinished or failed, if any.
+  job: SceneVoiceJobDto | undefined;
+}
+
+export function SceneVoiceRow({ scene, ttsEnabled, job }: Readonly<SceneVoiceRowProps>) {
+  const { pending, run } = useVideoAction();
+  const voice = useVoiceRequest();
   const fileInput = useRef<HTMLInputElement>(null);
+  const active = activeVoiceJob(job);
+  const failure =
+    active === null && !scene.audio && job?.status === "FAILED" ? (job.errorMessage ?? "Không rõ lý do.") : null;
+  // A voice already in the queue, or a request on its way, is not asked for again, and a clip is not swapped under it.
+  const locked = pending || voice.busy || active !== null;
 
   function upload(file: File): void {
     const body = new FormData();
@@ -41,26 +56,36 @@ export function SceneVoiceRow({ scene, ttsEnabled }: Readonly<{ scene: SceneDto;
               <Badge variant="rose">Im lặng đầu {scene.audio.leadingSilenceMs} ms</Badge>
             ) : null}
           </>
-        ) : (
+        ) : active ? null : (
           <Badge variant="amber">Chưa có giọng đọc</Badge>
         )}
+        {active ? (
+          <Badge variant={active.status === "QUEUED" ? "blue" : "violet"}>
+            <Loader2 className="animate-spin" aria-hidden />
+            {voiceJobLabel(active.status)}
+          </Badge>
+        ) : null}
       </div>
       <p className="text-sm">{scene.narration}</p>
+      {failure ? <p className="text-sm text-red-600 dark:text-red-400">Lần tạo giọng gần nhất lỗi: {failure}</p> : null}
       {scene.audio ? <audio controls preload="none" src={scene.audio.url} className="h-9 w-full max-w-md" /> : null}
       <div className="flex flex-wrap gap-1">
         <Button
           size="sm"
           variant={scene.audio ? "ghost" : "outline"}
-          disabled={!ttsEnabled || pending}
+          disabled={!ttsEnabled || locked}
           title={ttsEnabled ? undefined : "TTS_MODE=upload"}
           onClick={() =>
-            void runJob(() => sendJson<{ jobId: string }>(`/api/scenes/${scene.id}/tts`, "POST"), "Đã tạo giọng đọc.")
+            void voice.request(async () => {
+              await sendJson(`/api/scenes/${scene.id}/tts`, "POST");
+              return 1;
+            })
           }
         >
           <Mic aria-hidden />
-          {scene.audio ? "Tạo lại" : "Tạo giọng đọc"}
+          {active ? "Đang trong hàng đợi" : scene.audio ? "Tạo lại" : failure ? "Thử lại" : "Tạo giọng đọc"}
         </Button>
-        <Button size="sm" variant="ghost" disabled={pending} onClick={() => fileInput.current?.click()}>
+        <Button size="sm" variant="ghost" disabled={locked} onClick={() => fileInput.current?.click()}>
           <Upload aria-hidden />
           {scene.audio ? "Thay bằng tệp" : "Tải lên MP3/WAV"}
         </Button>
@@ -69,7 +94,7 @@ export function SceneVoiceRow({ scene, ttsEnabled }: Readonly<{ scene: SceneDto;
             size="sm"
             variant="ghost"
             className="text-destructive"
-            disabled={pending}
+            disabled={locked}
             onClick={() => void run(() => sendJson(`/api/scenes/${scene.id}/audio`, "DELETE"), "Đã gỡ giọng đọc.")}
           >
             <Trash2 aria-hidden />

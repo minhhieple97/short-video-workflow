@@ -48,3 +48,8 @@ export function pageFromLocator(locator: string | null): number | null {
   const page = /(?:^|;)page:(\d+)(?:;|$)/.exec(locator ?? "")?.[1];
   return page ? Number(page) : null;
 }
+
+// A video can be traced back to the book only when at least one source of its lesson carries an excerpt.
+export function hasSourceExcerpt(sources: readonly { sourceExcerpt: string | null }[]): boolean {
+  return sources.some((source) => (source.sourceExcerpt ?? "").trim().length > 0);
+}

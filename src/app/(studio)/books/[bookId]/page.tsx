@@ -5,6 +5,7 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { IconButton } from "@/components/layout/icon-button";
 import { PageHeader } from "@/components/layout/page-header";
 import { Pagination } from "@/components/layout/pagination";
+import { getVideoDriveLinks } from "@/features/archive/services/archive-control.service";
 import { toBookTab } from "@/features/books/components/book-tab-values";
 import { BookTabs } from "@/features/books/components/book-tabs";
 import { DeleteBookButton } from "@/features/books/components/delete-book-button";
@@ -23,6 +24,8 @@ import { LessonList } from "@/features/lessons/components/lesson-list";
 import { LESSON_PAGE_PARAM, LESSON_PAGE_SIZE } from "@/features/lessons/domain/paging";
 import { lessonFilterSchema } from "@/features/lessons/schemas/lesson.schema";
 import { listLessons, listLessonsPage } from "@/features/lessons/services/lesson.service";
+import { getActiveProductionsByLesson } from "@/features/productions/services/production-lesson-state.service";
+import { getProductionSettings } from "@/features/productions/services/production-settings.service";
 import { CreateVideoDialog } from "@/features/videos/components/create-video-dialog";
 import { VideoTable } from "@/features/videos/components/video-table";
 import { VIDEO_PAGE_PARAM, VIDEO_PAGE_SIZE } from "@/features/videos/domain/paging";
@@ -63,6 +66,10 @@ export default async function BookDetailPage({ params, searchParams }: Readonly<
     listVideosPage({ bookId }, toPageRequest(query[VIDEO_PAGE_PARAM], VIDEO_PAGE_SIZE)),
     getBookExtraction(bookId),
     getBookAnalysisOverview(bookId, book.title),
+  ]);
+  const [activeProductions, drives] = await Promise.all([
+    getActiveProductionsByLesson(lessons.items.map((lesson) => lesson.id)),
+    getVideoDriveLinks(videos.items.map((video) => video.id)),
   ]);
   const pendingExtraction = extractionProgressState(extraction);
   // Producing needs lessons, which come from analysed chapters; until then the button says why it is off.
@@ -138,6 +145,8 @@ export default async function BookDetailPage({ params, searchParams }: Readonly<
               <LessonList
                 bookId={book.id}
                 lessons={lessons}
+                production={getProductionSettings()}
+                activeProductions={activeProductions}
                 emptyHint="Phân tích chương ở tab Chương để AI đề xuất bài học, hoặc tạo bài học thủ công."
               />
             </div>
@@ -145,8 +154,18 @@ export default async function BookDetailPage({ params, searchParams }: Readonly<
           videos: (
             <div className="flex flex-col gap-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-muted-foreground text-sm">
-                  {approvedLessons.length} bài học đã duyệt có thể dùng để tạo video ngắn 9:16.
+                <p className="text-muted-foreground max-w-2xl text-sm">
+                  {approvedLessons.length > 0
+                    ? `${approvedLessons.length} bài học đã duyệt có thể dùng để tạo video ngắn 9:16. `
+                    : "Chưa có bài học đã duyệt để tạo video thủ công. "}
+                  Muốn hệ thống tự làm hết các bước (kịch bản, giọng đọc, render), chọn bài học ở{" "}
+                  <Link
+                    href={`/books/${book.id}?tab=lessons`}
+                    className="text-foreground font-medium underline underline-offset-4"
+                  >
+                    tab Bài học
+                  </Link>{" "}
+                  rồi bấm “Tạo video”.
                 </p>
                 <CreateVideoDialog
                   bookId={book.id}
@@ -156,7 +175,11 @@ export default async function BookDetailPage({ params, searchParams }: Readonly<
                   ceilingSec={getAppConfig().video.maxDurationSec}
                 />
               </div>
-              <VideoTable videos={videos.items} emptyHint="Duyệt ít nhất một bài học rồi bấm “Tạo video”." />
+              <VideoTable
+                videos={videos.items}
+                drives={drives}
+                emptyHint="Chọn bài học ở tab Bài học và bấm “Tạo video” để làm tự động, hoặc duyệt một bài học rồi tạo video thủ công ở đây."
+              />
               <Pagination page={videos} param={VIDEO_PAGE_PARAM} />
             </div>
           ),

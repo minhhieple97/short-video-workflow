@@ -15,6 +15,8 @@ export interface LessonSummary {
   origin: "AI" | "MANUAL";
   chapters: ChapterRef[];
   usedInVideoCount: number;
+  // At least one source carries an excerpt from the book; without one a video cannot be traced to it.
+  hasSourceExcerpt: boolean;
   createdAt: string;
 }
 

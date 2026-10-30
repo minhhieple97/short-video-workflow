@@ -3,9 +3,8 @@ import { EmptyState } from "@/components/layout/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
 import { ProductionRequestForm } from "@/features/productions/components/production-request-form";
 import { getCatalogue } from "@/features/productions/services/catalogue.service";
-import { defaultDurationRange } from "@/features/videos/services/video.service";
+import { getProductionSettings } from "@/features/productions/services/production-settings.service";
 import { orNotFound } from "@/server/http/page-helpers";
-import { getAppConfig } from "@/shared/config/env";
 
 export const dynamic = "force-dynamic";
 
@@ -35,9 +34,7 @@ export default async function ProduceVideosPage({ params }: Readonly<{ params: P
         <ProductionRequestForm
           bookId={catalogue.book.id}
           lessons={catalogue.lessons}
-          defaultRange={defaultDurationRange()}
-          defaultPace={getAppConfig().video.defaultPace}
-          ceilingSec={getAppConfig().video.maxDurationSec}
+          settings={getProductionSettings()}
         />
       )}
     </section>

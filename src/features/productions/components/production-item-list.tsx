@@ -92,6 +92,17 @@ export function ProductionItemList({
                   Bản render
                 </Link>
               ) : null}
+              {item.archive?.videoUrl ? (
+                <a
+                  href={item.archive.videoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-sm font-medium hover:underline"
+                >
+                  Video trên Drive
+                  <ExternalLink className="size-3.5" aria-hidden />
+                </a>
+              ) : null}
               {item.archive?.folderUrl ? (
                 <a
                   href={item.archive.folderUrl}

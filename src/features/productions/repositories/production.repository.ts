@@ -2,6 +2,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import { AppError } from "@/shared/errors";
 
+import { ACTIVE_ITEM_STATUSES } from "../domain/production-status";
 import { startItemJobWithin } from "./production-jobs.repository";
 
 const WITH_ITEMS = {
@@ -41,7 +42,12 @@ export async function findProductionView(id: string) {
     prisma.renderArchive.findMany({
       where: { renderId: { in: renderIds } },
       orderBy: { createdAt: "desc" },
-      select: { renderId: true, status: true, remoteFolderId: true },
+      select: {
+        renderId: true,
+        status: true,
+        remoteFolderId: true,
+        files: { where: { kind: "VIDEO" }, select: { status: true, remoteFileId: true } },
+      },
     }),
   ]);
   return { batch, renders, archives };
@@ -83,6 +89,17 @@ export function findCatalogueLessons(bookId: string) {
       sources: { include: { chapter: { select: { title: true, order: true } } } },
       _count: { select: { videoLessons: true } },
     },
+  });
+}
+
+// The batch each of these lessons is being made in right now: an item that has not finished, failed or been cancelled.
+export function findActiveItemsForLessons(
+  lessonIds: readonly string[],
+): Promise<{ lessonId: string; batchId: string }[]> {
+  return prisma.productionItem.findMany({
+    where: { lessonId: { in: [...lessonIds] }, status: { in: [...ACTIVE_ITEM_STATUSES] } },
+    orderBy: { createdAt: "asc" },
+    select: { lessonId: true, batchId: true },
   });
 }
 

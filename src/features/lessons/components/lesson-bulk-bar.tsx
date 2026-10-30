@@ -16,6 +16,16 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { ProduceLessonsDialog } from "@/features/productions/components/produce-lessons-dialog";
+import {
+  PRODUCTION_BLOCK_REASONS,
+  productionBlock,
+  summarizeProductionBlocks,
+} from "@/features/productions/domain/producible-lesson";
+import type {
+  ActiveProductionsByLesson,
+  ProductionSettingsDto,
+} from "@/features/productions/schemas/production-settings.dto";
 import { errorMessage, sendJson } from "@/lib/api-client";
 
 import { canMoveLesson, type LessonStatus } from "../domain/lesson-fields";
@@ -37,12 +47,23 @@ function countLabel(label: string, count: number): string {
   return count > 0 ? `${label} ${count} bài` : label;
 }
 
-// Approve, reject (archive) or send back to draft every ticked lesson in one request.
+interface LessonBulkBarProps {
+  bookId: string;
+  selected: readonly LessonSummary[];
+  production: ProductionSettingsDto;
+  activeProductions: ActiveProductionsByLesson;
+  onDone: () => void;
+}
+
+// Approve, reject (archive) or send back to draft every ticked lesson in one request, or make videos of them with no
+// further step by hand. Making videos does not touch a lesson's status.
 export function LessonBulkBar({
   bookId,
   selected,
+  production,
+  activeProductions,
   onDone,
-}: Readonly<{ bookId: string; selected: readonly LessonSummary[]; onDone: () => void }>) {
+}: Readonly<LessonBulkBarProps>) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [refreshing, startRefresh] = useTransition();
@@ -52,6 +73,20 @@ export function LessonBulkBar({
   const approvable = movable(selected, "APPROVED");
   const rejectable = movable(selected, "ARCHIVED");
   const restorable = movable(selected, "DRAFT");
+
+  const checked = selected.map((lesson) => ({
+    lesson,
+    block: productionBlock({
+      status: lesson.status,
+      hasSourceExcerpt: lesson.hasSourceExcerpt,
+      inProduction: Object.hasOwn(activeProductions, lesson.id),
+    }),
+  }));
+  const producible = checked.filter(({ block }) => block === null).map(({ lesson }) => lesson);
+  const notProducible = checked.flatMap(({ lesson, block }) =>
+    block ? [{ id: lesson.id, title: lesson.title, reason: PRODUCTION_BLOCK_REASONS[block] }] : [],
+  );
+  const skippedSummary = summarizeProductionBlocks(checked.flatMap(({ block }) => (block ? [block] : [])));
 
   async function apply(ids: readonly string[], status: LessonStatus, done: string): Promise<void> {
     setSubmitting(true);
@@ -75,10 +110,10 @@ export function LessonBulkBar({
     <div className="flex flex-wrap items-center justify-between gap-2" role="toolbar" aria-label="Thao tác hàng loạt">
       <p className="text-muted-foreground text-sm" role="status">
         {selected.length > 0
-          ? `Đã chọn ${selected.length} bài học`
-          : "Chọn bài học để duyệt hoặc từ chối nhiều bài cùng lúc."}
+          ? `Đã chọn ${selected.length} bài học${skippedSummary ? ` · chưa tạo video được: ${skippedSummary}` : ""}`
+          : "Chọn bài học để duyệt, từ chối hoặc tạo video cùng lúc."}
       </p>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           disabled={busy || approvable.length === 0}
           aria-busy={busy}
@@ -99,6 +134,13 @@ export function LessonBulkBar({
           <Undo2 aria-hidden />
           {countLabel("Trả về nháp", restorable.length)}
         </Button>
+        <span className="bg-border mx-1 hidden h-6 w-px sm:block" aria-hidden />
+        <ProduceLessonsDialog
+          bookId={bookId}
+          lessons={producible.map(({ id, title, usedInVideoCount }) => ({ id, title, usedInVideoCount }))}
+          skipped={notProducible}
+          settings={production}
+        />
       </div>
 
       <AlertDialog open={confirmingReject} onOpenChange={setConfirmingReject}>

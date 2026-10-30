@@ -6,7 +6,7 @@ import type { LessonText } from "../domain/lesson-fields";
 const CHAPTER_REF = { select: { id: true, order: true, title: true } };
 
 const LIST_INCLUDE = {
-  sources: { select: { chapter: CHAPTER_REF } },
+  sources: { select: { chapter: CHAPTER_REF, sourceExcerpt: true } },
   _count: { select: { videoLessons: true } },
 };
 
@@ -17,7 +17,7 @@ const DETAIL_INCLUDE = {
 };
 
 export type LessonListRecord = Lesson & {
-  sources: { chapter: { id: string; order: number; title: string } }[];
+  sources: { chapter: { id: string; order: number; title: string }; sourceExcerpt: string | null }[];
   _count: { videoLessons: number };
 };
 

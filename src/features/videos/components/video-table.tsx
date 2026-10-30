@@ -2,6 +2,8 @@ import Link from "next/link";
 
 import { EmptyState } from "@/components/layout/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { VideoDriveStatus } from "@/features/archive/components/video-drive-status";
+import type { VideoDriveDto } from "@/features/archive/schemas/archive.dto";
 import { formatDateTime } from "@/lib/format";
 
 import { formatPreset, formatRange } from "../domain/duration";
@@ -10,11 +12,13 @@ import { VideoStatusBadge } from "./video-status-badge";
 
 interface VideoTableProps {
   videos: readonly VideoSummary[];
+  // Where each video stands on Google Drive, by video id (see getVideoDriveLinks).
+  drives: Readonly<Record<string, VideoDriveDto>>;
   showBook?: boolean;
   emptyHint: string;
 }
 
-export function VideoTable({ videos, showBook = false, emptyHint }: Readonly<VideoTableProps>) {
+export function VideoTable({ videos, drives, showBook = false, emptyHint }: Readonly<VideoTableProps>) {
   if (videos.length === 0) return <EmptyState title="Chưa có video" description={emptyHint} />;
 
   return (
@@ -24,6 +28,7 @@ export function VideoTable({ videos, showBook = false, emptyHint }: Readonly<Vid
           <TableHead>Video</TableHead>
           {showBook ? <TableHead>Sách</TableHead> : null}
           <TableHead>Trạng thái</TableHead>
+          <TableHead>Google Drive</TableHead>
           <TableHead className="text-right">Thời lượng</TableHead>
           <TableHead className="text-right">Cảnh</TableHead>
           <TableHead>Cập nhật</TableHead>
@@ -55,6 +60,9 @@ export function VideoTable({ videos, showBook = false, emptyHint }: Readonly<Vid
             ) : null}
             <TableCell>
               <VideoStatusBadge status={video.status} />
+            </TableCell>
+            <TableCell className="whitespace-normal">
+              <VideoDriveStatus videoId={video.id} drive={drives[video.id]} />
             </TableCell>
             <TableCell className="text-right tabular-nums">
               {video.durationProposed ? formatPreset(video.targetDurationSec) : formatRange(video)}

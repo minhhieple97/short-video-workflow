@@ -44,7 +44,8 @@ async function open(page: Page, url: string): Promise<void> {
   await page.waitForLoadState("networkidle");
 }
 
-// The video may run from 30 seconds up to `longest`; the AI picks its length inside that range with the script.
+// The video may run from 30 seconds up to `longest`; the AI picks its length inside that range with the script. Several
+// lessons are joined into this one video by choosing so: left alone, the dialog makes one video for each of them.
 async function createVideo(
   page: Page,
   bookUrl: string,
@@ -56,6 +57,7 @@ async function createVideo(
   await page.getByRole("button", { name: "Tạo video" }).click();
   const dialog = page.getByRole("dialog");
   for (const index of lessonIndexes) await dialog.getByRole("checkbox").nth(index).click();
+  if (lessonIndexes.length > 1) await dialog.getByText("Ghép thành một video", { exact: true }).click();
   await dialog.getByLabel("Dài nhất").click();
   await page.getByRole("option", { name: longest, exact: true }).click();
   await dialog.getByText(pace, { exact: true }).click();
@@ -119,7 +121,7 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
       await page.getByRole("button", { name: "Duyệt 2 bài" }).click();
       await expect(page.getByText("Đã duyệt 2 bài học.")).toBeVisible();
       await expect(rows.filter({ hasText: "Đã duyệt" })).toHaveCount(3);
-      await expect(page.getByText("Chọn bài học để duyệt hoặc từ chối nhiều bài cùng lúc.")).toBeVisible();
+      await expect(page.getByText("Chọn bài học để duyệt, từ chối hoặc tạo video cùng lúc.")).toBeVisible();
       return hrefs;
     });
 
@@ -266,6 +268,27 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
     }
   });
 
+  await test.step("the render page says the final render is on Drive and links to it, as do the video and its list", async () => {
+    const driveFile = /^https:\/\/drive\.google\.com\/file\/d\/[^/]+\/view$/;
+    // The render counts as finished a moment before the worker starts its archive, so a page opened in that gap shows
+    // no archive yet; once there is one the page follows the upload by itself, from "Đang lưu Drive" to "Đã lưu Drive".
+    await expect(async () => {
+      await open(page, `${videoA}/render`);
+      await expect(page.getByText("Đã lưu Drive", { exact: true }).first()).toBeVisible({ timeout: 15_000 });
+    }).toPass({ timeout: 120_000 });
+    await expect(page.getByRole("link", { name: /Mở video trên Drive/ }).first()).toHaveAttribute("href", driveFile);
+    await expect(page.getByRole("button", { name: "Sao chép link" })).toBeVisible();
+
+    await open(page, videoA);
+    await expect(page.getByText("Đã lưu Drive", { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Mở video/ })).toHaveAttribute("href", driveFile);
+
+    await open(page, `${bookUrl}?tab=videos`);
+    const rows = page.locator("tbody tr");
+    await expect(rows.filter({ hasText: "Đã lưu Drive" })).toHaveCount(1);
+    await expect(rows.filter({ hasText: "Chưa render bản cuối" })).toHaveCount(1);
+  });
+
   await test.step("everything is still there after a reload", async () => {
     await open(page, "/books");
     await expect(page.getByText("Atomic Habits — bản tóm lược minh họa")).toBeVisible();
@@ -273,6 +296,20 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
     await expect(page.locator("tbody tr")).toHaveCount(2);
     await open(page, `${bookUrl}?tab=lessons&status=APPROVED`);
     await expect(page.locator("tbody tr")).toHaveCount(3);
+  });
+
+  await test.step("two lessons ticked together become two videos, and the dialog shows both", async () => {
+    await open(page, `${bookUrl}?tab=videos`);
+    await page.getByRole("button", { name: "Tạo video" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("checkbox").nth(0).click();
+    await dialog.getByRole("checkbox").nth(1).click();
+    await expect(dialog.getByRole("radio", { name: /Mỗi bài học một video/ })).toBeChecked();
+    await dialog.getByRole("button", { name: "Tạo 2 video" }).click();
+    await expect(dialog.getByText("Đã tạo 2 video")).toBeVisible();
+    await expect(dialog.getByRole("link")).toHaveCount(2);
+    await dialog.getByRole("button", { name: "Xong" }).click();
+    await expect(page.locator("tbody tr")).toHaveCount(4);
   });
 
   await test.step("the dark theme can be chosen and is remembered", async () => {

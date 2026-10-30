@@ -23,3 +23,11 @@ export function archiveFolderUrl(status: string, remoteFolderId: string | null):
     ? `https://drive.google.com/drive/folders/${encodeURIComponent(remoteFolderId)}`
     : null;
 }
+
+// The MP4 itself is linked as soon as that one file is verified: it is whole even while the other files of the archive
+// are still going up. A file's ID is allocated before its upload starts, so the ID alone proves nothing.
+export function archiveVideoUrl(file: { status: string; remoteFileId: string | null } | undefined): string | null {
+  return file?.status === "VERIFIED" && file.remoteFileId
+    ? `https://drive.google.com/file/d/${encodeURIComponent(file.remoteFileId)}/view`
+    : null;
+}

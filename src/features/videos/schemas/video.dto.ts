@@ -1,3 +1,5 @@
+import type { JobStatus } from "@/shared/types/job";
+
 import type { TimedWord } from "../domain/caption-pages";
 import type { DurationBudget } from "../domain/duration";
 import type { PublishOrigin } from "../domain/publish-metadata";
@@ -44,6 +46,14 @@ export interface SceneAudioDto {
   url: string;
   // When each word is spoken in the clip, if the voice reported it (null for uploads and older voices).
   wordBoundaries: TimedWord[] | null;
+}
+
+// What the voice of one scene is waiting on, or last failed at; a scene with neither has no entry.
+export interface SceneVoiceJobDto {
+  jobId: string;
+  // An unfinished status (queued, running, waiting, being cancelled) or FAILED.
+  status: JobStatus;
+  errorMessage: string | null;
 }
 
 export interface VideoLessonDto {

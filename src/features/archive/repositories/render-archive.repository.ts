@@ -307,6 +307,23 @@ export function listRenderArchives(renderId: string): Promise<RenderArchiveRecor
   return prisma.renderArchive.findMany({ where: { renderId }, include: WITH_FILES, orderBy: { createdAt: "desc" } });
 }
 
+// The newest finished FINAL render of each of these videos, which is the one that is, or should be, on Drive, with its
+// newest archive. A video without a finished FINAL render is not in the answer.
+export function listFinalRendersWithArchive(videoIds: readonly string[]) {
+  return prisma.renderRecord.findMany({
+    where: { videoId: { in: [...videoIds] }, qualityPreset: "FINAL", status: "COMPLETED" },
+    orderBy: { createdAt: "desc" },
+    distinct: ["videoId"],
+    select: {
+      id: true,
+      videoId: true,
+      scriptVersion: true,
+      video: { select: { scriptVersion: true } },
+      archives: { orderBy: { createdAt: "desc" }, take: 1, include: WITH_FILES },
+    },
+  });
+}
+
 export type ArchiveRetryMode =
   // Carry on from the stored checkpoints and remote IDs.
   | "RESUME"

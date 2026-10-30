@@ -2,6 +2,7 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { PageHeader } from "@/components/layout/page-header";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DriveCard } from "@/features/archive/components/drive-card";
 import { getVideoArchives } from "@/features/archive/services/archive-control.service";
 import { getDriveConnectionStatus } from "@/features/drive/services/drive-connection.service";
 import { JobsAutoRefresh } from "@/features/jobs/components/jobs-auto-refresh";
@@ -37,6 +38,8 @@ export default async function VideoRenderPage({ params }: Readonly<{ params: Pro
   const draft = preflightFor(video, "DRAFT");
   const final = preflightFor(video, "FINAL");
   const latest = renders.find((render) => render.status === "COMPLETED");
+  // Only a FINAL render goes to Drive: the newest finished one is what the Drive card is about.
+  const finalRender = renders.find((render) => render.quality === "FINAL" && render.status === "COMPLETED");
   const label = (quality: "DRAFT" | "FINAL") => {
     const dims = dimensionsFor(quality);
     return `${dims.width}×${dims.height}`;
@@ -78,6 +81,7 @@ export default async function VideoRenderPage({ params }: Readonly<{ params: Pro
             videoId={video.id}
             blocked={{ DRAFT: locked || draft.blocking.length > 0, FINAL: locked || final.blocking.length > 0 }}
             dims={{ DRAFT: label("DRAFT"), FINAL: label("FINAL") }}
+            driveConnected={drive.connected}
           />
         </CardContent>
       </Card>
@@ -100,6 +104,20 @@ export default async function VideoRenderPage({ params }: Readonly<{ params: Pro
           aria-label="Bản render mới nhất"
         />
       ) : null}
+
+      <DriveCard
+        render={
+          finalRender
+            ? {
+                id: finalRender.id,
+                label: `Bản cuối ${finalRender.width}×${finalRender.height} · kịch bản v${finalRender.scriptVersion}`,
+                outdated: finalRender.outdated,
+              }
+            : null
+        }
+        archive={finalRender ? (archives[finalRender.id] ?? null) : null}
+        driveConnected={drive.connected}
+      />
 
       <RenderHistory renders={renders} archives={archives} driveConnected={drive.connected} />
     </section>

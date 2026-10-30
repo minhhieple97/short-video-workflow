@@ -19,6 +19,7 @@ import { toVideoStatus } from "../domain/video-status";
 import {
   countVideoRecords,
   createVideoRecord,
+  createVideoRecords,
   deleteVideoRecord,
   findApprovedLessonsForVideo,
   findVideoDetail,
@@ -32,7 +33,7 @@ import {
   type VideoDetailRecord,
 } from "../repositories/video.repository";
 import type { VideoDetail, VideoSummary } from "../schemas/video.dto";
-import type { CreateVideoInput, UpdateVideoInput } from "../schemas/video.schema";
+import type { CreateVideoInput, CreateVideosFromLessonsInput, UpdateVideoInput } from "../schemas/video.schema";
 import { buildLessonSnapshot } from "./lesson-snapshot-builder";
 import { toVideoDetail } from "./video-mapper";
 
@@ -93,11 +94,10 @@ export async function listVideosPage(filter: { bookId?: string }, request: PageR
   return mapPage(records, toVideoSummary);
 }
 
-export async function createVideo(input: CreateVideoInput): Promise<{ video: VideoDetail; warnings: string[] }> {
-  assertDurationRangeAllowed(input);
-  const book = await getBook(input.bookId);
-  const lessonIds = [...new Set(input.lessonIds)];
-  const lessons = await findApprovedLessonsForVideo(book.id, lessonIds);
+// The approved lessons of the book, in the order asked for, each with the snapshot a new video keeps of it.
+async function loadLessonsForNewVideos(bookId: string, requested: readonly string[]) {
+  const lessonIds = [...new Set(requested)];
+  const lessons = await findApprovedLessonsForVideo(bookId, lessonIds);
   if (lessons.length !== lessonIds.length) {
     throw new AppError("LESSON_NOT_IN_BOOK", "Mọi bài học phải thuộc cùng cuốn sách của video.", 400);
   }
@@ -107,18 +107,50 @@ export async function createVideo(input: CreateVideoInput): Promise<{ video: Vid
 
   const capturedAt = new Date().toISOString();
   const byId = new Map(lessons.map((lesson) => [lesson.id, lesson]));
-  const ordered = lessonIds.flatMap((id) => byId.get(id) ?? []);
+  return lessonIds
+    .flatMap((id) => byId.get(id) ?? [])
+    .map((lesson) => ({ lesson, snapshot: buildLessonSnapshot(lesson, capturedAt) }));
+}
+
+export async function createVideo(input: CreateVideoInput): Promise<{ video: VideoDetail; warnings: string[] }> {
+  assertDurationRangeAllowed(input);
+  const book = await getBook(input.bookId);
+  const lessons = await loadLessonsForNewVideos(book.id, input.lessonIds);
   const video = await createVideoRecord({
     bookId: book.id,
     title: input.title,
     description: input.description,
     range: { minDurationSec: input.minDurationSec, maxDurationSec: input.maxDurationSec },
     pace: input.pace ?? getAppConfig().video.defaultPace,
-    lessons: ordered.map((lesson) => ({ lessonId: lesson.id, snapshot: buildLessonSnapshot(lesson, capturedAt) })),
+    lessons: lessons.map(({ lesson, snapshot }) => ({ lessonId: lesson.id, snapshot })),
   });
 
-  const load = assessLessonLoad(lessonIds.length, input.maxDurationSec);
+  const load = assessLessonLoad(lessons.length, input.maxDurationSec);
   return { video: await getVideo(video.id), warnings: load.level === "ok" ? [] : [load.message] };
+}
+
+const MAX_VIDEO_TITLE = 200;
+
+// One video for each approved lesson, titled like the lesson and in the order asked for. All of them are written
+// together, so a request never leaves part of itself behind.
+export async function createVideosFromLessons(
+  input: CreateVideosFromLessonsInput,
+): Promise<{ videos: { id: string; title: string }[] }> {
+  assertDurationRangeAllowed(input);
+  const book = await getBook(input.bookId);
+  const lessons = await loadLessonsForNewVideos(book.id, input.lessonIds);
+  const pace = input.pace ?? getAppConfig().video.defaultPace;
+  const records = await createVideoRecords(
+    lessons.map(({ lesson, snapshot }) => ({
+      bookId: book.id,
+      title: lesson.title.slice(0, MAX_VIDEO_TITLE),
+      description: null,
+      range: { minDurationSec: input.minDurationSec, maxDurationSec: input.maxDurationSec },
+      pace,
+      lessons: [{ lessonId: lesson.id, snapshot }],
+    })),
+  );
+  return { videos: records.map(({ id, title }) => ({ id, title })) };
 }
 
 // A new range keeps the AI's proposed length when it still fits, and otherwise moves it to the nearest end of the range.

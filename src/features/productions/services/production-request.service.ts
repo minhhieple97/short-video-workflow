@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 
 import { getBook } from "@/features/books/services/book.service";
+import { hasSourceExcerpt } from "@/features/lessons/domain/source-excerpts";
 import { buildLessonSnapshot } from "@/features/videos/services/lesson-snapshot-builder";
 import { assertDurationRangeAllowed } from "@/features/videos/services/video.service";
 import { getAppConfig } from "@/shared/config/env";
@@ -104,9 +105,7 @@ export async function requestProduction(
       details: { lessonIds: archived.map((lesson) => lesson.id) },
     });
   }
-  const unsourced = lessons.filter(
-    (lesson) => !lesson.sources.some((source) => (source.sourceExcerpt ?? "").trim().length > 0),
-  );
+  const unsourced = lessons.filter((lesson) => !hasSourceExcerpt(lesson.sources));
   if (unsourced.length > 0) {
     throw new AppError("LESSON_SOURCE_MISSING", "Có bài học chưa có trích đoạn nguồn trong sách.", 409, {
       details: { lessonIds: unsourced.map((lesson) => lesson.id) },

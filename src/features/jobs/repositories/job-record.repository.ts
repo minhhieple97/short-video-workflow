@@ -37,6 +37,20 @@ export function findActiveJobForEntities(
   });
 }
 
+// The newest job of this type for each of these entities, whatever its status, so a screen can say what is queued or went
+// wrong for a whole set of them (the scenes of a video) with one query.
+export function findLatestJobsForEntities(
+  jobType: JobType,
+  entityType: string,
+  entityIds: readonly string[],
+): Promise<JobRecord[]> {
+  return prisma.jobRecord.findMany({
+    where: { jobType, entityType, entityId: { in: [...entityIds] } },
+    orderBy: { createdAt: "desc" },
+    distinct: ["entityId"],
+  });
+}
+
 export function findJobRecordById(id: string): Promise<JobRecord | null> {
   return prisma.jobRecord.findUnique({ where: { id } });
 }

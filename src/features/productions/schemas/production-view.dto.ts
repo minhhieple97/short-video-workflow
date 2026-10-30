@@ -14,7 +14,8 @@ export interface ProductionItemViewDto {
   reason: string | null;
   correction: string | null;
   render: { id: string; status: string } | null;
-  archive: { status: string; folderUrl: string | null } | null;
+  // Where the finished video is on Drive: its folder once every file is there, the MP4 once that one is.
+  archive: { status: string; folderUrl: string | null; videoUrl: string | null } | null;
   canRetry: boolean;
   canCancel: boolean;
 }

@@ -113,10 +113,11 @@ test("E2E-02: PDF → catalogue → chosen lesson → vertical video archived to
       .not.toContain("(0)");
   });
 
-  await test.step("pick one lesson as it is (still a draft) and start production", async () => {
-    await open(page, `${bookUrl}/produce`);
-    await page.getByRole("checkbox").first().click();
-    await page.getByRole("button", { name: "Sản xuất 1 video" }).click();
+  await test.step("tick one lesson in the list as it is (still a draft) and make its video in one go", async () => {
+    await open(page, `${bookUrl}?tab=lessons`);
+    await page.locator("tbody tr").first().getByRole("checkbox").click();
+    await page.getByRole("button", { name: "Tạo 1 video" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Tạo 1 video" }).click();
     await page.waitForURL(/\/productions\/[a-z0-9]+$/);
   });
 
@@ -134,6 +135,10 @@ test("E2E-02: PDF → catalogue → chosen lesson → vertical video archived to
       )
       .toEqual(expect.arrayContaining(["Hoàn tất", "Đã lưu Drive"]));
     await expect(page.getByRole("link", { name: /Thư mục Drive/ })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Video trên Drive/ })).toHaveAttribute(
+      "href",
+      /^https:\/\/drive\.google\.com\/file\/d\/[^/]+\/view$/,
+    );
     // The script studio chose the length inside the default range and said why.
     await expect(page.getByText(/^AI đề xuất \d+ (giây|phút): .+/)).toBeVisible();
   });

@@ -105,20 +105,43 @@ describe("getProductionView", () => {
     expect((await view.getProductionView(batchId)).inProgress).toBe(false);
   });
 
-  it("links the Drive folder only once the archive is verified", async () => {
+  it("links the Drive folder only once the archive is verified, and the video as soon as its own file is", async () => {
     const renderId = await render("COMPLETED");
     await update({ status: "COMPLETED", checkpoint: "RENDERED", renderId });
     const archive = await db.prisma.renderArchive.create({
-      data: { renderId, provider: "google-drive", destinationKey: "p1", status: "RUNNING", remoteFolderId: "folder-1" },
+      data: {
+        renderId,
+        provider: "google-drive",
+        destinationKey: "p1",
+        status: "RUNNING",
+        remoteFolderId: "folder-1",
+        files: {
+          create: [
+            { kind: "VIDEO", remoteName: "video.mp4", remoteFileId: "file-1", status: "UPLOADING" },
+            { kind: "SCRIPT", remoteName: "script.json", remoteFileId: "file-2", status: "PENDING" },
+          ],
+        },
+      },
     });
-    expect((await viewItem())?.archive).toEqual({ status: "RUNNING", folderUrl: null });
+    expect((await viewItem())?.archive).toEqual({ status: "RUNNING", folderUrl: null, videoUrl: null });
     // The video is done but its archive is not: the page keeps following it.
     expect(await view.getProductionView(batchId)).toMatchObject({ inProgress: false, archiving: true });
+
+    await db.prisma.renderArchiveFile.updateMany({
+      where: { archiveId: archive.id, kind: "VIDEO" },
+      data: { status: "VERIFIED" },
+    });
+    expect((await viewItem())?.archive).toEqual({
+      status: "RUNNING",
+      folderUrl: null,
+      videoUrl: "https://drive.google.com/file/d/file-1/view",
+    });
 
     await db.prisma.renderArchive.update({ where: { id: archive.id }, data: { status: "COMPLETED" } });
     expect((await viewItem())?.archive).toEqual({
       status: "COMPLETED",
       folderUrl: "https://drive.google.com/drive/folders/folder-1",
+      videoUrl: "https://drive.google.com/file/d/file-1/view",
     });
     expect(await view.getProductionView(batchId)).toMatchObject({ archiving: false });
   });

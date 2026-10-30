@@ -4,6 +4,7 @@ import { DURATION_PRESETS_SEC } from "../domain/duration";
 import { illustrationSchema } from "../domain/illustration";
 import { PACES } from "../domain/pace";
 import { BODY_SCENE_TYPES, VISUAL_VARIANTS } from "../domain/scene-types";
+import { MAX_LESSONS_PER_VIDEO, MAX_VIDEOS_PER_REQUEST } from "../domain/video-creation";
 
 export const durationPresetSchema = z.literal(DURATION_PRESETS_SEC, {
   error: `Thời lượng phải là một preset: ${DURATION_PRESETS_SEC.join(", ")} giây.`,
@@ -45,7 +46,21 @@ export const createVideoSchema = z
     lessonIds: z
       .array(z.string().min(1))
       .min(1, "Chọn ít nhất một bài học đã duyệt.")
-      .max(5, "Tối đa 5 bài học cho một video."),
+      .max(MAX_LESSONS_PER_VIDEO, `Tối đa ${MAX_LESSONS_PER_VIDEO} bài học cho một video.`),
+    ...durationRangeFields,
+    ...paceFields,
+  })
+  .superRefine(enforceRange);
+
+// One video per lesson: each takes its lesson's title and starts without a script, like a video made by hand.
+export const createVideosFromLessonsSchema = z
+  .object({
+    bookId: z.string().min(1),
+    lessonIds: z
+      .array(z.string().min(1))
+      .min(1, "Chọn ít nhất một bài học đã duyệt.")
+      .max(MAX_VIDEOS_PER_REQUEST, `Mỗi lần tạo tối đa ${MAX_VIDEOS_PER_REQUEST} video.`)
+      .refine((ids) => new Set(ids).size === ids.length, "Mỗi bài học chỉ được chọn một lần."),
     ...durationRangeFields,
     ...paceFields,
   })
@@ -89,6 +104,7 @@ export const selectHookSchema = z.object({
 });
 
 export type CreateVideoInput = z.infer<typeof createVideoSchema>;
+export type CreateVideosFromLessonsInput = z.infer<typeof createVideosFromLessonsSchema>;
 export type UpdateVideoInput = z.infer<typeof updateVideoSchema>;
 export type UpdateSceneInput = z.infer<typeof updateSceneSchema>;
 export type AddSceneInput = z.infer<typeof addSceneSchema>;

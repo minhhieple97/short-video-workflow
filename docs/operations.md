@@ -198,7 +198,9 @@ Sản xuất lại cùng bài học ở đợt khác thường ra góc kể khá
 - Chỉ xin quyền `drive.file`: ứng dụng chỉ thấy tệp do nó tạo. Ở Testing, refresh token sống 7 ngày, sau đó phải **Kết
   nối lại Google Drive**; mỗi tài khoản có tối đa 100 refresh token cho một client (token cũ nhất bị huỷ khi vượt).
 - Mọi bản render cuối hoàn tất được lưu lên Drive khi đã kết nối, kể cả bản xong trước khi kết nối (worker quét lúc khởi
-  động và mỗi phút); bản render có nút **Lưu lên Drive** / **Thử lại lưu Drive**. Thư mục
+  động và mỗi phút); bản render có nút **Lưu lên Drive** / **Thử lại lưu Drive**. Link video trên Drive hiện ở thẻ **Google Drive** dưới
+  video ở trang Render (mở hoặc sao chép), ở đầu trang video, ở cột **Google Drive** của danh sách video và ở trang tiến độ sản xuất.
+  Thư mục
   `Book Video Studio/books/<bookId>/videos/<videoId>/renders/<renderId>/` gồm MP4, `script.json`, `publish.txt` (tiêu đề,
   caption, hashtag — khi bản render có bộ này), `manifest.json`, tệp nào cũng được xác minh checksum với bản local.
 - **Ngắt kết nối** thu hồi refresh token ở Google và xoá credential local; không xoá gì trên Drive.

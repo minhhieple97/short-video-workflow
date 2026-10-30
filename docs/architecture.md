@@ -193,6 +193,12 @@ tối đa 8 lần liên tiếp; sản xuất 10 phút, 5 lần; archive 30 phút
 - Tab **Đăng tải**: `PUT /api/videos/:id/publish-metadata` lưu bản sửa tay (`origin = EDITED`, hash hiện tại);
   `POST …/publish-metadata/generate` xếp `GENERATE_PUBLISH_METADATA`. Cả hai bị chặn bởi `assertScriptNotGenerating()`; lưu còn bị chặn khi
   job viết lại đang chạy (`PUBLISH_GENERATION_IN_PROGRESS`). Job này không khoá trình biên tập (`findActiveVideoJob` chỉ xét job kịch bản).
+- Tạo video thủ công: `POST /api/videos` ghép 1–5 bài thành một video; `POST /api/videos/bulk` (`createVideosFromLessons`) tạo mỗi bài một video
+  (tối đa 30) trong **một giao dịch** nên không để lại video dở. Cả hai dùng `loadLessonsForNewVideos` (bài `APPROVED`, cùng sách, snapshot).
+- Hàng đợi giọng đọc: `enqueueTrackedJob` đã dùng lại job đang chạy của cùng cảnh, nên máy chủ không nhân việc; trạng thái hiện ra từ
+  `getVoiceJobs(videoId)` (job `GENERATE_SCENE_TTS` mới nhất của mỗi cảnh, chỉ giữ cái chưa xong hoặc lỗi; `findLatestJobsForEntities`),
+  truyền cho `VoicePanel`. Trang tự làm mới bằng `JobsAutoRefresh` khi còn cảnh trong hàng đợi, không bằng vòng lặp ở trình duyệt, nên đóng
+  rồi mở lại trang vẫn đúng. `useVoiceRequest` giữ nút tắt cho tới khi trang vẽ lại với trạng thái hàng đợi mới.
 - `runSceneTts`: khoá `sha256(engineVersion của provider, giọng, tốc độ, lời dẫn)`; trượt thì provider TTS (cổng `TtsProvider`, chọn bằng
   `TTS_MODE`; hiện chỉ có `edge-tts`, lời dẫn qua tệp, không qua dòng lệnh; lỗi là `IntegrationError` mã `TTS_*`, hết lần thử là `TRANSIENT` nên
   đường ống sản xuất hoãn và thử lại) →
@@ -346,10 +352,16 @@ cũ của chương và ghi `AiRun(mode=notebooklm)`.
 
 ### 8.1 Yêu cầu
 
-`requestProduction` (`POST /api/productions`): bài học cùng sách, không `ARCHIVED`, có ít nhất một trích đoạn. Một **nested create** ghi
+`requestProduction` (`POST /api/productions`; ở giao diện là nút **Tạo N video** của thanh thao tác tab Bài học, trang `/books/:id/produce` giữ
+nguyên): bài học cùng sách, không `ARCHIVED`, có ít nhất một trích đoạn. Một **nested create** ghi
 batch + mỗi bài một item + một `Video` (snapshot bài học dựng như luồng thủ công) + job `RUN_PRODUCTION_ITEM` — đủ cả hoặc không gì. Chọn
 không phải duyệt: không đòi `APPROVED`, không đổi trạng thái bài học. Cùng `idempotencyKey` + cùng `fingerprint` (sách, bài học theo thứ
 tự, khoảng thời lượng) → trả batch cũ; cùng khoá khác nội dung → `409`; gửi đua → một batch (bên thua bắt `P2002`).
+
+Server **cố ý** cho sản xuất lại cùng bài dưới khoá mới. Việc ngăn làm một bài hai lần khi bản đầu còn chạy là của giao diện
+(`productionBlock`, `getActiveProductionsByLesson`: mục `PENDING/RUNNING/WAITING`): danh sách bài học gắn nhãn **Đang sản xuất** và không
+tính bài đó vào nút. `productionUnavailableReason` hỏi đúng `createScriptStudioProvider` mà worker dùng, nên hộp thoại báo thiếu
+`cli-auto`/`NOTEBOOKLM_PROFILE` trước khi tạo đợt, không đợi từng video lỗi.
 
 ### 8.2 Checkpoint, trạng thái, lease
 
@@ -502,6 +514,10 @@ render FINAL COMPLETED + archiveIntentAt ─► requestRenderArchive | sweepRend
   bản thảo nên là các cảnh `HOOK`, `SITUATION`, `COMMON_MISTAKE`, `BETTER_APPROACH`, nơi truyện bịa của kịch bản chạy qua; chỉ snapshot
   mới chụp theo quy tắc này, snapshot đã lưu bất biến); `script.json` ghi cờ theo cảnh, `manifest.json` liệt kê
   `illustrativeScenes`. Snapshot cũ không có cờ thì hai tệp giữ đúng byte như trước để archive dở không báo tệp đổi.
+- Link Drive của video: `archiveVideoUrl` (`/file/d/<id>/view`) khi tệp `VIDEO` ở trạng thái `VERIFIED` (ID được cấp trước khi upload nên ID
+  một mình không chứng minh gì), `archiveFolderUrl` chỉ khi cả archive `COMPLETED`. `getVideoDriveLinks(videoIds)` trả cho mỗi video bản render
+  FINAL hoàn tất mới nhất cùng archive mới nhất của nó và cờ `outdated` (`scriptVersion` cũ hơn video), cho đầu trang video và cột Drive của
+  danh sách; trang Render dùng `getVideoArchives` cho thẻ `DriveCard` và lịch sử.
 - `publish.txt` (tiêu đề, rồi caption + hashtag sẵn để dán; `formatPublishText`) chỉ có khi snapshot có `publish`: archive tạo hàng
   `PUBLISH` lúc được yêu cầu, `manifest.json` thêm `files.publish`. Archive chạy theo **chính các hàng tệp của nó**, nên archive tạo
   trước khi có `publish.txt` vẫn chạy tiếp với ba tệp; `prepareDestination` cấp ID cho mọi loại, ID thừa không dùng. Cây Drive:

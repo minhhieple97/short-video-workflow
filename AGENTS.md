@@ -117,20 +117,27 @@ src/
     chapters/          chapter listing/reading/rename, analysis runner (worker) + analysis requests (web, server-only; the chapters tab ticks
                        chapters through `useChapterSelection`, shared by the analyse button and the table);
                        PDF chapters are catalogued by NotebookLM part by part when it is set up (`notebook-chapter-analysis`)
-    lessons/           lesson domain (fields, excerpt verification), repository, review service, library/review UI
+    lessons/           lesson domain (fields, excerpt verification), repository, review service, library/review UI; the bulk bar also
+                       starts production (`ProduceLessonsDialog` from `productions/`), and a row says when its lesson is being made
     videos/            short-form domain (scene types, layouts, duration budget, pace, story angles, snapshots), script generation/editing, editor UI;
                        the title/caption/hashtag set to post with (`domain/publish-metadata.ts`: rules + hashtag normalizing,
                        `publish-proposal.ts` for the set written with a script, `publish-generation`/`publish-request` services,
-                       Đăng tải tab in `components/publish/`)
+                       Đăng tải tab in `components/publish/`); the create-video dialog makes one video per lesson or one joined video
+                       (`domain/video-creation.ts`, `POST /api/videos/bulk`), and the Giọng đọc tab shows the voice queue from the server
+                       (`domain/voice-queue.ts`, `voice-jobs.service`, `useVoiceRequest`)
     jobs/              job payload schemas, JobRecord/AiRun repositories, enqueue/retry/cancel services, jobs dashboard UI
     notebooklm/        v1.2 NotebookLM bindings: one notebook per book and account, one source per part and revision (title marker);
                        `NotebookLmScriptStudio` (the real `ScriptStudioProvider`: one MCP process per run, `notebookId#sourceId` refs,
                        JSON answers only), chapter part documents shared by cataloguing and drafting, chapter detector
     drive/             v1.2 Google Drive connection: OAuth start/callback state (hashed, one-time), connection status DTO
-    archive/           v1.2 render archives (one per render and destination, one entry per uploaded file, resumable checkpoints)
+    archive/           v1.2 render archives (one per render and destination, one entry per uploaded file, resumable checkpoints); where a
+                       video is on Drive is shown by `DriveCard` (Render page), `VideoDriveStatus` (video header, video lists) and
+                       `DriveLinks`, fed by `getVideoDriveLinks` / `getVideoArchives` and `archiveVideoUrl` / `archiveFolderUrl`
     productions/       v1.2 production batches: lesson selection (`production-request`, catalogue page `/books/:id/produce`), the
                        item pipeline (`production-pipeline`, one resumable `RUN_PRODUCTION_ITEM` job per item), correction,
-                       readiness, cancel/retry, start-up reconcile, and the progress pages (`/productions`, `production-view`)
+                       readiness, cancel/retry, start-up reconcile, and the progress pages (`/productions`, `production-view`);
+                       `domain/producible-lesson.ts` (which ticked lessons a click makes into videos), `production-settings.service`
+                       (form defaults and why production cannot run here), `ProduceLessonsDialog` + `useStartProduction`
     book-imports/      multi-PDF batches (1–15 books), staged uploads, serial book/chapter scheduling and all-lesson production;
                        worker book-import sweeper orchestrates existing jobs; progress at /book-imports
   lib/                 client-safe helpers: utils.ts (shadcn `cn()`), api-client.ts (typed fetch + ApiError), format.ts (vi-VN),
@@ -405,6 +412,14 @@ unverified. The hook limit is 4 s / 120 frames for every flow. Each video carrie
   and table cells with `line-clamp-2 wrap-break-word` and put the full text in `title`; give tables that hold such text
   `table-fixed` with fixed widths on the other columns; keep one-line status text on `truncate` inside a `min-w-0` row with the label
   `shrink-0`; cut dropdown options with `truncateText()` (`lib/format.ts`); `PageHeader` and `Breadcrumbs` already shrink and clamp.
+- **Never offer an action that repeats work already queued.** Queue state comes from the server (`getVoiceJobs`, `getActiveProductionsByLesson`),
+  never from a `useState` flag that a reload forgets: the button is off and the row says it is waiting, whoever queued it and whenever the page
+  was opened. Follow queued work with `JobsAutoRefresh`, not a polling loop in the click handler, and keep a button off until the page has been
+  drawn again with the new state (`useTransition` around `router.refresh()`).
+- **Say where the result is.** A finished video shows whether it is on Google Drive and the link to it (`VideoDriveStatus`, `DriveCard`) wherever
+  it is listed or edited, never on one page only. Link the MP4 as soon as its own file is verified, the folder only when the whole archive is.
+- **Several ticked items must never silently become one.** A dialog that can turn N lessons into one video asks which it is, shows every result,
+  and says its limits before the click.
 - **Icon-only actions use `IconButton`** (`components/layout/icon-button.tsx`): `label` is both the tooltip and the accessible name, `note` is the
   reason when it is disabled (a disabled button gets its tooltip from a wrapper). It is for page-header, table-row and toolbar actions whose
   icon is clear. Keep the text on a button whose label carries live state or a count ("Phân tích 2 chương còn lại"), on dialog/form footers
