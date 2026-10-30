@@ -7,3 +7,4 @@ src/generated
 pnpm-lock.yaml
 prisma/migrations
 .agents
+.claude

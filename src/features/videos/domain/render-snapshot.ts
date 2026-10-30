@@ -106,7 +106,10 @@ export function currentSnapshotIdentity(): Pick<RenderSnapshot, "schemaVersion" 
 }
 
 export function toCompositionSource(snapshot: RenderSnapshot): CompositionSource {
-  const scenes = [...snapshot.scenes].sort((left, right) => left.order - right.order);
+  const audioById = new Map(snapshot.audio.map((audio) => [audio.assetId, audio]));
+  const scenes = [...snapshot.scenes]
+    .sort((left, right) => left.order - right.order)
+    .map((scene) => ({ ...scene, audio: scene.audioAssetId ? (audioById.get(scene.audioAssetId) ?? null) : null }));
   return { title: snapshot.video.title, book: { title: snapshot.video.bookTitle }, pace: snapshot.video.pace, scenes };
 }
 

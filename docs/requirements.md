@@ -357,22 +357,58 @@ video không cùng một dáng, và không lưu gì thêm:
 ### 6.5. Bố cục và hoạt cảnh
 
 - Năm bố cục dọc: Câu hỏi lớn, Chia đôi sai lầm / giải pháp, Thẻ tình huống, Chữ lớn ghi nhớ, Danh sách hành động.
-- Mỗi cảnh có một **hoạt cảnh hoạt hình phẳng bằng SVG**: một nhân vật (cùng một nhân vật cho cả video) trong một bối cảnh, chuyển
-  động theo frame (thở, chớp mắt, cử chỉ, đi bộ, mây trôi…).
-- 7 bối cảnh: Ở nhà, Văn phòng, Đường phố, Công viên, Quán cà phê, Lớp học, Phòng ban đêm. 8 hành động: Suy nghĩ, Lo lắng, Làm việc,
-  Trò chuyện, Đi bộ, Lướt điện thoại, Nảy ra ý tưởng, Vui mừng.
-- **Claude chọn** bối cảnh + hành động cho hook và từng cảnh, chỉ từ hai danh sách trên, khớp lời dẫn; giá trị lạ bị từ chối. Thiếu
-  thì dùng mặc định theo loại cảnh: Hook = Đường phố · Suy nghĩ; Tình huống = Ở nhà · Lướt điện thoại; Sai lầm = Văn phòng · Lo
-  lắng; Điều cần nhớ = Lớp học · Nảy ra ý tưởng; Cách xử lý = Công viên · Đi bộ; Hành động = Ở nhà · Vui mừng; Tổng kết = Quán cà
-  phê · Trò chuyện.
+  - Ba bố cục đầu là **sân khấu hoạt hình**: bối cảnh, nhân vật, đồ vật; chữ của cảnh là tiêu đề chữ động phía trên; cảnh sai lầm và
+    cách làm có dấu ✗ / ✓.
+  - Hai bố cục sau là **màn chữ động** toàn màn hình: nền màu, chữ lớn bật lên từng từ, một biểu tượng, nhân vật chính ở góc.
+- Khung dọc chia dải, từ trên xuống:
+  - thanh tiến độ theo các phần của câu chuyện, kèm nhãn phần (không có trên hook);
+  - tiêu đề;
+  - vùng hình;
+  - phụ đề, phía trên vùng giao diện của nền tảng;
+  - đồ trang trí của bối cảnh (bàn, quầy, bụi cây), lấp phần dưới.
+  - Nhãn "Từ sách" chỉ hiện từ phần bài học.
+- **Nhân vật** vẽ bằng Open Peeps (nét vẽ tay, CC0), cùng một nhân vật cho cả video, chọn theo tiêu đề video.
+  - Mỗi hành động có dáng, khuôn mặt biểu cảm và dấu hiệu riêng: bóng nghĩ, bóng thoại, bóng đèn, mồ hôi, pháo giấy.
+  - Nhân vật thở và nhún nhẹ theo frame.
+- **Đồ vật** lấy từ Microsoft Fluent Emoji Flat (MIT), danh mục cố định ở `videos/domain/props.ts`. Nguồn và giấy phép ghi trong
+  `THIRD_PARTY_NOTICES.md`.
+- 7 bối cảnh, vẽ phẳng màu pastel, có chuyển động nhẹ (mây trôi, đèn đung đưa, sao lấp lánh, xe buýt chạy qua): Ở nhà, Văn phòng,
+  Đường phố, Công viên, Quán cà phê, Lớp học, Phòng ban đêm.
+- 8 hành động: Suy nghĩ, Lo lắng, Làm việc, Trò chuyện, Đi bộ, Lướt điện thoại, Nảy ra ý tưởng, Vui mừng.
+- **Nhiều shot trong một cảnh, chung một giọng đọc:**
+  - Hình được cắt tại đầu các trang phụ đề, mỗi shot khoảng 2,5–5 giây, xen kẽ cảnh rộng và cảnh trung.
+  - Mỗi shot có camera đẩy chậm; đổi cỡ cảnh là cắt, không zoom.
+  - Cảnh sau ở cùng bối cảnh mở bằng cỡ khác shot cuối của cảnh trước.
+  - Đổi bối cảnh thì lau ngang; vào hoặc ra màn chữ thì trượt.
+  - Chuyển cảnh không làm lệch giọng hay phụ đề và không đổi độ dài video.
+- **Claude chọn** bối cảnh + hành động cho hook và từng cảnh, chỉ từ hai danh sách trên, khớp lời dẫn; giá trị lạ bị từ chối.
+  - Thiếu thì dùng mặc định theo loại cảnh:
+
+    | Loại cảnh    | Bối cảnh    | Hành động       |
+    | ------------ | ----------- | --------------- |
+    | Hook         | Đường phố   | Suy nghĩ        |
+    | Tình huống   | Ở nhà       | Lướt điện thoại |
+    | Sai lầm      | Văn phòng   | Lo lắng         |
+    | Điều cần nhớ | Lớp học     | Nảy ra ý tưởng  |
+    | Cách xử lý   | Công viên   | Đi bộ           |
+    | Hành động    | Ở nhà       | Vui mừng        |
+    | Tổng kết     | Quán cà phê | Trò chuyện      |
+
 - **Người dùng đổi** hoạt cảnh từng cảnh trong trình biên tập hoặc "Về mặc định"; đổi hoạt cảnh giữ giọng đọc.
-- Chuyển động chỉ phụ thuộc frame (xem trước và MP4 giống hệt): không filter/blur, ảnh, ngẫu nhiên, 3D, GPU hay tài sản mạng; không
-  chớp nháy hay zoom nhanh. Hoạt cảnh là bộ cố định, không vẽ riêng cho từng câu chuyện.
+- Chuyển động chỉ phụ thuộc frame, nên xem trước và MP4 giống hệt.
+  - Không filter/blur, ảnh, ngẫu nhiên, 3D, GPU hay tài sản mạng.
+  - Không chớp nháy hay zoom nhanh.
+  - Hoạt cảnh là bộ cố định, không vẽ riêng cho từng câu chuyện.
 
 ### 6.6. Chữ, phụ đề, vùng an toàn
 
 - Chữ trên màn hình là từ khoá, tối đa 120 ký tự (trên 60 bị cảnh báo có thể tràn); mọi cảnh hiển thị phải có chữ.
-- Phụ đề theo cụm từ (cắt ở dấu câu, tối đa 9 từ), căn thời gian theo số âm tiết; không khớp chính xác từng từ.
+- **Phụ đề theo trang:**
+  - Mỗi trang tối đa 2 dòng ngắn, khoảng 22 ký tự mỗi dòng, và 8 từ.
+  - Ngắt sau dấu kết câu, sau dấu phẩy khi trang đã dài, và ở chỗ ngừng của giọng.
+  - Chữ đậm, viền đen, đặt ở 1/3 dưới.
+  - Thời gian từng từ hiện ước lượng theo số âm tiết trong phần có lời của clip giọng (bỏ khoảng lặng đầu). Chưa sáng từng từ theo
+    giọng.
 - Vùng an toàn TikTok / YouTube Shorts / Facebook Reels là **mặc định ước lượng, chỉnh được**, không phải thông số chính thức; nội
   dung đặt trong vùng chặt nhất của cả ba nên một bản render dùng cho mọi nền tảng. Lớp vùng an toàn chỉ có trong trình biên tập,
   **không bao giờ** vào MP4.

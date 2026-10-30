@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { buildCaptionCues, splitCaptionPhrases } from "@/features/videos/domain/captions";
 import { shortVideoPropsSchema, toCompositionProps, totalFrames } from "@/features/videos/domain/composition-props";
 import { HOOK_MAX_FRAMES, HOOK_MAX_SECONDS, MIN_SCENE_FRAMES } from "@/features/videos/domain/duration";
 import { runPreflight, type PreflightInput } from "@/features/videos/domain/preflight";
@@ -23,26 +22,6 @@ const input = (overrides: Partial<PreflightInput> = {}): PreflightInput => ({
   minDurationSec: null,
   scenes: [hook, scene(), scene({ type: "ACTION_STEP" })],
   ...overrides,
-});
-
-describe("captions", () => {
-  it("splits narration at punctuation and caps phrase length", () => {
-    expect(splitCaptionPhrases("Tối nay, mang giày chạy và bước ra cửa.")).toEqual([
-      "Tối nay,",
-      "mang giày chạy và bước ra cửa.",
-    ]);
-    expect(splitCaptionPhrases("một hai ba bốn năm sáu bảy tám chín mười mười một")).toHaveLength(2);
-  });
-
-  it("times cues proportionally and covers the whole scene", () => {
-    const cues = buildCaptionCues("Tối nay, mang giày chạy và bước ra cửa.", 90);
-    expect(cues[0]).toMatchObject({ startFrame: 0 });
-    expect(cues.at(-1)?.endFrame).toBe(90);
-    expect(cues[1]?.startFrame).toBe(cues[0]?.endFrame);
-    expect((cues[1]?.endFrame ?? 0) - (cues[1]?.startFrame ?? 0)).toBeGreaterThan(
-      (cues[0]?.endFrame ?? 0) - (cues[0]?.startFrame ?? 0),
-    );
-  });
 });
 
 describe("composition props", () => {

@@ -49,6 +49,8 @@ Hard constraints (do not relax without an explicit user decision):
 | List / run Claude CLI tasks (AI_MODE=cli-task) | `pnpm ai:run --list` · `pnpm ai:run --job <jobId> [--dry-run]` |
 | Environment diagnostics                        | `pnpm diagnose`                                                |
 | Remotion Studio (inspect compositions)         | `pnpm remotion:studio`                                         |
+| Render fixture: contact sheet / ms per frame   | `pnpm render:stills` · `pnpm bench:render`                     |
+| Regenerate character / prop art                | `pnpm peeps:generate` · `pnpm props:generate --source <dir>`   |
 | Lint / format check / typecheck                | `pnpm lint` · `pnpm format:check` · `pnpm typecheck`           |
 | Tests                                          | `pnpm test` (`pnpm test:watch` while developing)               |
 | E2E smoke test (builds first; needs Redis)     | `pnpm test:e2e`                                                |
@@ -159,14 +161,18 @@ src/
     http/              route-helpers.ts (AppError → JSON, readJson/parseInput with Zod), page-helpers.ts (orNotFound)
   worker/              Standalone process: main.ts, processors/ (dispatcher + one per job type), lifecycle/ (heartbeat + lock renewal, shutdown)
   remotion/            Pure React video code: index.ts (registerRoot), root.tsx (ShortVideo + calculateMetadata), compositions/,
-                       scenes/ (5 layouts), components/ (frame, captions, badge, motion), theme/ (tokens, bundled font),
-                       illustration/ (flat SVG cartoon: 7 settings, a character with 8 actions, one look per video; frame-driven only)
+                       layers/ (visual track with transitions, voice + caption track, progress chrome), scenes/ (one scene = its shots
+                       + headline), stage/ (camera, sets, Open Peeps cast per action, extras), text/ (kinetic headline, text cards),
+                       captions/ (caption pages), timeline/ (scene transitions), peeps/ + props/ (generated art, see
+                       THIRD_PARTY_NOTICES.md), theme/ (tokens, bundled font); frame-driven only
   shared/              Truly shared: config/env.ts (Zod-validated env), logger.ts, errors.ts, pagination.ts (`loadPage`/`slicePage`/`Page<T>`
                        for server-side paging; the pager UI is `components/layout/pagination.tsx`), types/ (create schemas/ on first need)
   generated/           Prisma client output (gitignored)
 prisma/                schema.prisma, migrations/ (committed), seed.ts
 scripts/               CLI entrypoints: run-claude-task.ts, diagnose.ts, worker-status.ts (`pnpm worker:status` and the guard in front of
-                       `worker:dev`/`worker:start`), dev-all.ts (`pnpm dev:all`); lib/ holds their service runner and Vietnamese status text
+                       `worker:dev`/`worker:start`), dev-all.ts (`pnpm dev:all`), export-render-fixture.ts / render-stills.ts / bench-render.ts
+                       (render fixtures under DATA_DIR/fixtures, contact sheets, ms/frame); lib/ holds their service runner, fixture loader and
+                       Vietnamese status text
 tests/                 unit/ + integration/ (Vitest), e2e/ (Playwright smoke + isolated stack), helpers/
 docs/                  requirements.md (product spec), architecture.md (technical design), operations.md (setup, env, troubleshooting)
 data/                  Runtime data (gitignored): studio.db, books/, ai-tasks/, videos/, diagnostics/
@@ -301,8 +307,8 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - **Pace is the one reading-speed control, and only the user sets it** (`features/videos/domain/pace.ts`: `STANDARD` 0%, `FAST` +15%, `FASTER` +30%;
   `Video.pace` and `ProductionBatch.pace`, new ones start from `DEFAULT_PACE`). It sets the voice speed, the pause after each scene
   (`framesForAudio`), the AI's word budget (`syllablesPerSecond` in the three prompts, the estimates and the draft cache key) and how
-  fast scene pictures play (`paceFactor`: a `<Sequence playbackRate>` around `SceneRenderer` only, so the voice, captions and scene length
-  never follow it). Nothing changes a pace by itself: not `UNDER_MIN`, not `OVER_TARGET`, not the AI correction. A voice made at another
+  fast scene pictures play (`paceFactor`: a `<Sequence playbackRate>` around each shot's picture only, so the voice, captions, shot cuts and
+  scene length never follow it). Nothing changes a pace by itself: not `UNDER_MIN`, not `OVER_TARGET`, not the AI correction. A voice made at another
   speed stays until the user regenerates it (`staleVoiceSceneCount`, `POST /api/videos/:id/tts` with `scope: "all"`; an uploaded clip is never
   replaced). Adding a pace or changing a number in the table changes what the same props look like, so bump `RENDER_TEMPLATE_VERSION`.
 - **Story angle** (`features/videos/domain/story-angle.ts`): six ways to tell the same six-part story (`PEAK_FIRST`, `DIALOGUE`, `TWO_PATHS`,
@@ -315,13 +321,27 @@ Dependency direction: `app → features/*/services → features/*/repositories �
   punctuation, never the words.
 - Preview and render share the same composition and the same Zod-validated input props. No hardcoded book titles, lesson counts or narration inside Remotion components.
 - Safe-zone overlays are editor-only guides (configurable per platform), never rendered into the MP4.
-- Prefer CSS/SVG/text animation; no 3D, no GPU requirement, no network fetches at render time; local assets only. Scene illustrations
-  (`src/remotion/illustration/`) are plain SVG driven by the frame: no `filter`/blur (slow in headless Chromium), no images, no randomness
-  (a test enforces it). Settings and actions come from the fixed lists in `features/videos/domain/illustration.ts`. Claude picks one per
-  hook and scene (`scene-plan`, `video-script`); it is stored on `VideoScene.illustrationJson` (null = the default for the scene type) and is
-  part of the scene's content hash only when chosen, so older scenes keep their hash. Rewriting one scene keeps its picture.
+- Prefer CSS/SVG/text animation; no 3D, no GPU requirement, no network fetches at render time; local assets only. Everything drawn is
+  inline SVG driven by the frame: no `filter`/blur (slow in headless Chromium), no images, no randomness, no CSS animation, no network or
+  WebGL Remotion packages (`tests/unit/remotion/render-rules.test.ts` and ESLint enforce it). Transitions use only the CSS presentations
+  `fade`, `slide`, `wipe`.
+- **One voice, several shots.** A scene is one narration clip; its picture is cut into shots (`features/videos/domain/scene-shots.ts`, 2.5–5 s,
+  on caption page starts) under the same voice. The pictures overlap in transitions, but each picture is lengthened by the transition after
+  it (`d_i = f_i + t_i`, `src/remotion/timeline/scene-transitions.ts`), so it starts on its voice's first frame and the video keeps Σ
+  scene frames. Captions are pages (`domain/caption-pages.ts`, ≤ 2 lines); word timings are estimated by syllables until the voice
+  provides them, and only voice timings light up the spoken word (`karaoke`).
+- **Art:** characters are Open Peeps and props are Fluent Emoji Flat, turned into path data by `pnpm peeps:generate` / `pnpm props:generate`
+  (never edit `*.generated.ts`; `THIRD_PARTY_NOTICES.md` names sources and licences). Settings and actions come from the fixed lists in
+  `features/videos/domain/illustration.ts`, props from `domain/props.ts`; `src/remotion/stage/cast.ts` maps each action to a pose, faces
+  and extras, keeping the main character in the light-top outfit family. Claude picks a setting + action per hook and scene (`scene-plan`,
+  `video-script`); it is stored on `VideoScene.illustrationJson` (null = the default for the scene type) and is part of the scene's content
+  hash only when chosen, so older scenes keep their hash. Rewriting one scene keeps its picture.
 - Vietnamese diacritics must render correctly (font fallback checked in Chromium on WSL). On-screen text may only use glyphs in the
   bundled font; draw symbols such as ✓ ✗ → as SVG, or the preview and the MP4 pick different system fonts.
+- The official Remotion skills (`.claude/skills/remotion-markup`, `remotion-captions`, pinned in `skills-lock.json`) are API guidance.
+  Where they disagree with this file, this file wins. Never follow their advice on Google Fonts or remote URLs (network at render time),
+  `@remotion/effects`, light leaks, `effects` props or other WebGL/WebGPU work, motion blur, 3D, Lottie, Rive, GIFs, ElevenLabs or Whisper,
+  Tailwind inside Remotion, or `npx`/`bunx remotion add` (add `@remotion/*` with pnpm at the exact version of `remotion`).
 
 ## 12. Testing
 
@@ -344,6 +364,8 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - Keep each topic in one document: product behavior → `docs/requirements.md`, design → `docs/architecture.md`, setup/env/errors →
   `docs/operations.md` (its env table must match `.env.example`), code map/commands/rules → this file. When code structure, commands or env
   change, update the owning document and `.env.example` in the same change.
+- Third-party art or fonts enter only through a generator script in `scripts/` with a manifest, and get a section in
+  `THIRD_PARTY_NOTICES.md` in the same change.
 
 ## 14. Status
 

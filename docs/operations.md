@@ -247,6 +247,24 @@ pnpm, không phải chẩn đoán này.
 - Đo trên máy dev, concurrency 1: bản nháp 480 frame (16 giây) mất 36,8 giây có hoạt cảnh so với 37,3 giây khi chưa có,
   MP4 2,3 MB so với 0,66 MB; bản nháp 720×1280 dài 5 phút mất 10 phút 31 giây, 32 MB. **Chưa đo** bản cuối 1080×1920
   dài 5 phút.
+- **Đo lại và so hình** bằng fixture: `pnpm fixture:export` chép snapshot và giọng của một bản render vào
+  `DATA_DIR/fixtures/<tên>/`. Lấy từ dữ liệu của bản checkout khác bằng
+  `DATABASE_URL=file:<data>/studio.db pnpm fixture:export --render <id> --name <tên> --from <data>`.
+  - `pnpm bench:render --fixture <tên> [--quality draft|final] [--frames a-b] [--concurrency n] [--out tệp.mp4]` render đúng như worker (`--out` giữ lại MP4 để xem) và in
+    ms/frame tính trên toàn bộ thời gian render, đã gồm encode.
+  - `pnpm render:stills --fixture <tên>` ghép 4 khung mỗi cảnh thành `DATA_DIR/diagnostics/stills/…/contact.png`.
+  - Chỉ đo khi máy rảnh.
+- **Số gốc** (template v4, 30/10/2026; WSL thấy 4 CPU, 21 GB). Fixture `real-56s`: 6 cảnh, 1.688 frame.
+
+  | Bản / phạm vi                | Concurrency | Thời gian | ms/frame |
+  | ---------------------------- | ----------- | --------- | -------- |
+  | Bản cuối 1080×1920, cả video | 1           | 145 giây  | 86,2     |
+  | Bản nháp 720×1280, cả video  | 1           | 117 giây  | 69,2     |
+  | Bản cuối, 600 frame đầu      | 1           | —         | 109,4    |
+  | Bản cuối, 600 frame đầu      | 2           | —         | 69,6     |
+
+  Encode chạy song song với lúc chụp frame (xong sau khoảng 1 giây).
+
 - Kiểm tra trước render chặn: HOOK không ở frame 0 hoặc dài quá 120 frame (4 giây), thiếu chữ, dài hơn mức dài nhất của khoảng
   (hoặc 300 giây); bản cuối cần kịch bản đã duyệt (hoặc đạt kiểm tra tự động khi sản xuất hàng loạt). Ngắn hơn mức ngắn nhất chỉ
   cảnh báo khi làm tay, nhưng chặn (và dùng lượt sửa AI) khi sản xuất hàng loạt.

@@ -1,0 +1,513 @@
+{
+  "edgeTts": "7.3.1",
+  "voice": "vi-VN-NamMinhNeural",
+  "rate": "+0%",
+  "note": "Recorded 2026-10-30 from the live service; sentences are made up for tests, offsets and durations are 100-ns ticks of the raw audio.",
+  "sentences": {
+    "numbers": {
+      "text": "Tiến bộ 1% mỗi ngày, sau 365 ngày bạn giỏi hơn gấp 37 lần.",
+      "events": [
+        {
+          "text": "Tiến",
+          "offset": 1000000,
+          "duration": 3250000
+        },
+        {
+          "text": "bộ",
+          "offset": 4250000,
+          "duration": 1750000
+        },
+        {
+          "text": "1%",
+          "offset": 6000000,
+          "duration": 5375000
+        },
+        {
+          "text": "mỗi",
+          "offset": 11375000,
+          "duration": 1750000
+        },
+        {
+          "text": "ngày",
+          "offset": 13125000,
+          "duration": 3125000
+        },
+        {
+          "text": "sau",
+          "offset": 18000000,
+          "duration": 2750000
+        },
+        {
+          "text": "365",
+          "offset": 20750000,
+          "duration": 11000000
+        },
+        {
+          "text": "ngày",
+          "offset": 31750000,
+          "duration": 1875000
+        },
+        {
+          "text": "bạn",
+          "offset": 33625000,
+          "duration": 2500000
+        },
+        {
+          "text": "giỏi",
+          "offset": 36125000,
+          "duration": 2125000
+        },
+        {
+          "text": "hơn",
+          "offset": 38250000,
+          "duration": 2750000
+        },
+        {
+          "text": "gấp",
+          "offset": 41000000,
+          "duration": 2000000
+        },
+        {
+          "text": "37",
+          "offset": 43000000,
+          "duration": 5500000
+        },
+        {
+          "text": "lần",
+          "offset": 48500000,
+          "duration": 2875000
+        }
+      ]
+    },
+    "names": {
+      "text": "Trong cuốn Atomic Habits, James Clear gọi đó là lãi kép của thói quen.",
+      "events": [
+        {
+          "text": "Trong",
+          "offset": 1000000,
+          "duration": 3375000
+        },
+        {
+          "text": "cuốn",
+          "offset": 4375000,
+          "duration": 3375000
+        },
+        {
+          "text": "Atomic",
+          "offset": 7750000,
+          "duration": 4500000
+        },
+        {
+          "text": "Habits",
+          "offset": 12250000,
+          "duration": 5750000
+        },
+        {
+          "text": "James",
+          "offset": 19750000,
+          "duration": 3375000
+        },
+        {
+          "text": "Clear",
+          "offset": 23125000,
+          "duration": 3250000
+        },
+        {
+          "text": "gọi",
+          "offset": 26375000,
+          "duration": 2000000
+        },
+        {
+          "text": "đó",
+          "offset": 28375000,
+          "duration": 1875000
+        },
+        {
+          "text": "là",
+          "offset": 30250000,
+          "duration": 1625000
+        },
+        {
+          "text": "lãi",
+          "offset": 31875000,
+          "duration": 2000000
+        },
+        {
+          "text": "kép",
+          "offset": 33875000,
+          "duration": 2500000
+        },
+        {
+          "text": "của",
+          "offset": 36375000,
+          "duration": 1500000
+        },
+        {
+          "text": "thói",
+          "offset": 37875000,
+          "duration": 1875000
+        },
+        {
+          "text": "quen",
+          "offset": 39750000,
+          "duration": 3500000
+        }
+      ]
+    },
+    "repeat": {
+      "text": "Một trang, rồi một trang nữa, rồi một trang nữa.",
+      "events": [
+        {
+          "text": "Một",
+          "offset": 1000000,
+          "duration": 4125000
+        },
+        {
+          "text": "trang",
+          "offset": 5125000,
+          "duration": 3750000
+        },
+        {
+          "text": "rồi",
+          "offset": 10250000,
+          "duration": 2750000
+        },
+        {
+          "text": "một",
+          "offset": 13000000,
+          "duration": 2125000
+        },
+        {
+          "text": "trang",
+          "offset": 15125000,
+          "duration": 2250000
+        },
+        {
+          "text": "nữa",
+          "offset": 17375000,
+          "duration": 3875000
+        },
+        {
+          "text": "rồi",
+          "offset": 22875000,
+          "duration": 2875000
+        },
+        {
+          "text": "một",
+          "offset": 25750000,
+          "duration": 2250000
+        },
+        {
+          "text": "trang",
+          "offset": 28000000,
+          "duration": 2250000
+        },
+        {
+          "text": "nữa",
+          "offset": 30250000,
+          "duration": 3750000
+        }
+      ]
+    },
+    "quote": {
+      "text": "Anh nhủ thầm: \"Lo cho kỹ thì việc sẽ ổn.\" Nghe hợp lý. Sai.",
+      "events": [
+        {
+          "text": "Anh",
+          "offset": 1000000,
+          "duration": 2000000
+        },
+        {
+          "text": "nhủ",
+          "offset": 3000000,
+          "duration": 2250000
+        },
+        {
+          "text": "thầm",
+          "offset": 5250000,
+          "duration": 3500000
+        },
+        {
+          "text": "Lo",
+          "offset": 13000000,
+          "duration": 2500000
+        },
+        {
+          "text": "cho",
+          "offset": 15500000,
+          "duration": 1500000
+        },
+        {
+          "text": "kỹ",
+          "offset": 17000000,
+          "duration": 3125000
+        },
+        {
+          "text": "thì",
+          "offset": 20125000,
+          "duration": 1750000
+        },
+        {
+          "text": "việc",
+          "offset": 21875000,
+          "duration": 1875000
+        },
+        {
+          "text": "sẽ",
+          "offset": 23750000,
+          "duration": 1875000
+        },
+        {
+          "text": "ổn",
+          "offset": 25625000,
+          "duration": 3500000
+        },
+        {
+          "text": "Nghe",
+          "offset": 38875000,
+          "duration": 3625000
+        },
+        {
+          "text": "hợp",
+          "offset": 42500000,
+          "duration": 2625000
+        },
+        {
+          "text": "lý",
+          "offset": 45125000,
+          "duration": 3750000
+        },
+        {
+          "text": "Sai",
+          "offset": 57250000,
+          "duration": 4750000
+        }
+      ]
+    },
+    "long": {
+      "text": "Khôi nằm nhìn trần nhà đến ba giờ sáng, nghĩ về hợp đồng, về sếp, về khoản vay, rồi sáng hôm sau ngồi trước máy tính mà chưa gõ nổi một dòng.",
+      "events": [
+        {
+          "text": "Khôi",
+          "offset": 1000000,
+          "duration": 2500000
+        },
+        {
+          "text": "nằm",
+          "offset": 3500000,
+          "duration": 1625000
+        },
+        {
+          "text": "nhìn",
+          "offset": 5125000,
+          "duration": 2250000
+        },
+        {
+          "text": "trần",
+          "offset": 7375000,
+          "duration": 1875000
+        },
+        {
+          "text": "nhà",
+          "offset": 9250000,
+          "duration": 2000000
+        },
+        {
+          "text": "đến",
+          "offset": 11250000,
+          "duration": 2000000
+        },
+        {
+          "text": "ba",
+          "offset": 13250000,
+          "duration": 1500000
+        },
+        {
+          "text": "giờ",
+          "offset": 14750000,
+          "duration": 1875000
+        },
+        {
+          "text": "sáng",
+          "offset": 16625000,
+          "duration": 4125000
+        },
+        {
+          "text": "nghĩ",
+          "offset": 22375000,
+          "duration": 2625000
+        },
+        {
+          "text": "về",
+          "offset": 25000000,
+          "duration": 1375000
+        },
+        {
+          "text": "hợp",
+          "offset": 26375000,
+          "duration": 1750000
+        },
+        {
+          "text": "đồng",
+          "offset": 28125000,
+          "duration": 3000000
+        },
+        {
+          "text": "về",
+          "offset": 32750000,
+          "duration": 2250000
+        },
+        {
+          "text": "sếp",
+          "offset": 35000000,
+          "duration": 3375000
+        },
+        {
+          "text": "về",
+          "offset": 40250000,
+          "duration": 2125000
+        },
+        {
+          "text": "khoản",
+          "offset": 42375000,
+          "duration": 2500000
+        },
+        {
+          "text": "vay",
+          "offset": 44875000,
+          "duration": 3125000
+        },
+        {
+          "text": "rồi",
+          "offset": 49875000,
+          "duration": 2375000
+        },
+        {
+          "text": "sáng",
+          "offset": 52250000,
+          "duration": 2500000
+        },
+        {
+          "text": "hôm",
+          "offset": 54750000,
+          "duration": 2125000
+        },
+        {
+          "text": "sau",
+          "offset": 56875000,
+          "duration": 1875000
+        },
+        {
+          "text": "ngồi",
+          "offset": 58750000,
+          "duration": 2125000
+        },
+        {
+          "text": "trước",
+          "offset": 60875000,
+          "duration": 2125000
+        },
+        {
+          "text": "máy",
+          "offset": 63000000,
+          "duration": 1250000
+        },
+        {
+          "text": "tính",
+          "offset": 64250000,
+          "duration": 3000000
+        },
+        {
+          "text": "mà",
+          "offset": 67250000,
+          "duration": 1625000
+        },
+        {
+          "text": "chưa",
+          "offset": 68875000,
+          "duration": 2375000
+        },
+        {
+          "text": "gõ",
+          "offset": 71250000,
+          "duration": 2000000
+        },
+        {
+          "text": "nổi",
+          "offset": 73250000,
+          "duration": 2125000
+        },
+        {
+          "text": "một",
+          "offset": 75375000,
+          "duration": 2125000
+        },
+        {
+          "text": "dòng",
+          "offset": 77500000,
+          "duration": 3000000
+        }
+      ]
+    },
+    "abbrev": {
+      "text": "Lúc 23:00, CEO gửi email: deadline là thứ Hai, không lùi.",
+      "events": [
+        {
+          "text": "Lúc",
+          "offset": 1000000,
+          "duration": 2500000
+        },
+        {
+          "text": "23:00",
+          "offset": 3500000,
+          "duration": 8000000
+        },
+        {
+          "text": "CEO",
+          "offset": 12875000,
+          "duration": 5125000
+        },
+        {
+          "text": "gửi",
+          "offset": 18000000,
+          "duration": 3125000
+        },
+        {
+          "text": "email",
+          "offset": 21125000,
+          "duration": 5000000
+        },
+        {
+          "text": "deadline",
+          "offset": 28000000,
+          "duration": 6500000
+        },
+        {
+          "text": "là",
+          "offset": 34500000,
+          "duration": 1625000
+        },
+        {
+          "text": "thứ",
+          "offset": 36125000,
+          "duration": 1875000
+        },
+        {
+          "text": "Hai",
+          "offset": 38000000,
+          "duration": 3500000
+        },
+        {
+          "text": "không",
+          "offset": 42875000,
+          "duration": 2500000
+        },
+        {
+          "text": "lùi",
+          "offset": 45375000,
+          "duration": 3250000
+        }
+      ]
+    }
+  }
+}

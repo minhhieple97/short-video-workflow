@@ -387,11 +387,28 @@ status:     PENDING ─claim─► RUNNING ─┬─► COMPLETED
   dùng lại giọng cũ (frame được tính lại theo khoảng nghỉ hiện tại). Prompt, ước lượng thời lượng và khoá cache bản nháp đều nhận nhịp độ.
   Giọng đã tạo ở tốc độ khác nhịp độ hiện tại là "lệch nhịp": `toVideoDetail` đếm `staleVoiceSceneCount`, preflight cảnh báo
   `VOICE_PACE_MISMATCH`, tab Giọng đọc cho tạo lại (`scope: "all"`). Trong composition, `paceFactor` (từ `toCompositionProps`) bọc **riêng**
-  `SceneRenderer` trong `<Sequence playbackRate>`; phụ đề, nhãn sách và âm thanh nằm ngoài nên giữ thời gian thật; render ở ×1 không bọc gì
-  cả. Snapshot lưu `video.pace` (tuỳ chọn, bản cũ đọc là Chuẩn). Cổng `TtsProvider` (`server/tts/`) nhận `speedPercent`, adapter tự đổi sang
+  nội dung từng shot trong `<Sequence playbackRate>`. Shot giữ độ dài thật nên điểm cắt vẫn nằm đúng chữ; phụ đề, thanh tiến độ và âm thanh
+  nằm ngoài nên giữ thời gian thật. Snapshot lưu `video.pace` (tuỳ chọn, bản cũ đọc là Chuẩn). Cổng `TtsProvider` (`server/tts/`) nhận `speedPercent`, adapter tự đổi sang
   tham số của dịch vụ.
 - Độ dài cảnh = `ceil((durationMs + paddingMs của nhịp độ) / 1000 × 30)` theo audio thật, tối thiểu 2 giây; trước khi có audio ước lượng
-  theo âm tiết/giây của nhịp độ (4 ở Chuẩn). Không bao giờ cắt lời hay tự tăng tốc để vừa khoảng. Phụ đề tách theo dấu câu, ≤ 9 từ mỗi cụm, thời gian chia theo âm tiết.
+  theo âm tiết/giây của nhịp độ (4 ở Chuẩn). Không bao giờ cắt lời hay tự tăng tốc để vừa khoảng.
+- **Phụ đề** (`domain/caption-pages.ts`):
+  - Thời gian từng từ ước lượng theo âm tiết, có thêm nghỉ sau dấu câu (`domain/word-timing.ts`), trong phần có lời của clip.
+    `CompositionSource.scenes[].audio` mang `durationMs` và `leadingSilenceMs`; `toCompositionSource` ghép chúng từ `snapshot.audio`.
+  - Chia trang ≤ 2 dòng × 22 ký tự, ≤ 8 từ.
+  - Ngắt sau dấu kết câu, sau dấu phẩy khi trang đã đủ dài, và ở khoảng ngừng ≥ 300 ms.
+  - `karaoke` chỉ bật khi thời gian lấy từ chính giọng đọc.
+- **Shot** (`domain/scene-shots.ts`):
+  - Mỗi cảnh, tức một clip giọng, chia thành shot tại đầu các trang phụ đề khi shot đang chạy đã khoảng 2,5 giây. Mỗi shot dài 54–150
+    frame; đoạn dài hơn chia đều.
+  - Cỡ cảnh xen kẽ WIDE/MEDIUM. Hook mở MEDIUM.
+  - Cảnh tiếp ở cùng bối cảnh mở bằng cỡ khác shot cuối của cảnh trước. Màn chữ (`BIG_TAKEAWAY`, `ACTION_CHECKLIST`) là một shot.
+- **Lớp hình** (`src/remotion/layers/visual-track.tsx`):
+  - Dùng `TransitionSeries`; giọng và phụ đề nằm ở một `Series` riêng (`caption-layer.tsx`).
+  - Hình của cảnh _i_ kéo dài thêm đúng độ dài chuyển cảnh sau nó (`d_i = f_i + t_i`, `timeline/scene-transitions.ts`). Nhờ vậy hình
+    nào cũng bắt đầu đúng khung giọng của nó, và tổng vẫn là Σf.
+  - Cùng bối cảnh thì cắt thẳng; đổi bối cảnh thì `wipe`; vào hoặc ra màn chữ thì `slide`; chữ sang chữ thì `fade`. Chỉ dùng các kiểu
+    chuyển cảnh CSS, không dùng loại WebGL.
 - Audio được phục vụ cho Chromium bởi asset server tạm ở `127.0.0.1:<cổng ngẫu nhiên>`, chỉ đúng các tệp snapshot nêu.
 - `RENDER_TEMPLATE_VERSION` (`composition-props.ts`) ghi vào mọi snapshot; tăng khi thay đổi Remotion làm cùng props trông khác.
   Vùng an toàn chỉ là lớp phủ trong editor, không vào MP4.
@@ -427,9 +444,19 @@ cảnh báo       HOOK_SILENCE (> 500 ms lặng đầu), LONG_TEXT, MISSING_AUDI
 
 ### 9.4 Hoạt cảnh SVG
 
-`src/remotion/illustration/`: 7 bối cảnh × 8 hành động của một nhân vật (danh sách ở `videos/domain/illustration.ts`). Mọi chuyển động là
-hàm của frame; không `filter`/blur (chậm trong Chromium headless), không ảnh, không ngẫu nhiên (có test kiểm). Ngoại hình nhân vật chọn
-theo tiêu đề video. `illustrationJson` null = mặc định theo loại cảnh; hash cảnh chỉ tính hoạt cảnh khi có lựa chọn nên dữ liệu cũ giữ hash.
+- **Sân khấu** (`src/remotion/stage/`):
+  - Gồm 7 bối cảnh phẳng (`sets/sets.tsx`: lớp sau, lớp trước che phần dưới của nhân vật bán thân, mặt đất cho nhân vật cả người) và
+    camera (`camera.tsx`: điểm nhìn + zoom, tâm ở y 950 giữa dải hình).
+  - Mỗi hành động có dáng, mặt và dấu hiệu riêng (`cast.ts`). Nhân vật luôn thuộc họ trang phục áo sáng nên đổi dáng không thành người
+    khác. Ngoại hình (tóc, kính) chọn theo tiêu đề video.
+- **Màn chữ** (`text/text-scene.tsx`): chữ lớn đo bằng font thật (`@remotion/layout-utils`, đo một lần mỗi chữ), số và trích dẫn được
+  nhấn, danh sách "1) 2) 3)" tách dòng.
+- **Hình bên thứ ba** vào mã qua script sinh dữ liệu, chỉ còn path phẳng; nguồn ghi ở `THIRD_PARTY_NOTICES.md`.
+  - Open Peeps: `pnpm peeps:generate` đọc `react-peeps`, ra `peeps/peeps-art.generated.ts`.
+  - Fluent Emoji Flat: `pnpm props:generate --source <assets>`, ra `props/prop-art.generated.ts`, phủ đủ `PROP_IDS`.
+- Mọi chuyển động là hàm của frame. Không `filter`/blur (chậm trong Chromium headless), không ảnh, không ngẫu nhiên, không gói Remotion
+  dùng mạng hay WebGL: `render-rules.test.ts` và ESLint kiểm.
+- `illustrationJson` null = mặc định theo loại cảnh; hash cảnh chỉ tính hoạt cảnh khi có lựa chọn nên dữ liệu cũ giữ hash.
 
 ## 10. Lưu trữ lên Google Drive
 

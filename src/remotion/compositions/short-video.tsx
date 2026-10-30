@@ -1,53 +1,43 @@
-import { useEffect, useState } from "react";
-import { AbsoluteFill, Html5Audio, Sequence, Series, useDelayRender } from "remotion";
+import { useEffect, useMemo, useState } from "react";
+import { AbsoluteFill, useDelayRender } from "remotion";
 
 import type { ShortVideoProps } from "@/features/videos/domain/composition-props";
 
-import { BookBadge } from "../components/book-badge";
-import { CaptionTrack } from "../components/caption-track";
-import { CharacterLookContext, lookFor } from "../illustration/look";
-import { SceneRenderer } from "../scenes/scene-renderer";
+import { CaptionLayer } from "../layers/caption-layer";
+import { StoryChrome } from "../layers/story-chrome";
+import { VisualTrack } from "../layers/visual-track";
+import { mainLook } from "../stage/cast";
 import { ensureFonts } from "../theme/fonts";
-import { COLORS } from "../theme/tokens";
+import { PAPER } from "../theme/tokens";
 
 // Content-driven: every word on screen comes from props; nothing about a specific book is hard-coded here.
 export function ShortVideo({ title, scenes, bookTitle, showCaptions, paceFactor = 1 }: ShortVideoProps) {
   const { delayRender, continueRender, cancelRender } = useDelayRender();
   const [handle] = useState(() => delayRender("Loading Be Vietnam Pro"));
+  const [fontsReady, setFontsReady] = useState(false);
+  const look = useMemo(() => mainLook(title), [title]);
 
-  // Without the bundled font, Vietnamese diacritics would come out in a fallback font, so the render fails instead.
+  // Text is measured to fit, so nothing is drawn until the bundled font is in: measuring a fallback font would size every
+  // line wrongly, and Vietnamese diacritics would come out in another face. Without the font the render fails instead.
   useEffect(() => {
     void ensureFonts().then(
-      () => continueRender(handle),
+      () => {
+        setFontsReady(true);
+        continueRender(handle);
+      },
       (error: unknown) => cancelRender(error),
     );
   }, [handle, continueRender, cancelRender]);
 
   return (
-    <AbsoluteFill style={{ backgroundColor: COLORS.background }}>
-      <CharacterLookContext.Provider value={lookFor(title)}>
-        <Series>
-          {scenes.map((scene, index) => (
-            <Series.Sequence
-              key={scene.id}
-              durationInFrames={scene.durationInFrames}
-              name={`${index + 1}. ${scene.label}`}
-            >
-              {paceFactor === 1 ? (
-                <SceneRenderer scene={scene} />
-              ) : (
-                // Only the picture runs on the faster clock: captions, badge and audio stay outside so they keep real time.
-                <Sequence layout="none" playbackRate={paceFactor}>
-                  <SceneRenderer scene={scene} />
-                </Sequence>
-              )}
-              {index > 0 ? <BookBadge title={bookTitle} /> : null}
-              {showCaptions ? <CaptionTrack captions={scene.captions} /> : null}
-              {scene.audioSrc ? <Html5Audio src={scene.audioSrc} pauseWhenBuffering /> : null}
-            </Series.Sequence>
-          ))}
-        </Series>
-      </CharacterLookContext.Provider>
+    <AbsoluteFill style={{ backgroundColor: PAPER }}>
+      {fontsReady ? (
+        <>
+          <VisualTrack scenes={scenes} paceFactor={paceFactor} look={look} />
+          <StoryChrome scenes={scenes} bookTitle={bookTitle} />
+          <CaptionLayer scenes={scenes} showCaptions={showCaptions} />
+        </>
+      ) : null}
     </AbsoluteFill>
   );
 }
