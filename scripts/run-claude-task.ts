@@ -68,12 +68,15 @@ async function runTask(jobId: string): Promise<number> {
   }
   const meta = await readTaskMeta(jobId);
   if (values["dry-run"]) {
+    const ai = getAppConfig().ai;
     console.log(
       `Thư mục tác vụ: ${taskDirectory(jobId)}\nPrompt: prompt.md · Schema: schema.json · Loại: ${meta.kind}`,
     );
     console.log(
-      `Lệnh sẽ chạy: ${getAppConfig().ai.claudeCliCommand} -p --output-format json --tools "" --no-session-persistence --json-schema <schema.json> < prompt.md`,
+      `Lệnh sẽ chạy: ${ai.claudeCliCommand} -p${ai.claudeModel ? " --model <CLAUDE_MODEL>" : ""}${ai.claudeEffort ? ` --effort ${ai.claudeEffort}` : ""} --output-format json --tools "" --strict-mcp-config --no-session-persistence --json-schema <schema.json> < prompt.md`,
     );
+    console.log(`Model yêu cầu: ${ai.claudeModel ?? "Theo mặc định Claude CLI"}`);
+    console.log(`Effort yêu cầu: ${ai.claudeEffort ?? "Theo mặc định Claude CLI"}`);
     return 0;
   }
 

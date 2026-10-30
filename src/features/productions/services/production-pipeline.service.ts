@@ -11,6 +11,10 @@ import type { ScenePlanCompiler } from "@/server/scene-plan/scene-plan-compiler"
 import type { ScriptStudioProvider, SourceRef } from "@/server/script-studio/script-studio-provider";
 import { AppError, JobCancelledError, NotFoundError } from "@/shared/errors";
 import { createLogger, toSafeErrorMessage } from "@/shared/logger";
+import { productionStep } from "../domain/production-labels";
+import type { NotificationFailure } from "@/features/notifications/domain/notification-failure";
+import { toItemCheckpoint } from "../domain/production-status";
+import { findJobRecordById } from "@/features/jobs/repositories/job-record.repository";
 
 import { releaseProductionClaim, renewProductionClaim } from "../repositories/production-claim.repository";
 import {
@@ -59,7 +63,7 @@ export type StepOutcome =
   | { kind: "CONTINUE" }
   | { kind: "DEFER"; retryAfterMs: number }
   | { kind: "COMPLETED" }
-  | { kind: "FAILED"; code: string; message: string }
+  | ({ kind: "FAILED" } & NotificationFailure)
   | { kind: "CANCELLED" };
 
 export type RunOutcome = Exclude<StepOutcome, { kind: "CONTINUE" }>;
@@ -108,6 +112,7 @@ async function draftStep(
   claimToken: string,
   signal: AbortSignal | undefined,
   deps: PipelineDeps,
+  onProviderSuccess: () => void,
 ): Promise<StepOutcome> {
   const lesson = lessonOf(item);
   const videoId = requireVideoId(item);
@@ -136,6 +141,7 @@ async function draftStep(
         { sources, lesson, range, pace, storyAngle, revisionNote },
         { signal },
       );
+      onProviderSuccess();
       await cacheDraft(cacheKey, deps.scriptStudio, draft);
     }
     if (!isWithinRange(draft.targetDurationSec, range)) {
@@ -231,7 +237,8 @@ async function renderStep(item: ProductionItemForRun, claimToken: string): Promi
   if (render.status === "QUEUED" || render.status === "RENDERING")
     return { kind: "DEFER", retryAfterMs: RENDER_POLL_MS };
   if (render.status !== "COMPLETED") {
-    return failed("RENDER_FAILED", render.errorMessage ?? "Bản render không hoàn tất.");
+    const job = render.jobRecordId ? await findJobRecordById(render.jobRecordId) : null;
+    return failed(job?.errorCode ?? "RENDER_FAILED", render.errorMessage ?? "Bản render không hoàn tất.");
   }
   if (!(await advanceProductionCheckpoint(item.id, claimToken, "READY", "RENDERED"))) throw lostClaim();
   return { kind: "CONTINUE" };
@@ -243,10 +250,11 @@ async function executeStep(
   signal: AbortSignal | undefined,
   deps: PipelineDeps,
   renew: () => Promise<void>,
+  onProviderSuccess: () => void,
 ): Promise<StepOutcome> {
   switch (item.checkpoint) {
     case "NONE":
-      return draftStep(item, claimToken, signal, deps);
+      return draftStep(item, claimToken, signal, deps, onProviderSuccess);
     case "DRAFTED":
       return compileStep(item, claimToken, signal, deps);
     case "COMPILED":
@@ -258,15 +266,17 @@ async function executeStep(
         book: bookOf(item),
       });
       return { kind: "CONTINUE" };
-    case "APPLIED":
-      await voiceProductionItem({
+    case "APPLIED": {
+      const result = await voiceProductionItem({
         itemId: item.id,
         claimToken,
         signal,
         synthesize: deps.synthesize,
         onProgress: renew,
       });
+      if (result.status === "VOICED" && result.synthesized > 0) onProviderSuccess();
       return { kind: "CONTINUE" };
+    }
     case "VOICED": {
       const readiness = await markProductionItemReady({ itemId: item.id, claimToken });
       if (readiness.status !== "NOT_READY") return { kind: "CONTINUE" };
@@ -316,18 +326,39 @@ export async function runProductionStep(input: {
   if (input.signal?.aborted) throw new JobCancelledError();
 
   try {
+    let providerSucceeded = false;
+    const onProviderSuccess = () => {
+      providerSucceeded = true;
+    };
     const execute = () =>
-      executeStep(item, input.claimToken, input.signal, input.deps, input.renew ?? (async () => undefined));
+      executeStep(
+        item,
+        input.claimToken,
+        input.signal,
+        input.deps,
+        input.renew ?? (async () => undefined),
+        onProviderSuccess,
+      );
     const outcome =
       item.checkpoint === "NONE"
-        ? await withProviderCooldown("notebooklm", execute)
+        ? await withProviderCooldown("notebooklm", execute, { isSuccessful: () => providerSucceeded })
         : item.checkpoint === "APPLIED"
-          ? await withProviderCooldown("edge-tts", execute)
+          ? await withProviderCooldown("edge-tts", execute, { isSuccessful: () => providerSucceeded })
           : await execute();
+    if (outcome.kind === "FAILED")
+      return { ...outcome, stage: productionStep(toItemCheckpoint(item.checkpoint)).label };
     if (outcome.kind === "CONTINUE") await clearTransientRetries(input.itemId, input.claimToken);
     return outcome;
   } catch (error) {
-    return classifyFailure(input.itemId, input.claimToken, error);
+    const outcome = await classifyFailure(input.itemId, input.claimToken, error);
+    return outcome.kind === "FAILED"
+      ? {
+          ...outcome,
+          stage: productionStep(toItemCheckpoint(item.checkpoint)).label,
+          sceneId:
+            error instanceof AppError && typeof error.details?.sceneId === "string" ? error.details.sceneId : undefined,
+        }
+      : outcome;
   }
 }
 
@@ -364,7 +395,7 @@ export async function settleProductionRun(input: {
       await releaseProductionClaim(itemId, claimToken, "COMPLETED");
       return;
     case "FAILED":
-      await releaseProductionClaim(itemId, claimToken, "FAILED", { code: outcome.code, message: outcome.message });
+      await releaseProductionClaim(itemId, claimToken, "FAILED", outcome);
       return;
     case "CANCELLED":
       await releaseProductionClaim(itemId, claimToken, "CANCELLED");

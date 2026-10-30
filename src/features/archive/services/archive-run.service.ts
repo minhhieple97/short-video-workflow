@@ -49,6 +49,7 @@ export async function runRenderArchive(input: {
   archiveId: string;
   provider: VideoArchiveProvider;
   signal?: AbortSignal;
+  onProviderSuccess?: () => void;
 }): Promise<ArchiveRunOutcome> {
   const { archiveId, provider, signal } = input;
   const archive = await findRenderArchive(archiveId);
@@ -93,20 +94,20 @@ export async function runRenderArchive(input: {
     }
   }
 
-  const destination =
-    storedDestination(archive) ??
-    (await saveRemoteIds(
-      archiveId,
-      await provider.prepareDestination(
-        { bookId: render.video.bookId, videoId: render.videoId, renderId: render.id },
-        { signal },
-      ),
-    ));
+  let destination = storedDestination(archive);
+  if (!destination) {
+    const prepared = await provider.prepareDestination(
+      { bookId: render.video.bookId, videoId: render.videoId, renderId: render.id },
+      { signal },
+    );
+    input.onProviderSuccess?.();
+    destination = await saveRemoteIds(archiveId, prepared);
+  }
 
   for (const { kind, entry } of entries) {
     const local = files[kind];
     if (!local) continue;
-    const outcome = await archiveFile(archiveId, entry, local, destination, provider, signal);
+    const outcome = await archiveFile(archiveId, entry, local, destination, provider, signal, input.onProviderSuccess);
     if (outcome) return outcome;
   }
   await completeArchive(archiveId);
@@ -121,6 +122,7 @@ async function archiveFile(
   destination: Parameters<VideoArchiveProvider["verify"]>[0]["destination"],
   provider: VideoArchiveProvider,
   signal: AbortSignal | undefined,
+  onProviderSuccess?: () => void,
 ): Promise<ArchiveRunOutcome | null> {
   const kind = local.source.kind;
   if (entry.status === "VERIFIED") return null;
@@ -137,6 +139,7 @@ async function archiveFile(
         },
       },
     );
+    onProviderSuccess?.();
     if (result.bytes !== local.source.bytes) {
       return fail(
         archiveId,
@@ -148,6 +151,7 @@ async function archiveFile(
   }
 
   const verification = await provider.verify({ destination, file: local.source }, { signal });
+  onProviderSuccess?.();
   if (verification.status === "verified") {
     await markFileVerified(archiveId, kind);
     return null;

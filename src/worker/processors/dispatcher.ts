@@ -122,7 +122,13 @@ export function createJobDispatcher(processors: Record<JobType, JobProcessor>): 
         error: message,
       });
       if (willRetry) await markJobRetrying(jobRecordId, toErrorCode(error), message);
-      else await markJobFailed(jobRecordId, toErrorCode(error), message);
+      else
+        await markJobFailed(
+          jobRecordId,
+          toErrorCode(error),
+          message,
+          error instanceof AppError && typeof error.details?.sceneId === "string" ? error.details.sceneId : undefined,
+        );
       throw error;
     } finally {
       watcher.stop();

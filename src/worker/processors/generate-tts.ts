@@ -7,7 +7,9 @@ import type { JobProcessor } from "./types";
 export const processGenerateTts: JobProcessor = async ({ job, signal, reportProgress }) => {
   const { sceneId } = generateTtsPayloadSchema.parse(job.data);
   await reportProgress(10);
-  const result = await withProviderCooldown("edge-tts", () => runSceneTts({ sceneId, signal }));
+  const result = await withProviderCooldown("edge-tts", () => runSceneTts({ sceneId, signal }), {
+    isSuccessful: (result) => !result.cached,
+  });
   await reportProgress(100);
   return result;
 };

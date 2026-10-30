@@ -5,7 +5,7 @@ import { readFirstOutputLine } from "./run-command";
 
 // Only checks that the binary exists; never runs anything that touches authentication.
 export async function checkClaudeCli(): Promise<CheckResult> {
-  const { mode, claudeCliCommand } = getAppConfig().ai;
+  const { mode, claudeCliCommand, claudeModel, claudeEffort } = getAppConfig().ai;
   try {
     const version = await readFirstOutputLine(claudeCliCommand, ["--version"]);
     return {
@@ -15,6 +15,8 @@ export async function checkClaudeCli(): Promise<CheckResult> {
       summary: version || "Đã cài đặt",
       details: {
         Lệnh: claudeCliCommand,
+        "Model yêu cầu": claudeModel ?? "Theo mặc định Claude CLI",
+        "Effort yêu cầu": claudeEffort ?? "Theo mặc định Claude CLI",
         "Cách chạy":
           mode === "cli-auto"
             ? "Worker tự chạy (cli-auto)"

@@ -549,25 +549,25 @@ model OcrOperation {
 
 // A request to produce videos from lessons the user selected in one book. One item is one lesson and one video.
 model ProductionBatch {
-  id                String    @id @default(cuid())
+  id                String          @id @default(cuid())
   bookId            String
-  book              Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  book              Book            @relation(fields: [bookId], references: [id], onDelete: Cascade)
   importItemId      String?
   importItem        BookImportItem? @relation(fields: [importItemId], references: [id], onDelete: Restrict)
   // Supplied by the caller; a repeated request with the same key returns this batch instead of making another.
-  idempotencyKey    String    @unique
+  idempotencyKey    String          @unique
   // Hash of what was asked for (book, lessons, duration range), to notice the same key being reused for different content.
   fingerprint       String
   // No longer read: the batch's range is min/maxDurationSec and each video gets its own proposed length. Written as the
   // maximum so the column stays filled without a destructive migration.
   targetDurationSec Int
-  minDurationSec    Int       @default(30)
-  maxDurationSec    Int       @default(300)
-  pace              String    @default("STANDARD")
+  minDurationSec    Int             @default(30)
+  maxDurationSec    Int             @default(300)
+  pace              String          @default("STANDARD")
   // QUEUED | RUNNING | COMPLETED | PARTIAL | FAILED | CANCELLED (a read model derived from the items).
   status            String
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
   completedAt       DateTime?
 
   items ProductionItem[]
@@ -578,33 +578,33 @@ model ProductionBatch {
 }
 
 model BookImportBatch {
-  id             String   @id @default(cuid())
-  idempotencyKey String   @unique
+  id             String           @id @default(cuid())
+  idempotencyKey String           @unique
   fingerprint    String
-  status         String   @default("UPLOADING")
+  status         String           @default("UPLOADING")
   minDurationSec Int
   maxDurationSec Int
   pace           String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
   items          BookImportItem[]
 
   @@index([status, createdAt])
 }
 
 model BookImportItem {
-  id           String   @id @default(cuid())
+  id           String            @id @default(cuid())
   batchId      String
-  batch        BookImportBatch @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  batch        BookImportBatch   @relation(fields: [batchId], references: [id], onDelete: Restrict)
   position     Int
   fileName     String
-  bookId       String?  @unique
-  book         Book?    @relation(fields: [bookId], references: [id], onDelete: Restrict)
-  status       String   @default("UPLOADING")
+  bookId       String?           @unique
+  book         Book?             @relation(fields: [bookId], references: [id], onDelete: Restrict)
+  status       String            @default("UPLOADING")
   errorCode    String?
   errorMessage String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
   productions  ProductionBatch[]
 
   @@unique([batchId, position])
@@ -617,6 +617,48 @@ model ProviderCooldown {
   errorCode    String
   message      String
   updatedAt    DateTime @updatedAt
+  kind         String   @default("TRANSIENT")
+  episodeId    String?
+}
+
+model NotificationDelivery {
+  id              String    @id @default(cuid())
+  eventKey        String    @unique
+  kind            String
+  chatId          String
+  useTopics       Boolean   @default(false)
+  bookId          String?
+  bookTitle       String?
+  messageThreadId Int?
+  text            String
+  status          String    @default("PENDING")
+  attempts        Int       @default(0)
+  availableAt     DateTime  @default(now())
+  leaseToken      String?
+  leaseExpiresAt  DateTime?
+  lastError       String?
+  messageId       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  sentAt          DateTime?
+
+  @@index([status, availableAt])
+}
+
+model NotificationTopic {
+  id              String    @id @default(cuid())
+  chatId          String
+  scopeKey        String
+  name            String
+  status          String    @default("PENDING")
+  messageThreadId Int?
+  leaseToken      String?
+  leaseExpiresAt  DateTime?
+  lastError       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([chatId, scopeKey])
 }
 
 model ProductionItem {

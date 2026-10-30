@@ -1,5 +1,6 @@
 import type { Prisma, RenderRecord } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
+import { notifyMissingDriveWithin } from "@/features/notifications/repositories/notification-events.repository";
 
 export const ACTIVE_RENDER_STATUSES = ["QUEUED", "RENDERING"] as const;
 
@@ -71,7 +72,7 @@ export function markRenderStarted(id: string, scriptVersion: number): Promise<Re
 export function completeRenderRecord(
   render: Pick<RenderRecord, "id" | "videoId" | "outputPath">,
   result: { durationMs: number; sizeBytes: number },
-  options: { archive: boolean },
+  options: { archive: boolean; missingDrive?: boolean },
 ): Promise<void> {
   return prisma.$transaction(async (tx) => {
     const completedAt = new Date();
@@ -97,6 +98,7 @@ export function completeRenderRecord(
       },
     });
     await tx.video.update({ where: { id: render.videoId }, data: { latestRenderId: render.id } });
+    if (options.archive && options.missingDrive) await notifyMissingDriveWithin(tx, render.id);
   });
 }
 

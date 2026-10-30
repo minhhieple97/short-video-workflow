@@ -28,9 +28,15 @@ export function extractJsonObject(text: string): unknown {
   return JSON.parse(unfenced.slice(start, end + 1)) as unknown;
 }
 
-export type CliFailureKind = "QUOTA" | "AUTH" | "OTHER";
+export type CliFailureKind = "QUOTA" | "AUTH" | "MODEL" | "OTHER";
 
 export function classifyCliFailure(message: string): CliFailureKind {
+  if (
+    /invalid model|unknown model|model[^\n]*(?:not found|does not exist|not available|unavailable|not supported|not allowed|access denied)|(?:no access|do not have access|not authorized)[^\n]*model/i.test(
+      message,
+    )
+  )
+    return "MODEL";
   if (/usage limit|rate.?limit|quota|limit reached|hit your limit|too many requests|429/i.test(message)) return "QUOTA";
   if (/not logged in|log in|login|unauthori[sz]ed|authentication|401/i.test(message)) return "AUTH";
   return "OTHER";

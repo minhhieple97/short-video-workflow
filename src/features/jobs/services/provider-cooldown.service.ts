@@ -16,7 +16,11 @@ const QUOTA_FALLBACK_MS: Record<QuotaProvider, number> = {
   drive: 60_000,
 };
 
-export async function withProviderCooldown<T>(provider: QuotaProvider, call: () => Promise<T>): Promise<T> {
+export async function withProviderCooldown<T>(
+  provider: QuotaProvider,
+  call: () => Promise<T>,
+  options?: { isSuccessful?: (result: T) => boolean },
+): Promise<T> {
   const blocked = await findProviderCooldown(provider);
   const remainingMs = (blocked?.blockedUntil.getTime() ?? 0) - Date.now();
   if (blocked && remainingMs > 0) {
@@ -26,7 +30,7 @@ export async function withProviderCooldown<T>(provider: QuotaProvider, call: () 
   }
   try {
     const result = await call();
-    if (blocked) await clearProviderCooldown(provider);
+    if (blocked && (options?.isSuccessful?.(result) ?? true)) await clearProviderCooldown(provider, blocked.episodeId);
     return result;
   } catch (error) {
     if (error instanceof IntegrationError && (error.kind === "QUOTA" || error.kind === "TRANSIENT")) {
@@ -43,9 +47,11 @@ export async function withProviderCooldown<T>(provider: QuotaProvider, call: () 
         blockedUntil: new Date(Date.now() + delay),
         errorCode: error.code,
         message: error.message,
+        kind: error.kind,
       });
       throw new IntegrationError(error.code, error.message, error.kind, {
         cause: error,
+        details: error.details,
         retryAfterMs: error.kind === "TRANSIENT" ? error.retryAfterMs : delay,
       });
     }

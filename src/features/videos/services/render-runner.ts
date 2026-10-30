@@ -8,6 +8,7 @@ import { dataPath } from "@/server/storage/paths";
 import { getAppConfig } from "@/shared/config/env";
 import { AppError, JobCancelledError, NotFoundError } from "@/shared/errors";
 import { createLogger, toSafeErrorMessage } from "@/shared/logger";
+import { currentArchiveDestination } from "@/features/archive/services/archive-request.service";
 
 import { shortVideoPropsSchema, toCompositionProps } from "../domain/composition-props";
 import { runPreflight } from "../domain/preflight";
@@ -22,6 +23,15 @@ import { resolveRenderSnapshot } from "./render-snapshot.service";
 
 const logger = createLogger("render.runner");
 const DURATION_TOLERANCE_MS = 500;
+
+async function missingArchiveDestination(): Promise<boolean> {
+  try {
+    return !(await currentArchiveDestination());
+  } catch {
+    logger.warn("Drive connection could not be read; the completed render remains available locally");
+    return true;
+  }
+}
 
 function verifyOutput(
   probe: Awaited<ReturnType<typeof probeMedia>>,
@@ -120,7 +130,10 @@ async function produceRender(
   await completeRenderRecord(
     render,
     { durationMs: probe.durationMs, sizeBytes: probe.sizeBytes },
-    { archive: quality === "FINAL" },
+    {
+      archive: quality === "FINAL",
+      missingDrive: quality === "FINAL" && getAppConfig().telegram.enabled && (await missingArchiveDestination()),
+    },
   );
   return { durationMs: probe.durationMs };
 }

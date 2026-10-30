@@ -12,6 +12,10 @@ import {
 } from "@/server/archive/video-archive-provider";
 
 import { UNFINISHED_ARCHIVE_STATUSES } from "../domain/archive-status";
+import {
+  notifyArchiveFailureWithin,
+  notifyVideoReadyWithin,
+} from "@/features/notifications/repositories/notification-events.repository";
 
 export const ARCHIVE_ENTITY = "ARCHIVE";
 
@@ -157,11 +161,16 @@ export async function setArchiveStatus(
   status: "RUNNING" | "WAITING" | "FAILED",
   failure?: { code: string; message: string },
 ): Promise<boolean> {
-  const { count } = await prisma.renderArchive.updateMany({
-    where: { id: archiveId, status: { in: [...UNFINISHED_ARCHIVE_STATUSES, "FAILED"] } },
-    data: { status, errorCode: failure?.code ?? null, errorMessage: failure?.message ?? null },
+  return prisma.$transaction(async (tx) => {
+    const previous = await tx.renderArchive.findUnique({ where: { id: archiveId }, select: { status: true } });
+    const { count } = await tx.renderArchive.updateMany({
+      where: { id: archiveId, status: { in: [...UNFINISHED_ARCHIVE_STATUSES, "FAILED"] } },
+      data: { status, errorCode: failure?.code ?? null, errorMessage: failure?.message ?? null },
+    });
+    if (count > 0 && status === "FAILED" && previous?.status !== "FAILED" && failure)
+      await notifyArchiveFailureWithin(tx, archiveId, failure);
+    return count > 0;
   });
-  return count > 0;
 }
 
 // Completes only when every file was verified against its local copy; the check and the write happen together.
@@ -173,6 +182,7 @@ export function completeArchive(archiveId: string, now = new Date()): Promise<bo
       where: { id: archiveId, status: { in: [...UNFINISHED_ARCHIVE_STATUSES] } },
       data: { status: "COMPLETED", completedAt: now, errorCode: null, errorMessage: null },
     });
+    if (count > 0) await notifyVideoReadyWithin(tx, archiveId);
     return count > 0;
   });
 }

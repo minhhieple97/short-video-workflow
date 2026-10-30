@@ -97,7 +97,12 @@ describe("runProductionPipeline", () => {
 
     await finishRender("FAILED", "chromium crashed");
 
-    expect(await run(deps)).toEqual({ kind: "FAILED", code: "RENDER_FAILED", message: "chromium crashed" });
+    expect(await run(deps)).toEqual({
+      kind: "FAILED",
+      code: "RENDER_FAILED",
+      message: "chromium crashed",
+      stage: "Render bản cuối",
+    });
   });
 
   it("resumes after the last finished step instead of starting again", async () => {

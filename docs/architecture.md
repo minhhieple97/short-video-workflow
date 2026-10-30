@@ -136,6 +136,11 @@ tối đa 8 lần liên tiếp; sản xuất 10 phút, 5 lần; archive 30 phút
 
 - `AiProvider` theo `AI_MODE`: `mock` (tất định, không mạng); `cli-task` (mặc định: ghi tác vụ vào `ai-tasks/<taskId>/`, job
   `WAITING_FOR_CLI`, người dùng chạy `pnpm ai:run --job <id>`); `cli-auto` (tuỳ chọn: vẫn ghi đủ tệp nhưng worker gọi `askClaude()` ngay).
+- `CLAUDE_MODEL` tuỳ chọn đi qua `askClaude()` tới argument `--model`. Model được log cùng taskId và tham gia cache scene plan;
+  model trống giữ khoá cache cũ. NotebookLM và checkpoint đã hoàn tất không bị thay đổi khi đổi model.
+- `CLAUDE_EFFORT` tuỳ chọn (`low`/`medium`/`high`/`xhigh`/`max`) đi qua cùng runner tới `--effort`; giá trị trống không thêm flag.
+  Effort tham gia cache scene plan khi được chỉ định; để trống giữ cả khoá cũ có/không có model. Log ghi `requestedEffort`;
+  diagnostics/dry-run hiển thị cấu hình yêu cầu mà không gọi AI. Không sửa settings Claude toàn máy.
 - Thư mục tác vụ: `input.json`, `prompt.md`, `schema.json` (JSON Schema draft-7 sinh từ chính schema Zod của đầu ra), `task.json`, rồi
   `output.json` hoặc `output.raw.txt`. Loại: `chapter-analysis`, `video-script`, `scene-regeneration`, `scene-plan`,
   `publish-metadata`.
@@ -607,7 +612,30 @@ mọi `Retry-After` được tôn trọng.
 Outage cũng mở khoảng nghỉ dùng chung; chỉ lỗi tạm thời thực tế tăng bộ đếm retry. `UNKNOWN_OUTCOME` vẫn qua đối soát
 của adapter hiện có. Job phân tích chương có bộ đếm lỗi tạm thời riêng để quota dài không làm hết lượt retry.
 
-## 14. Các quyết định chính
+## 14. Thông báo Telegram
+
+`NotificationProvider` và adapter Telegram ở `server/notifications/`; nghiệp vụ thông báo ở feature `notifications`.
+Các repository ghi `NotificationDelivery` cùng transaction với sự kiện mới; `eventKey` duy nhất chặn phát lại cùng sự kiện.
+Archive hoàn tất chỉ ghi tin sẵn sàng khi MP4 đã `VERIFIED`; link lấy từ `remoteFileId` của đúng render, tiêu đề ưu tiên snapshot.
+Lỗi production/extraction/archive có nguồn riêng; job/batch cha không phát lại lỗi con.
+
+Worker có sweeper 5 giây, một tin mỗi lượt, timeout HTTP 10 giây và lease 60 giây. Trạng thái `PENDING → SENDING → SENT/FAILED`;
+lease hết hạn được lấy lại sau restart. Tối đa 8 lần gửi cho lỗi tạm/không rõ kết quả, backoff 30 giây tới 30 phút;
+429 chặn cả channel tới `retry_after` và không tiêu lượt lỗi tạm. Token chỉ đọc từ config, không lưu trong outbox.
+Telegram không có khoá idempotency cho gửi tin: theo lựa chọn người dùng, kết quả mơ hồ được gửi lại, có thể trùng cùng mã sự kiện.
+`ProviderCooldown.kind/episodeId` gộp chờ quota qua restart; hết giờ chưa phải phục hồi, phải có lần gọi thành công.
+Diagnostics chỉ đọc SQLite, không gửi tin. CLI gửi test hoặc xếp lại một tin `FAILED`; không chạy lại video.
+
+`TELEGRAM_MODE=forum` bật định tuyến topic. Outbox lưu `bookId`/`bookTitle`, `useTopics` và ID thread đã gửi; không phân tích ngược
+chuỗi thông báo để tìm sách. Chế độ được chụp khi ghi sự kiện, tin cũ mặc định vẫn gửi vào chat/channel như trước.
+`NotificationTopic` có khoá duy nhất `(chatId, scopeKey)` với `book:<bookId>` hoặc `system`, trạng thái
+`PENDING → CREATING → READY`; một lease 60 giây chặn hai caller cùng tạo. Topic READY được dùng lại kể cả đổi tên sách/restart.
+Tạo topic bị từ chối có thể thử lại sau khi sửa quyền; 429 hoãn theo lịch chung. Timeout, phản hồi 5xx/malformed hoặc crash trong
+lúc tạo thành `UNKNOWN` vì Bot API không có khoá idempotency hay API tìm topic theo mã sách. Không lặp lại POST khi kết quả chưa rõ.
+CLI `--bind-topic <bookId|system> --thread <id>` gắn topic đã kiểm tra và mở lại các tin bị lỗi topic; không gọi AI/render hoặc tạo
+topic từ tên trùng. Topic đóng/xoá trả lỗi rõ, không tự tạo mới hoặc gửi tin ra luồng chung. Không cần webhook/getUpdates.
+
+## 15. Các quyết định chính
 
 - **Hai tiến trình, một queue, concurrency 1** — render, TTS, AI chiếm CPU/RAM hàng phút; UI phải luôn phản hồi; một người dùng, máy yếu.
 - **SQLite + WAL** — một người dùng, cục bộ; sao lưu chỉ là sao chép một thư mục.

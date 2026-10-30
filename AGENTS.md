@@ -19,7 +19,7 @@ Hard constraints (do not relax without an explicit user decision):
 - **No Anthropic API / SDK / API key**, ever. AI runs through `MockAiProvider` or the user's own Claude Code CLI (see §9).
 - **Outbound integrations are limited to the ones the project owner approved for v1.2** (see `docs/requirements.md`): Mistral OCR
   Batch (the user's own key), NotebookLM through an MCP stdio subprocess of the worker, and Google Drive through OAuth `drive.file` for archiving
-  rendered videos. Each lives behind its own port in `src/server/` (`OcrProvider`, `ScriptStudioProvider`, `ScenePlanCompiler`,
+  rendered videos, plus optional one-way Telegram chat/forum notifications through `NotificationProvider` (one topic per book, no bot commands or media uploads). Each lives behind its own port in `src/server/` (`OcrProvider`, `ScriptStudioProvider`, `ScenePlanCompiler`,
   `VideoArchiveProvider`); do not add other cloud services, and do not route them through `AiProvider`. They are implemented and tested
   against local fakes only; acceptance with real accounts is still to do (`docs/operations.md`). Tests never reach them (`tests/helpers/offline-env.ts`).
   Voice-over goes through the `TtsProvider` port (edge-tts, run locally, is the only adapter); a cloud or paid TTS adapter would be a new
@@ -34,27 +34,28 @@ Hard constraints (do not relax without an explicit user decision):
 
 **Package manager: pnpm only.** Never run `npm` or `yarn`, never commit another lockfile. `packageManager` is pinned in `package.json`.
 
-| Task                                           | Command                                                        |
-| ---------------------------------------------- | -------------------------------------------------------------- |
-| Install deps (also runs `prisma generate`)     | `pnpm install`                                                 |
-| Start Redis (Docker, recommended)              | `docker compose up -d`                                         |
-| Apply migrations / create DB                   | `pnpm db:migrate`                                              |
-| Regenerate Prisma client                       | `pnpm db:generate`                                             |
-| Seed demo data                                 | `pnpm db:seed`                                                 |
-| Web dev server (127.0.0.1:3000)                | `pnpm dev`                                                     |
-| Web dev server + worker, one terminal          | `pnpm dev:all`                                                 |
-| Worker (watch mode)                            | `pnpm worker:dev`                                              |
-| Worker (no watch)                              | `pnpm worker:start`                                            |
-| Is a worker running? (exit 0 yes, 1 no)        | `pnpm worker:status`                                           |
-| List / run Claude CLI tasks (AI_MODE=cli-task) | `pnpm ai:run --list` · `pnpm ai:run --job <jobId> [--dry-run]` |
-| Environment diagnostics                        | `pnpm diagnose`                                                |
-| Remotion Studio (inspect compositions)         | `pnpm remotion:studio`                                         |
-| Render fixture: contact sheet / ms per frame   | `pnpm render:stills` · `pnpm bench:render`                     |
-| Regenerate character / prop art                | `pnpm peeps:generate` · `pnpm props:generate --source <dir>`   |
-| Lint / format check / typecheck                | `pnpm lint` · `pnpm format:check` · `pnpm typecheck`           |
-| Tests                                          | `pnpm test` (`pnpm test:watch` while developing)               |
-| E2E smoke test (builds first; needs Redis)     | `pnpm test:e2e`                                                |
-| Production build                               | `pnpm build`                                                   |
+| Task                                           | Command                                                           |
+| ---------------------------------------------- | ----------------------------------------------------------------- |
+| Install deps (also runs `prisma generate`)     | `pnpm install`                                                    |
+| Start Redis (Docker, recommended)              | `docker compose up -d`                                            |
+| Apply migrations / create DB                   | `pnpm db:migrate`                                                 |
+| Regenerate Prisma client                       | `pnpm db:generate`                                                |
+| Seed demo data                                 | `pnpm db:seed`                                                    |
+| Web dev server (127.0.0.1:3000)                | `pnpm dev`                                                        |
+| Web dev server + worker, one terminal          | `pnpm dev:all`                                                    |
+| Worker (watch mode)                            | `pnpm worker:dev`                                                 |
+| Worker (no watch)                              | `pnpm worker:start`                                               |
+| Is a worker running? (exit 0 yes, 1 no)        | `pnpm worker:status`                                              |
+| List / run Claude CLI tasks (AI_MODE=cli-task) | `pnpm ai:run --list` · `pnpm ai:run --job <jobId> [--dry-run]`    |
+| Environment diagnostics                        | `pnpm diagnose`                                                   |
+| Telegram test / retry one failed notification  | `pnpm telegram --test` · `pnpm telegram --retry <notificationId>` |
+| Remotion Studio (inspect compositions)         | `pnpm remotion:studio`                                            |
+| Render fixture: contact sheet / ms per frame   | `pnpm render:stills` · `pnpm bench:render`                        |
+| Regenerate character / prop art                | `pnpm peeps:generate` · `pnpm props:generate --source <dir>`      |
+| Lint / format check / typecheck                | `pnpm lint` · `pnpm format:check` · `pnpm typecheck`              |
+| Tests                                          | `pnpm test` (`pnpm test:watch` while developing)                  |
+| E2E smoke test (builds first; needs Redis)     | `pnpm test:e2e`                                                   |
+| Production build                               | `pnpm build`                                                      |
 
 First-time setup: `cp .env.example .env` → `pnpm install` → `docker compose up -d` → `pnpm db:migrate` → `pnpm db:seed`.
 Run for development in three terminals (Redis, `pnpm worker:dev`, `pnpm dev`) or two (Redis, `pnpm dev:all`). Only one worker runs per

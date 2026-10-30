@@ -52,13 +52,20 @@ export const processArchiveRender: JobProcessor = async ({ job, signal }) => {
   }
 
   let outcome;
+  let providerSucceeded = false;
   try {
-    outcome = await withProviderCooldown("drive", () =>
-      runRenderArchive({
-        archiveId,
-        provider: createDriveArchiveProvider(archive.destinationKey),
-        signal,
-      }),
+    outcome = await withProviderCooldown(
+      "drive",
+      () =>
+        runRenderArchive({
+          archiveId,
+          provider: createDriveArchiveProvider(archive.destinationKey),
+          signal,
+          onProviderSuccess: () => {
+            providerSucceeded = true;
+          },
+        }),
+      { isSuccessful: () => providerSucceeded },
     );
   } catch (error) {
     if (signal.aborted) throw error;

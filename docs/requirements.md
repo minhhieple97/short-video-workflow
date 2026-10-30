@@ -47,7 +47,7 @@ Hai luồng dùng chung sách, chương, bài học, trình biên tập, mẫu v
 4. **Nội dung là dữ liệu.** Mẫu Remotion chỉ nhận JSON đã kiểm tra.
 5. **Người dùng quyết định.** Thủ công: người dùng duyệt. Hàng loạt: người dùng chọn bài, kiểm tra tự động lo phần còn lại; không
    bước tự động nào được ghi là "đã duyệt".
-6. **Cục bộ trước.** Dữ liệu, media nằm trên máy; chỉ Claude, edge-tts, Mistral, NotebookLM, Drive cần Internet.
+6. **Cục bộ trước.** Dữ liệu, media nằm trên máy; chỉ Claude, edge-tts, Mistral, NotebookLM, Drive và thông báo Telegram tuỳ chọn cần Internet.
 7. **Tiết kiệm.** Không phân tích lại khi nội dung và prompt không đổi; chỉ OCR trang cần; dùng lại kết quả hợp lệ; không thử lại
    vô hạn.
 8. **Không làm lại việc đã xong.** Việc dài tiếp tục từ chỗ dừng; lỗi ở bước sau không chạy lại AI, giọng đọc hay render.
@@ -498,7 +498,29 @@ Chỉ các dịch vụ dưới đây được phép, mỗi dịch vụ sau một
   dữ liệu, giao diện hay log. Ngắt kết nối thu hồi quyền, không xoá gì trên Drive. Ứng dụng tự giới hạn nhịp và lượng gửi mỗi 24
   giờ, kiểm tra dung lượng trước khi upload.
 
-Không thêm dịch vụ đám mây khác, không Anthropic API, không gộp OCR/NotebookLM/Drive vào giao diện AI chung.
+- **Telegram** (tuỳ chọn, bot token của người dùng): chỉ gửi thông báo một chiều tới một chat/channel hoặc group bật Topics; không lệnh điều khiển, webhook,
+  upload MP4 hay thay đổi quyền chia sẻ Drive. Token không đi vào SQLite, DTO hoặc log.
+
+Không thêm dịch vụ đám mây khác, không Anthropic API, không gộp OCR/NotebookLM/Drive/Telegram vào giao diện AI chung.
+
+### 8.1. Model Claude và thông báo Telegram
+
+- `CLAUDE_MODEL` chọn model cho mọi lần gọi Claude của ứng dụng, ví dụ `claude-sonnet-5-5` hoặc `claude-opus-5-5`; để trống giữ
+  mặc định CLI. Không sửa settings toàn máy. Đổi cấu hình cần khởi động lại web/worker; không tự chạy lại artifact đã xong.
+- `CLAUDE_EFFORT` chọn effort cho mọi lần gọi Claude: `low`, `medium`, `high`, `xhigh`, `max`; để trống dùng settings/mặc định CLI.
+  Giá trị sai bị từ chối khi đọc cấu hình. Thay effort tách cache Claude scene plan cho lần gọi mới, không đổi cache NotebookLM.
+- Khi bật Telegram, video FINAL chỉ báo sẵn sàng sau khi archive được xác minh, kèm link đúng MP4 trên Drive. Chưa kết nối Drive
+  thì báo video đã render local, cần kết nối; lỗi archive nói rõ MP4 vẫn có và lỗi ở bước lưu Drive.
+- Báo lỗi cuối hoặc trạng thái cần người dùng xử lý, gồm PDF/OCR/chia chương, phân tích chưa hết, bản thảo, cảnh, TTS, readiness,
+  render và archive. Tin có bước, mã lỗi, nguyên nhân đã lọc, scene/trang nếu có và ID tác vụ. Không gửi token, prompt hay văn bản sách.
+- Một lỗi gốc chỉ có một thông báo; không báo lại lỗi bọc của job/batch cha hoặc người dùng chủ động huỷ. Retry thủ công thất bại
+  tiếp là một sự kiện mới. Một đợt quota của provider chỉ báo chờ một lần; chỉ báo tiếp tục sau lần gọi thành công.
+- Tin lưu cùng giao dịch với trạng thái nghiệp vụ; worker gửi riêng. Telegram lỗi không chạy lại video. Mất phản hồi được thử gửi
+  lại có giới hạn, có thể trùng tin với cùng mã sự kiện. Mặc định tắt, không gửi lại lịch sử khi bật; thời gian trong tin theo Asia/Saigon.
+- `TELEGRAM_MODE=forum` gom mỗi sách vào một topic, gắn theo `bookId` và group; sách trùng tên vẫn tách riêng. Tin quota chung và
+  lỗi trước khi có sách vào topic **Hệ thống**. `chat` là mặc định tương thích cấu hình cũ; tin đã xếp hàng giữ chế độ và group lúc tạo.
+- Worker tự tạo topic khi có tin đầu tiên, lưu ID để dùng lại sau retry/restart. Không tự đổi tên topic khi đổi tên sách, không gửi ra
+  ngoài topic nếu topic đóng/xoá. Mất phản hồi tạo topic phải đối soát/gắn ID bằng CLI, không tự tạo lại một topic có thể đã tồn tại.
 
 ## 9. Yêu cầu phi chức năng
 

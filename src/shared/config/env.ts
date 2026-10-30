@@ -76,7 +76,28 @@ const envSchema = z
     AI_MODE: z.enum(["mock", "cli-task", "cli-auto"]).default("cli-task"),
     MAX_AI_CONCURRENCY: positiveInt(1),
     CLAUDE_CLI_COMMAND: z.string().min(1).default("claude"),
+    CLAUDE_MODEL: z.preprocess(
+      (value) => (typeof value === "string" ? value.trim() || undefined : value),
+      z.string().max(200).optional(),
+    ),
+    CLAUDE_EFFORT: z.preprocess(
+      (value) => (typeof value === "string" ? value.trim() || undefined : value),
+      z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
+    ),
     AI_TASK_TIMEOUT_SEC: positiveInt(600),
+    TELEGRAM_ENABLED: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
+    TELEGRAM_BOT_TOKEN: optionalSecret,
+    TELEGRAM_MODE: z.enum(["chat", "forum"]).default("chat"),
+    TELEGRAM_CHAT_ID: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z
+        .string()
+        .regex(/^(?:-?\d+|@[A-Za-z][A-Za-z0-9_]{4,})$/, "must be a numeric channel ID or @channel_username")
+        .optional(),
+    ),
 
     TTS_MODE: z.enum(["upload", "edge-tts"]).default("edge-tts"),
     TTS_VOICE: z.string().min(1).default("vi-VN-NamMinhNeural"),
@@ -100,6 +121,11 @@ const envSchema = z
     DRAFT_RENDER_HEIGHT: positiveInt(1280),
   })
   .superRefine((env, ctx) => {
+    if (env.TELEGRAM_ENABLED) {
+      for (const key of ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"] as const) {
+        if (!env[key]) ctx.addIssue({ code: "custom", path: [key], message: "required when TELEGRAM_ENABLED=true" });
+      }
+    }
     if (!isPortrait9x16(env.RENDER_WIDTH, env.RENDER_HEIGHT)) {
       ctx.addIssue({ code: "custom", path: ["RENDER_HEIGHT"], message: "final render size must be 9:16" });
     }
@@ -137,8 +163,11 @@ export interface AppConfig {
     mode: "mock" | "cli-task" | "cli-auto";
     maxConcurrency: number;
     claudeCliCommand: string;
+    claudeModel: string | undefined;
+    claudeEffort: "low" | "medium" | "high" | "xhigh" | "max" | undefined;
     taskTimeoutMs: number;
   };
+  telegram: { enabled: boolean; botToken: string | undefined; chatId: string | undefined; mode: "chat" | "forum" };
   tts: {
     mode: "upload" | "edge-tts";
     voice: string;
@@ -212,7 +241,15 @@ export function parseAppConfig(source: Record<string, string | undefined>): AppC
       mode: env.AI_MODE,
       maxConcurrency: env.MAX_AI_CONCURRENCY,
       claudeCliCommand: env.CLAUDE_CLI_COMMAND,
+      claudeModel: env.CLAUDE_MODEL,
+      claudeEffort: env.CLAUDE_EFFORT,
       taskTimeoutMs: env.AI_TASK_TIMEOUT_SEC * 1000,
+    },
+    telegram: {
+      enabled: env.TELEGRAM_ENABLED,
+      botToken: env.TELEGRAM_BOT_TOKEN,
+      chatId: env.TELEGRAM_CHAT_ID,
+      mode: env.TELEGRAM_MODE,
     },
     tts: {
       mode: env.TTS_MODE,

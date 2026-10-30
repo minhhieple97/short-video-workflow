@@ -1,6 +1,7 @@
 import type { JobRecord } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import { ACTIVE_JOB_STATUSES, type JobType } from "@/shared/types/job";
+import { notifyJobFailureWithin } from "@/features/notifications/repositories/notification-events.repository";
 
 interface CreateJobRecordInput {
   bullmqJobId: string;
@@ -108,10 +109,19 @@ export async function recordJobWaitReason(id: string, failure: { code: string; m
   });
 }
 
-export function markJobFailed(id: string, errorCode: string, errorMessage: string): Promise<JobRecord> {
-  return prisma.jobRecord.update({
-    where: { id },
-    data: { status: "FAILED", errorCode, errorMessage, completedAt: new Date() },
+export function markJobFailed(
+  id: string,
+  errorCode: string,
+  errorMessage: string,
+  sceneId?: string,
+): Promise<JobRecord> {
+  return prisma.$transaction(async (tx) => {
+    const job = await tx.jobRecord.update({
+      where: { id },
+      data: { status: "FAILED", errorCode, errorMessage, completedAt: new Date() },
+    });
+    await notifyJobFailureWithin(tx, job, sceneId);
+    return job;
   });
 }
 

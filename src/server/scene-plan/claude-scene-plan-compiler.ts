@@ -6,6 +6,7 @@ import { buildScenePlanPrompt, SCENE_PLAN_PROMPT_VERSION } from "@/server/ai/pro
 import type { CallOptions } from "@/server/integrations/call-options";
 import { IntegrationError, type IntegrationFailureKind } from "@/server/integrations/integration-error";
 import { AppError } from "@/shared/errors";
+import { getAppConfig } from "@/shared/config/env";
 import { stableStringify } from "@/shared/stable-json";
 
 import { scenePlanTaskInputSchema } from "./handoff";
@@ -16,6 +17,7 @@ const KIND_BY_CODE: Record<string, IntegrationFailureKind> = {
   AI_CLI_AUTH: "AUTH",
   AI_QUOTA_EXCEEDED: "QUOTA",
   AI_CLI_MISSING: "REJECTED",
+  AI_CLI_MODEL_UNAVAILABLE: "REJECTED",
   INVALID_AI_OUTPUT: "REJECTED",
   AI_CLI_TIMEOUT: "TRANSIENT",
   AI_CLI_ERROR: "TRANSIENT",
@@ -52,7 +54,10 @@ export class ClaudeScenePlanCompiler implements ScenePlanCompiler {
       revisionNote: request.revisionNote,
       promptVersion: SCENE_PLAN_PROMPT_VERSION,
     });
-    const taskId = taskIdFor(stableStringify(input));
+    const { claudeModel: model, claudeEffort: effort } = getAppConfig().ai;
+    const taskId = taskIdFor(
+      stableStringify(model || effort ? { input, ...(model ? { model } : {}), ...(effort ? { effort } : {}) } : input),
+    );
 
     const saved = scenePlanSchema.safeParse(await readTaskOutput(taskId));
     if (saved.success) return saved.data;

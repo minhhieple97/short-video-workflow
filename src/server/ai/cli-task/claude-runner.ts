@@ -2,6 +2,7 @@ import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 
 import { sanitizeClaudeEnv } from "./claude-output";
+import type { AppConfig } from "@/shared/config/env";
 
 const execFileAsync = promisify(execFile);
 
@@ -27,6 +28,8 @@ export async function checkClaudeAuth(command: string): Promise<{ loggedIn: bool
 // Print mode, JSON envelope, no tools at all (the task only needs JSON), prompt on stdin, schema-validated output.
 export function runClaudePrint(options: {
   command: string;
+  model?: string;
+  effort?: AppConfig["ai"]["claudeEffort"];
   prompt: string;
   jsonSchema: string;
   timeoutMs: number;
@@ -37,6 +40,8 @@ export function runClaudePrint(options: {
       options.command,
       [
         "-p",
+        ...(options.model ? ["--model", options.model] : []),
+        ...(options.effort ? ["--effort", options.effort] : []),
         "--output-format",
         "json",
         // No built-in tools and no MCP servers from the user's configuration: the task only needs JSON back.

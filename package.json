@@ -21,6 +21,7 @@
     "worker:status": "tsx scripts/worker-status.ts",
     "ai:run": "tsx scripts/run-claude-task.ts",
     "diagnose": "tsx scripts/diagnose.ts",
+    "telegram": "tsx scripts/telegram.ts",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",

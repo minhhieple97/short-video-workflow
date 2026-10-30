@@ -3,6 +3,12 @@
 // an integration start a fake and pass its address explicitly.
 export const OFFLINE_INTEGRATIONS_ENV: Record<string, string> = {
   AI_MODE: "mock",
+  CLAUDE_MODEL: "",
+  CLAUDE_EFFORT: "",
+  TELEGRAM_ENABLED: "false",
+  TELEGRAM_MODE: "chat",
+  TELEGRAM_BOT_TOKEN: "",
+  TELEGRAM_CHAT_ID: "",
   MISTRAL_API_KEY: "",
   MISTRAL_API_BASE_URL: "http://127.0.0.1:9",
   GOOGLE_OAUTH_CLIENT_ID: "",

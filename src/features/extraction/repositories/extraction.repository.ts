@@ -2,6 +2,7 @@ import type { NewChapterRecord } from "@/features/books/repositories/book.reposi
 import type { Book, BookExtraction, JobRecord } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import { AppError } from "@/shared/errors";
+import { notifyExtractionFailureWithin } from "@/features/notifications/repositories/notification-events.repository";
 
 import { startExtractionJobWithin } from "./extraction-jobs.repository";
 
@@ -82,18 +83,45 @@ export async function moveExtractionStatus(
     completedAt?: Date | null;
   },
 ): Promise<boolean> {
-  const { count } = await prisma.bookExtraction.updateMany({
-    where: { id: extractionId, status: { in: [...from] } },
-    data,
+  return prisma.$transaction(async (tx) => {
+    const previous = await tx.bookExtraction.findUnique({ where: { id: extractionId } });
+    const { count } = await tx.bookExtraction.updateMany({
+      where: { id: extractionId, status: { in: [...from] } },
+      data,
+    });
+    if (
+      count > 0 &&
+      data.errorCode &&
+      data.errorMessage &&
+      (previous?.status !== data.status || previous.errorCode !== data.errorCode)
+    ) {
+      await notifyExtractionFailureWithin(tx, extractionId, {
+        code: data.errorCode,
+        message: data.errorMessage,
+        stage: extractionStage(previous?.status),
+      });
+    }
+    return count > 0;
   });
-  return count > 0;
+}
+
+function extractionStage(status?: string): string {
+  if (status === "DETECTING_CHAPTERS" || status === "ASSEMBLING") return "Nhận diện / chia chương";
+  if (status === "OCR_PENDING") return "OCR nội dung PDF";
+  return "Đọc / trích xuất PDF";
 }
 
 // Records why the run cannot go on by itself (no OCR key, budget, permission) without changing where it stands.
 export async function holdExtraction(extractionId: string, error: { code: string; message: string }): Promise<void> {
-  await prisma.bookExtraction.update({
-    where: { id: extractionId },
-    data: { errorCode: error.code, errorMessage: error.message },
+  await prisma.$transaction(async (tx) => {
+    const previous = await tx.bookExtraction.findUniqueOrThrow({ where: { id: extractionId } });
+    await tx.bookExtraction.update({
+      where: { id: extractionId },
+      data: { errorCode: error.code, errorMessage: error.message },
+    });
+    if (previous.errorCode !== error.code || previous.errorMessage !== error.message) {
+      await notifyExtractionFailureWithin(tx, extractionId, { ...error, stage: extractionStage(previous.status) });
+    }
   });
 }
 

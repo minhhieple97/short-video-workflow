@@ -19,6 +19,9 @@ beforeAll(async () => {
     GOOGLE_OAUTH_CLIENT_ID: "real-client.apps.googleusercontent.com",
     NOTEBOOKLM_PROFILE: "personal",
     AI_MODE: "cli-auto",
+    TELEGRAM_ENABLED: "true",
+    TELEGRAM_BOT_TOKEN: "real-looking-telegram-token",
+    TELEGRAM_CHAT_ID: "-100123456789",
   });
   env = setupTestEnvironment();
   config = await import("@/shared/config/env");
@@ -33,6 +36,7 @@ describe("the test environment", () => {
     const app = config.getAppConfig();
 
     expect(app.ai.mode).toBe("mock");
+    expect(app.telegram).toEqual({ enabled: false, botToken: undefined, chatId: undefined, mode: "chat" });
     expect(app.mistral.apiKey).toBeUndefined();
     expect(new URL(app.mistral.baseUrl).hostname).toBe("127.0.0.1");
     expect(app.drive.clientId).toBeUndefined();
@@ -44,6 +48,9 @@ describe("the test environment", () => {
   it("does the same for the end-to-end stack, whose processes would otherwise read .env", () => {
     expect(E2E_ENV).toMatchObject({
       AI_MODE: "mock",
+      TELEGRAM_ENABLED: "false",
+      TELEGRAM_BOT_TOKEN: "",
+      TELEGRAM_CHAT_ID: "",
       MISTRAL_API_KEY: "",
       GOOGLE_OAUTH_CLIENT_ID: "",
       NOTEBOOKLM_PROFILE: "",

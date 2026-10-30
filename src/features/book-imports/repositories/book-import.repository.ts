@@ -6,6 +6,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import { AppError } from "@/shared/errors";
 import { ACTIVE_JOB_STATUSES } from "@/shared/types/job";
+import { recordNotificationWithin } from "@/features/notifications/repositories/notification.repository";
 
 import { FINISHED_BOOK_IMPORT_ITEMS } from "../domain/book-import-status";
 import type { CreateBookImport } from "../schemas/book-import.schema";
@@ -79,13 +80,41 @@ export function startBookImport(id: string) {
 }
 
 export async function rejectBookImportUpload(itemId: string, error: { code: string; message: string }): Promise<void> {
-  await prisma.bookImportItem.updateMany({
-    where: { id: itemId, bookId: null, batch: { status: "UPLOADING" } },
-    data: {
-      status: "FAILED",
-      errorCode: error.code,
-      errorMessage: error.message,
-    },
+  await prisma.$transaction(async (tx) => {
+    const { count } = await tx.bookImportItem.updateMany({
+      where: { id: itemId, bookId: null, status: { not: "FAILED" }, batch: { status: "UPLOADING" } },
+      data: {
+        status: "FAILED",
+        errorCode: error.code,
+        errorMessage: error.message,
+      },
+    });
+    if (count) await notifyImportFailureWithin(tx, itemId, error);
+  });
+}
+
+async function notifyImportFailureWithin(
+  tx: Prisma.TransactionClient,
+  itemId: string,
+  error: { code: string; message: string },
+) {
+  const item = await tx.bookImportItem.findUniqueOrThrow({ where: { id: itemId } });
+  const book = item.bookId
+    ? await tx.book.findUnique({ where: { id: item.bookId }, select: { id: true, title: true } })
+    : null;
+  await recordNotificationWithin(tx, {
+    eventKey: `import-failed:${itemId}:${randomUUID()}`,
+    book: book ?? undefined,
+    kind: "PIPELINE_FAILED",
+    title: "❌ Nhập sách tự động bị dừng",
+    fields: [
+      ["Tệp", item.fileName],
+      ["Bước", item.bookId ? "Điều phối nhập sách / chọn bài học" : "Tải lên PDF"],
+      ["Mã lỗi", error.code],
+      ["Chi tiết", error.message],
+      ["Book ID", item.bookId],
+      ["Import item ID", itemId],
+    ],
   });
 }
 
@@ -94,13 +123,26 @@ export async function setBookImportItem(
   status: string,
   error?: { code: string; message: string },
 ): Promise<void> {
-  await prisma.bookImportItem.updateMany({
-    where: { id, batch: { status: { in: ["QUEUED", "RUNNING"] } } },
-    data: {
-      status,
-      errorCode: error?.code ?? null,
-      errorMessage: error?.message ?? null,
-    },
+  await prisma.$transaction(async (tx) => {
+    const previous = await tx.bookImportItem.findUnique({ where: { id } });
+    const { count } = await tx.bookImportItem.updateMany({
+      where: { id, batch: { status: { in: ["QUEUED", "RUNNING"] } } },
+      data: {
+        status,
+        errorCode: error?.code ?? null,
+        errorMessage: error?.message ?? null,
+      },
+    });
+    if (
+      count &&
+      status === "FAILED" &&
+      previous?.status !== "FAILED" &&
+      error &&
+      error.code !== "BOOK_IMPORT_VIDEO_FAILED" &&
+      (error.code.startsWith("BOOK_IMPORT_") || ["BOOK_HAS_NO_LESSONS", "BOOK_HAS_NO_CHAPTERS"].includes(error.code))
+    ) {
+      await notifyImportFailureWithin(tx, id, error);
+    }
   });
 }
 

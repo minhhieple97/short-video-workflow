@@ -1,5 +1,6 @@
 import type { Book, Chapter } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
+import { notifyPartialChapterWithin } from "@/features/notifications/repositories/chapter-notification.repository";
 
 import type { ChapterAnalysisStatus } from "../domain/analysis-status";
 
@@ -49,7 +50,16 @@ export function setChapterAnalysisStatus(
   status: ChapterAnalysisStatus,
   completed?: { analyzedAt: Date; analysisPromptVersion: string },
 ): Promise<Chapter> {
-  return prisma.chapter.update({ where: { id }, data: { analysisStatus: status, ...completed } });
+  if (status !== "PARTIAL")
+    return prisma.chapter.update({ where: { id }, data: { analysisStatus: status, ...completed } });
+  return prisma.$transaction(async (tx) => {
+    const previous = await tx.chapter.findUniqueOrThrow({ where: { id } });
+    const chapter = await tx.chapter.update({ where: { id }, data: { analysisStatus: status, ...completed } });
+    if (previous.analysisStatus !== "PARTIAL") {
+      await notifyPartialChapterWithin(tx, id);
+    }
+    return chapter;
+  });
 }
 
 export async function countChaptersInBook(bookId: string, chapterIds: readonly string[]): Promise<number> {

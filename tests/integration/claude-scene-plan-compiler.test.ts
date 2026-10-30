@@ -100,6 +100,57 @@ describeScenePlanCompilerContract(
 );
 
 describe("ClaudeScenePlanCompiler", () => {
+  it.each([undefined, "claude-sonnet-5-5"])(
+    "separates effort caches and preserves the existing cache for model %s",
+    async (model) => {
+      const { getAppConfig } = await import("@/shared/config/env");
+      const ai = getAppConfig().ai;
+      try {
+        ai.claudeModel = model;
+        await compiler.compile(REQUEST);
+        expect(callArgs()).not.toContain("--effort");
+        for (const effort of ["medium", "xhigh"] as const) {
+          fs.rmSync(log());
+          ai.claudeEffort = effort;
+          await compiler.compile(REQUEST);
+          const args = callArgs();
+          expect(args[args.indexOf("--effort") + 1]).toBe(effort);
+        }
+        expect(fs.readdirSync(path.join(env.dataDir, "ai-tasks"))).toHaveLength(3);
+        for (const effort of [undefined, "medium", "xhigh"] as const) {
+          fs.rmSync(log(), { force: true });
+          ai.claudeEffort = effort;
+          await compiler.compile(REQUEST);
+          expect(called()).toBe(false);
+        }
+      } finally {
+        ai.claudeModel = undefined;
+        ai.claudeEffort = undefined;
+      }
+    },
+  );
+
+  it("passes the configured model and separates its cache without invalidating the default cache", async () => {
+    const { getAppConfig } = await import("@/shared/config/env");
+    const ai = getAppConfig().ai;
+    try {
+      await compiler.compile(REQUEST);
+      expect(callArgs()).not.toContain("--model");
+      for (const model of ["claude-sonnet-5-5", "claude-opus-5-5"]) {
+        ai.claudeModel = model;
+        await compiler.compile(REQUEST);
+        const args = callArgs();
+        expect(args[args.indexOf("--model") + 1]).toBe(model);
+      }
+      expect(fs.readdirSync(path.join(env.dataDir, "ai-tasks"))).toHaveLength(3);
+      fs.rmSync(log());
+      ai.claudeModel = undefined;
+      await compiler.compile(REQUEST);
+      expect(called()).toBe(false);
+    } finally {
+      ai.claudeModel = undefined;
+    }
+  });
   it("returns Claude's plan and saves it as the task's output", async () => {
     const plan = await compiler.compile(REQUEST);
 

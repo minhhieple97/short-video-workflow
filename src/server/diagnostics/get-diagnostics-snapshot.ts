@@ -10,6 +10,7 @@ import { checkDatabase } from "./checks/database";
 import { checkEdgeTts } from "./checks/edge-tts";
 import { checkFfmpeg } from "./checks/ffmpeg";
 import { checkGoogleDrive } from "./checks/google-drive";
+import { checkTelegram } from "./checks/telegram";
 import { checkMistralOcr } from "./checks/mistral-ocr";
 import { checkNodeRuntime } from "./checks/node-runtime";
 import { checkNotebookLm } from "./checks/notebooklm";
@@ -47,6 +48,8 @@ function buildConfigRows(): ConfigRow[] {
     { label: "Worker concurrency", value: String(concurrency.worker) },
     { label: "Render concurrency", value: String(concurrency.render) },
     { label: "Chế độ AI", value: ai.mode },
+    { label: "Model Claude yêu cầu", value: ai.claudeModel ?? "Theo mặc định Claude CLI" },
+    { label: "Effort Claude yêu cầu", value: ai.claudeEffort ?? "Theo mặc định Claude CLI" },
     { label: "Chế độ giọng đọc", value: `${tts.mode} (${tts.voice})` },
     { label: "Redis", value: redactRedisUrl(redisUrl) },
     { label: "Thư mục dữ liệu", value: dataDir },
@@ -68,6 +71,7 @@ export async function getDiagnosticsSnapshot(): Promise<DiagnosticsSnapshot> {
     runCheck("mistral-ocr", "Mistral OCR", () => checkMistralOcr()),
     runCheck("notebooklm", "NotebookLM", () => checkNotebookLm()),
     runCheck("google-drive", "Google Drive", () => checkGoogleDrive()),
+    runCheck("telegram", "Telegram", checkTelegram),
     runCheck("resources", "Tài nguyên máy", checkWslResources),
   ]);
 

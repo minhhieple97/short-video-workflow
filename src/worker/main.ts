@@ -19,6 +19,7 @@ import { startArchiveSweeper } from "./lifecycle/archive-sweeper";
 import { startBookImportSweeper } from "./lifecycle/book-import-sweeper";
 import { startDispatchSweeper } from "./lifecycle/dispatch-sweeper";
 import { startHeartbeat } from "./lifecycle/heartbeat";
+import { startNotificationSweeper } from "./lifecycle/notification-sweeper";
 import { reconcileJobRecords } from "./lifecycle/reconcile";
 import { registerShutdown } from "./lifecycle/shutdown";
 import { processJob } from "./processors";
@@ -70,11 +71,13 @@ async function main(): Promise<void> {
   const stopDispatchSweeper = startDispatchSweeper(enqueue);
   const stopArchiveSweeper = startArchiveSweeper();
   const stopBookImportSweeper = startBookImportSweeper();
+  const stopNotificationSweeper = startNotificationSweeper();
   registerShutdown(async () => {
     stopHeartbeat();
     await stopDispatchSweeper();
     await stopArchiveSweeper();
     await stopBookImportSweeper();
+    await stopNotificationSweeper();
     await worker.close();
     await lock.release();
     await queue.close();

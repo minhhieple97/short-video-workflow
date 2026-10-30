@@ -10,6 +10,38 @@ const VALID_ENV = {
 };
 
 describe("parseAppConfig", () => {
+  it("keeps effort optional and rejects unsupported levels", () => {
+    for (const effort of [undefined, "", "  "]) {
+      expect(parseAppConfig({ ...VALID_ENV, CLAUDE_EFFORT: effort }).ai.claudeEffort).toBeUndefined();
+    }
+    for (const effort of ["low", "medium", "high", "xhigh", "max"]) {
+      expect(parseAppConfig({ ...VALID_ENV, CLAUDE_EFFORT: ` ${effort} ` }).ai.claudeEffort).toBe(effort);
+    }
+    for (const effort of ["invalid", "HIGH", "ultracode"]) {
+      expect(() => parseAppConfig({ ...VALID_ENV, CLAUDE_EFFORT: effort })).toThrow(ConfigError);
+    }
+  });
+
+  it("reads an optional app-specific model and treats whitespace as unset", () => {
+    expect(parseAppConfig({ ...VALID_ENV, CLAUDE_MODEL: "  " }).ai.claudeModel).toBeUndefined();
+    expect(parseAppConfig({ ...VALID_ENV, CLAUDE_MODEL: " claude-opus-5-5 " }).ai.claudeModel).toBe("claude-opus-5-5");
+  });
+
+  it("keeps Telegram disabled and validates required settings only when enabled", () => {
+    expect(parseAppConfig(VALID_ENV).telegram.enabled).toBe(false);
+    expect(parseAppConfig(VALID_ENV).telegram.mode).toBe("chat");
+    expect(parseAppConfig({ ...VALID_ENV, TELEGRAM_MODE: "forum" }).telegram.mode).toBe("forum");
+    expect(() => parseAppConfig({ ...VALID_ENV, TELEGRAM_MODE: "invalid" })).toThrow(ConfigError);
+    expect(parseAppConfig({ ...VALID_ENV, TELEGRAM_ENABLED: "false" }).telegram.enabled).toBe(false);
+    expect(() => parseAppConfig({ ...VALID_ENV, TELEGRAM_ENABLED: "true" })).toThrow(ConfigError);
+    for (const chatId of ["-100123456789", "@my_channel"]) {
+      expect(
+        parseAppConfig({ ...VALID_ENV, TELEGRAM_ENABLED: "true", TELEGRAM_BOT_TOKEN: "fake", TELEGRAM_CHAT_ID: chatId })
+          .telegram.chatId,
+      ).toBe(chatId);
+    }
+    expect(() => parseAppConfig({ ...VALID_ENV, TELEGRAM_CHAT_ID: "invalid channel" })).toThrow(ConfigError);
+  });
   it("applies vertical defaults: 9:16, 1080x1920 final, 720x1280 draft, 30 s – 5 min, concurrency 1", () => {
     const config = parseAppConfig(VALID_ENV);
 

@@ -1,7 +1,7 @@
 import { getAppConfig } from "@/shared/config/env";
 import { IntegrationError } from "@/server/integrations/integration-error";
 import { AppError, JobCancelledError } from "@/shared/errors";
-import { toSafeErrorMessage } from "@/shared/logger";
+import { createLogger, toSafeErrorMessage } from "@/shared/logger";
 
 import { claudeQuotaRetryAfterMs, classifyCliFailure, extractJsonObject, parseClaudeEnvelope } from "./claude-output";
 import { checkClaudeAuth, runClaudePrint } from "./claude-runner";
@@ -11,6 +11,13 @@ const failure = (code: string, message: string) =>
   ["AI_CLI_TIMEOUT", "AI_CLI_ERROR"].includes(code)
     ? new IntegrationError(code, message, "TRANSIENT")
     : new AppError(code, message, 502);
+
+const logger = createLogger("ai.claude");
+const modelFailure = () =>
+  failure(
+    "AI_CLI_MODEL_UNAVAILABLE",
+    "Model Claude không hợp lệ hoặc tài khoản không được phép dùng. Kiểm tra CLAUDE_MODEL.",
+  );
 
 // Runs one prepared task (prompt.md + schema.json) through the user's own Claude Code CLI and returns the
 // schema-valid output. Shared by `pnpm ai:run` and the opt-in AutomatedCliProvider; raw output that cannot be used
@@ -29,7 +36,7 @@ async function executeClaude(
   kind: TaskKind,
   options: { signal?: AbortSignal; onStart?: (authMethod: string) => void },
 ): Promise<unknown> {
-  const { claudeCliCommand, taskTimeoutMs } = getAppConfig().ai;
+  const { claudeCliCommand, claudeModel, claudeEffort, taskTimeoutMs } = getAppConfig().ai;
   const auth = await checkClaudeAuth(claudeCliCommand).catch((error: unknown) => {
     throw failure(
       "AI_CLI_MISSING",
@@ -41,8 +48,16 @@ async function executeClaude(
   }
 
   options.onStart?.(auth.method);
+  logger.info("Claude task started", {
+    taskId,
+    kind,
+    requestedModel: claudeModel ?? null,
+    requestedEffort: claudeEffort ?? null,
+  });
   const result = await runClaudePrint({
     command: claudeCliCommand,
+    model: claudeModel,
+    effort: claudeEffort,
     prompt: await readTaskText(taskId, "prompt.md"),
     jsonSchema: await readTaskText(taskId, "schema.json"),
     timeoutMs: taskTimeoutMs,
@@ -57,6 +72,7 @@ async function executeClaude(
   } catch {
     await writeRawOutput(taskId, `${result.stdout}\n--- stderr ---\n${result.stderr}`);
     const failureKind = classifyCliFailure(`${result.stderr} ${result.stdout}`);
+    if (failureKind === "MODEL") throw modelFailure();
     if (failureKind === "QUOTA") throw quotaFailure(result.stdout, result.stderr);
     throw failure(
       failureKind === "AUTH" ? "AI_CLI_AUTH" : "AI_CLI_ERROR",
@@ -66,11 +82,12 @@ async function executeClaude(
   if (envelope.isError || result.exitCode !== 0) {
     await writeRawOutput(taskId, envelope.text || result.stderr);
     const failureKind = classifyCliFailure(`${envelope.text} ${result.stderr}`);
+    if (failureKind === "MODEL") throw modelFailure();
     if (failureKind === "QUOTA") {
       throw quotaFailure(result.stdout, result.stderr);
     }
     if (failureKind === "AUTH") throw failure("AI_CLI_AUTH", "Claude Code chưa đăng nhập hoặc phiên đã hết hạn.");
-    throw failure("AI_CLI_ERROR", `Claude Code báo lỗi: ${envelope.text.slice(0, 300)}`);
+    throw failure("AI_CLI_ERROR", "Claude Code báo lỗi; xem output.raw.txt trong thư mục tác vụ.");
   }
 
   let candidate: unknown;

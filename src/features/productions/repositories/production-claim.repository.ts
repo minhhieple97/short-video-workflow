@@ -1,4 +1,6 @@
 import { prisma } from "@/server/db/client";
+import { notifyProductionFailureWithin } from "@/features/notifications/repositories/notification-events.repository";
+import type { NotificationFailure } from "@/features/notifications/domain/notification-failure";
 
 // Only an item that is still in progress, and that nobody currently holds, can be claimed. A lease that has run out
 // counts as not held, so a worker that died mid-step does not block the item forever.
@@ -39,7 +41,7 @@ export async function releaseProductionClaim(
   itemId: string,
   claimToken: string,
   nextStatus: "PENDING" | "WAITING" | "COMPLETED" | "FAILED" | "CANCELLED",
-  failure?: { code: string; message: string },
+  failure?: NotificationFailure,
 ): Promise<boolean> {
   const finished = nextStatus === "COMPLETED" || nextStatus === "FAILED" || nextStatus === "CANCELLED";
   return prisma.$transaction(async (tx) => {
@@ -60,6 +62,7 @@ export async function releaseProductionClaim(
         ...(nextStatus === "COMPLETED" ? { errorCode: null, errorMessage: null } : {}),
       },
     });
+    if (count > 0 && nextStatus === "FAILED" && failure) await notifyProductionFailureWithin(tx, itemId, failure);
     return count > 0;
   });
 }

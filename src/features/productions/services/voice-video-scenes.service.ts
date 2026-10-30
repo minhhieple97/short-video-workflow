@@ -1,6 +1,7 @@
 import { listVisibleScenesWithoutAudio } from "@/features/videos/repositories/audio.repository";
 import { runSceneTts } from "@/features/videos/services/tts-runner";
-import { JobCancelledError } from "@/shared/errors";
+import { AppError, JobCancelledError } from "@/shared/errors";
+import { IntegrationError } from "@/server/integrations/integration-error";
 import { createLogger } from "@/shared/logger";
 
 const logger = createLogger("productions.voice");
@@ -33,7 +34,22 @@ export async function voiceVideoScenes(input: {
 
   for (const scene of scenes) {
     if (input.signal?.aborted) throw new JobCancelledError();
-    const result = await synthesize({ sceneId: scene.id, signal: input.signal });
+    const result = await synthesize({ sceneId: scene.id, signal: input.signal }).catch((error: unknown) => {
+      if (error instanceof JobCancelledError) throw error;
+      const details = { ...(error instanceof AppError ? error.details : {}), sceneId: scene.id };
+      if (error instanceof IntegrationError)
+        throw new IntegrationError(error.code, error.message, error.kind, {
+          cause: error,
+          retryAfterMs: error.retryAfterMs,
+          details,
+        });
+      if (error instanceof AppError)
+        throw new AppError(error.code, error.message, error.httpStatus, { cause: error, details });
+      throw new AppError("TTS_FAILED", "Không tạo được giọng đọc cho cảnh; xem log local.", 502, {
+        cause: error,
+        details,
+      });
+    });
     if (result.cached) summary.reused += 1;
     else summary.synthesized += 1;
     await input.onProgress?.(summary.synthesized + summary.reused, summary.pending);

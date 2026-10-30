@@ -491,7 +491,89 @@ queue tests dùng `TEST_REDIS_URL` và queue có tên riêng.
 - Kiểm tra giấy phép Remotion cho trường hợp sử dụng của bạn. Font Be Vietnam Pro theo giấy phép SIL OFL
   (`public/fonts/BeVietnamPro-OFL.txt`).
 
-### Nhập sách trong một màn hình
+## 11. Chọn model Claude và nhận thông báo Telegram
+
+Trong `.env`, đặt `CLAUDE_MODEL=claude-sonnet-5-5` hoặc `CLAUDE_MODEL=claude-opus-5-5`. Để trống giữ mặc định Claude CLI.
+Model cần được bản CLI và tài khoản hiện tại cho phép; ứng dụng không tự đổi sang model khác. `pnpm diagnose` chỉ hiển thị
+model yêu cầu, không chứng minh tài khoản đã thực sự gọi được model. Đổi model không chạy lại video đã hoàn tất.
+
+Đặt `CLAUDE_EFFORT=medium` để chọn effort riêng cho ứng dụng. Các giá trị hợp lệ: `low`, `medium`, `high`, `xhigh`, `max`;
+để trống giữ effort đã lưu/mặc định của Claude CLI. Ví dụ:
+
+```dotenv
+CLAUDE_MODEL=claude-sonnet-5-5
+CLAUDE_EFFORT=medium
+```
+
+Khởi động lại web/worker sau khi đổi cấu hình. `cli-auto` và `pnpm ai:run` cùng truyền effort qua `--effort`, không sửa settings
+Claude toàn máy. Model/CLI quyết định mức được hỗ trợ; xem [CLI reference](https://code.claude.com/docs/en/cli-reference#cli-flags).
+Không dùng `CLAUDE_CODE_EFFORT_LEVEL` cho app vì môi trường subprocess lọc các biến phiên Claude. Diagnostics và
+`pnpm ai:run --job <jobId> --dry-run` hiển thị effort yêu cầu; log lần gọi có `requestedEffort` cùng `taskId`.
+Đổi effort tách cache scene plan cho lần biên dịch tiếp theo; không chạy lại checkpoint/artifact đã xong và không đổi cache NotebookLM.
+Để trống effort giữ khoá cache trước đây.
+
+1. Tạo bot qua BotFather, giữ token riêng trong `.env`; tạo hoặc chọn channel nhận tin.
+2. Thêm bot vào channel làm admin, bật quyền đăng tin. Với channel public dùng `@channel_username`; với channel private dùng
+   ID số dạng `-100…` lấy từ trường `chat.id` của update channel mà bot nhận được (có thể kiểm tra Bot API `getUpdates` từ
+   công cụ HTTP riêng của bạn sau khi đăng một tin vào channel). Không chụp/chia sẻ URL chứa token hoặc ghi token vào lệnh shell.
+3. Đặt cấu hình sau; token và channel ID bên dưới là chỗ điền, không phải giá trị mẫu hoạt động:
+
+   ```dotenv
+   TELEGRAM_ENABLED=true
+   TELEGRAM_BOT_TOKEN=<token-cua-bot>
+   TELEGRAM_CHAT_ID=<channel-id-hoac-@username>
+   ```
+
+4. Áp dụng migration bổ sung bằng `pnpm exec prisma migrate deploy`, rồi `pnpm db:generate`; khởi động lại web và worker.
+   Không reset DB. Các migration giữ nguyên sách/video/checkpoint. Sau đó `pnpm diagnose` để xem hàng đợi và lỗi gửi cuối.
+5. Chủ động chạy `pnpm telegram --test` để gửi đúng một tin kiểm tra. Cần kết nối Drive trong Cài đặt để link video mở được
+   trên điện thoại; link giữ quyền Drive hiện có, người mở cần quyền truy cập tài khoản/tệp tương ứng.
+6. Nếu hết lượt gửi, sửa cấu hình/quyền rồi `pnpm telegram --retry <notificationId>` để worker gửi lại đúng tin đó. Lệnh không
+   retry/render lại video; notification ID có trong log `notifications.dispatch`, và mã sự kiện trong tin nhận được.
+
+Telegram mặc định tắt, không gửi lại các kết quả lịch sử. Khi bật: báo video FINAL sau khi lưu Drive được xác minh; báo lỗi
+kèm bước/mã/nguyên nhân/ID, hoặc video đã có local nhưng chưa kết nối Drive; báo một lần chờ quota và khi provider thực sự
+chạy được lại. Không gửi phần trăm hoặc từng retry. Mất phản hồi có thể tạo tin trùng với cùng mã sự kiện.
+Lỗi Telegram không ảnh hưởng MP4 hay pipeline. Một tin lỗi mạng được gửi tối đa 8 lần, 429 chờ theo `retry_after`; lỗi token/
+quyền bị dừng để sửa. Đặt `TELEGRAM_ENABLED=false` và restart để ngừng gửi; các tin đang chờ được giữ trong SQLite.
+
+Kiểm thử tự động luôn tắt Telegram thật và dùng fake local. Nghiệm thu tài khoản thật cần làm riêng: gửi test, xác nhận một
+tác vụ nhỏ cho từng model, chạy một video tới Drive rồi mở link trên điện thoại; báo riêng bằng chứng fake và tài khoản thật.
+
+### Mỗi sách một topic trong Group
+
+Để theo dõi 20–30 video và lỗi riêng của mỗi sách, dùng **Group bật Topics**, không phải Channel. Tạo group, bật Topics
+trong cài đặt group; thêm bot làm admin, cho quyền gửi tin và **Manage Topics / Quản lý chủ đề**. Đặt `.env`:
+
+```dotenv
+TELEGRAM_ENABLED=true
+TELEGRAM_MODE=forum
+TELEGRAM_BOT_TOKEN=<token-cua-bot>
+TELEGRAM_CHAT_ID=<id-cua-group-hoac-@username>
+```
+
+Áp dụng migration bổ sung, chạy `pnpm db:generate`, khởi động lại web/worker. `pnpm telegram --test` tạo hoặc dùng lại topic
+**Hệ thống** và gửi tin kiểm tra vào đó. Tin mới của mỗi sách tạo topic `📘 <tên sách> · <mã ngắn>` ở lần gửi đầu, rồi mọi link
+video/lỗi của sách dùng chung topic. Quota dùng Hệ thống; lỗi upload trước khi có bookId cũng ở Hệ thống. Tên topic giữ nguyên
+khi đổi tên sách; định danh là bookId đầy đủ, không phải tên. `TELEGRAM_MODE=chat` giữ cách gửi cũ.
+
+Topic đã có được dùng lại qua restart. Nếu topic bị đóng, mở lại trong Telegram rồi dùng `pnpm telegram --retry <notificationId>`.
+Nếu nhiều tin cùng bị chặn, gắn lại chính ID topic bằng lệnh dưới để xếp lại tất cả các tin bị lỗi topic của sách đó.
+Nếu bị xoá hoặc chưa rõ lần tạo đã thành công chưa, kiểm tra group trước. Gắn topic đã có (hoặc tạo topic thay thế bằng tay) bằng:
+
+```bash
+pnpm telegram --bind-topic <bookId> --thread <messageThreadId>
+pnpm telegram --bind-topic system --thread <messageThreadId>
+```
+
+Lấy bookId từ URL trang sách `/books/<bookId>`; lấy ID thread từ thành phần topic của link **Copy Message Link / Sao chép liên kết**
+trong topic, ví dụ `https://t.me/c/<groupId>/<topicId>/<messageId>` hoặc tham số `thread=<topicId>`. Nhập **topicId**, không phải
+messageId của một tin bất kỳ. CLI chỉ gắn ID local do bạn đã kiểm tra, không tự xác minh được topic đó thuộc sách nào.
+Các tin thất bại do lỗi topic được xếp lại sau khi gắn ID; video không chạy lại. Không thể gắn khi còn lease tạo topic đang chạy.
+Mất phản hồi tạo topic không được tự retry: khác gửi tin, tạo lại có thể sinh hai topic cho cùng sách. Diagnostics hiện số topic
+sẵn sàng và topic cần xử lý. Không bật webhook hoặc chạy một bot nhận lệnh khác để sử dụng tính năng này.
+
+## 12. Nhập sách trong một màn hình
 
 `/books/import` dùng chung bộ chọn tệp cho PDF, TXT và Markdown, hoặc tab **Dán văn bản**. PDF cho phép 1–15 tệp;
 TXT/Markdown nhập từng tệp để kiểm tra danh sách chương. Không trộn PDF với TXT/Markdown trong cùng một lượt.

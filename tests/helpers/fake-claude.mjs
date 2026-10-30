@@ -7,6 +7,11 @@ import fs from "node:fs";
 const mode = process.env.FAKE_CLAUDE_MODE ?? "ok";
 const args = process.argv.slice(2);
 
+if (args[0] === "--version") {
+  process.stdout.write("2.1.306 (fake Claude Code)\n");
+  process.exit(0);
+}
+
 if (args[0] === "auth") {
   process.stdout.write(JSON.stringify({ loggedIn: mode !== "logged-out", authMethod: "claude.ai" }));
   process.exit(0);
@@ -24,12 +29,19 @@ process.stdin.on("end", () => {
         promptLength: prompt.length,
         anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? null,
         claudeCodeSession: process.env.CLAUDECODE ?? null,
+        effortEnv: process.env.CLAUDE_CODE_EFFORT_LEVEL ?? null,
       }),
     );
   }
   if (mode === "slow") {
     setTimeout(() => {}, 60_000);
     return;
+  }
+  if (mode === "invalid-model") {
+    process.stdout.write(
+      JSON.stringify({ is_error: true, result: "Selected model does not exist or you do not have access to it." }),
+    );
+    process.exit(1);
   }
   if (["quota", "quota-30m", "quota-1h"].includes(mode)) {
     const result =

@@ -12,15 +12,18 @@ export const processAnalyzeChapter: JobProcessor = async ({ job, jobRecordId, si
   const payload = analyzeChapterPayloadSchema.parse(job.data);
   const notebook = await notebookAnalysisSettingsFor(payload.chapterId);
   if (notebook) {
-    return withProviderCooldown("notebooklm", () =>
-      runNotebookChapterAnalysis({
-        chapterId: payload.chapterId,
-        jobRecordId,
-        force: payload.force,
-        settings: notebook,
-        signal,
-        onProgress: reportProgress,
-      }),
+    return withProviderCooldown(
+      "notebooklm",
+      () =>
+        runNotebookChapterAnalysis({
+          chapterId: payload.chapterId,
+          jobRecordId,
+          force: payload.force,
+          settings: notebook,
+          signal,
+          onProgress: reportProgress,
+        }),
+      { isSuccessful: (result) => !result.skipped },
     );
   }
   return runChapterAnalysis({
