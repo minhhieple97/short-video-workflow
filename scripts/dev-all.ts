@@ -66,7 +66,7 @@ async function main(): Promise<number> {
   if (startup.startsWeb) services.push(WEB_SERVICE);
   if (startup.startsWorker) services.push(WORKER_SERVICE);
   const [first] = services;
-  if (first === undefined) return 0;
+  if (first === undefined) return startup.blocked ? 1 : 0;
 
   const stack = startServices(services, {
     primary: first.name,

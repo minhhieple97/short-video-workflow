@@ -27,6 +27,8 @@ export interface Startup {
   lines: string[];
   startsWeb: boolean;
   startsWorker: boolean;
+  // Nothing was started and the web is missing: its port is held by something that is not this project's web.
+  blocked: boolean;
 }
 
 const LABEL_WIDTH = 11;
@@ -75,8 +77,10 @@ export function describeStartup(facts: StartupFacts): Startup {
     ? [row("Worker", `sẽ khởi động · không dùng cổng, chạy nền và nhận việc từ Redis`)]
     : [row("Worker", "đã chạy sẵn, không khởi động thêm"), ...(facts.runningWorker ?? []).map((line) => row("", line))];
   const names = [startsWeb ? "web" : null, startsWorker ? "worker" : null].filter((name) => name !== null);
-  const footer =
-    names.length === 0
+  const blocked = names.length === 0 && facts.web.state === "foreign";
+  const footer = blocked
+    ? "Không khởi động được gì: worker đã chạy, còn web thì cổng đang bị chiếm (xem ở trên)."
+    : names.length === 0
       ? "Web và worker đều đã chạy, không có gì để khởi động."
       : `Nhấn Ctrl+C để dừng ${names.join(" và ")}. Log bên dưới mang nhãn ${names.map((name) => `[${name}]`).join(" ")}.`;
   return {
@@ -94,5 +98,6 @@ export function describeStartup(facts: StartupFacts): Startup {
     ],
     startsWeb,
     startsWorker,
+    blocked,
   };
 }

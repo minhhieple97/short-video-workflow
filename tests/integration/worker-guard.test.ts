@@ -1,7 +1,7 @@
 import { execFile, spawn } from "node:child_process";
 import fs from "node:fs";
 import { createRequire } from "node:module";
-import net from "node:net";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -387,23 +387,58 @@ describe.skipIf(!redisAvailable)("worker guard against real Redis", () => {
       expect(plain.code).toBe(2);
     }, 30_000);
 
-    it("dev:all starts nothing when the web and the worker already run", async () => {
-      await startFakeWorker();
-      const web = net.createServer();
+    // A web server on a free port, standing in for the project's web (answers /api/status) or for another program.
+    async function listenWeb(handler: http.RequestListener): Promise<{ port: number; close: () => Promise<void> }> {
+      const web = http.createServer(handler);
       await new Promise<void>((resolve) => web.listen(0, "127.0.0.1", resolve));
       const address = web.address();
       if (address === null || typeof address === "string") throw new Error("expected a TCP address");
+      return {
+        port: address.port,
+        close: () =>
+          new Promise<void>((resolve) => {
+            web.close(() => resolve());
+            web.closeAllConnections();
+          }),
+      };
+    }
+
+    it("dev:all starts nothing when the web and the worker already run", async () => {
+      await startFakeWorker();
+      const web = await listenWeb((_, response) => {
+        response.setHeader("content-type", "application/json");
+        response.end(JSON.stringify({ worker: "running", activeJobs: 0, aiMode: "mock" }));
+      });
       try {
-        const result = await runScript("dev-all.ts", [], { PORT: String(address.port) });
+        const result = await runScript("dev-all.ts", [], { PORT: String(web.port) });
 
         expect(result.code).toBe(0);
-        expect(result.stdout).toContain(`Cổng ${address.port} đang được dùng`);
-        expect(result.stdout).toContain("Worker đã chạy rồi, không khởi động thêm.");
+        expect(result.stdout).toContain(
+          `http://127.0.0.1:${web.port}  (web của dự án đã chạy sẵn, không khởi động thêm)`,
+        );
+        expect(result.stdout).toMatch(/Worker\s+đã chạy sẵn, không khởi động thêm/);
         expect(result.stdout).toMatch(/Heartbeat\s+\d+ giây trước/);
         expect(result.stdout).toContain("Web và worker đều đã chạy, không có gì để khởi động.");
         expect(result.stdout).not.toContain("Nhấn Ctrl+C");
       } finally {
-        await new Promise<void>((resolve) => web.close(() => resolve()));
+        await web.close();
+      }
+    }, 30_000);
+
+    it("dev:all says what holds the web port when it is not the project's web, and exits with 1", async () => {
+      await startFakeWorker();
+      const web = await listenWeb((_, response) => response.end("<html>another program</html>"));
+      try {
+        const result = await runScript("dev-all.ts", [], { PORT: String(web.port) });
+
+        expect(result.code).toBe(1);
+        expect(result.stdout).toContain(`KHÔNG khởi động: cổng ${web.port} đang bị giữ bởi PID`);
+        expect(result.stdout).toContain(`chạy web ở cổng khác: PORT=${web.port + 1} pnpm dev:all`);
+        expect(result.stdout).toMatch(/Worker\s+đã chạy sẵn, không khởi động thêm/);
+        expect(result.stdout).toContain("Không khởi động được gì");
+        expect(result.stdout).not.toContain("Nhấn Ctrl+C");
+      } finally {
+        await web.close();
       }
     }, 30_000);
 

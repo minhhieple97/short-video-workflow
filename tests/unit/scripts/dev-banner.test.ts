@@ -63,12 +63,20 @@ describe("the startup block of pnpm dev:all", () => {
     expect(text(startup)).not.toContain("kill");
   });
 
+  it("is blocked, not finished, when the worker runs and the web port is held by something else", () => {
+    const startup = describeStartup(facts({ web: { state: "foreign", holder: null }, runningWorker: ["PID 1234"] }));
+
+    expect(startup).toMatchObject({ startsWeb: false, startsWorker: false, blocked: true });
+    expect(text(startup)).toContain("Không khởi động được gì: worker đã chạy, còn web thì cổng đang bị chiếm");
+    expect(text(startup)).not.toContain("không có gì để khởi động");
+  });
+
   it("reports a worker that already runs and has nothing to start when the web runs too", () => {
     const startup = describeStartup(
       facts({ web: { state: "project" }, runningWorker: ["PID 1234", "Hàng đợi 0 đang chạy"] }),
     );
 
-    expect(startup).toMatchObject({ startsWeb: false, startsWorker: false });
+    expect(startup).toMatchObject({ startsWeb: false, startsWorker: false, blocked: false });
     expect(text(startup)).toMatch(/Worker\s+đã chạy sẵn, không khởi động thêm/);
     expect(text(startup)).toContain("PID 1234");
     expect(text(startup)).toContain("Web và worker đều đã chạy, không có gì để khởi động.");
