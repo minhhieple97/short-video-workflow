@@ -22,6 +22,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { errorMessage, sendJson } from "@/lib/api-client";
 import { formatBytes, formatDateTime } from "@/lib/format";
 
+import { DriveStorage } from "./drive-storage";
+
 import type { DriveAuthorizationDto, DriveDisconnectDto, DriveOverviewDto } from "../schemas/drive-connection.dto";
 
 function Meter({
@@ -152,20 +154,7 @@ export function DriveConnectionCard({ overview }: Readonly<{ overview: DriveOver
               max={usage.maxBytes}
               format={formatBytes}
             />
-            {capacity?.limitBytes ? (
-              <div className="sm:col-span-2">
-                <Meter
-                  label="Dung lượng Drive đã dùng"
-                  used={capacity.usageBytes}
-                  max={capacity.limitBytes}
-                  format={formatBytes}
-                />
-                <p className="text-muted-foreground mt-1 text-xs">
-                  Theo lần đọc gần nhất lúc {formatDateTime(capacity.fetchedAt)}; đây là dung lượng lưu trữ, không phải
-                  quota của Drive API.
-                </p>
-              </div>
-            ) : null}
+            <DriveStorage capacity={capacity} disabled={pending} />
           </div>
         ) : null}
 

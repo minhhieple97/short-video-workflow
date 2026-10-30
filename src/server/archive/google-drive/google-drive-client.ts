@@ -50,6 +50,8 @@ const storageQuotaSchema = z.object({
   storageQuota: z.object({
     limit: z.coerce.number().int().nonnegative().optional(),
     usage: z.coerce.number().int().nonnegative(),
+    usageInDrive: z.coerce.number().int().nonnegative().optional(),
+    usageInDriveTrash: z.coerce.number().int().nonnegative().optional(),
   }),
 });
 
@@ -104,15 +106,25 @@ export class GoogleDriveClient {
   }
 
   // The account's storage; `limit` is absent when the storage is unlimited.
-  async getStorageQuota(signal?: AbortSignal): Promise<{ limitBytes: number | null; usageBytes: number }> {
+  async getStorageQuota(signal?: AbortSignal): Promise<{
+    limitBytes: number | null;
+    usageBytes: number;
+    usageInDriveBytes: number | null;
+    usageInDriveTrashBytes: number | null;
+  }> {
     const about = await this.send({
-      url: `${this.endpoints.driveApiUrl}/about?${new URLSearchParams({ fields: "storageQuota(limit,usage)" })}`,
+      url: `${this.endpoints.driveApiUrl}/about?${new URLSearchParams({ fields: "storageQuota(limit,usage,usageInDrive,usageInDriveTrash)" })}`,
       method: "GET",
       mutating: false,
       signal,
       parse: async (response) => storageQuotaSchema.parse(await response.json()),
     });
-    return { limitBytes: about.storageQuota.limit ?? null, usageBytes: about.storageQuota.usage };
+    return {
+      limitBytes: about.storageQuota.limit ?? null,
+      usageBytes: about.storageQuota.usage,
+      usageInDriveBytes: about.storageQuota.usageInDrive ?? null,
+      usageInDriveTrashBytes: about.storageQuota.usageInDriveTrash ?? null,
+    };
   }
 
   // IDs Drive reserves for this user; a file or folder created with one of them can be retried safely (Drive answers

@@ -14,6 +14,12 @@ fs.closeSync(fs.openSync(path.join(E2E_DATA_DIR, "e2e.db"), "a"));
 // A fake Google (token + Drive APIs) lives in this process for the whole run, and the app starts already connected to
 // it, so finished FINAL renders are archived without any real account.
 const google = new FakeGoogleServer();
+google.storageQuota = {
+  limit: "32985348833280",
+  usage: "1085600454380",
+  usageInDrive: "455028138",
+  usageInDriveTrash: "0",
+};
 await google.start();
 const E2E_REFRESH_TOKEN = "e2e-refresh-token";
 google.liveRefreshTokens.add(E2E_REFRESH_TOKEN);

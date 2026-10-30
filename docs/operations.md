@@ -500,6 +500,12 @@ phải đã hết quota. Nút kiểm tra trong Cài đặt vẫn đọc được
 API quota công khai được Google hỗ trợ. Drive vẫn đọc dung lượng thật bằng `about.get`, cache tối đa một giờ và xử lý
 rate limit riêng với dung lượng lưu trữ.
 
+Trong Cài đặt → Google Drive, bấm **Đọc lại từ Google** để gọi `about.get` và lưu lần đọc mới theo tài khoản đang kết nối.
+Giao diện tách tổng dung lượng Google, phần riêng Drive và thùng rác; dùng KiB/MiB/GiB/TiB (chia theo 1024), ví dụ
+`32985348833280` byte là `30 TiB`. Mở **Số liệu gốc từ API (byte)** để xem số nguyên chính xác.
+Snapshot hiển thị được lưu riêng với cache kiểm tra chỗ trống của worker; upload không tự cộng vào số đã đọc từ API.
+Sau migration, nếu chưa có snapshot, bấm nút đọc để lấy lần đầu. Khi Google lỗi, số liệu cũ và thời điểm đọc vẫn được giữ.
+
 Khi kiểm thử ở worktree trong lúc checkout khác đang hoạt động, có thể đặt `E2E_PORT`, `E2E_DATA_DIR` và `E2E_REDIS_URL`
 cho `pnpm test:e2e`; chúng chỉ điều khiển stack Playwright. Redis database đó bị xoá ở đầu mỗi lần E2E. Unit/integration
 queue tests dùng `TEST_REDIS_URL` và queue có tên riêng.

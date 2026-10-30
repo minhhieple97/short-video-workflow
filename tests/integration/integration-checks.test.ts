@@ -42,6 +42,7 @@ beforeEach(async () => {
   await store.deleteDriveCredential();
   await db.prisma.driveUsageHour.deleteMany();
   await db.prisma.driveCapacity.deleteMany();
+  await db.prisma.driveStorageSnapshot.deleteMany();
 });
 
 afterAll(async () => {
@@ -130,7 +131,7 @@ describe("getDriveOverview", () => {
         bytesSent: 5000n,
       },
     });
-    await db.prisma.driveCapacity.create({
+    await db.prisma.driveStorageSnapshot.create({
       data: {
         destinationKey: "permission-1",
         limitBytes: 1000n,

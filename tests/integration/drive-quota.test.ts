@@ -238,7 +238,9 @@ describe("DriveCapacityGuard", () => {
     await guard().recordUpload(300);
 
     expect(aboutCalls()).toBe(1);
-    expect(google.requestsTo("/drive/v3/about")[0]?.query.get("fields")).toBe("storageQuota(limit,usage)");
+    expect(google.requestsTo("/drive/v3/about")[0]?.query.get("fields")).toBe(
+      "storageQuota(limit,usage,usageInDrive,usageInDriveTrash)",
+    );
     expect(await cache().read()).toEqual<DriveCapacity>({ limitBytes: 1000, usageBytes: 900, fetchedAt: T0 });
     await expect(guard().ensureRoomFor(101)).rejects.toMatchObject({ code: "DRIVE_STORAGE_FULL", kind: "REJECTED" });
   });

@@ -529,7 +529,10 @@ render FINAL COMPLETED + archiveIntentAt ─► requestRenderArchive | sweepRend
 - **Xác minh:** kích thước và checksum Drive so với tệp local; Drive chưa có checksum → lỗi tạm, không tin chỉ kích thước.
 - **Hạn mức:** `DriveRequestMeter` ghi sổ theo giờ **chỉ những gì ứng dụng gửi** và từ chối (`QUOTA`, kèm thời gian chờ) khi vượt cửa sổ 24
   giờ (mặc định 5.000 yêu cầu, 750 GiB), giãn tối đa 1 giây giữa hai yêu cầu. Dung lượng ≠ quota API: `storageQuotaExceeded` là `REJECTED`.
-  `DriveCapacityGuard` (cache dung lượng theo giờ) từ chối upload mới không vừa trước khi gửi byte nào. UI chỉ đọc bảng local.
+  `DriveCapacityGuard` (cache dung lượng theo giờ) từ chối upload mới không vừa trước khi gửi byte nào.
+  `DriveStorageSnapshot` lưu riêng số liệu nguyên bản từ `about.get` theo tài khoản, không cộng byte upload ước tính.
+  Settings đọc snapshot local; nút “Đọc lại từ Google” gọi `POST /api/integrations/drive/capacity/refresh`, tính vào ledger API,
+  rồi cập nhật snapshot. Tổng Google (`usage`), riêng Drive (`usageInDrive`) và thùng rác (`usageInDriveTrash`) được tách rõ.
 
 Mã hoá checksum của Drive và redirect loopback không path chưa kiểm chứng: xem [operations.md](operations.md).
 

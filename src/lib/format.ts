@@ -19,10 +19,14 @@ export function truncateText(text: string, max: number): string {
 }
 
 export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${NUMBER.format(Math.round(bytes / 102.4) / 10)} KB`;
-  if (bytes < 1024 ** 3) return `${NUMBER.format(Math.round(bytes / 104857.6) / 10)} MB`;
-  return `${NUMBER.format(Math.round(bytes / 107374182.4) / 10)} GB`;
+  const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${NUMBER.format(Math.round(value * 10) / 10)} ${units[unit]}`;
 }
 
 export function formatDuration(startIso: string, endIso: string): string {

@@ -732,6 +732,15 @@ model DriveUsageHour {
 
 // What Google last reported about an account's storage, so the UI and the check before an upload never call Google.
 // Storage capacity says nothing about API quotas, whatever the account's storage plan.
+model DriveStorageSnapshot {
+  destinationKey         String   @id
+  limitBytes             BigInt?
+  usageBytes             BigInt
+  usageInDriveBytes      BigInt?
+  usageInDriveTrashBytes BigInt?
+  fetchedAt              DateTime
+}
+
 model DriveCapacity {
   destinationKey String   @id
   // Null when the account has unlimited storage.

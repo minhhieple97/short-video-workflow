@@ -60,7 +60,12 @@ export class FakeGoogleServer {
   readonly requests: RecordedGoogleRequest[] = [];
   account: FakeGoogleAccount = { permissionId: "permission-1", emailAddress: "ban@example.com" };
   // Drive reports these as int64 strings; no limit means unlimited storage.
-  storageQuota: { limit?: string; usage: string } = { limit: String(15 * 1024 ** 3), usage: "0" };
+  storageQuota: { limit?: string; usage: string; usageInDrive?: string; usageInDriveTrash?: string } = {
+    limit: String(15 * 1024 ** 3),
+    usage: "0",
+    usageInDrive: "0",
+    usageInDriveTrash: "0",
+  };
   grantedScope = "https://www.googleapis.com/auth/drive.file";
   issueRefreshToken = true;
   private readonly faults = new Map<string, GoogleFault[]>();

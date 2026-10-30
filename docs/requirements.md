@@ -267,6 +267,9 @@ Chưa phân trang: danh mục chọn bài để sản xuất, các đợt nhập
 - Trạng thái mọi thành phần (Redis, worker, SQLite, ffmpeg, edge-tts, Claude CLI, Chromium, tài nguyên WSL, Poppler, Mistral,
   NotebookLM, Drive), chế độ AI; **Chạy tác vụ thử**, **Kiểm tra AI mẫu**.
 - Kết nối / kết nối lại / ngắt Google Drive, mức dùng 24 giờ và dung lượng; đăng nhập và hạn mức NotebookLM.
+- Dung lượng lưu trữ hiển thị đúng KiB/MiB/GiB/TiB, tách tổng Google với riêng Drive/thùng rác, có thời điểm đọc và số byte gốc.
+  Nút “Đọc lại từ Google” lấy số liệu API thật; lỗi đọc giữ lần thành công trước. Trường Google không cung cấp hiển thị chưa rõ,
+  không mặc định bằng 0. Không lấy số byte ước tính từ cache kiểm tra upload làm số liệu API trên giao diện.
 - Không bao giờ hiện token, cookie, khoá API hay thông tin đăng nhập.
 
 ### 5.12. Giao diện chung

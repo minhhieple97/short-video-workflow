@@ -22,7 +22,14 @@ export interface DriveOverviewDto {
   connection: DriveConnectionDto;
   // This app's own use over the last 24 hours, judged against its own limits (not Google's project quota).
   usage: { requests: number; maxRequests: number; bytesSent: number; maxBytes: number };
-  // The account's storage as last read from Google; null before the first archive.
-  capacity: { limitBytes: number | null; usageBytes: number; fetchedAt: string } | null;
+  capacity: DriveStorageDto | null;
   failedArchives: number;
+}
+
+export interface DriveStorageDto {
+  limitBytes: number | null;
+  usageBytes: number;
+  usageInDriveBytes: number | null;
+  usageInDriveTrashBytes: number | null;
+  fetchedAt: string;
 }
