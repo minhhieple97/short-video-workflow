@@ -2,6 +2,7 @@ import { Plus, Search } from "lucide-react";
 import Link from "next/link";
 
 import { EmptyState } from "@/components/layout/empty-state";
+import { IconButton } from "@/components/layout/icon-button";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,12 +21,11 @@ export default async function BooksPage({ searchParams }: Readonly<{ searchParam
         title="Thư viện sách"
         description="Nhập sách một lần, tái sử dụng cho nhiều video."
         actions={
-          <Button asChild>
+          <IconButton label="Nhập sách" asChild>
             <Link href="/books/import">
               <Plus aria-hidden />
-              Nhập sách
             </Link>
-          </Button>
+          </IconButton>
         }
       />
 
@@ -40,16 +40,18 @@ export default async function BooksPage({ searchParams }: Readonly<{ searchParam
       {books.length === 0 ? (
         <EmptyState
           title={q ? "Không có sách phù hợp" : "Chưa có sách nào"}
-          description={q ? "Thử từ khoá khác (không cần gõ dấu)." : "Nhập tệp .md hoặc .txt để bắt đầu."}
+          description={q ? "Thử từ khoá khác (không cần gõ dấu)." : "Nhập PDF, TXT hoặc Markdown để bắt đầu."}
           action={
             q ? (
               <Button asChild variant="outline">
                 <Link href="/books">Xoá bộ lọc</Link>
               </Button>
             ) : (
-              <Button asChild>
-                <Link href="/books/import">Nhập sách đầu tiên</Link>
-              </Button>
+              <IconButton label="Nhập sách đầu tiên" asChild>
+                <Link href="/books/import">
+                  <Plus aria-hidden />
+                </Link>
+              </IconButton>
             )
           }
         />

@@ -1,83 +1,108 @@
 "use client";
 
 import { FileUp, Loader2 } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 
+import { IconButton } from "@/components/layout/icon-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import type { PdfImportSettings } from "@/features/book-imports/schemas/book-import.dto";
 import { PdfUploadPanel } from "@/features/extraction/components/pdf-upload-panel";
 import { apiRequest, errorMessage } from "@/lib/api-client";
 
 import type { ImportPreview } from "../../schemas/book.dto";
-
-type SourceMode = "file" | "text" | "pdf";
-
-const toSourceMode = (value: string): SourceMode => (value === "text" || value === "pdf" ? value : "file");
+import { ImportFilePicker } from "./import-file-picker";
 
 export function ImportSourceForm({
   onPreview,
-  maxPdfBytes,
-}: Readonly<{ onPreview: (preview: ImportPreview) => void; maxPdfBytes: number }>) {
-  const [mode, setMode] = useState<SourceMode>("file");
-  const [file, setFile] = useState<File | null>(null);
+  settings,
+  maxTextBytes,
+  initialAutomatic,
+}: Readonly<{
+  onPreview: (preview: ImportPreview) => void;
+  settings: PdfImportSettings;
+  maxTextBytes: number;
+  initialAutomatic: boolean;
+}>) {
+  const [mode, setMode] = useState("file");
+  const [files, setFiles] = useState<File[]>([]);
   const [text, setText] = useState("");
   const [format, setFormat] = useState<"md" | "txt">("txt");
   const [pending, setPending] = useState(false);
+  const [locked, setLocked] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pdf = files.length > 0 && files.every((file) => /\.pdf$/i.test(file.name));
+  const ready = mode === "text" ? text.trim().length > 0 : files.length === 1 && !pdf;
 
-  const ready = mode === "file" ? file !== null : mode === "text" && text.trim().length > 0;
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    // Enter in the PDF tab's fields lands here too; the PDF is sent by its own button.
-    if (!ready) return;
+  async function preview(): Promise<void> {
+    if (!ready || pending) return;
     const body = new FormData();
+    const file = files[0];
     if (mode === "file" && file) body.append("file", file);
     else {
       body.append("text", text);
       body.append("format", format);
     }
-
     setPending(true);
     setError(null);
     try {
       onPreview(await apiRequest<ImportPreview>("/api/books/import/preview", { method: "POST", body }));
-    } catch (requestError) {
-      setError(errorMessage(requestError));
+    } catch (failure) {
+      setError(errorMessage(failure));
     } finally {
       setPending(false);
     }
   }
 
   return (
-    <form onSubmit={(event) => void handleSubmit(event)} className="flex max-w-2xl flex-col gap-4">
-      <Tabs value={mode} onValueChange={(value) => setMode(toSourceMode(value))}>
-        <TabsList>
-          <TabsTrigger value="file">Tải tệp lên</TabsTrigger>
-          <TabsTrigger value="text">Dán văn bản</TabsTrigger>
-          <TabsTrigger value="pdf">Sách PDF</TabsTrigger>
+    <div className="flex max-w-3xl flex-col gap-5">
+      <Tabs
+        value={mode}
+        onValueChange={(value) => {
+          setMode(value);
+          setError(null);
+        }}
+      >
+        <TabsList className="mb-4">
+          <TabsTrigger value="file" disabled={pending || locked}>
+            Tải tệp lên
+          </TabsTrigger>
+          <TabsTrigger value="text" disabled={pending || locked}>
+            Dán văn bản
+          </TabsTrigger>
         </TabsList>
-        <TabsContent value="file" className="flex flex-col gap-2 pt-4">
-          <Label htmlFor="book-file">Tệp sách (.md hoặc .txt, UTF-8)</Label>
-          <Input
-            id="book-file"
-            type="file"
-            accept=".md,.markdown,.txt,text/plain,text/markdown"
-            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+        <TabsContent value="file" forceMount className="data-[state=inactive]:hidden">
+          <ImportFilePicker
+            files={files}
+            onChange={(next) => {
+              setFiles(next);
+              setError(null);
+            }}
+            maxPdfBytes={settings.maxPdfBytes}
+            maxTextBytes={maxTextBytes}
+            disabled={pending || locked}
           />
-          <p className="text-muted-foreground text-xs">
-            Tệp gốc được lưu nguyên vẹn; mọi chỉnh sửa chương chỉ tạo dữ liệu dẫn xuất.
-          </p>
+          {pdf ? (
+            <PdfUploadPanel
+              files={files}
+              settings={settings}
+              initialAutomatic={initialAutomatic}
+              onBusyChange={setPending}
+              onLockChange={setLocked}
+            />
+          ) : null}
         </TabsContent>
-        <TabsContent value="text" className="flex flex-col gap-3 pt-4">
+        <TabsContent value="text" className="flex flex-col gap-3">
           <div className="flex flex-col gap-2">
             <Label htmlFor="book-format">Định dạng</Label>
-            <Select value={format} onValueChange={(value) => setFormat(value === "md" ? "md" : "txt")}>
+            <Select
+              value={format}
+              onValueChange={(value) => setFormat(value === "md" ? "md" : "txt")}
+              disabled={pending}
+            >
               <SelectTrigger id="book-format" className="w-48">
                 <SelectValue />
               </SelectTrigger>
@@ -92,32 +117,33 @@ export function ImportSourceForm({
             id="book-text"
             rows={12}
             value={text}
+            disabled={pending}
             onChange={(event) => setText(event.target.value)}
-            placeholder="Dán toàn bộ nội dung sách vào đây…"
+            placeholder="Dán nội dung sách vào đây…"
           />
         </TabsContent>
-        {/* A PDF has no preview step: it is uploaded as is and its chapters come from the extraction. */}
-        <TabsContent value="pdf" className="pt-4">
-          <PdfUploadPanel maxSizeBytes={maxPdfBytes} />
-        </TabsContent>
       </Tabs>
-
-      {mode === "pdf" ? null : (
-        <>
-          {error ? (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
-
-          <div>
-            <Button type="submit" disabled={!ready || pending}>
-              {pending ? <Loader2 className="animate-spin" aria-hidden /> : <FileUp aria-hidden />}
-              Phân tích cấu trúc chương
-            </Button>
-          </div>
-        </>
-      )}
-    </form>
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {mode === "text" || (files.length > 0 && !pdf) ? (
+        <div className="flex items-center gap-3">
+          <IconButton
+            type="button"
+            label="Phân tích cấu trúc chương"
+            disabled={!ready || pending}
+            aria-busy={pending}
+            onClick={() => void preview()}
+          >
+            {pending ? <Loader2 className="animate-spin" aria-hidden /> : <FileUp aria-hidden />}
+          </IconButton>
+          <p className="text-muted-foreground text-sm" role="status">
+            {pending ? "Đang đọc cấu trúc sách…" : "Xem và kiểm tra danh sách chương trước khi nhập."}
+          </p>
+        </div>
+      ) : null}
+    </div>
   );
 }

@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { IconButton } from "@/components/layout/icon-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -172,14 +172,21 @@ export function ImportReview({ preview, onBack }: Readonly<{ preview: ImportPrev
       {blockers.length > 0 ? <p className="text-muted-foreground text-sm">{blockers[0]}</p> : null}
 
       <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" onClick={onBack} disabled={pending}>
+        <IconButton type="button" label="Chọn tệp khác" variant="outline" onClick={onBack} disabled={pending}>
           <ArrowLeft aria-hidden />
-          Chọn tệp khác
-        </Button>
-        <Button type="button" onClick={() => void handleConfirm()} disabled={blockers.length > 0 || pending}>
+        </IconButton>
+        <IconButton
+          type="button"
+          label={`Xác nhận nhập ${included.length} chương`}
+          aria-busy={pending}
+          onClick={() => void handleConfirm()}
+          disabled={blockers.length > 0 || pending}
+        >
           {pending ? <Loader2 className="animate-spin" aria-hidden /> : <Check aria-hidden />}
-          Xác nhận nhập {included.length} chương
-        </Button>
+        </IconButton>
+        <p className="text-muted-foreground self-center text-sm" role="status">
+          {pending ? "Đang lưu sách…" : `Nhập sách với ${included.length} chương đã chọn`}
+        </p>
       </div>
 
       <SplitSectionDialog

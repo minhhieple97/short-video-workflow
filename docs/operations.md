@@ -421,7 +421,7 @@ Drive; không mất tiến độ khi khởi động lại, không chạy lại c
    NotebookLM đã đăng nhập, edge-tts hoạt động; kết nối Drive nếu muốn lưu từ xa. Mistral chỉ cần khi có trang phải OCR.
 2. Sau khi cập nhật mã, chạy `pnpm db:migrate` rồi `pnpm db:generate`, khởi động lại web và worker. Không chạy hai worker
    chung Redis database. Các migration bổ sung giữ nguyên sách, video và checkpoint cũ.
-3. Vào **Nhập sách → Nhập nhiều PDF tự động** (`/books/import/batch`), chọn 1–15 PDF, khoảng thời lượng và nhịp độ.
+3. Vào **Nhập sách** (`/books/import`), chọn 1–15 PDF rồi chọn **Tự động làm video**, khoảng thời lượng và nhịp độ.
    Bấm tải lên. Trang chỉ chuyển sang tiến độ sau khi tệp hợp lệ đã lưu và đợt được xếp hàng; sau đó có thể đóng trang.
 4. Xem lại tại `/book-imports`. Một sách làm xong mới chuyển sách sau. Lỗi từng sách có lý do và liên kết tới sách hoặc
    đợt video; sau khi xử lý nguyên nhân, bấm **Thử lại các sách lỗi**. Video đã hoàn tất không được tạo lại.
@@ -456,3 +456,16 @@ queue tests dùng `TEST_REDIS_URL` và queue có tên riêng.
   phương án tải âm thanh lên.
 - Kiểm tra giấy phép Remotion cho trường hợp sử dụng của bạn. Font Be Vietnam Pro theo giấy phép SIL OFL
   (`public/fonts/BeVietnamPro-OFL.txt`).
+
+### Nhập sách trong một màn hình
+
+`/books/import` dùng chung bộ chọn tệp cho PDF, TXT và Markdown, hoặc tab **Dán văn bản**. PDF cho phép 1–15 tệp;
+TXT/Markdown nhập từng tệp để kiểm tra danh sách chương. Không trộn PDF với TXT/Markdown trong cùng một lượt.
+
+- **Chỉ nhập sách** là mặc định cho PDF: mỗi tệp được tải lần lượt, trích xuất trong nền; bạn chọn bài học sau. Một
+  sách mở trang chi tiết, nhiều sách trở về thư viện. Nếu dừng hoặc lỗi, các sách đã nhập vẫn được giữ lại; thử lại
+  trên cùng lựa chọn bỏ qua các tệp đã tải thành công.
+- **Tự động làm video** hiện thêm thời lượng và nhịp độ, dùng chung cho một hay nhiều PDF. Sau khi tạo đợt nhập,
+  lựa chọn tệp và cấu hình được khoá để thử lại đúng đợt. Nút danh sách ở đầu trang mở các đợt nhập tự động.
+- Các nút hành động dùng icon, có tooltip và nhãn cho trình đọc màn hình. Tiến trình tải hiển thị số byte thực gửi.
+- Đường dẫn cũ `/books/import/batch` chuyển về `/books/import?auto=1`; không còn trang nhập nhiều PDF riêng.

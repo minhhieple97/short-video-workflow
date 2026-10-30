@@ -1,5 +1,7 @@
+import { Plus } from "lucide-react";
 import Link from "next/link";
 
+import { IconButton } from "@/components/layout/icon-button";
 import { PageHeader } from "@/components/layout/page-header";
 import { BOOK_IMPORT_LABELS } from "@/features/book-imports/domain/book-import-status";
 import { getBookImports } from "@/features/book-imports/services/book-import.service";
@@ -13,9 +15,11 @@ export default async function BookImportsPage() {
       <PageHeader
         title="Các đợt nhập sách"
         actions={
-          <Link href="/books/import/batch" className="text-sm underline">
-            Nhập nhiều sách
-          </Link>
+          <IconButton label="Nhập sách" asChild>
+            <Link href="/books/import?auto=1">
+              <Plus aria-hidden />
+            </Link>
+          </IconButton>
         }
       />
       {batches.length ? (

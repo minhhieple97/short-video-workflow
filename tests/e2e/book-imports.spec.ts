@@ -38,9 +38,9 @@ test("E2E-03: two PDFs produce every lesson, one book at a time, through render 
   await queue.pause();
   try {
     await page.goto("/books/import");
-    await page.getByRole("link", { name: "Nhập nhiều PDF tự động" }).click();
-    await page.locator("#batch-pdf-files").setInputFiles(files);
-    await page.getByRole("button", { name: "Tải lên và tự động làm video cho 2 sách" }).click();
+    await page.locator("#book-file").setInputFiles(files);
+    await page.getByRole("radio", { name: /^Tự động làm video/ }).check();
+    await page.getByRole("button", { name: "Nhập và tự động làm video cho 2 sách" }).click();
     await page.waitForURL(/\/book-imports\/[a-z0-9]+$/);
     await expect(page.getByText(/0\/2 sách hoàn tất/)).toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });

@@ -58,10 +58,9 @@ test("E2E-02: PDF → catalogue → chosen lesson → vertical video archived to
     await queue.pause();
     try {
       await open(page, "/books/import");
-      await page.getByRole("tab", { name: "Sách PDF" }).click();
-      await page.locator("#pdf-file").setInputFiles(pdfFile);
+      await page.locator("#book-file").setInputFiles(pdfFile);
       await page.locator("#pdf-title").fill("Sách PDF E2E");
-      await page.getByRole("button", { name: "Tải lên và trích xuất" }).click();
+      await page.getByRole("button", { name: "Nhập 1 sách PDF" }).click();
       await page.waitForURL(/\/books\/[0-9a-f-]{36}$/);
       await expect(page.getByRole("button", { name: "Phân tích tất cả chương" })).toBeDisabled();
       await expect(

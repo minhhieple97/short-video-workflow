@@ -1,3 +1,13 @@
+import type { DurationRange } from "@/features/videos/domain/duration";
+import type { Pace } from "@/features/videos/domain/pace";
+
+export interface PdfImportSettings {
+  maxPdfBytes: number;
+  defaultRange: DurationRange;
+  defaultPace: Pace;
+  ceilingSec: number;
+}
+
 export interface BookImportDto {
   id: string;
   status: string;

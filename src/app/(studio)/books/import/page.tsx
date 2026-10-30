@@ -1,30 +1,44 @@
+import { ListOrdered } from "lucide-react";
+import Link from "next/link";
+
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
+import { IconButton } from "@/components/layout/icon-button";
 import { PageHeader } from "@/components/layout/page-header";
 import { ImportWizard } from "@/features/books/components/import/import-wizard";
 import { getAppConfig } from "@/shared/config/env";
 
 export const dynamic = "force-dynamic";
 
-export default function ImportBookPage() {
+export default async function ImportBookPage({ searchParams }: Readonly<{ searchParams: Promise<{ auto?: string }> }>) {
+  const config = getAppConfig();
+  const query = await searchParams;
   return (
     <section className="flex flex-col gap-6">
       <Breadcrumbs items={[{ label: "Sách", href: "/books" }, { label: "Nhập sách" }]} />
       <PageHeader
         title="Nhập sách"
         actions={
-          <>
-            <Link href="/books/import/batch" className="text-sm font-medium underline">
-              Nhập nhiều PDF tự động
+          <IconButton label="Các đợt nhập tự động" variant="outline" asChild>
+            <Link href="/book-imports">
+              <ListOrdered aria-hidden />
             </Link>
-            <Link href="/book-imports" className="text-sm underline">
-              Các đợt nhập sách
-            </Link>
-          </>
+          </IconButton>
         }
-        description="Tải lên tệp .md/.txt hoặc dán văn bản, kiểm tra danh sách chương rồi xác nhận; sách PDF được trích xuất trong nền."
+        description="Nhập PDF, TXT hoặc Markdown. PDF hỗ trợ một hoặc nhiều sách trong cùng một lần."
       />
-      <ImportWizard maxPdfBytes={getAppConfig().pdf.maxSizeBytes} />
+      <ImportWizard
+        maxTextBytes={config.import.maxSizeBytes}
+        initialAutomatic={query.auto === "1"}
+        settings={{
+          maxPdfBytes: config.pdf.maxSizeBytes,
+          defaultRange: {
+            minDurationSec: config.video.defaultMinDurationSec,
+            maxDurationSec: config.video.maxDurationSec,
+          },
+          defaultPace: config.video.defaultPace,
+          ceilingSec: config.video.maxDurationSec,
+        }}
+      />
     </section>
   );
 }
-import Link from "next/link";

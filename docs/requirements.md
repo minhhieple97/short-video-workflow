@@ -520,6 +520,10 @@ Drive thật (mạch kể, âm thanh, ffprobe, checksum Drive). Danh sách kiể
   tìm được trong mỗi sách, theo quyết định của chủ dự án. Luồng chọn bài học hiện có vẫn dùng được riêng.
 - Xử lý một sách tại một thời điểm, kể cả giữa nhiều đợt. OCR → phân tích lần lượt từng chương bằng NotebookLM →
   bản thảo NotebookLM → cảnh JSON Claude Code → giọng đọc → Remotion. Không thêm bước duyệt kịch bản.
+- UI nhập sách thống nhất tại `/books/import`: chọn PDF, TXT/Markdown hoặc dán văn bản. PDF nhận 1–15 tệp và có
+  hai lựa chọn **Chỉ nhập sách** (mặc định) / **Tự động làm video**; chỉ chế độ tự động hiện thời lượng và nhịp độ,
+  giống nhau khi chọn một hay nhiều PDF. TXT/Markdown vẫn kiểm tra chương và dùng luồng thủ công. Nút hành động là
+  icon có tooltip và nhãn truy cập; tiến trình, lỗi, tải lại vẫn thể hiện bằng chữ. URL nhập nhiều PDF cũ được chuyển hướng.
 - Có thể chạy hàng giờ và đóng trình duyệt sau khi tải đủ tệp. Lịch chờ, tiến độ, các bản đã tạo được giữ qua restart.
 - Quota là trạng thái chờ, không tiêu lượt retry lỗi tạm thời. Lịch chờ dùng chung theo provider; chỉ một worker, không
   gọi provider cho mỗi video đang chờ. Claude có thể bị giới hạn theo phiên hoặc tuần; dùng giờ reset thực được báo,
