@@ -61,29 +61,33 @@ describe("AutomatedCliProvider (AI_MODE=cli-auto)", () => {
     }
   });
 
-  it.each([undefined, "high"])("shows effort %s in the manual CLI dry run without calling AI", async (effort) => {
-    const { createJobRecord, markJobWaitingForCli } =
-      await import("@/features/jobs/repositories/job-record.repository");
-    const { LocalCliTaskProvider } = await import("@/server/ai/local-cli-task-provider");
-    const record = await createJobRecord({
-      bullmqJobId: nextTask(),
-      jobType: "ANALYZE_CHAPTER",
-      entityType: "CHAPTER",
-      entityId: INPUT.chapterId,
-    });
-    await markJobWaitingForCli(record.id);
-    await new LocalCliTaskProvider().analyzeChapter(INPUT, { taskId: record.id });
-    const log = path.join(env.dataDir, `${record.id}-dry-run.json`);
-    const { stdout } = await execFileAsync(
-      "pnpm",
-      ["exec", "tsx", "scripts/run-claude-task.ts", "--job", record.id, "--dry-run"],
-      { env: { ...process.env, CLAUDE_EFFORT: effort ?? "", FAKE_CLAUDE_LOG: log }, timeout: 30_000 },
-    );
-    expect(stdout).toContain(`Effort yêu cầu: ${effort ?? "Theo mặc định Claude CLI"}`);
-    if (effort) expect(stdout).toContain(`--effort ${effort}`);
-    else expect(stdout).not.toContain("--effort");
-    expect(fs.existsSync(log)).toBe(false);
-  });
+  it.each([undefined, "high"])(
+    "shows effort %s in the manual CLI dry run without calling AI",
+    async (effort) => {
+      const { createJobRecord, markJobWaitingForCli } =
+        await import("@/features/jobs/repositories/job-record.repository");
+      const { LocalCliTaskProvider } = await import("@/server/ai/local-cli-task-provider");
+      const record = await createJobRecord({
+        bullmqJobId: nextTask(),
+        jobType: "ANALYZE_CHAPTER",
+        entityType: "CHAPTER",
+        entityId: INPUT.chapterId,
+      });
+      await markJobWaitingForCli(record.id);
+      await new LocalCliTaskProvider().analyzeChapter(INPUT, { taskId: record.id });
+      const log = path.join(env.dataDir, `${record.id}-dry-run.json`);
+      const { stdout } = await execFileAsync(
+        "pnpm",
+        ["exec", "tsx", "scripts/run-claude-task.ts", "--job", record.id, "--dry-run"],
+        { env: { ...process.env, CLAUDE_EFFORT: effort ?? "", FAKE_CLAUDE_LOG: log }, timeout: 30_000 },
+      );
+      expect(stdout).toContain(`Effort yêu cầu: ${effort ?? "Theo mặc định Claude CLI"}`);
+      if (effort) expect(stdout).toContain(`--effort ${effort}`);
+      else expect(stdout).not.toContain("--effort");
+      expect(fs.existsSync(log)).toBe(false);
+    },
+    40_000,
+  );
 
   it.each(["low", "medium", "high", "xhigh", "max"] as const)(
     "passes configured effort %s to the shared CLI runner",
