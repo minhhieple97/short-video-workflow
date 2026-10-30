@@ -117,7 +117,7 @@ export function BookImportForm({
       ) : null}
       {error ? (
         <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription className="wrap-anywhere">{error}</AlertDescription>
         </Alert>
       ) : null}
       <div className="flex flex-wrap gap-3">

@@ -195,7 +195,7 @@ export function PdfUploadPanel({
           ) : null}
           {error && files.includes(error.file) ? (
             <Alert variant="destructive">
-              <AlertDescription className="wrap-break-word">{error.message}</AlertDescription>
+              <AlertDescription className="wrap-anywhere">{error.message}</AlertDescription>
             </Alert>
           ) : null}
           <div className="flex items-center gap-3">

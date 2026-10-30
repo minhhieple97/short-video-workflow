@@ -50,6 +50,19 @@ test("unified import: one page, PDF modes, validation and accessible icon action
     .locator("#book-file")
     .setInputFiles([pdf("mixed"), { name: "book.txt", mimeType: "text/plain", buffer: Buffer.from("A book") }]);
   await expect(page.getByText(/Chọn nhiều tệp chỉ áp dụng cho PDF/)).toBeVisible();
+  await page.locator("#book-file").setInputFiles({
+    name: `${"a".repeat(240)}.zip`,
+    mimeType: "application/zip",
+    buffer: Buffer.from("unsupported"),
+  });
+  const selectionError = page.getByRole("alert").filter({ hasText: "không được hỗ trợ" });
+  await expect(selectionError).toContainText("không được hỗ trợ");
+  expect(
+    await selectionError.evaluate(
+      (element) =>
+        element.getBoundingClientRect().right <= window.innerWidth && element.scrollWidth <= element.clientWidth,
+    ),
+  ).toBe(true);
   await page.getByRole("tab", { name: "Dán văn bản", exact: true }).click();
   await page.getByLabel("Nội dung sách", { exact: true }).fill("Chapter 1\nSmall habits matter every day.");
   await expect(page.getByRole("button", { name: "Phân tích cấu trúc chương", exact: true })).toBeEnabled();

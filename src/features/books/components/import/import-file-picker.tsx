@@ -97,7 +97,7 @@ export function ImportFilePicker({
       ) : null}
       {error ? (
         <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription className="wrap-anywhere">{error}</AlertDescription>
         </Alert>
       ) : null}
     </div>

@@ -125,7 +125,7 @@ export function ImportSourceForm({
       </Tabs>
       {error ? (
         <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription className="wrap-anywhere">{error}</AlertDescription>
         </Alert>
       ) : null}
       {mode === "text" || (files.length > 0 && !pdf) ? (
