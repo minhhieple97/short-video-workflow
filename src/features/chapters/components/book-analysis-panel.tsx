@@ -11,7 +11,7 @@ import { JobsAutoRefresh } from "@/features/jobs/components/jobs-auto-refresh";
 import { errorMessage, sendJson } from "@/lib/api-client";
 
 import {
-  analyzeAllAction,
+  analyzeAction,
   isAnalysisRunning,
   type BookAnalysisOverview,
   type PendingExtraction,
@@ -39,26 +39,41 @@ function useRunFinishedToast(overview: BookAnalysisOverview) {
 }
 
 // The chapters tab's header: what the AI will do, how far it has got (from the server, so a reload shows the same
-// thing), and a button that is only clickable when a click would actually queue something.
+// thing), and a button that is only clickable when a click would actually queue something: the ticked chapters, or
+// every chapter that needs it when none are ticked.
 export function BookAnalysisPanel({
   bookId,
   aiMode,
   overview,
   extraction,
-}: Readonly<{ bookId: string; aiMode: string; overview: BookAnalysisOverview; extraction: PendingExtraction }>) {
+  selectedIds,
+  onRequested,
+}: Readonly<{
+  bookId: string;
+  aiMode: string;
+  overview: BookAnalysisOverview;
+  extraction: PendingExtraction;
+  selectedIds: readonly string[];
+  onRequested: () => void;
+}>) {
   const router = useRouter();
   const noteId = useId();
   const [submitting, setSubmitting] = useState(false);
   const [refreshing, startRefresh] = useTransition();
   const startedHereRef = useRunFinishedToast(overview);
   const running = isAnalysisRunning(overview);
-  const action = analyzeAllAction(overview, extraction);
+  const action = analyzeAction(overview, extraction, selectedIds.length);
   const busy = action.busy || submitting || refreshing;
 
-  async function analyzeAll(): Promise<void> {
+  async function analyze(): Promise<void> {
     setSubmitting(true);
     try {
-      const { jobs, skipped } = await sendJson<BookAnalysisResponse>(`/api/books/${bookId}/analyze`, "POST");
+      const { jobs, skipped } = await sendJson<BookAnalysisResponse>(
+        `/api/books/${bookId}/analyze`,
+        "POST",
+        selectedIds.length > 0 ? { chapterIds: selectedIds } : undefined,
+      );
+      onRequested();
       if (jobs.length === 0) {
         toast.info("Không còn chương nào cần phân tích.");
       } else {
@@ -86,7 +101,7 @@ export function BookAnalysisPanel({
         </p>
         <div className="flex max-w-sm flex-col items-end gap-1">
           <Button
-            onClick={() => void analyzeAll()}
+            onClick={() => void analyze()}
             disabled={!action.enabled || busy}
             aria-busy={busy}
             aria-describedby={action.note ? noteId : undefined}

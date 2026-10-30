@@ -1,9 +1,12 @@
 import { readDataFile } from "@/features/books/services/book-files";
 import { AppError, NotFoundError } from "@/shared/errors";
+import { loadPage, mapPage, type Page, type PageRequest } from "@/shared/pagination";
 
 import { toChapterAnalysisStatus } from "../domain/analysis-status";
 import {
+  countChaptersByBook,
   findChapterWithBook,
+  listChapterRefs,
   listChaptersByBook,
   updateChapterTitle,
   type ChapterWithLessonSources,
@@ -26,6 +29,19 @@ function toChapterSummary(chapter: ChapterWithLessonSources): ChapterSummary {
 
 export async function listChapters(bookId: string): Promise<ChapterSummary[]> {
   return (await listChaptersByBook(bookId)).map(toChapterSummary);
+}
+
+// Every chapter's id, number and title, for the pickers that offer all of them (filter, create-lesson dialog).
+export function listChapterRefsOfBook(bookId: string): Promise<{ id: string; order: number; title: string }[]> {
+  return listChapterRefs(bookId);
+}
+
+export async function listChaptersPage(bookId: string, request: PageRequest): Promise<Page<ChapterSummary>> {
+  const records = await loadPage(request, {
+    count: () => countChaptersByBook(bookId),
+    fetch: (range) => listChaptersByBook(bookId, range),
+  });
+  return mapPage(records, toChapterSummary);
 }
 
 export async function readChapterContent(chapter: {

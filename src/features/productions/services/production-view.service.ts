@@ -2,6 +2,7 @@ import "server-only";
 
 import { archiveFolderUrl, toArchiveStatus } from "@/features/archive/domain/archive-labels";
 import { NotFoundError } from "@/shared/errors";
+import { loadPage, mapPage, type Page, type PageRequest } from "@/shared/pagination";
 
 import { CORRECTION_LABELS } from "../domain/production-labels";
 import {
@@ -12,7 +13,11 @@ import {
   toItemStatus,
   type ItemStatus,
 } from "../domain/production-status";
-import { findProductionView, listProductionBatches } from "../repositories/production.repository";
+import {
+  countProductionBatches,
+  findProductionView,
+  listProductionBatches,
+} from "../repositories/production.repository";
 import type { ProductionSummaryDto, ProductionViewDto } from "../schemas/production-view.dto";
 
 type ViewRecord = NonNullable<Awaited<ReturnType<typeof findProductionView>>>;
@@ -78,8 +83,8 @@ export async function getProductionView(productionId: string): Promise<Productio
   };
 }
 
-export async function listProductions(): Promise<ProductionSummaryDto[]> {
-  return (await listProductionBatches()).map((batch) => ({
+function toProductionSummary(batch: Awaited<ReturnType<typeof listProductionBatches>>[number]): ProductionSummaryDto {
+  return {
     id: batch.id,
     book: batch.book,
     status: toBatchStatus(batch.status),
@@ -88,5 +93,14 @@ export async function listProductions(): Promise<ProductionSummaryDto[]> {
     itemCount: batch.items.length,
     completedCount: batch.items.filter((item) => item.status === "COMPLETED").length,
     createdAt: batch.createdAt.toISOString(),
-  }));
+  };
+}
+
+export async function listProductions(): Promise<ProductionSummaryDto[]> {
+  return (await listProductionBatches()).map(toProductionSummary);
+}
+
+export async function listProductionsPage(request: PageRequest): Promise<Page<ProductionSummaryDto>> {
+  const records = await loadPage(request, { count: countProductionBatches, fetch: listProductionBatches });
+  return mapPage(records, toProductionSummary);
 }

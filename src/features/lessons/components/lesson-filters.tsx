@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { truncateText } from "@/lib/format";
 
 import { LESSON_STATUS_LABELS, LESSON_STATUSES } from "../domain/lesson-fields";
+import { LESSON_PAGE_PARAM } from "../domain/paging";
 import type { ChapterRef } from "../schemas/lesson.dto";
 
 const ALL = "all";
@@ -24,6 +25,7 @@ function FilterSelect({ label, param, options }: Readonly<FilterSelectProps>) {
   function update(value: string): void {
     const next = new URLSearchParams(searchParams);
     next.set("tab", "lessons");
+    next.delete(LESSON_PAGE_PARAM);
     if (value === ALL) next.delete(param);
     else next.set(param, value);
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });

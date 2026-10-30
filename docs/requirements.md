@@ -111,6 +111,10 @@ xuất** (`ProductionBatch`) gồm các mục (`ProductionItem`): mỗi mục = 
   bao giờ bị đụng tới.
 - Gộp bài: bằng chứng chuyển sang bài đích, bài bị gộp được lưu trữ. NotebookLM tự gộp bài trùng tiêu đề trong cùng một chương.
 - Bài học hiện "Đã dùng trong N video"; dùng lại được, chỉ cảnh báo.
+- Mỗi bài học trong danh sách có **ô chọn** (ô ở tiêu đề chọn cả trang). Thanh phía trên danh sách **Duyệt**, **Từ chối** (lưu trữ,
+  có xác nhận) hoặc **Trả về nháp** đúng các bài đã chọn trong một yêu cầu; số trên nút là số bài thật sự đổi được theo luật chuyển
+  trạng thái (ví dụ bài đã lưu trữ không duyệt thẳng được), nút tắt khi không đổi được bài nào. Bài không đổi được vì trạng thái đã
+  thay đổi sau khi trang hiện ra được đếm và báo, không làm hỏng cả yêu cầu. Chỉ các bài ở trang đang xem mới tính; bỏ chọn sau khi gửi.
 
 ### 4.4. Video, snapshot và duyệt
 
@@ -143,6 +147,10 @@ xuất** (`ProductionBatch`) gồm các mục (`ProductionItem`): mỗi mục = 
 Tìm sách theo tên/tác giả không phân biệt dấu; thẻ sách có số chương/bài học/video, ngày nhập, nhãn trích xuất (PDF). Trang sách:
 tab Chương / Bài học / Video (đổi tab ngay, giữ trong địa chỉ), nút **Sản xuất video** (khoá kèm lý do khi sách chưa có bài học),
 sửa tên/tác giả, xoá có giải thích ảnh hưởng. Tổng quan: tác vụ đang chạy, sách và video gần đây.
+Danh sách có thể dài được **phân trang từ server** (chỉ trang đang xem được đọc và gửi về): sách (12/trang), chương (50), bài học (25),
+video (20), tác vụ và đợt sản xuất (25). Số trang nằm trong địa chỉ nên tải lại hay chia sẻ liên kết vẫn đúng trang; ba tab của
+trang sách có số trang riêng (`chapterPage`, `lessonPage`, `videoPage`), đổi bộ lọc thì về trang 1, trang quá cuối thì hiện trang cuối.
+Chưa phân trang: danh mục chọn bài để sản xuất, các đợt nhập sách, danh sách mục trong một đợt sản xuất.
 
 ### 5.2. Nhập `.md` / `.txt` và chương
 
@@ -173,6 +181,10 @@ sửa tên/tác giả, xoá có giải thích ảnh hưởng. Tổng quan: tác 
 - **Phân tích tất cả chương** chỉ bấm được khi còn chương cần phân tích (nhãn nói còn bao nhiêu, báo trước chương sẽ chạy lại vì
   đổi chế độ AI/prompt); chưa có chương, đang chạy hay đang chờ Claude CLI → khoá kèm lý do. Tiến độ là số chương theo trạng thái
   và chương đang chạy; trang tự cập nhật, rời trang không dừng phân tích.
+- Mỗi dòng chương có **ô chọn**; ô ở tiêu đề chọn hoặc bỏ chọn tất cả chương còn cần phân tích. Khi có chương được chọn, nút đổi
+  thành **Phân tích N chương đã chọn** và chỉ xếp hàng đúng các chương đó (theo thứ tự sách), kể cả khi worker đang chạy lượt trước;
+  không chọn gì thì nút vẫn phân tích mọi chương còn cần. Chương đang trong hàng đợi hoặc đã phân tích đúng nội dung và prompt thì
+  khoá ô chọn kèm lý do (chạy lại bằng **Phân tích lại** ở cuối dòng). Chọn xong và gửi yêu cầu thì bỏ chọn.
 - Trạng thái chương: Chưa phân tích, Đang chờ, Đang phân tích, Chờ chạy Claude CLI, Đã phân tích, **Phân tích chưa hết**, Lỗi.
 - Sách văn bản (và sách PDF khi chưa cấu hình NotebookLM): AI theo `AI_MODE`, 1–3 bài mỗi chương. Sách PDF có NotebookLM: chương
   chia thành phần ≤ 40.000 ký tự ở ranh giới đoạn, mỗi phần một câu hỏi, **không giới hạn** số bài; phần chưa đọc hết làm chương

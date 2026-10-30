@@ -17,7 +17,7 @@ import {
 import { IconButton } from "@/components/layout/icon-button";
 import { ApiError, sendJson } from "@/lib/api-client";
 
-import type { ChapterAnalysisStatus } from "../domain/analysis-status";
+import { isAnalysisInProgress, type ChapterAnalysisStatus } from "../domain/analysis-status";
 import { useAnalysisRunner } from "./use-analysis-runner";
 
 interface AnalyzeChapterButtonProps {
@@ -25,12 +25,10 @@ interface AnalyzeChapterButtonProps {
   status: ChapterAnalysisStatus;
 }
 
-const IN_PROGRESS: readonly ChapterAnalysisStatus[] = ["QUEUED", "ANALYZING", "WAITING_FOR_CLI"];
-
 export function AnalyzeChapterButton({ chapterId, status }: Readonly<AnalyzeChapterButtonProps>) {
   const { running, run } = useAnalysisRunner();
   const [confirming, setConfirming] = useState(false);
-  const busy = running || IN_PROGRESS.includes(status);
+  const busy = running || isAnalysisInProgress(status);
 
   function analyze(force: boolean): void {
     setConfirming(false);

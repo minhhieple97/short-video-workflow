@@ -5,3 +5,8 @@ export const renameChapterSchema = z.object({
 });
 
 export type RenameChapterInput = z.infer<typeof renameChapterSchema>;
+
+// No chapterIds = every chapter that needs it.
+export const bookAnalysisRequestSchema = z.object({
+  chapterIds: z.array(z.string().min(1)).min(1, "Chọn ít nhất một chương để phân tích.").max(1000).optional(),
+});

@@ -43,17 +43,44 @@ export interface AnalysisDraft {
   sources: NewLessonSource[];
 }
 
-export function listLessonRecords(filter: LessonFilter): Promise<LessonListRecord[]> {
+function lessonWhere(filter: LessonFilter) {
+  return {
+    bookId: filter.bookId,
+    status: filter.status,
+    sources: filter.chapterId ? { some: { chapterId: filter.chapterId } } : undefined,
+    videoLessons: filter.usage === "used" ? { some: {} } : filter.usage === "unused" ? { none: {} } : undefined,
+  };
+}
+
+export function listLessonRecords(
+  filter: LessonFilter,
+  range?: { skip: number; take: number },
+): Promise<LessonListRecord[]> {
   return prisma.lesson.findMany({
-    where: {
-      bookId: filter.bookId,
-      status: filter.status,
-      sources: filter.chapterId ? { some: { chapterId: filter.chapterId } } : undefined,
-      videoLessons: filter.usage === "used" ? { some: {} } : filter.usage === "unused" ? { none: {} } : undefined,
-    },
+    where: lessonWhere(filter),
     orderBy: { createdAt: "asc" },
     include: LIST_INCLUDE,
+    ...range,
   });
+}
+
+export function countLessonRecords(filter: LessonFilter): Promise<number> {
+  return prisma.lesson.count({ where: lessonWhere(filter) });
+}
+
+// The status of each of these lessons that belongs to the book (and whose book is not deleted).
+export function findLessonStatuses(
+  bookId: string,
+  ids: readonly string[],
+): Promise<{ id: string; status: LessonStatus }[]> {
+  return prisma.lesson.findMany({
+    where: { bookId, id: { in: [...ids] }, book: { deletedAt: null } },
+    select: { id: true, status: true },
+  });
+}
+
+export async function setLessonStatuses(ids: readonly string[], status: LessonStatus): Promise<void> {
+  await prisma.lesson.updateMany({ where: { id: { in: [...ids] } }, data: { status } });
 }
 
 export function findLessonDetail(id: string) {

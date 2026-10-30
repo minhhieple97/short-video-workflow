@@ -109,7 +109,8 @@ src/
     extraction/        v1.2 PDF books: streamed upload (`pdf-import.service.ts`), `EXTRACT_PDF` run (`extraction-run.service.ts`:
                        text layer → OCR batches → canonical Markdown → chapters), retry/reconcile, OCR budget and results,
                        PDF upload tab + extraction progress card (`components/`)
-    chapters/          chapter listing/reading/rename, analysis runner (worker) + analysis requests (web, server-only);
+    chapters/          chapter listing/reading/rename, analysis runner (worker) + analysis requests (web, server-only; the chapters tab ticks
+                       chapters through `useChapterSelection`, shared by the analyse button and the table);
                        PDF chapters are catalogued by NotebookLM part by part when it is set up (`notebook-chapter-analysis`)
     lessons/           lesson domain (fields, excerpt verification), repository, review service, library/review UI
     videos/            short-form domain (scene types, layouts, duration budget, pace, story angles, snapshots), script generation/editing, editor UI;
@@ -127,7 +128,8 @@ src/
                        readiness, cancel/retry, start-up reconcile, and the progress pages (`/productions`, `production-view`)
     book-imports/      multi-PDF batches (1–15 books), staged uploads, serial book/chapter scheduling and all-lesson production;
                        worker book-import sweeper orchestrates existing jobs; progress at /book-imports
-  lib/                 client-safe helpers: utils.ts (shadcn `cn()`), api-client.ts (typed fetch + ApiError), format.ts (vi-VN)
+  lib/                 client-safe helpers: utils.ts (shadcn `cn()`), api-client.ts (typed fetch + ApiError), format.ts (vi-VN),
+                       use-row-selection.ts (ticked table rows: only rows on the shown page count; bulk buttons and the chapters button use it)
   server/              Server-side infrastructure (never imported by client components or Remotion)
     db/                client.ts: Prisma + better-sqlite3 singleton, WAL setup (shared by Next, worker, scripts)
     queue/             constants, redis-connection.ts (shared: connection factories, probe, redaction), queue.ts (Next-only producer),
@@ -159,7 +161,8 @@ src/
   remotion/            Pure React video code: index.ts (registerRoot), root.tsx (ShortVideo + calculateMetadata), compositions/,
                        scenes/ (5 layouts), components/ (frame, captions, badge, motion), theme/ (tokens, bundled font),
                        illustration/ (flat SVG cartoon: 7 settings, a character with 8 actions, one look per video; frame-driven only)
-  shared/              Truly shared: config/env.ts (Zod-validated env), logger.ts, errors.ts, types/ (create schemas/ on first need)
+  shared/              Truly shared: config/env.ts (Zod-validated env), logger.ts, errors.ts, pagination.ts (`loadPage`/`slicePage`/`Page<T>`
+                       for server-side paging; the pager UI is `components/layout/pagination.tsx`), types/ (create schemas/ on first need)
   generated/           Prisma client output (gitignored)
 prisma/                schema.prisma, migrations/ (committed), seed.ts
 scripts/               CLI entrypoints: run-claude-task.ts, diagnose.ts, worker-status.ts (`pnpm worker:status` and the guard in front of
@@ -363,6 +366,13 @@ unverified. The hook limit is 4 s / 120 frames for every flow. Each video carrie
 - **Light, dark and system themes:** `next-themes` toggles the `dark` class on `<html>` (`ThemeProvider`, `ThemeToggle` in the sidebar, stored in
   `localStorage["studio-theme"]`, default = system). Every color must come from a token that `.dark` redefines; check new UI in both themes.
   Poster/progress colors that stand for the rendered video are intentionally fixed hexes. Shadows are `--elevation-*` variables so `.dark` can override them.
+- **Lists that can grow are paged on the server**, never cut in the browser: the service takes a `PageRequest` (`toPageRequest(searchParams.x, SIZE)`)
+  and returns a `Page<T>` through `loadPage` (count, then `skip/take`; a page past the end serves the last one), the page renders
+  `<Pagination page param>`, and the address carries the page (`?page=`, or one param per list when several share a page such as the book's tabs:
+  `chapterPage`/`lessonPage`/`videoPage`, kept in a plain `domain/paging.ts`, not in a `"use client"` file). Reset the page when a filter changes.
+  Keep the unpaged `listX` for callers that need every row (dashboard counts, pickers, the JSON API).
+- **Bulk actions on a table** tick rows with `useRowSelection(idsOnThePage)`; the count on a bulk button is what a click changes (use the domain
+  rule the server enforces, e.g. `canMoveLesson`), the button is off at 0, and a destructive bulk action asks first.
 - **Text that comes from a book or an AI is unbounded** (a PDF chapter title can be a whole paragraph). Never render it raw: clamp list
   and table cells with `line-clamp-2 wrap-break-word` and put the full text in `title`; give tables that hold such text
   `table-fixed` with fixed widths on the other columns; keep one-line status text on `truncate` inside a `min-w-0` row with the label

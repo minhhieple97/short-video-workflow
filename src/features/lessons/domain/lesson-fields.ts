@@ -29,6 +29,17 @@ export const LESSON_STATUS_LABELS: Record<LessonStatus, string> = {
   ARCHIVED: "Đã lưu trữ",
 };
 
+// Where a lesson may go from each status; the server enforces it and the bulk buttons count with it.
+const LESSON_TRANSITIONS: Record<LessonStatus, readonly LessonStatus[]> = {
+  DRAFT: ["APPROVED", "ARCHIVED"],
+  APPROVED: ["ARCHIVED", "DRAFT"],
+  ARCHIVED: ["DRAFT"],
+};
+
+export function canMoveLesson(from: LessonStatus, to: LessonStatus): boolean {
+  return LESSON_TRANSITIONS[from].includes(to);
+}
+
 export const LESSON_ORIGIN_LABELS: Record<"AI" | "MANUAL", string> = {
   AI: "AI đề xuất",
   MANUAL: "Tạo thủ công",

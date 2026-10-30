@@ -87,22 +87,55 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
   });
   const bookUrl = page.url();
 
-  await test.step("analyse every chapter with the mock AI", async () => {
-    await page.getByRole("button", { name: "Phân tích tất cả chương" }).click();
+  await test.step("analyse a ticked chapter first, then the rest, with the mock AI", async () => {
+    await page.waitForLoadState("networkidle");
+    const second = page.getByRole("checkbox", { name: "Chọn chương 2 để phân tích" });
+    await second.click();
+    await expect(second).toBeChecked();
+    await page.getByRole("button", { name: "Phân tích 1 chương đã chọn" }).click();
+    await expect(page.locator("tbody tr").filter({ hasText: "Đã phân tích" })).toHaveCount(1, { timeout: 90_000 });
+    // An analysed chapter is not offered again, and the ticks are gone.
+    await expect(second).toBeDisabled();
+    await expect(second).not.toBeChecked();
+    await page.getByRole("button", { name: "Phân tích 2 chương còn lại" }).click();
     await expect(page.locator("tbody tr").filter({ hasText: "Đã phân tích" })).toHaveCount(3, { timeout: 90_000 });
   });
 
-  const lessonHrefs = await test.step("approve three lessons", async () => {
-    await open(page, `${bookUrl}?tab=lessons`);
-    const hrefs = await page
-      .locator("tbody a")
-      .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
-    for (const href of [hrefs[0], hrefs[2], hrefs[4]]) {
-      await open(page, href ?? "");
+  const lessonHrefs =
+    await test.step("approve three lessons: one on its page, two together from the list", async () => {
+      await open(page, `${bookUrl}?tab=lessons`);
+      const hrefs = await page
+        .locator("tbody a")
+        .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
+      await open(page, hrefs[0] ?? "");
       await page.getByRole("button", { name: "Duyệt", exact: true }).click();
       await expect(page.getByText("Đã duyệt bài học.")).toBeVisible();
-    }
-    return hrefs;
+
+      await open(page, `${bookUrl}?tab=lessons`);
+      const rows = page.locator("tbody tr");
+      await rows.nth(2).getByRole("checkbox").click();
+      await rows.nth(4).getByRole("checkbox").click();
+      await expect(page.getByText("Đã chọn 2 bài học")).toBeVisible();
+      await page.getByRole("button", { name: "Duyệt 2 bài" }).click();
+      await expect(page.getByText("Đã duyệt 2 bài học.")).toBeVisible();
+      await expect(rows.filter({ hasText: "Đã duyệt" })).toHaveCount(3);
+      await expect(page.getByText("Chọn bài học để duyệt hoặc từ chối nhiều bài cùng lúc.")).toBeVisible();
+      return hrefs;
+    });
+
+  await test.step("reject a lesson from the list after a confirmation, then bring it back to draft", async () => {
+    await open(page, `${bookUrl}?tab=lessons`);
+    const sixth = page.locator("tbody tr").nth(5);
+    await sixth.getByRole("checkbox").click();
+    await page.getByRole("button", { name: "Từ chối 1 bài" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Từ chối", exact: true }).click();
+    await expect(page.getByText("Đã từ chối 1 bài học.")).toBeVisible();
+    await expect(sixth).toContainText("Đã lưu trữ");
+
+    await sixth.getByRole("checkbox").click();
+    await page.getByRole("button", { name: "Trả về nháp 1 bài" }).click();
+    await expect(page.getByText("Đã chuyển 1 bài học về bản nháp.")).toBeVisible();
+    await expect(sixth).toContainText("Bản nháp");
   });
 
   const videoA = await test.step("create video A (one lesson, up to 60 s, fastest pace) and pick a hook", async () => {

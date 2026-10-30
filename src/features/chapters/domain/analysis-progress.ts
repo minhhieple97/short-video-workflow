@@ -15,6 +15,8 @@ export interface AnalysisProgress {
 export interface BookAnalysisOverview extends AnalysisProgress {
   // Chapters a click would queue: not up to date and not already queued or running.
   needsAnalysis: number;
+  // The same chapters by id, in book order: the ones the table lets the user tick.
+  needsAnalysisIds: readonly string[];
   // Shown as analysed but made with another AI mode or prompt version, so a click analyses them again.
   outdated: number;
   // The chapter the worker is on, for the progress line.
@@ -51,7 +53,7 @@ export function isAnalysisRunning(progress: AnalysisProgress): boolean {
   return progress.queued + progress.analyzing > 0;
 }
 
-export interface AnalyzeAllAction {
+export interface AnalyzeAction {
   enabled: boolean;
   busy: boolean;
   label: string;
@@ -68,9 +70,17 @@ const NO_CHAPTERS_NOTE: Record<"running" | "stopped" | "none", string> = {
   none: "Sách chưa có chương để phân tích. Với PDF, hãy hoàn tất trích xuất và tạo chương trước.",
 };
 
-// Decides what the "analyse every chapter" button says and whether it can be pressed, so it is never clickable when a
-// click would do nothing and never looks idle while the worker is still on the book.
-export function analyzeAllAction(overview: BookAnalysisOverview, extraction: PendingExtraction): AnalyzeAllAction {
+// Decides what the analyse button says and whether it can be pressed, so it is never clickable when a click would do
+// nothing and never looks idle while the worker is still on the book. Ticked chapters (always ones that need analysis)
+// replace "every chapter", and may be queued while the worker is busy with an earlier run.
+export function analyzeAction(
+  overview: BookAnalysisOverview,
+  extraction: PendingExtraction,
+  selectedCount = 0,
+): AnalyzeAction {
+  if (selectedCount > 0) {
+    return { enabled: true, busy: false, label: `Phân tích ${selectedCount} chương đã chọn`, note: null };
+  }
   if (overview.total === 0) {
     return {
       enabled: false,

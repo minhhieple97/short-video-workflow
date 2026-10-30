@@ -50,4 +50,13 @@ describe("active jobs on the dashboard", () => {
     expect(all).toHaveLength(JOB_STATUSES.length);
     expect(all.filter((job) => job.canRetry).map((job) => job.status)).toEqual(["CANCELLED", "FAILED"]);
   });
+
+  it("pages the full list newest first and counts every job, not just the page", async () => {
+    const first = await dashboard.listJobsPage({ page: 1, pageSize: 3 });
+    const last = await dashboard.listJobsPage({ page: 3, pageSize: 3 });
+
+    expect(first).toMatchObject({ total: JOB_STATUSES.length, pageCount: 3, page: 1 });
+    expect(first.items.map((job) => job.status)).toEqual([...JOB_STATUSES].reverse().slice(0, 3));
+    expect(last.items.map((job) => job.status)).toEqual([JOB_STATUSES[0]]);
+  });
 });

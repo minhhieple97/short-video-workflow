@@ -1,13 +1,17 @@
 import { countChaptersInBook } from "@/features/chapters/repositories/chapter.repository";
 import { AppError, NotFoundError } from "@/shared/errors";
+import { loadPage, mapPage, type Page, type PageRequest } from "@/shared/pagination";
 
-import { pickLessonText, type LessonStatus } from "../domain/lesson-fields";
+import { canMoveLesson, pickLessonText, type LessonStatus } from "../domain/lesson-fields";
 import {
+  countLessonRecords,
   createLessonRecord,
   findLessonDetail,
+  findLessonStatuses,
   listLessonRecords,
   mergeLessonInto,
   setLessonStatus,
+  setLessonStatuses,
   updateLessonText,
   type LessonDetailRecord,
   type LessonListRecord,
@@ -65,6 +69,18 @@ export async function listLessons(bookId: string, filter: LessonFilterInput = {}
   return (await listLessonRecords({ bookId, ...filter })).map(toLessonSummary);
 }
 
+export async function listLessonsPage(
+  bookId: string,
+  filter: LessonFilterInput,
+  request: PageRequest,
+): Promise<Page<LessonSummary>> {
+  const records = await loadPage(request, {
+    count: () => countLessonRecords({ bookId, ...filter }),
+    fetch: (range) => listLessonRecords({ bookId, ...filter }, range),
+  });
+  return mapPage(records, toLessonSummary);
+}
+
 export async function getLesson(id: string): Promise<LessonDetail> {
   return toLessonDetail(await requireLesson(id));
 }
@@ -76,20 +92,45 @@ export async function updateLesson(id: string, input: LessonTextInput): Promise<
   return getLesson(id);
 }
 
-const ALLOWED_TRANSITIONS: Record<LessonStatus, readonly LessonStatus[]> = {
-  DRAFT: ["APPROVED", "ARCHIVED"],
-  APPROVED: ["ARCHIVED", "DRAFT"],
-  ARCHIVED: ["DRAFT"],
-};
-
 export async function changeLessonStatus(id: string, status: LessonStatus): Promise<LessonDetail> {
   const lesson = await requireLesson(id);
   if (lesson.status === status) return toLessonDetail(lesson);
-  if (!ALLOWED_TRANSITIONS[lesson.status].includes(status)) {
+  if (!canMoveLesson(lesson.status, status)) {
     throw new AppError("INVALID_LESSON_TRANSITION", "Không thể chuyển trạng thái bài học theo cách này.", 409);
   }
   await setLessonStatus(id, status);
   return getLesson(id);
+}
+
+export interface BulkStatusResult {
+  changed: number;
+  // Already in the requested status.
+  unchanged: number;
+  // The status cannot be reached from where the lesson is (it changed since the page was drawn).
+  blocked: number;
+}
+
+// Moves several lessons of one book to a status at once, by the same rules as one lesson; the ones that cannot move
+// are counted, not failed, so a stale page still applies to everything it can.
+export async function changeLessonStatuses(
+  bookId: string,
+  lessonIds: readonly string[],
+  status: LessonStatus,
+): Promise<BulkStatusResult> {
+  const ids = [...new Set(lessonIds)];
+  const lessons = await findLessonStatuses(bookId, ids);
+  if (lessons.length !== ids.length) {
+    throw new NotFoundError("LESSON_NOT_FOUND", "Có bài học được chọn không thuộc sách này.");
+  }
+  const unchanged = lessons.filter((lesson) => lesson.status === status).length;
+  const movable = lessons.filter((lesson) => canMoveLesson(lesson.status, status));
+  if (movable.length > 0) {
+    await setLessonStatuses(
+      movable.map((lesson) => lesson.id),
+      status,
+    );
+  }
+  return { changed: movable.length, unchanged, blocked: lessons.length - unchanged - movable.length };
 }
 
 export async function createManualLesson(bookId: string, input: CreateManualLessonInput): Promise<LessonDetail> {

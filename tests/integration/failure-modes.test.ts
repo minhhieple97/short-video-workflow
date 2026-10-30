@@ -139,6 +139,44 @@ describe("book analysis prerequisites", () => {
     await expect(analysisRequest.requestBookAnalysis(completedBook.id)).resolves.toEqual({ jobs: [], skipped: 1 });
     expect(await db.prisma.jobRecord.count()).toBe(jobsBefore);
   });
+
+  it("queues only the chosen chapters, and refuses a chapter that belongs to another book", async () => {
+    const importedBook = await db.prisma.book.findUniqueOrThrow({ where: { id: bookId } });
+    const pickedBook = await db.prisma.book.create({
+      data: { ...importedBook, id: undefined, title: "Sách chọn chương" },
+    });
+    const source = await db.prisma.chapter.findUniqueOrThrow({ where: { id: chapterIds[0] } });
+    const addChapter = (order: number, content: string) =>
+      db.prisma.chapter.create({
+        data: {
+          ...source,
+          id: undefined,
+          bookId: pickedBook.id,
+          order,
+          content,
+          contentHash: createHash("sha256").update(content).digest("hex"),
+          contentPath: null,
+        },
+      });
+    const analysed = await addChapter(1, "Chương đã phân tích.");
+    const untouched = await addChapter(2, "Chương không được chọn.");
+    await analysis.runChapterAnalysis({ chapterId: analysed.id, jobRecordId: null, force: false });
+    const jobsBefore = await db.prisma.jobRecord.count();
+
+    // Asking for everything would try to queue the second chapter, which fails here because Redis is down.
+    await expect(analysisRequest.requestBookAnalysis(pickedBook.id, [analysed.id])).resolves.toEqual({
+      jobs: [],
+      skipped: 1,
+    });
+    await expect(analysisRequest.requestBookAnalysis(pickedBook.id, [chapterIds[0]!])).rejects.toMatchObject({
+      code: "CHAPTER_NOT_FOUND",
+      httpStatus: 404,
+    });
+    expect(await db.prisma.jobRecord.count()).toBe(jobsBefore);
+    expect((await db.prisma.chapter.findUniqueOrThrow({ where: { id: untouched.id } })).analysisStatus).toBe(
+      "NOT_ANALYZED",
+    );
+  });
 });
 
 describe("Redis unavailable", () => {

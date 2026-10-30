@@ -65,17 +65,31 @@ export async function requestChapterAnalysis(chapterId: string, force: boolean):
   return (await enqueueAnalysis(chapter, force)).job;
 }
 
-// Queues every chapter that still needs analysis; the single worker processes them one by one.
-export async function requestBookAnalysis(bookId: string): Promise<{ jobs: JobDto[]; skipped: number }> {
+function pickChapters<T extends { id: string }>(chapters: readonly T[], chapterIds: readonly string[]): T[] {
+  const wanted = new Set(chapterIds);
+  const picked = chapters.filter((chapter) => wanted.has(chapter.id));
+  if (picked.length !== wanted.size) {
+    throw new NotFoundError("CHAPTER_NOT_FOUND", "Có chương được chọn không thuộc sách này.");
+  }
+  return picked;
+}
+
+// Queues the chosen chapters (every chapter when none are named) that still need analysis, in book order; the single
+// worker processes them one by one.
+export async function requestBookAnalysis(
+  bookId: string,
+  chapterIds?: readonly string[],
+): Promise<{ jobs: JobDto[]; skipped: number }> {
   const book = await getBook(bookId);
-  const chapters = await listChaptersByBook(bookId);
-  if (chapters.length === 0) {
+  const bookChapters = await listChaptersByBook(bookId);
+  if (bookChapters.length === 0) {
     throw new AppError(
       "BOOK_HAS_NO_CHAPTERS",
       "Sách chưa có chương để phân tích. Với PDF, hãy hoàn tất trích xuất và tạo chương trước.",
       409,
     );
   }
+  const chapters = chapterIds ? pickChapters(bookChapters, chapterIds) : bookChapters;
   const jobs: JobDto[] = [];
   let skipped = 0;
 

@@ -40,8 +40,12 @@ export function findJobRecordById(id: string): Promise<JobRecord | null> {
   return prisma.jobRecord.findUnique({ where: { id } });
 }
 
-export function listJobRecords(limit: number): Promise<JobRecord[]> {
-  return prisma.jobRecord.findMany({ orderBy: { createdAt: "desc" }, take: limit });
+export function listJobRecords(range: { skip: number; take: number }): Promise<JobRecord[]> {
+  return prisma.jobRecord.findMany({ orderBy: { createdAt: "desc" }, ...range });
+}
+
+export function countJobRecords(): Promise<number> {
+  return prisma.jobRecord.count();
 }
 
 export function listActiveJobRecords(): Promise<JobRecord[]> {

@@ -58,6 +58,7 @@ describe("getBookAnalysisOverview", () => {
       outdated: 0,
       currentChapter: null,
     });
+    expect(result.needsAnalysisIds).toEqual(chapterIds);
   });
 
   it("leaves out a chapter analysed for the current input and one the worker is on, and names the latter", async () => {
@@ -74,6 +75,7 @@ describe("getBookAnalysisOverview", () => {
       outdated: 0,
     });
     expect(result.currentChapter).toContain(running.title);
+    expect(result.needsAnalysisIds).toEqual(chapterIds.slice(2));
   });
 
   it("counts a chapter analysed with an older prompt as both analysed and due again, as a click would treat it", async () => {
@@ -86,5 +88,6 @@ describe("getBookAnalysisOverview", () => {
     const result = await overview.getBookAnalysisOverview(bookId, TITLE);
 
     expect(result).toMatchObject({ analyzed: 1, outdated: 1, needsAnalysis: chapterIds.length, currentChapter: null });
+    expect(result.needsAnalysisIds).toEqual(chapterIds);
   });
 });

@@ -1,8 +1,9 @@
 import type { JobRecord } from "@/generated/prisma/client";
+import { loadPage, type Page, type PageRequest } from "@/shared/pagination";
 import { aiRunCommand, isJobType, type JobListItem } from "@/shared/types/job";
 
 import { findJobEntities } from "../repositories/job-entity.repository";
-import { listActiveJobRecords, listJobRecords } from "../repositories/job-record.repository";
+import { countJobRecords, listActiveJobRecords, listJobRecords } from "../repositories/job-record.repository";
 import { toJobDto } from "./job-dto";
 
 interface EntityRef {
@@ -69,7 +70,12 @@ async function resolveEntities(records: readonly JobRecord[]): Promise<Map<strin
 }
 
 export async function listJobsForDashboard(limit = 100): Promise<JobListItem[]> {
-  return toJobListItems(await listJobRecords(limit));
+  return toJobListItems(await listJobRecords({ skip: 0, take: limit }));
+}
+
+export async function listJobsPage(request: PageRequest): Promise<Page<JobListItem>> {
+  const records = await loadPage(request, { count: countJobRecords, fetch: listJobRecords });
+  return { ...records, items: await toJobListItems(records.items) };
 }
 
 export async function listActiveJobs(): Promise<JobListItem[]> {

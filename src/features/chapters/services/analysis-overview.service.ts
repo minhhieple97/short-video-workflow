@@ -13,18 +13,19 @@ export async function getBookAnalysisOverview(bookId: string, bookTitle: string)
   const chapters = await listChaptersByBook(bookId);
   const progress = countAnalysisProgress(chapters.map((chapter) => toChapterAnalysisStatus(chapter.analysisStatus)));
 
-  let needsAnalysis = 0;
+  const needsAnalysisIds: string[] = [];
   let outdated = 0;
   for (const chapter of chapters) {
     if (PENDING.has(chapter.analysisStatus)) continue;
     if (await isUpToDate(chapter, bookTitle)) continue;
-    needsAnalysis += 1;
+    needsAnalysisIds.push(chapter.id);
     if (chapter.analysisStatus === "ANALYZED") outdated += 1;
   }
   const current = chapters.find((chapter) => chapter.analysisStatus === "ANALYZING");
   return {
     ...progress,
-    needsAnalysis,
+    needsAnalysis: needsAnalysisIds.length,
+    needsAnalysisIds,
     outdated,
     currentChapter: current ? chapterLabel(current.order, current.title) : null,
   };

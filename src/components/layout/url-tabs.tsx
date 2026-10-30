@@ -13,7 +13,8 @@ export interface UrlTab {
 
 // Tabs whose active value lives in ?tab= so refreshes and shared links keep the same tab. Every panel is already on the
 // page, so a click switches at once and only rewrites the address (Next keeps its router in step with replaceState);
-// waiting for the server to render the page again made the tabs look frozen.
+// waiting for the server to render the page again made the tabs look frozen. The rest of the address (each tab's page
+// number and filters) stays, so a reload shows what was on screen.
 export function UrlTabs({ tabs, active }: Readonly<{ tabs: readonly UrlTab[]; active: string }>) {
   const pathname = usePathname();
   const [selected, setSelected] = useState(active);
@@ -30,7 +31,9 @@ export function UrlTabs({ tabs, active }: Readonly<{ tabs: readonly UrlTab[]; ac
 
   function select(tab: string): void {
     setSelected(tab);
-    window.history.replaceState(null, "", `${pathname}?tab=${tab}`);
+    const next = new URLSearchParams(window.location.search);
+    next.set("tab", tab);
+    window.history.replaceState(null, "", `${pathname}?${next.toString()}`);
   }
 
   return (

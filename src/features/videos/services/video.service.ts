@@ -3,6 +3,7 @@ import { findActiveJobForEntities, findActiveJobForEntity } from "@/features/job
 import { toJobDto } from "@/features/jobs/services/job-dto";
 import { getAppConfig } from "@/shared/config/env";
 import { AppError, NotFoundError } from "@/shared/errors";
+import { loadPage, mapPage, type Page, type PageRequest } from "@/shared/pagination";
 import type { JobDto } from "@/shared/types/job";
 
 import {
@@ -16,6 +17,7 @@ import {
 import { syllablesPerSecond, toPace } from "../domain/pace";
 import { toVideoStatus } from "../domain/video-status";
 import {
+  countVideoRecords,
   createVideoRecord,
   deleteVideoRecord,
   findApprovedLessonsForVideo,
@@ -62,8 +64,8 @@ export async function getVideo(id: string): Promise<VideoDetail> {
   return toVideoDetail(await requireVideo(id));
 }
 
-export async function listVideos(filter: { bookId?: string } = {}): Promise<VideoSummary[]> {
-  return (await listVideoRecords(filter)).map((video) => ({
+function toVideoSummary(video: Awaited<ReturnType<typeof listVideoRecords>>[number]): VideoSummary {
+  return {
     id: video.id,
     title: video.title,
     status: toVideoStatus(video.status),
@@ -76,7 +78,19 @@ export async function listVideos(filter: { bookId?: string } = {}): Promise<Vide
     sceneCount: video._count.scenes,
     hookText: video.scenes[0]?.onScreenText ?? null,
     updatedAt: video.updatedAt.toISOString(),
-  }));
+  };
+}
+
+export async function listVideos(filter: { bookId?: string } = {}): Promise<VideoSummary[]> {
+  return (await listVideoRecords(filter)).map(toVideoSummary);
+}
+
+export async function listVideosPage(filter: { bookId?: string }, request: PageRequest): Promise<Page<VideoSummary>> {
+  const records = await loadPage(request, {
+    count: () => countVideoRecords(filter),
+    fetch: (range) => listVideoRecords(filter, range),
+  });
+  return mapPage(records, toVideoSummary);
 }
 
 export async function createVideo(input: CreateVideoInput): Promise<{ video: VideoDetail; warnings: string[] }> {

@@ -100,6 +100,12 @@ describe("creating videos from lessons", () => {
     expect(b.video).toMatchObject({ maxDurationSec: 90, targetDurationSec: 90, durationReason: null });
     expect(b.video.lessons.map((lesson) => lesson.position)).toEqual([1, 2]);
     expect(await videos.listVideos({ bookId })).toHaveLength(2);
+    const firstPage = await videos.listVideosPage({ bookId }, { page: 1, pageSize: 1 });
+    const secondPage = await videos.listVideosPage({ bookId }, { page: 2, pageSize: 1 });
+    expect(firstPage).toMatchObject({ total: 2, pageCount: 2, page: 1 });
+    expect([...firstPage.items, ...secondPage.items].map((video) => video.id).sort()).toEqual(
+      (await videos.listVideos({ bookId })).map((video) => video.id).sort(),
+    );
     expect((await lessons.getLesson(approved[0]!)).videos.map((video) => video.id)).toEqual([a.video.id]);
   });
 

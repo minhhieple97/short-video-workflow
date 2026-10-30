@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { LESSON_STATUSES } from "../domain/lesson-fields";
+
 const text = (label: string, max: number) =>
   z.string().trim().min(1, `${label} không được để trống.`).max(max, `${label} tối đa ${max} ký tự.`);
 
@@ -31,6 +33,11 @@ export const lessonFilterSchema = z.object({
   chapterId: z.string().min(1).optional(),
   status: z.enum(["DRAFT", "APPROVED", "ARCHIVED"]).optional(),
   usage: z.enum(["used", "unused"]).optional(),
+});
+
+export const bulkLessonStatusSchema = z.object({
+  lessonIds: z.array(z.string().min(1)).min(1, "Chọn ít nhất một bài học.").max(200),
+  status: z.enum(LESSON_STATUSES),
 });
 
 export const analyzeChapterRequestSchema = z.object({

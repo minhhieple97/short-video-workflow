@@ -1,5 +1,6 @@
 import { toExtractionStatus } from "@/features/extraction/domain/extraction-status";
 import { AppError, NotFoundError } from "@/shared/errors";
+import { slicePage, type Page, type PageRequest } from "@/shared/pagination";
 import { foldForSearch } from "@/shared/search";
 
 import {
@@ -37,6 +38,11 @@ export async function listBooks(query?: string): Promise<BookSummary[]> {
   const needle = query ? foldForSearch(query) : "";
   if (!needle) return books;
   return books.filter((book) => foldForSearch(`${book.title} ${book.author ?? ""}`).includes(needle));
+}
+
+// The search folds diacritics in memory, so the filtered list is cut into pages here rather than in the query.
+export async function listBooksPage(query: string | undefined, request: PageRequest): Promise<Page<BookSummary>> {
+  return slicePage(await listBooks(query), request);
 }
 
 async function requireBook(id: string): Promise<BookWithCounts> {

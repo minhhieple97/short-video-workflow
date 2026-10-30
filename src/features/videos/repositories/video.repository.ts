@@ -51,7 +51,7 @@ export async function listSceneIds(videoId: string): Promise<string[]> {
   return scenes.map((scene) => scene.id);
 }
 
-export function listVideoRecords(filter: { bookId?: string }) {
+export function listVideoRecords(filter: { bookId?: string }, range?: { skip: number; take: number }) {
   return prisma.video.findMany({
     where: { bookId: filter.bookId, book: { deletedAt: null } },
     orderBy: { updatedAt: "desc" },
@@ -60,7 +60,12 @@ export function listVideoRecords(filter: { bookId?: string }) {
       _count: { select: { scenes: true, videoLessons: true } },
       scenes: { where: { type: "HOOK", hidden: false }, select: { onScreenText: true }, take: 1 },
     },
+    ...range,
   });
+}
+
+export function countVideoRecords(filter: { bookId?: string }): Promise<number> {
+  return prisma.video.count({ where: { bookId: filter.bookId, book: { deletedAt: null } } });
 }
 
 export function createVideoRecord(input: {

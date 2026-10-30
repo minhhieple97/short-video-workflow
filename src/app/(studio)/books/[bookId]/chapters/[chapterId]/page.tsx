@@ -7,10 +7,12 @@ import { AnalyzeChapterButton } from "@/features/chapters/components/analyze-cha
 import { ChapterStatusBadge } from "@/features/chapters/components/chapter-status-badge";
 import { RenameChapterForm } from "@/features/chapters/components/rename-chapter-form";
 import { getChapter } from "@/features/chapters/services/chapter.service";
-import { LessonTable } from "@/features/lessons/components/lesson-table";
-import { listLessons } from "@/features/lessons/services/lesson.service";
+import { LessonList } from "@/features/lessons/components/lesson-list";
+import { LESSON_PAGE_PARAM, LESSON_PAGE_SIZE } from "@/features/lessons/domain/paging";
+import { listLessonsPage } from "@/features/lessons/services/lesson.service";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { orNotFound } from "@/server/http/page-helpers";
+import { toPageRequest } from "@/shared/pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -18,11 +20,19 @@ const LONG_TITLE_CHARS = 120;
 
 export default async function ChapterPage({
   params,
-}: Readonly<{ params: Promise<{ bookId: string; chapterId: string }> }>) {
-  const { bookId, chapterId } = await params;
+  searchParams,
+}: Readonly<{
+  params: Promise<{ bookId: string; chapterId: string }>;
+  searchParams: Promise<{ [LESSON_PAGE_PARAM]?: string }>;
+}>) {
+  const [{ bookId, chapterId }, query] = await Promise.all([params, searchParams]);
   const chapter = await orNotFound(getChapter(chapterId));
   if (chapter.book.id !== bookId) notFound();
-  const lessons = await listLessons(bookId, { chapterId });
+  const lessons = await listLessonsPage(
+    bookId,
+    { chapterId },
+    toPageRequest(query[LESSON_PAGE_PARAM], LESSON_PAGE_SIZE),
+  );
 
   return (
     <section className="flex flex-col gap-6">
@@ -59,7 +69,11 @@ export default async function ChapterPage({
 
       <div className="flex flex-col gap-3">
         <h2 className="font-medium">Bài học rút ra từ chương</h2>
-        <LessonTable lessons={lessons} emptyHint="Bấm “Phân tích” để AI đề xuất bài học từ chương này." />
+        <LessonList
+          bookId={bookId}
+          lessons={lessons}
+          emptyHint="Bấm “Phân tích” để AI đề xuất bài học từ chương này."
+        />
       </div>
 
       <Card>

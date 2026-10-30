@@ -136,4 +136,12 @@ describe("listProductions", () => {
 
     expect(latest).toMatchObject({ id: batchId, itemCount: 1, completedCount: 1, book: { title: "Sách" } });
   });
+
+  it("pages the list and counts every production", async () => {
+    const page = await view.listProductionsPage({ page: 1, pageSize: 1 });
+
+    expect(page).toMatchObject({ total: 1, page: 1, pageCount: 1 });
+    expect(page.items[0]).toMatchObject({ id: batchId });
+    expect((await view.listProductionsPage({ page: 4, pageSize: 1 })).items).toHaveLength(1);
+  });
 });

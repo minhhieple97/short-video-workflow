@@ -4,16 +4,23 @@ import Link from "next/link";
 import { EmptyState } from "@/components/layout/empty-state";
 import { IconButton } from "@/components/layout/icon-button";
 import { PageHeader } from "@/components/layout/page-header";
+import { Pagination } from "@/components/layout/pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BookCard } from "@/features/books/components/book-card";
-import { listBooks } from "@/features/books/services/book.service";
+import { listBooksPage } from "@/features/books/services/book.service";
+import { toPageRequest } from "@/shared/pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function BooksPage({ searchParams }: Readonly<{ searchParams: Promise<{ q?: string }> }>) {
-  const { q = "" } = await searchParams;
-  const books = await listBooks(q);
+// Three cards to a row on wide screens, so a page is whole rows.
+const BOOK_PAGE_SIZE = 12;
+
+export default async function BooksPage({
+  searchParams,
+}: Readonly<{ searchParams: Promise<{ q?: string; page?: string }> }>) {
+  const { q = "", page } = await searchParams;
+  const books = await listBooksPage(q, toPageRequest(page, BOOK_PAGE_SIZE));
 
   return (
     <section className="flex flex-col gap-6">
@@ -37,7 +44,7 @@ export default async function BooksPage({ searchParams }: Readonly<{ searchParam
         </Button>
       </form>
 
-      {books.length === 0 ? (
+      {books.total === 0 ? (
         <EmptyState
           title={q ? "Không có sách phù hợp" : "Chưa có sách nào"}
           description={q ? "Thử từ khoá khác (không cần gõ dấu)." : "Nhập PDF, TXT hoặc Markdown để bắt đầu."}
@@ -56,11 +63,14 @@ export default async function BooksPage({ searchParams }: Readonly<{ searchParam
           }
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {books.map((book) => (
-            <BookCard key={book.id} book={book} />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {books.items.map((book) => (
+              <BookCard key={book.id} book={book} />
+            ))}
+          </div>
+          <Pagination page={books} />
+        </>
       )}
     </section>
   );

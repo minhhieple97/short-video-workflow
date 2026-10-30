@@ -320,6 +320,12 @@ JSONL của Batch có thể được Mistral chuẩn hoá và tăng kích thư�
 `BOOK_HAS_NO_CHAPTERS`: sách chưa có chương để phân tích. Với PDF, hoàn tất trích xuất và tạo chương trước; nút
 **Phân tích tất cả chương** bị vô hiệu khi chưa có chương.
 
+`POST /api/books/:id/lessons/status` đổi trạng thái nhiều bài học của một sách (`{ lessonIds, status }`, tối đa 200) và trả
+`{ changed, unchanged, blocked }`; `LESSON_NOT_FOUND` (404) khi có bài không thuộc sách đó, khi đó không bài nào bị đổi.
+
+`CHAPTER_NOT_FOUND` khi gửi `POST /api/books/:id/analyze` với `chapterIds`: có chương không thuộc sách đó (trang cũ sau khi chương
+bị xoá hoặc sách khác); tải lại trang. Không gửi `chapterIds` thì phân tích mọi chương còn cần.
+
 PDF trộn lớp chữ và OCR có thể sinh heading Markdown không phải chương. Nếu parser bỏ sót một dấu "Chương N" hoặc tạo hai
 chương trùng số trong cùng một phần (thường là mục lục), ứng dụng dùng NotebookLM để kiểm tra cấu trúc từ dàn ý giới hạn theo
 trang, gồm ứng viên giữa trang.

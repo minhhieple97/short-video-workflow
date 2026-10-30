@@ -1,16 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  analyzeAllAction,
+  analyzeAction,
   countAnalysisProgress,
   isAnalysisRunning,
   type BookAnalysisOverview,
 } from "@/features/chapters/domain/analysis-progress";
+import { isAnalysisInProgress, selectionBlockedNote } from "@/features/chapters/domain/analysis-status";
 import { extractionProgressState } from "@/features/extraction/domain/extraction-status";
 
 const overview = (overrides: Partial<BookAnalysisOverview> = {}): BookAnalysisOverview => ({
   ...countAnalysisProgress(["NOT_ANALYZED", "NOT_ANALYZED", "NOT_ANALYZED"]),
   needsAnalysis: 3,
+  needsAnalysisIds: ["c1", "c2", "c3"],
   outdated: 0,
   currentChapter: null,
   ...overrides,
@@ -46,9 +48,9 @@ describe("countAnalysisProgress", () => {
   });
 });
 
-describe("analyzeAllAction", () => {
+describe("analyzeAction", () => {
   it("offers to analyse every chapter of a fresh book", () => {
-    expect(analyzeAllAction(overview(), null)).toEqual({
+    expect(analyzeAction(overview(), null)).toEqual({
       enabled: true,
       busy: false,
       label: "Phân tích tất cả chương",
@@ -59,10 +61,10 @@ describe("analyzeAllAction", () => {
   it("is off without chapters, and says whether the PDF is still on its way or has stopped", () => {
     const none = overview({ ...countAnalysisProgress([]), needsAnalysis: 0 });
 
-    expect(analyzeAllAction(none, "running")).toMatchObject({ enabled: false, busy: false });
-    expect(analyzeAllAction(none, "running").note).toContain("Đang trích xuất PDF");
-    expect(analyzeAllAction(none, "stopped").note).toContain("Trích xuất PDF đang dừng");
-    expect(analyzeAllAction(none, null).note).toContain("Sách chưa có chương để phân tích");
+    expect(analyzeAction(none, "running")).toMatchObject({ enabled: false, busy: false });
+    expect(analyzeAction(none, "running").note).toContain("Đang trích xuất PDF");
+    expect(analyzeAction(none, "stopped").note).toContain("Trích xuất PDF đang dừng");
+    expect(analyzeAction(none, null).note).toContain("Sách chưa có chương để phân tích");
   });
 
   it("stays busy and off while chapters are queued or being analysed, counting what is left", () => {
@@ -71,7 +73,7 @@ describe("analyzeAllAction", () => {
       needsAnalysis: 0,
     });
 
-    expect(analyzeAllAction(running, null)).toEqual({
+    expect(analyzeAction(running, null)).toEqual({
       enabled: false,
       busy: true,
       label: "Đang phân tích · còn 3 chương",
@@ -83,13 +85,13 @@ describe("analyzeAllAction", () => {
     const done = overview({ ...countAnalysisProgress(["ANALYZED", "ANALYZED"]), needsAnalysis: 0 });
     const waiting = overview({ ...countAnalysisProgress(["ANALYZED", "WAITING_FOR_CLI"]), needsAnalysis: 0 });
 
-    expect(analyzeAllAction(done, null)).toMatchObject({
+    expect(analyzeAction(done, null)).toMatchObject({
       enabled: false,
       busy: false,
       label: "Đã phân tích tất cả chương",
     });
-    expect(analyzeAllAction(waiting, null)).toMatchObject({ enabled: false, label: "Đang chờ Claude Code" });
-    expect(analyzeAllAction(waiting, null).note).toContain("1 chương đang chờ bạn chạy lệnh Claude Code");
+    expect(analyzeAction(waiting, null)).toMatchObject({ enabled: false, label: "Đang chờ Claude Code" });
+    expect(analyzeAction(waiting, null).note).toContain("1 chương đang chờ bạn chạy lệnh Claude Code");
   });
 
   it("counts only the chapters a click would queue, and warns when analysed chapters will run again", () => {
@@ -99,12 +101,51 @@ describe("analyzeAllAction", () => {
       outdated: 1,
     });
 
-    expect(analyzeAllAction(some, null)).toEqual({
+    expect(analyzeAction(some, null)).toEqual({
       enabled: true,
       busy: false,
       label: "Phân tích 3 chương còn lại",
       note: "1 chương đã phân tích bằng chế độ AI hoặc prompt cũ sẽ được phân tích lại.",
     });
+  });
+});
+
+describe("analyzeAction with ticked chapters", () => {
+  it("queues exactly the ticked chapters, naming how many", () => {
+    expect(analyzeAction(overview(), null, 2)).toEqual({
+      enabled: true,
+      busy: false,
+      label: "Phân tích 2 chương đã chọn",
+      note: null,
+    });
+  });
+
+  it("stays usable while the worker is on an earlier run, since ticked chapters are queued behind it", () => {
+    const running = overview({
+      ...countAnalysisProgress(["ANALYZING", "NOT_ANALYZED", "NOT_ANALYZED"]),
+      needsAnalysis: 2,
+      needsAnalysisIds: ["c2", "c3"],
+    });
+
+    expect(analyzeAction(running, null, 1)).toMatchObject({ enabled: true, busy: false });
+    expect(analyzeAction(running, null, 0)).toMatchObject({ enabled: false, busy: true });
+  });
+
+  it("goes back to the every-chapter label once nothing is ticked", () => {
+    expect(analyzeAction(overview(), null, 0).label).toBe("Phân tích tất cả chương");
+  });
+});
+
+describe("selectionBlockedNote", () => {
+  it("tells a queued chapter from an up-to-date one", () => {
+    for (const status of ["QUEUED", "ANALYZING", "WAITING_FOR_CLI"] as const) {
+      expect(isAnalysisInProgress(status)).toBe(true);
+      expect(selectionBlockedNote(status)).toContain("hàng đợi");
+    }
+    for (const status of ["ANALYZED", "PARTIAL", "FAILED", "NOT_ANALYZED"] as const) {
+      expect(isAnalysisInProgress(status)).toBe(false);
+    }
+    expect(selectionBlockedNote("ANALYZED")).toContain("Phân tích lại");
   });
 });
 

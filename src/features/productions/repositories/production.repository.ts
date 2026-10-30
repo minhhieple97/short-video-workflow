@@ -62,12 +62,16 @@ export function findProductionItemForVideo(videoId: string) {
   });
 }
 
-export function listProductionBatches(limit = 50) {
+export function listProductionBatches(range: { skip: number; take: number } = { skip: 0, take: 50 }) {
   return prisma.productionBatch.findMany({
     orderBy: { createdAt: "desc" },
-    take: limit,
+    ...range,
     include: { book: { select: { id: true, title: true } }, items: { select: { status: true } } },
   });
+}
+
+export function countProductionBatches(): Promise<number> {
+  return prisma.productionBatch.count();
 }
 
 // The lessons a book offers for production, with the source excerpts that back them. Archived lessons are not offered.
