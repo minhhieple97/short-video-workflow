@@ -5,6 +5,8 @@ import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "@/generated/prisma/client";
 import { getAppConfig } from "@/shared/config/env";
 
+import { serializeAdapterFactory } from "./serialized-adapter";
+
 const FILE_URL_PREFIX = "file:";
 
 export function resolveDatabaseFile(databaseUrl: string = getAppConfig().databaseUrl): string {
@@ -13,7 +15,9 @@ export function resolveDatabaseFile(databaseUrl: string = getAppConfig().databas
 }
 
 function createPrismaClient(): PrismaClient {
-  const adapter = new PrismaBetterSqlite3({ url: `${FILE_URL_PREFIX}${resolveDatabaseFile()}` });
+  const adapter = serializeAdapterFactory(
+    new PrismaBetterSqlite3({ url: `${FILE_URL_PREFIX}${resolveDatabaseFile()}` }),
+  );
   return new PrismaClient({ adapter });
 }
 
