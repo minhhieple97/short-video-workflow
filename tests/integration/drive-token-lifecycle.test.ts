@@ -108,6 +108,33 @@ describe("DriveAccessToken", () => {
     expect(tokenRequests()).toHaveLength(1);
   });
 
+  it("asks Google once when several uploads of the worker need a token together", async () => {
+    await store.writeDriveCredential({ ...CREDENTIAL, accessToken: null, accessTokenExpiresAt: null });
+    const { createDriveArchiveProvider } = await import("@/features/archive/services/drive-archive-provider.factory");
+    const options = {
+      endpoints: google.endpoints,
+      drive: {
+        ...DRIVE,
+        apiBaseUrl: undefined,
+        minRequestIntervalMs: 0,
+        maxRequestsPerDay: 5000,
+        maxUploadBytesPerDay: 1024 ** 3,
+      },
+    };
+    const request = { bookId: "book-1", videoId: "video-1", renderId: "render-1" };
+
+    await Promise.all(
+      ["a", "b", "c"].map((id) =>
+        createDriveArchiveProvider(`destination-${id}`, options).prepareDestination({
+          ...request,
+          renderId: `render-${id}`,
+        }),
+      ),
+    );
+
+    expect(tokenRequests()).toHaveLength(1);
+  });
+
   it("refreshes a token Drive refused even before it expires", async () => {
     const tokens = accessToken();
     expect(await tokens.get()).toBe("ya29.stored");

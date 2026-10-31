@@ -42,10 +42,20 @@ export async function saveProviderCooldown(input: {
   });
 }
 
-export async function clearProviderCooldown(provider: string, episodeId?: string | null): Promise<void> {
+// Clears only the cooldown the caller saw: one that another task saved or extended meanwhile (its blockedUntil moved on) is a
+// fresh wait, which this caller's success says nothing about.
+export async function clearProviderCooldown(
+  provider: string,
+  seen: { episodeId: string | null; blockedUntil: Date },
+): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const existing = await tx.providerCooldown.findUnique({ where: { provider } });
-    if (!existing || (episodeId !== undefined && existing.episodeId !== episodeId)) return;
+    if (
+      !existing ||
+      existing.episodeId !== seen.episodeId ||
+      existing.blockedUntil.getTime() !== seen.blockedUntil.getTime()
+    )
+      return;
     await tx.providerCooldown.delete({ where: { provider } });
     if (existing.kind === "QUOTA" && existing.episodeId)
       await recordNotificationWithin(tx, {

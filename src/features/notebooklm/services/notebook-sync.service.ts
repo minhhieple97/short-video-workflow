@@ -7,6 +7,7 @@ import { countQueryWords, NOTEBOOKLM_QUERY_MAX_WORDS } from "@/server/script-stu
 import type { NotebookLmTool } from "@/server/script-studio/notebooklm/notebooklm-session";
 import { CHAT_RESPONSE_LENGTH, type ChatPersona } from "@/server/script-studio/notebooklm/prompts/chat-persona-prompt";
 import { createLogger } from "@/shared/logger";
+import { KeyedMutex } from "@/shared/mutex";
 
 import { hasBindingMarker, titleWithMarker } from "../domain/binding-marker";
 import {
@@ -20,6 +21,10 @@ import {
 } from "../repositories/notebook-binding.repository";
 
 const logger = createLogger("notebooklm.sync");
+// Jobs of the worker run side by side, each with its own MCP process, but a notebook, a source and a persona are made once.
+// A job that finds one "being made" must be able to tell a crash's leftover from a job in this process that is making it
+// right now, so the making is done under a lock; the status columns still guard against anything outside this process.
+const setUpLocks = new KeyedMutex();
 // Enough to find this app's notebook among a user's notebooks without paging.
 const NOTEBOOK_LIST_LIMIT = 1000;
 
@@ -58,7 +63,16 @@ const isUnknownOutcome = (error: unknown) => error instanceof IntegrationError &
 
 // The book's notebook in the connected account, created once. A create whose answer was lost is never simply repeated:
 // the notebook list is searched for the binding's marker first, and only a notebook that is not there is created again.
-export async function ensureNotebook(
+export function ensureNotebook(
+  caller: NotebookLmCaller,
+  bindingId: string,
+  bookTitle: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  return setUpLocks.run(`notebook:${bindingId}`, () => createNotebook(caller, bindingId, bookTitle, signal));
+}
+
+async function createNotebook(
   caller: NotebookLmCaller,
   bindingId: string,
   bookTitle: string,
@@ -108,7 +122,17 @@ export async function ensureNotebook(
 // The notebook's chat persona and answer length, set before the work the persona is for and again whenever the notebook holds
 // another one (a different version, which also covers the other kind of work having run last). It is saved only once
 // NotebookLM confirms it, so a failed attempt is made again on the next use.
-export async function ensureChatPersona(
+export function ensureChatPersona(
+  caller: NotebookLmCaller,
+  bindingId: string,
+  notebookId: string,
+  persona: ChatPersona,
+  signal?: AbortSignal,
+): Promise<void> {
+  return setUpLocks.run(`persona:${bindingId}`, () => applyChatPersona(caller, bindingId, notebookId, persona, signal));
+}
+
+async function applyChatPersona(
   caller: NotebookLmCaller,
   bindingId: string,
   notebookId: string,
@@ -138,7 +162,15 @@ export async function ensureChatPersona(
 
 // One part of the book as a text source, uploaded once per revision. After a lost answer the notebook's sources are
 // searched for the binding's marker before anything is uploaded again.
-export async function ensureSource(
+export function ensureSource(
+  caller: NotebookLmCaller,
+  input: { notebookId: string; sourceBindingId: string; text: string },
+  signal?: AbortSignal,
+): Promise<string> {
+  return setUpLocks.run(`source:${input.sourceBindingId}`, () => uploadSource(caller, input, signal));
+}
+
+async function uploadSource(
   caller: NotebookLmCaller,
   input: { notebookId: string; sourceBindingId: string; text: string },
   signal?: AbortSignal,

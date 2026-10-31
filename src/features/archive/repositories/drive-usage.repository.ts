@@ -86,5 +86,11 @@ export function driveCapacityCache(destinationKey: string): DriveCapacityCache {
         update: data,
       });
     },
+    async addUsage(bytes) {
+      await prisma.driveCapacity.updateMany({
+        where: { destinationKey },
+        data: { usageBytes: { increment: BigInt(bytes) } },
+      });
+    },
   };
 }

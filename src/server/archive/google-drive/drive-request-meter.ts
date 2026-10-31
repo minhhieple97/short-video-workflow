@@ -50,8 +50,11 @@ export class DriveRequestMeter {
         details: { limit: reservation.limit },
       });
     }
-    const wait = this.lastRequestAt + this.options.minIntervalMs - this.now();
-    if (wait > 0) await this.sleep(wait);
-    this.lastRequestAt = this.now();
+    // The slot is taken before sleeping, in one synchronous step: callers that come together get consecutive slots one
+    // interval apart instead of all computing the same wait and sending together.
+    const now = this.now();
+    const slot = Math.max(now, this.lastRequestAt + this.options.minIntervalMs);
+    this.lastRequestAt = slot;
+    if (slot > now) await this.sleep(slot - now);
   }
 }

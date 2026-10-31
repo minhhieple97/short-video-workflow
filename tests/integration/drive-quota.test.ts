@@ -154,6 +154,23 @@ describe("DriveRequestMeter", () => {
     expect(sleeps).toEqual([700]);
   });
 
+  it("spaces requests that come together one interval apart, instead of sending them together", async () => {
+    // A clock that stands still while the callers sleep, as real time does for the ones still to come.
+    const sleeps: number[] = [];
+    const instance = new DriveRequestMeter({
+      ledger: usage.driveUsageLedger("google-drive"),
+      minIntervalMs: 1000,
+      maxRequestsPerDay: 5000,
+      maxBytesPerDay: 10 * GIB,
+      now: () => T0.getTime(),
+      sleep: async (ms) => void sleeps.push(ms),
+    });
+
+    await Promise.all([instance.beforeRequest(0), instance.beforeRequest(0), instance.beforeRequest(0)]);
+
+    expect(sleeps.toSorted((a, b) => a - b)).toEqual([1000, 2000]);
+  });
+
   it("reports a reached daily limit as QUOTA with the time to wait, without pausing", async () => {
     const { instance, sleeps } = meter({ maxRequestsPerDay: 1 });
     await instance.beforeRequest(0);
@@ -243,6 +260,15 @@ describe("DriveCapacityGuard", () => {
     );
     expect(await cache().read()).toEqual<DriveCapacity>({ limitBytes: 1000, usageBytes: 900, fetchedAt: T0 });
     await expect(guard().ensureRoomFor(101)).rejects.toMatchObject({ code: "DRIVE_STORAGE_FULL", kind: "REJECTED" });
+  });
+
+  it("counts every upload that finishes at the same time", async () => {
+    google.storageQuota = { limit: "10000", usage: "100" };
+    await guard().ensureRoomFor(1);
+
+    await Promise.all([guard().recordUpload(300), guard().recordUpload(200), guard().recordUpload(500)]);
+
+    expect((await cache().read())?.usageBytes).toBe(1100);
   });
 
   it("refreshes a reading older than an hour", async () => {

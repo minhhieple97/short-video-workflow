@@ -44,7 +44,7 @@ export async function withProviderCooldown<T>(
   }
   try {
     const result = await call();
-    if (blocked && (options?.isSuccessful?.(result) ?? true)) await clearProviderCooldown(provider, blocked.episodeId);
+    if (blocked && (options?.isSuccessful?.(result) ?? true)) await clearProviderCooldown(provider, blocked);
     return result;
   } catch (error) {
     if (error instanceof IntegrationError && (error.kind === "QUOTA" || error.kind === "TRANSIENT")) {

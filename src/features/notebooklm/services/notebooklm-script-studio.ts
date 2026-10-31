@@ -35,6 +35,7 @@ import type {
 } from "@/server/script-studio/script-studio-provider";
 import { createLogger, toSafeErrorMessage } from "@/shared/logger";
 
+import { PersonaGate } from "../domain/persona-gate";
 import { recordNotebookLmFailure, recordNotebookLmUsage } from "./notebooklm-status.service";
 import {
   askNotebookForJson,
@@ -73,6 +74,9 @@ function splitRefs(sources: readonly SourceRef[]): { notebookId: string; sourceI
 // Each book has one notebook; each source is uploaded once per revision of its text; every question names exactly the
 // sources it is about, and its answer must be the JSON asked for. The notebook's chat persona is set before each question
 // to the one its kind of work needs (ANALYSIS_PERSONA for the catalogue, DRAFT_PERSONA for a draft), never left to chance.
+// Shared by every studio of the worker: each job opens its own studio, but a notebook belongs to the book.
+const personaGate = new PersonaGate();
+
 export class NotebookLmScriptStudio implements ScriptStudioProvider {
   readonly id = "notebooklm";
   // The notebook's chat persona shapes the draft as much as the question does, so both versions key the draft cache.
@@ -204,8 +208,11 @@ export class NotebookLmScriptStudio implements ScriptStudioProvider {
         "REJECTED",
       );
     }
-    await ensureChatPersona(caller, bindingId, notebookId, persona, signal);
-    return askNotebookForJson({ caller, notebookId }, { sourceIds, query, code }, schema, signal);
+    // Setting the persona and asking happen together: another kind of work on this notebook waits for the question.
+    return personaGate.run(notebookId, persona.version, async () => {
+      await ensureChatPersona(caller, bindingId, notebookId, persona, signal);
+      return askNotebookForJson({ caller, notebookId }, { sourceIds, query, code }, schema, signal);
+    });
   }
 }
 

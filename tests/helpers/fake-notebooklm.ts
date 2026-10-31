@@ -18,12 +18,14 @@ export interface FakeNotebookLm {
       title: string;
       sources: { id: string; title: string; length: number }[];
       chat?: { goal: string; custom_prompt: string | null; response_length: string };
+      // Each question with the persona the notebook held when it arrived and when its answer was done.
+      queries?: { query: string; persona: string | null; personaAtAnswer?: string | null }[];
     }[];
   };
 }
 
 // The fake MCP server in its NotebookLM role, with notebooks and sources kept in a file like a real account would.
-export function fakeNotebookLm(directory: string): FakeNotebookLm {
+export function fakeNotebookLm(directory: string, options: { delayMs?: number } = {}): FakeNotebookLm {
   fs.mkdirSync(directory, { recursive: true });
   const statePath = path.join(directory, "nlm-state.json");
   const scriptPath = path.join(directory, "nlm-script.json");
@@ -45,6 +47,7 @@ export function fakeNotebookLm(directory: string): FakeNotebookLm {
           FAKE_NLM_STATE: statePath,
           FAKE_NLM_SCRIPT: scriptPath,
           FAKE_NLM_QUERY_RULES: rulesPath,
+          ...(options.delayMs ? { FAKE_NLM_DELAY_MS: String(options.delayMs) } : {}),
         },
       },
     },

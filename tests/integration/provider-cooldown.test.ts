@@ -51,6 +51,39 @@ describe("durable provider cooldown", () => {
     expect(await db.prisma.providerCooldown.count()).toBe(0);
   });
 
+  it("keeps a wait that another task saved while a successful call was running", async () => {
+    await db.prisma.providerCooldown.create({
+      data: {
+        provider: "drive",
+        blockedUntil: new Date(Date.now() - 1_000),
+        errorCode: "OLD",
+        message: "old",
+        kind: "TRANSIENT",
+      },
+    });
+    let release: () => void = () => undefined;
+    const mayFinish = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const slow = cooldown.withProviderCooldown("drive", async () => {
+      await mayFinish;
+      return "done";
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    await expect(
+      cooldown.withProviderCooldown("drive", async () => {
+        throw new IntegrationError("GOOGLE_UNAVAILABLE", "down", "TRANSIENT");
+      }),
+    ).rejects.toMatchObject({ kind: "TRANSIENT" });
+    release();
+
+    expect(await slow).toBe("done");
+    const stored = await db.prisma.providerCooldown.findUniqueOrThrow({ where: { provider: "drive" } });
+    expect(stored.errorCode).toBe("GOOGLE_UNAVAILABLE");
+    expect(stored.blockedUntil.getTime()).toBeGreaterThan(Date.now());
+  });
+
   it.each(["claude", "notebooklm"] as const)("honours full reset intervals for %s", async (provider) => {
     for (const retryAfterMs of [30 * 60_000, 60 * 60_000, 15_000]) {
       await db.prisma.providerCooldown.deleteMany();

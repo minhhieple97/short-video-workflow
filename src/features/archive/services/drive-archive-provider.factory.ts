@@ -27,6 +27,22 @@ function meterFor(drive: AppConfig["drive"]): DriveRequestMeter {
   return sharedMeter;
 }
 
+// One token holder per client and token endpoint, shared by every job of the worker: a refresh is then one request to Google
+// and one write of the credential file however many uploads need a token together.
+const sharedTokens = new Map<string, DriveAccessToken>();
+
+function tokenFor(drive: AppConfig["drive"] & { clientId: string }, endpoints: GoogleEndpoints): DriveAccessToken {
+  const key = `${drive.clientId}|${endpoints.tokenUrl}`;
+  let token = sharedTokens.get(key);
+  if (!token) {
+    token = new DriveAccessToken({
+      oauth: new GoogleOAuthClient({ clientId: drive.clientId, clientSecret: drive.clientSecret, endpoints }),
+    });
+    sharedTokens.set(key, token);
+  }
+  return token;
+}
+
 // The Drive archive for the connected account: tokens from the credential store, every request paced and counted, folders
 // and storage readings kept per account.
 export function createDriveArchiveProvider(
@@ -42,9 +58,7 @@ export function createDriveArchiveProvider(
     );
   }
   const endpoints = options.endpoints ?? googleEndpoints(drive.apiBaseUrl);
-  const token = new DriveAccessToken({
-    oauth: new GoogleOAuthClient({ clientId: drive.clientId, clientSecret: drive.clientSecret, endpoints }),
-  });
+  const token = tokenFor({ ...drive, clientId: drive.clientId }, endpoints);
   const meter = options.meter ?? meterFor(drive);
   const client = new GoogleDriveClient({
     getAccessToken: () => token.get(),

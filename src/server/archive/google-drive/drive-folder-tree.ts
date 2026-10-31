@@ -1,3 +1,5 @@
+import { Mutex } from "@/shared/mutex";
+
 import { ARCHIVE_FILE_KINDS, type ArchiveDestination, type ArchiveDestinationRequest } from "../video-archive-provider";
 import { googleStatusOf, type GoogleDriveClient } from "./google-drive-client";
 
@@ -39,6 +41,11 @@ export function archiveFolderChain(request: ArchiveDestinationRequest): FolderSt
   ];
 }
 
+// Preparing a destination reads, reserves and, after someone deleted folders in Drive, forgets bindings that every render of
+// the same book shares. Two renders doing that at once could forget what the other had just made and leave two folders of
+// one name, so in this process they take turns. It is brief: a few Drive requests.
+const prepareLock = new Mutex();
+
 class MissingParentError extends Error {
   constructor(readonly parentPath: string) {
     super("A bound archive folder no longer exists in Drive.");
@@ -56,7 +63,11 @@ export class DriveFolderTree {
 
   // Someone may have removed folders of the tree in Drive. A create under a missing parent reveals only that parent, so
   // the tree is rebuilt one level further up per attempt, at most once per level, without ever searching the Drive.
-  async prepare(request: ArchiveDestinationRequest, signal?: AbortSignal): Promise<ArchiveDestination> {
+  prepare(request: ArchiveDestinationRequest, signal?: AbortSignal): Promise<ArchiveDestination> {
+    return prepareLock.run(() => this.prepareLocked(request, signal));
+  }
+
+  private async prepareLocked(request: ArchiveDestinationRequest, signal?: AbortSignal): Promise<ArchiveDestination> {
     const levels = archiveFolderChain(request).length;
     for (let attempt = 1; ; attempt += 1) {
       try {

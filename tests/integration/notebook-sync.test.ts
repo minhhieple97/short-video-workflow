@@ -68,6 +68,28 @@ async function open(script: Record<string, unknown[]> = {}): Promise<NotebookLmS
   return session;
 }
 
+// Another job of the worker: its own MCP process, the same notebooks, sources and sign-in.
+const extraSessions: NotebookLmSession[] = [];
+async function openAnother(): Promise<NotebookLmSession> {
+  const another = await NotebookLmSession.open({
+    server: {
+      command: process.execPath,
+      args: [SERVER],
+      env: {
+        PATH: process.env.PATH ?? "",
+        FAKE_MCP_PERSONA: "notebooklm",
+        FAKE_MCP_LOG: logPath(),
+        FAKE_NLM_STATE: statePath(),
+        FAKE_NLM_SCRIPT: scriptPath(),
+      },
+    },
+    profile: "default",
+    callTimeoutMs: 5_000,
+  });
+  extraSessions.push(another);
+  return another;
+}
+
 const source = (contentHash: string, sourceKey = "chapter:c1") =>
   repo.ensureSourceBinding({ notebookBindingId, sourceKey, contentHash, title: "Chương 1" });
 
@@ -100,6 +122,7 @@ beforeEach(async () => {
 afterEach(async () => {
   await session?.close();
   session = null;
+  await Promise.all(extraSessions.splice(0).map((extra) => extra.close()));
 });
 
 afterAll(async () => {
@@ -156,6 +179,21 @@ describe("ensureNotebook", () => {
     expect(toolCalls("notebook_list")).toHaveLength(1);
   });
 
+  it("makes one notebook when two jobs of the worker need it at the same time", async () => {
+    const first = await open();
+    const second = await openAnother();
+
+    const [a, b] = await Promise.all([
+      sync.ensureNotebook(first, notebookBindingId, "Sách"),
+      sync.ensureNotebook(second, notebookBindingId, "Sách"),
+    ]);
+
+    expect(b).toBe(a);
+    expect(remote().notebooks).toHaveLength(1);
+    expect(toolCalls("notebook_create")).toHaveLength(1);
+    expect(await repo.findNotebookBinding(notebookBindingId)).toMatchObject({ status: "READY", notebookId: a });
+  });
+
   it("goes back to the start after a plain refusal", async () => {
     const caller = await open({ notebook_create: [{ status: "error", error: "Something odd" }] });
 
@@ -206,6 +244,20 @@ describe("ensureChatPersona", () => {
     }
 
     expect(toolCalls("chat_configure")).toHaveLength(3);
+  });
+
+  it("sets one persona once when two jobs ask for it together", async () => {
+    const first = await open();
+    const second = await openAnother();
+    const notebookId = await sync.ensureNotebook(first, notebookBindingId, "Sách");
+
+    await Promise.all([
+      sync.ensureChatPersona(first, notebookBindingId, notebookId, DRAFT_PERSONA),
+      sync.ensureChatPersona(second, notebookBindingId, notebookId, DRAFT_PERSONA),
+    ]);
+
+    expect(toolCalls("chat_configure")).toHaveLength(1);
+    expect(await savedVersion()).toBe(DRAFT_PERSONA.version);
   });
 
   it("saves nothing while NotebookLM refuses or does not confirm the settings, so the next use tries again", async () => {
@@ -265,6 +317,20 @@ describe("ensureSource", () => {
       { notebook_id: notebookId, source_type: "text", text: "Nội dung chương.", title: binding.title, wait: true },
     ]);
     expect(remote().notebooks[0]?.sources).toEqual([{ id, title: `Chương 1 [bvs:${binding.id}]`, length: 16 }]);
+  });
+
+  it("uploads one copy when two jobs need the same part at the same time", async () => {
+    const first = await open();
+    const second = await openAnother();
+    const notebookId = await sync.ensureNotebook(first, notebookBindingId, "Sách");
+    const binding = await source("h1");
+    const input = { notebookId, sourceBindingId: binding.id, text: "Nội dung chương." };
+
+    const [a, b] = await Promise.all([sync.ensureSource(first, input), sync.ensureSource(second, input)]);
+
+    expect(b).toBe(a);
+    expect(toolCalls("source_add")).toHaveLength(1);
+    expect(remote().notebooks[0]?.sources).toHaveLength(1);
   });
 
   it("finds a source whose upload answer was lost instead of uploading it twice", async () => {

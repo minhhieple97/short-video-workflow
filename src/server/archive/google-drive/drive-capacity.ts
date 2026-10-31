@@ -12,6 +12,8 @@ export interface DriveCapacity {
 export interface DriveCapacityCache {
   read(): Promise<DriveCapacity | null>;
   write(capacity: DriveCapacity): Promise<void>;
+  // Adds to the stored usage in one step, so uploads that finish together are all counted. Nothing happens without a reading.
+  addUsage(bytes: number): Promise<void>;
 }
 
 export const CAPACITY_MAX_AGE_MS = 60 * 60_000;
@@ -38,8 +40,7 @@ export class DriveCapacityGuard {
   }
 
   async recordUpload(bytes: number): Promise<void> {
-    const cached = await this.cache.read();
-    if (cached) await this.cache.write({ ...cached, usageBytes: cached.usageBytes + bytes });
+    await this.cache.addUsage(bytes);
   }
 
   private async current(signal: AbortSignal | undefined): Promise<DriveCapacity> {

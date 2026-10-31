@@ -38,6 +38,9 @@ const nlmScript = process.env.FAKE_NLM_SCRIPT ? JSON.parse(fs.readFileSync(proce
 const queryRules = process.env.FAKE_NLM_QUERY_RULES
   ? JSON.parse(fs.readFileSync(process.env.FAKE_NLM_QUERY_RULES, "utf8"))
   : [];
+// FAKE_NLM_DELAY_MS makes chat_configure and notebook_query answer that much later than they take effect, so tests can
+// overlap the work of several jobs the way a real account's slow answers do.
+const nlmDelayMs = Number(process.env.FAKE_NLM_DELAY_MS ?? 0);
 let activeProfile = "default";
 
 // FAKE_NLM_STATE (a JSON file) holds notebooks and sources across server processes, like the real account would.
@@ -140,6 +143,18 @@ function notebooklmAnswer(name, args) {
     return next;
   }
   if (name === "notebook_query") {
+    // What the notebook's chat persona was when each question arrived, for tests that check the two never mix.
+    if (statePath) {
+      const state = loadState();
+      const notebook = state.notebooks.find((candidate) => candidate.id === args.notebook_id);
+      if (notebook) {
+        notebook.queries = [
+          ...(notebook.queries ?? []),
+          { query: String(args.query ?? ""), persona: notebook.chat?.custom_prompt ?? null },
+        ];
+        saveState(state);
+      }
+    }
     const rule = queryRules.find((candidate) => String(args.query ?? "").includes(candidate.contains));
     if (rule) return rule.answer;
   }
@@ -180,23 +195,41 @@ function handle(message) {
   if (message.method === "tools/call" && notebooklm) {
     const answer = notebooklmAnswer(message.params.name, message.params.arguments ?? {});
     if (answer.__hang) return;
-    if (answer.__textOnly) {
+    const reply = () => {
+      // The persona may have been changed while the answer was being written: a persona applies for as long as a question
+      // is answered, so tests look at both moments.
+      if (message.params.name === "notebook_query" && statePath) {
+        const state = loadState();
+        const notebook = state.notebooks.find((candidate) => candidate.id === message.params.arguments?.notebook_id);
+        const entry = notebook?.queries?.findLast?.(
+          (candidate) => candidate.query === String(message.params.arguments?.query ?? ""),
+        );
+        if (notebook && entry) {
+          entry.personaAtAnswer = notebook.chat?.custom_prompt ?? null;
+          saveState(state);
+        }
+      }
+      if (answer.__textOnly) {
+        send({
+          jsonrpc: "2.0",
+          id: message.id,
+          result: { content: [{ type: "text", text: JSON.stringify(answer.body) }], isError: false },
+        });
+        return;
+      }
       send({
         jsonrpc: "2.0",
         id: message.id,
-        result: { content: [{ type: "text", text: JSON.stringify(answer.body) }], isError: false },
+        result: {
+          content: [{ type: "text", text: JSON.stringify(answer) }],
+          structuredContent: answer,
+          isError: answer.__isError === true,
+        },
       });
-      return;
-    }
-    send({
-      jsonrpc: "2.0",
-      id: message.id,
-      result: {
-        content: [{ type: "text", text: JSON.stringify(answer) }],
-        structuredContent: answer,
-        isError: answer.__isError === true,
-      },
-    });
+    };
+    if (nlmDelayMs > 0 && ["chat_configure", "notebook_query"].includes(message.params.name))
+      setTimeout(reply, nlmDelayMs);
+    else reply();
     return;
   }
   if (message.method === "tools/list") {

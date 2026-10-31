@@ -207,6 +207,48 @@ describe("NotebookLmScriptStudio", () => {
     expect(nlm.calls("chat_configure")).toHaveLength(3);
   });
 
+  it("never answers a catalogue question under the draft persona, or the reverse, when two jobs share a notebook", async () => {
+    // Slow answers, as on a real account: without an order between the jobs, one's persona lands on the other's question.
+    nlm = fakeNotebookLm(path.join(env.dataDir, `nlm-slow-${Math.random().toString(36).slice(2)}`), { delayMs: 120 });
+    nlm.answerQueries([
+      { contains: "bài học riêng biệt", answer: notebookAnswer(LESSONS) },
+      { contains: "Mạch kể bắt buộc", answer: notebookAnswer({ ...PROPOSAL, beats: BEATS }) },
+    ]);
+    const catalogueJob = studio();
+    const draftJob = studio();
+    const document = { key: "chapter:c1:part:1", title: "Chương 1", markdown: "[Trang 1]\nNội dung." };
+    const catalogueSource = await catalogueJob.ensureSource({ book: CONTRACT_BOOK, document, known: null });
+    const draftSource = await draftJob.ensureSource({ book: CONTRACT_BOOK, document, known: null });
+
+    await Promise.all([
+      catalogueJob.extractLessons({
+        sources: [catalogueSource],
+        bookTitle: CONTRACT_BOOK.title,
+        chapterTitle: "Chương 1",
+        partNumber: 1,
+        partCount: 1,
+        startPage: 1,
+        endPage: 10,
+      }),
+      draftJob.writeDraft({
+        sources: [draftSource],
+        lesson: SAMPLE_LESSON,
+        range: { minDurationSec: 30, maxDurationSec: 45 },
+        pace: "STANDARD" as const,
+        storyAngle: "PEAK_FIRST" as const,
+        revisionNote: null,
+      }),
+    ]);
+
+    const queries = nlm.remote().notebooks[0]?.queries ?? [];
+    expect(queries).toHaveLength(2);
+    for (const { query, persona, personaAtAnswer } of queries) {
+      const expected = query.includes("Mạch kể bắt buộc") ? DRAFT_PERSONA.prompt : ANALYSIS_PERSONA.prompt;
+      expect(persona).toBe(expected);
+      expect(personaAtAnswer).toBe(expected);
+    }
+  });
+
   it("refuses sources it did not open itself, since it could not tell which persona their notebook holds", async () => {
     const opener = studio();
     const source = await opener.ensureSource({
