@@ -4,10 +4,31 @@ import { IntegrationError, type IntegrationFailureKind } from "@/server/integrat
 
 import type { McpCallResult } from "./mcp-stdio-client";
 
-// "success" and "error" are the usual statuses; refresh_auth also answers "expired" for a login that must be renewed.
-const envelopeSchema = z.looseObject({ status: z.string().min(1), error: z.string().optional() });
+// "success" and "error" are the usual statuses; refresh_auth also answers "expired" for a login that must be renewed. A
+// failed query also carries `error_details`, the server's own classification of it.
+const envelopeSchema = z.looseObject({
+  status: z.string().min(1),
+  error: z.string().optional(),
+  error_details: z
+    .looseObject({ category: z.string().optional(), retryable: z.boolean().optional() })
+    .optional()
+    .catch(undefined),
+});
 
 export type NotebookLmPayload = Record<string, unknown>;
+
+// What the server says a failed query is: a fixed vocabulary of notebooklm-mcp-cli, never account text, and more exact than
+// reading its message. `invalid_argument` is what a question over the word limit (notebooklm-query-limit.ts) comes back as.
+const CATEGORY_FAILURES: Readonly<Record<string, { kind: IntegrationFailureKind; code: string }>> = {
+  unauthenticated: { kind: "AUTH", code: "NOTEBOOKLM_AUTH_REQUIRED" },
+  resource_exhausted: { kind: "QUOTA", code: "NOTEBOOKLM_QUOTA" },
+  deadline_exceeded: { kind: "TRANSIENT", code: "NOTEBOOKLM_TIMEOUT" },
+  internal: { kind: "TRANSIENT", code: "NOTEBOOKLM_UNAVAILABLE" },
+  unavailable: { kind: "TRANSIENT", code: "NOTEBOOKLM_UNAVAILABLE" },
+  invalid_argument: { kind: "REJECTED", code: "NOTEBOOKLM_INVALID_REQUEST" },
+  not_found: { kind: "REJECTED", code: "NOTEBOOKLM_NOT_FOUND" },
+  permission_denied: { kind: "REJECTED", code: "NOTEBOOKLM_PERMISSION_DENIED" },
+};
 
 // What a failure's own text says it is. The text is only matched, never shown: it can carry account details.
 const FAILURE_PATTERNS: readonly { kind: IntegrationFailureKind; code: string; pattern: RegExp }[] = [
@@ -30,14 +51,20 @@ const MESSAGES: Record<string, string> = {
     "NotebookLM cần đăng nhập lại cho profile đã cấu hình. Hãy chạy `nlm login --profile <tên>` trong terminal của bạn.",
   NOTEBOOKLM_QUOTA: "NotebookLM báo đã chạm giới hạn sử dụng; sẽ thử lại sau.",
   NOTEBOOKLM_TIMEOUT: "NotebookLM không trả lời kịp; sẽ thử lại sau.",
+  NOTEBOOKLM_UNAVAILABLE: "NotebookLM đang tạm lỗi; sẽ thử lại sau.",
+  NOTEBOOKLM_INVALID_REQUEST:
+    "NotebookLM báo yêu cầu không hợp lệ (thường do câu hỏi dài quá giới hạn của NotebookLM hoặc nguồn không dùng được).",
+  NOTEBOOKLM_NOT_FOUND: "NotebookLM không thấy notebook hoặc nguồn cần dùng (có thể đã bị xoá).",
+  NOTEBOOKLM_PERMISSION_DENIED: "Tài khoản NotebookLM không có quyền dùng notebook hoặc nguồn này.",
   NOTEBOOKLM_TOOL_ERROR: "NotebookLM từ chối yêu cầu.",
   NOTEBOOKLM_BAD_RESPONSE: "Phản hồi của NotebookLM không đúng định dạng mong đợi.",
 };
 
-function failure(code: string, kind: IntegrationFailureKind, tool: string): IntegrationError {
-  return new IntegrationError(code, MESSAGES[code] ?? MESSAGES.NOTEBOOKLM_TOOL_ERROR ?? code, kind, {
-    details: { tool },
-  });
+function failure(code: string, kind: IntegrationFailureKind, tool: string, category?: string): IntegrationError {
+  const wording = MESSAGES[code] ?? MESSAGES.NOTEBOOKLM_TOOL_ERROR ?? code;
+  // The generic refusal at least says what the server called the failure.
+  const message = code === "NOTEBOOKLM_TOOL_ERROR" && category ? wording.replace(/\.$/, ` (${category}).`) : wording;
+  return new IntegrationError(code, message, kind, { details: category ? { tool, category } : { tool } });
 }
 
 // A tool answers {"status": "success", ...} or {"status": "error", "error": "..."}, and reports its errors with
@@ -53,14 +80,14 @@ export function readNotebookLmEnvelope(tool: string, result: McpCallResult, muta
 
   if (envelope.data.status === "expired") throw failure("NOTEBOOKLM_AUTH_REQUIRED", "AUTH", tool);
   const text = envelope.data.error ?? "";
-  const match = FAILURE_PATTERNS.find((candidate) => candidate.pattern.test(text));
-  if (!match) return rejectUnknown(tool);
+  const { category, retryable } = envelope.data.error_details ?? {};
+  const match =
+    (category ? CATEGORY_FAILURES[category] : undefined) ??
+    FAILURE_PATTERNS.find((candidate) => candidate.pattern.test(text)) ??
+    (retryable ? { kind: "TRANSIENT" as const, code: "NOTEBOOKLM_UNAVAILABLE" } : undefined);
+  if (!match) throw failure("NOTEBOOKLM_TOOL_ERROR", "REJECTED", tool, category);
   const kind = match.kind === "TRANSIENT" && mutating ? "UNKNOWN_OUTCOME" : match.kind;
-  throw failure(match.code, kind, tool);
-}
-
-function rejectUnknown(tool: string): never {
-  throw failure("NOTEBOOKLM_TOOL_ERROR", "REJECTED", tool);
+  throw failure(match.code, kind, tool, category);
 }
 
 function parseTextContent(result: McpCallResult): unknown {

@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { NotebookBinding, NotebookSourceBinding } from "@/generated/prisma/client";
 import { IntegrationError } from "@/server/integrations/integration-error";
 import type { NotebookLmPayload } from "@/server/script-studio/notebooklm/notebooklm-envelope";
+import { countQueryWords, NOTEBOOKLM_QUERY_MAX_WORDS } from "@/server/script-studio/notebooklm/notebooklm-query-limit";
 import type { NotebookLmTool } from "@/server/script-studio/notebooklm/notebooklm-session";
 import {
   CHAT_PERSONA_PROMPT,
@@ -185,7 +186,8 @@ export async function ensureSource(
 }
 
 // Asks about the given sources only. NotebookLM would otherwise use every source in the notebook, including revisions this
-// app has superseded, so a question without source IDs is refused.
+// app has superseded, so a question without source IDs is refused. So is a question over NotebookLM's word limit: it would
+// only come back as an opaque `invalid_argument`.
 export async function queryNotebook(
   caller: NotebookLmCaller,
   input: { notebookId: string; sourceIds: readonly string[]; query: string; timeoutSec?: number },
@@ -193,6 +195,15 @@ export async function queryNotebook(
 ): Promise<NotebookAnswer> {
   if (input.sourceIds.length === 0) {
     throw new IntegrationError("NOTEBOOKLM_NO_SOURCES", "Không có nguồn nào để hỏi NotebookLM.", "REJECTED");
+  }
+  const words = countQueryWords(input.query);
+  if (words > NOTEBOOKLM_QUERY_MAX_WORDS) {
+    throw new IntegrationError(
+      "NOTEBOOKLM_QUERY_TOO_LONG",
+      `Câu hỏi gửi NotebookLM dài ${words} từ, quá giới hạn ${NOTEBOOKLM_QUERY_MAX_WORDS} từ của một câu hỏi.`,
+      "REJECTED",
+      { details: { words } },
+    );
   }
   return parse(
     answerSchema,

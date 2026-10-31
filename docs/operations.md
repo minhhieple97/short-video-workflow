@@ -182,8 +182,9 @@ khi `AI_MODE=cli-auto` và đã đặt `NOTEBOOKLM_PROFILE`.
 Gói được ghim (`NOTEBOOKLM_MCP_PACKAGE`) vì dùng API không chính thức; đừng nâng phiên bản khi chưa kiểm tra lại.
 
 Bản thảo của mỗi video được viết theo một góc kể (xoay tự động theo đợt và vị trí của mục, [requirements.md](requirements.md) §6.4).
-Khi nâng cấp lên persona v2 và bản thảo v6: persona được áp lại một lần cho mỗi notebook ở lần mở sau; bản thảo đã cache với phiên
+Khi nâng cấp lên persona v3 và bản thảo v7: persona được áp lại một lần cho mỗi notebook ở lần mở sau; bản thảo đã cache với phiên
 bản cũ không được dùng lại, nên video sản xuất sau nâng cấp tốn một lượt NotebookLM cho bản thảo (video đã có bản thảo giữ nguyên).
+Mỗi câu hỏi gửi NotebookLM tối đa 700 từ (NotebookLM từ chối khoảng 750 từ trở lên); quy tắc cố định của bản thảo nằm ở persona.
 Sản xuất lại cùng bài học ở đợt khác thường ra góc kể khác, tức một lượt NotebookLM mới.
 
 ### 3.5 Google Drive
@@ -340,6 +341,9 @@ pnpm, không phải chẩn đoán này.
 | `NOTEBOOKLM_AUTH_REQUIRED`              | NotebookLM báo cần đăng nhập lại         | Như dòng trên                                                            |
 | `NOTEBOOKLM_QUOTA`                      | Hết hạn mức NotebookLM                   | Xem giờ đặt lại ở Cài đặt → NotebookLM, rồi **Thử lại**                  |
 | `MCP_TIMEOUT`                           | NotebookLM trả lời chậm quá hạn chờ      | Tự thử lại 5 lần; lặp lại thì nâng `NOTEBOOKLM_CALL_TIMEOUT_SEC`         |
+| `NOTEBOOKLM_UNAVAILABLE`                | NotebookLM tạm lỗi phía Google           | Tự thử lại; lặp lại thì đợi ít phút rồi **Thử lại**                      |
+| `NOTEBOOKLM_QUERY_TOO_LONG`             | Câu hỏi quá 700 từ (NotebookLM từ chối)  | Bài học quá dài: rút ngắn các trường của bài học rồi **Thử lại**         |
+| `NOTEBOOKLM_INVALID_REQUEST`            | NotebookLM báo yêu cầu không hợp lệ      | **Thử lại** không giúp: câu hỏi quá dài hoặc nguồn hỏng; xem log worker  |
 | `NOTEBOOKLM_*_INVALID`, `DRAFT_INVALID` | Sai định dạng hoặc sai mạch kể           | Bản thảo: lượt sửa tự động; chương: **Phân tích lại**                    |
 | `PRODUCTION_CORRECTION_EXHAUSTED`       | Đã dùng lượt sửa AI mà vẫn chưa đạt      | Xem lý do (thường quá dài/ngắn); sửa bài học / đợt mới với khoảng khác   |
 | `UNDER_MIN`                             | Video ngắn hơn mức ngắn nhất             | Làm tay: chỉ cảnh báo. Hàng loạt: NotebookLM viết lại sâu hơn (một lượt) |

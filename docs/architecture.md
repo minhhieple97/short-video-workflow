@@ -152,9 +152,10 @@ tối đa 8 lần liên tiếp; sản xuất 10 phút, 5 lần; archive 30 phút
   dài, ngân sách chữ theo nhịp độ, kèm tiêu đề/caption/hashtag, quy tắc kể chuyện và góc kể); `scene-plan-v8` (biên dịch cảnh, kèm
   tiêu đề/caption/hashtag, quy tắc biên tập giữ sức hút của bản thảo);
   `publish-metadata-v1` (chỉ viết lại tiêu đề/caption/hashtag); ba prompt này dùng chung quy tắc `prompts/publish-rule.ts`, đổi chữ ở đó
-  là tăng cả ba; `notebooklm-chapter-detection-v2`, `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v6` (đề xuất độ dài,
-  ngân sách chữ theo nhịp độ, quy tắc kể chuyện và góc kể),
-  `notebooklm-chat-persona-v2` (vai trò của notebook); `draftVersion` của cache = phiên bản bản thảo + phiên bản vai trò. Danh sách độ dài được chọn và ngân sách lời của từng mức sinh từ `prompts/duration-choice.ts`.
+  là tăng cả ba; `notebooklm-chapter-detection-v2`, `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v7` (câu hỏi bản thảo: bài
+  học, góc kể, đề xuất độ dài, ngân sách chữ theo nhịp độ, định dạng JSON),
+  `notebooklm-chat-persona-v3` (vai trò của notebook, kèm quy tắc cố định của bản thảo: ngôn ngữ, mạch kể, quy tắc kể chuyện, nguồn);
+  `draftVersion` của cache = phiên bản bản thảo + phiên bản vai trò. Danh sách độ dài được chọn và ngân sách lời của từng mức sinh từ `prompts/duration-choice.ts`.
   Chữ kể chuyện nằm ở `prompts/storytelling-rule.ts`: `STORYTELLING_RULE` và mô tả từng góc dùng chung cho kịch bản thủ công và bản
   thảo NotebookLM, `STORY_REWRITE_RULE` cho "Viết lại cảnh", `SCENE_EDIT_RULE` cho biên tập cảnh; đổi chữ ở đó là tăng phiên bản của
   mọi prompt dùng nó. Không tăng `chapter-analysis` và `lesson-extraction` khi đổi cách kể: tăng sẽ bắt phân tích lại mọi chương.
@@ -327,12 +328,22 @@ theo số dòng, không trích nội dung. `cleanup` xoá tệp yêu cầu **cu�
   để còn truy nguồn bài học cũ.
 - Tạo mất phản hồi → `UNKNOWN_OUTCOME`; lần sau **tìm dấu** trong `notebook_list`/`notebook_get` trước rồi mới tạo lại.
 - Trước câu hỏi đầu tiên (`openBookNotebook`, lối vào của mọi nguồn), notebook được đặt "Configure chat" qua `chat_configure`: vai trò
-  tuỳ chỉnh `notebooklm-chat-persona-v2` (phân tích sách + biên kịch video dọc, kể bằng khoảnh khắc cụ thể khi viết bản thảo, bám
-  nguồn, câu hỏi đòi định dạng nào trả đúng định dạng đó) và câu trả lời `longer`. Phiên bản đã áp lưu ở `NotebookBinding.chatPersonaVersion` — chỉ ghi khi NotebookLM xác nhận; notebook
+  tuỳ chỉnh `notebooklm-chat-persona-v3` (phân tích sách + biên kịch video dọc, kể bằng khoảnh khắc cụ thể khi viết bản thảo, bám
+  nguồn, câu hỏi đòi định dạng nào trả đúng định dạng đó, và một phần chỉ áp dụng cho bản thảo: ngôn ngữ, mạch kể, `STORYTELLING_RULE`,
+  quy tắc nguồn và trích đoạn) và câu trả lời `longer`. Phiên bản đã áp lưu ở `NotebookBinding.chatPersonaVersion` — chỉ ghi khi NotebookLM xác nhận; notebook
   cũ hơn phiên bản hiện hành được áp lại ở lần dùng sau. Đặt lại cùng cấu hình vô hại nên mất phản hồi là `TRANSIENT`, không
   `UNKNOWN_OUTCOME`.
 - Câu hỏi luôn truyền **`source_ids` tường minh** (chỉ phiên bản hiện hành) trong hội thoại mới, vì NotebookLM mặc định dùng mọi nguồn.
   Câu trả lời phải là JSON đúng schema; sai thì từ chối, không vá.
+- **Mỗi câu hỏi tối đa 700 từ** (`NOTEBOOKLM_QUERY_MAX_WORDS`, `notebooklm-query-limit.ts`). NotebookLM từ chối câu hỏi khoảng 750 từ trở lên bằng
+  `invalid_argument` mờ mịt (đo trên tài khoản thật: 750 từ qua, 800 từ không; đếm từ giữa các khoảng trắng, không theo ký tự, byte hay
+  dấu câu). Vì vậy quy tắc cố định của bản thảo ở persona (tối đa 10.000 ký tự), câu hỏi chỉ mang bài học, góc kể, độ dài và định dạng;
+  khi bài học làm câu hỏi vượt giới hạn thì bỏ bớt trích đoạn rồi cắt ngắn từng trường. `queryNotebook` từ chối câu hỏi dài hơn với
+  `NOTEBOOKLM_QUERY_TOO_LONG` trước khi gửi.
+- Lỗi của một câu hỏi bị từ chối được phân loại theo `error_details.category` mà `notebooklm-mcp-cli` gắn vào (từ vựng cố định, không phải chữ
+  của tài khoản): `deadline_exceeded`/`internal`/`unavailable` là `TRANSIENT` (thử lại), `resource_exhausted` là `QUOTA`, `unauthenticated` là `AUTH`,
+  `invalid_argument`/`not_found`/`permission_denied` là `REJECTED` với mã riêng; `retryable: true` không rõ tên cũng được thử lại. Chữ lỗi của máy
+  chủ vẫn chỉ để đối chiếu, không hiện ra.
 
 ### 7.3 Danh mục bài học theo phần
 

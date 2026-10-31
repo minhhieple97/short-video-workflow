@@ -305,6 +305,61 @@ describe("readNotebookLmEnvelope", () => {
     );
   });
 
+  // What notebooklm-mcp-cli answers for a query NotebookLM refused: the message says nothing the patterns know, the
+  // `error_details` category says what it was.
+  const refused = (category: string, retryable: boolean) =>
+    result({
+      status: "error",
+      error: "Something the patterns do not know",
+      error_details: { category, provider_code: 3, retryable },
+    });
+
+  it.each([
+    ["unauthenticated", false, "NOTEBOOKLM_AUTH_REQUIRED", "AUTH"],
+    ["resource_exhausted", true, "NOTEBOOKLM_QUOTA", "QUOTA"],
+    ["deadline_exceeded", true, "NOTEBOOKLM_TIMEOUT", "TRANSIENT"],
+    ["internal", true, "NOTEBOOKLM_UNAVAILABLE", "TRANSIENT"],
+    ["unavailable", true, "NOTEBOOKLM_UNAVAILABLE", "TRANSIENT"],
+    ["invalid_argument", false, "NOTEBOOKLM_INVALID_REQUEST", "REJECTED"],
+    ["not_found", false, "NOTEBOOKLM_NOT_FOUND", "REJECTED"],
+    ["permission_denied", false, "NOTEBOOKLM_PERMISSION_DENIED", "REJECTED"],
+  ])("classifies a query the server calls %s (retryable %s) as %s, %s", (category, retryable, code, kind) => {
+    expect(() => readNotebookLmEnvelope("notebook_query", refused(category, retryable), false)).toThrow(
+      expect.objectContaining({ code, kind, details: { tool: "notebook_query", category } }),
+    );
+  });
+
+  it("treats a temporary failure of a change as an unknown outcome, never as a refusal", () => {
+    expect(() => readNotebookLmEnvelope("source_add", refused("unavailable", true), true)).toThrow(
+      expect.objectContaining({ code: "NOTEBOOKLM_UNAVAILABLE", kind: "UNKNOWN_OUTCOME" }),
+    );
+  });
+
+  it("retries what the server calls retryable even when it has no name for it, and names the rest in the refusal", () => {
+    expect(() => readNotebookLmEnvelope("notebook_query", refused("something_new", true), false)).toThrow(
+      expect.objectContaining({ code: "NOTEBOOKLM_UNAVAILABLE", kind: "TRANSIENT" }),
+    );
+    expect(() => readNotebookLmEnvelope("notebook_query", refused("provider_error", false), false)).toThrow(
+      expect.objectContaining({
+        code: "NOTEBOOKLM_TOOL_ERROR",
+        kind: "REJECTED",
+        message: "NotebookLM từ chối yêu cầu (provider_error).",
+      }),
+    );
+  });
+
+  it("never shows the server's own words for a refusal", () => {
+    const secret = result({
+      status: "error",
+      error: "Notebook 'Sổ tay của tôi' của alice@example.com không tồn tại",
+      error_details: { category: "not_found", retryable: false },
+    });
+
+    expect(() => readNotebookLmEnvelope("notebook_query", secret, false)).toThrow(
+      expect.not.objectContaining({ message: expect.stringContaining("alice@example.com") }),
+    );
+  });
+
   it.each([
     ["Authentication expired, run nlm login", "NOTEBOOKLM_AUTH_REQUIRED"],
     ["Session expired", "NOTEBOOKLM_AUTH_REQUIRED"],

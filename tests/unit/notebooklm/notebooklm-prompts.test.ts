@@ -19,11 +19,28 @@ import {
 } from "@/server/script-studio/notebooklm/prompts/script-draft-prompt";
 import { STORY_ANGLES } from "@/features/videos/domain/story-angle";
 import { STORYTELLING_RULE, storyAngleRule } from "@/server/ai/prompts/storytelling-rule";
+import { countQueryWords, NOTEBOOKLM_QUERY_MAX_WORDS } from "@/server/script-studio/notebooklm/notebooklm-query-limit";
 
 import { SAMPLE_LESSON } from "../../helpers/contracts/script-studio-provider-contract";
 
-// NotebookLM takes the whole question as one message, so the fixed text of a draft question is kept in check.
-const DRAFT_PROMPT_MAX_CHARS = 6_500;
+const EXCERPT =
+  "Một câu trích nguyên văn từ chương sách, dài chừng hai chục từ, để thử xem câu hỏi còn vừa giới hạn không.";
+// A lesson edited by hand to the 2,000 characters each field allows, with many excerpts.
+const longField = "Một câu dài mô tả chi tiết bài học. ".repeat(60).slice(0, 2_000);
+const LONG_LESSON = {
+  ...SAMPLE_LESSON,
+  summary: longField,
+  principle: longField,
+  realLifeScenario: longField,
+  commonMistake: longField,
+  betterApproach: longField,
+  actionableStep: longField,
+  sources: Array.from({ length: 12 }, (_, index) => ({
+    chapterId: `chapter-${index}`,
+    chapterTitle: `Chương ${index}`,
+    excerpt: EXCERPT,
+  })),
+};
 
 describe("NotebookLM prompts for books in English or Vietnamese", () => {
   it("identifies mid-page candidates as evidence while preserving source, anchor and JSON guardrails", () => {
@@ -54,7 +71,7 @@ describe("NotebookLM prompts for books in English or Vietnamese", () => {
     expect(prompt).toContain("trang 3–9");
   });
 
-  it("asks for a Vietnamese script in the required story order, quoting the source only in its own language", () => {
+  it("asks for the story in the required order, and leaves the language and quoting rules to the notebook's persona", () => {
     const prompt = buildScriptDraftPrompt({
       lesson: SAMPLE_LESSON,
       range: { minDurationSec: 30, maxDurationSec: 60 },
@@ -63,11 +80,12 @@ describe("NotebookLM prompts for books in English or Vietnamese", () => {
       revisionNote: null,
     });
 
-    expect(SCRIPT_DRAFT_PROMPT_VERSION).toBe("notebooklm-script-draft-v6");
-    expect(prompt).toContain("Lời dẫn LUÔN bằng tiếng Việt");
+    expect(SCRIPT_DRAFT_PROMPT_VERSION).toBe("notebooklm-script-draft-v7");
     expect(prompt).toContain("HOOK → SITUATION → MISTAKE → LESSON → RESOLUTION → ACTION");
-    expect(prompt).toContain("đúng ngôn ngữ của nguồn (không dịch)");
     expect(prompt).toContain("dưới 4 giây");
+    expect(prompt).toContain("theo quy tắc viết bản thảo đã đặt cho notebook này");
+    expect(CHAT_PERSONA_PROMPT).toContain("Lời dẫn LUÔN bằng tiếng Việt");
+    expect(CHAT_PERSONA_PROMPT).toContain("đúng ngôn ngữ của nguồn (không dịch)");
   });
 
   it("budgets the words for the chosen pace, so a faster pace gets more words for the same lengths", () => {
@@ -87,7 +105,7 @@ describe("NotebookLM prompts for books in English or Vietnamese", () => {
   });
 
   it("sets a notebook persona for longer answers that never overrides the JSON and lengths each question asks for", () => {
-    expect(CHAT_PERSONA_VERSION).toBe("notebooklm-chat-persona-v2");
+    expect(CHAT_PERSONA_VERSION).toBe("notebooklm-chat-persona-v3");
     expect(CHAT_RESPONSE_LENGTH).toBe("longer");
     // NotebookLM refuses a custom chat prompt longer than this.
     expect(CHAT_PERSONA_PROMPT.length).toBeLessThanOrEqual(10_000);
@@ -113,48 +131,96 @@ describe("NotebookLM prompts for books in English or Vietnamese", () => {
         revisionNote,
       });
 
-    it("carries the shared craft rules and the one angle it was given", () => {
+    it("carries only the one angle it was given, and the shared craft rules are the notebook's persona", () => {
       const prompt = draft("MYTH_BUST");
 
-      expect(prompt).toContain(STORYTELLING_RULE);
       expect(prompt).toContain(storyAngleRule("MYTH_BUST"));
       for (const other of STORY_ANGLES.filter((angle) => angle !== "MYTH_BUST")) {
         expect(prompt).not.toContain(storyAngleRule(other));
       }
+      expect(prompt).not.toContain(STORYTELLING_RULE);
+      expect(CHAT_PERSONA_PROMPT).toContain(STORYTELLING_RULE);
     });
 
-    it("keeps the craft rules apart from the length, source and format rules that follow them", () => {
-      const prompt = draft("TWIST");
-      const lengthRules = prompt.indexOf("## Độ dài, nguồn và định dạng");
+    it("keeps the persona's craft rules apart from the length, source and format rules that follow them", () => {
+      const lengthRules = CHAT_PERSONA_PROMPT.indexOf("## Độ dài, nguồn và định dạng của bản thảo");
 
-      expect(lengthRules).toBeGreaterThan(prompt.indexOf(storyAngleRule("TWIST")));
-      expect(prompt.indexOf("targetDurationSec (giây)")).toBeGreaterThan(lengthRules);
-      expect(prompt.indexOf("illustrative = true cho MỌI nhịp")).toBeGreaterThan(lengthRules);
+      expect(lengthRules).toBeGreaterThan(CHAT_PERSONA_PROMPT.indexOf(STORYTELLING_RULE));
+      expect(CHAT_PERSONA_PROMPT.indexOf("illustrative = true cho MỌI nhịp")).toBeGreaterThan(lengthRules);
+      expect(draft("TWIST").indexOf("targetDurationSec (giây)")).toBeGreaterThan(-1);
     });
 
-    it("builds a draft for every angle, each time asking for a specific moment instead of a general question", () => {
-      for (const angle of STORY_ANGLES) {
-        const prompt = draft(angle);
-        expect(prompt).toContain("HOOK: một khoảnh khắc cụ thể gợi vấn đề");
-        expect(prompt).toContain("Không mở bằng khuôn “Có phải bạn…”");
-      }
+    it("asks the persona, for every angle, for a specific moment instead of a general question", () => {
+      expect(CHAT_PERSONA_PROMPT).toContain("HOOK: một khoảnh khắc cụ thể gợi vấn đề");
+      expect(CHAT_PERSONA_PROMPT).toContain("Không mở bằng khuôn “Có phải bạn…”");
+      for (const angle of STORY_ANGLES) expect(draft(angle)).toContain(storyAngleRule(angle));
     });
 
     it("lets the draft stage invent characters and lines, flagged as illustrative on every beat that has them", () => {
-      const prompt = draft("DIALOGUE");
-
-      expect(prompt).toContain(
+      expect(CHAT_PERSONA_PROMPT).toContain(
         "illustrative = true cho MỌI nhịp có nhân vật, chi tiết hay câu thoại do bạn tự nghĩ ra",
       );
-      expect(prompt).toContain("không chỉ SITUATION");
-      expect(prompt).toContain("Tình huống trong bài học chỉ là hạt giống");
-      expect(prompt).toContain("Riêng tình huống minh hoạ do bạn dựng (nhân vật, nơi chốn, câu thoại) thì được phép");
+      expect(CHAT_PERSONA_PROMPT).toContain("không chỉ SITUATION");
+      expect(CHAT_PERSONA_PROMPT).toContain("Tình huống trong bài học chỉ là hạt giống");
+      expect(CHAT_PERSONA_PROMPT).toContain(
+        "Riêng tình huống minh hoạ do bạn dựng (nhân vật, nơi chốn, câu thoại) thì được phép",
+      );
     });
 
-    it("keeps the fixed text of the question short enough to send as one message, on any angle", () => {
+    it("keeps the draft rules in the persona for drafts only, never for the analysis of a book", () => {
+      expect(CHAT_PERSONA_PROMPT).toContain("khi phân tích sách hay lập danh mục bài học thì bỏ qua cả phần này");
+    });
+
+    it("keeps the question within NotebookLM's word limit on any angle, with the longest lesson and the widest range", () => {
       for (const angle of STORY_ANGLES) {
-        expect(draft(angle, "Rút gọn để vừa 45 giây.").length).toBeLessThanOrEqual(DRAFT_PROMPT_MAX_CHARS);
+        const question = buildScriptDraftPrompt({
+          lesson: LONG_LESSON,
+          range: { minDurationSec: 30, maxDurationSec: 300 },
+          pace: "FASTER",
+          storyAngle: angle,
+          revisionNote: "Rút gọn để vừa 45 giây.",
+        });
+        expect(countQueryWords(question)).toBeLessThanOrEqual(NOTEBOOKLM_QUERY_MAX_WORDS);
       }
+    });
+
+    it("keeps the lesson whole when it fits, then drops excerpts, then shortens the fields, as little as it takes", () => {
+      const ask = (lesson: typeof SAMPLE_LESSON) =>
+        buildScriptDraftPrompt({
+          lesson,
+          range: { minDurationSec: 30, maxDurationSec: 300 },
+          pace: "FASTER",
+          storyAngle: "DIALOGUE",
+          revisionNote: null,
+        });
+      const excerptsIn = (question: string) => question.split(EXCERPT).length - 1;
+      const twoExcerpts = { ...SAMPLE_LESSON, sources: LONG_LESSON.sources.slice(0, 2) };
+      const manyExcerpts = { ...SAMPLE_LESSON, sources: LONG_LESSON.sources };
+      const longFieldsOnly = { ...LONG_LESSON, sources: [] };
+
+      expect(excerptsIn(ask(twoExcerpts))).toBe(2);
+      expect(ask(twoExcerpts)).toContain(SAMPLE_LESSON.summary);
+      expect(excerptsIn(ask(manyExcerpts))).toBeGreaterThan(2);
+      expect(excerptsIn(ask(LONG_LESSON))).toBe(0);
+      expect(ask(LONG_LESSON)).toContain(SAMPLE_LESSON.title);
+      expect(ask(longFieldsOnly)).toContain("…");
+      expect(ask(longFieldsOnly)).not.toContain(longField);
+    });
+  });
+
+  describe("the persona", () => {
+    it("holds the draft's fixed rules and still fits the 10,000 characters NotebookLM accepts for it", () => {
+      expect(CHAT_PERSONA_PROMPT.length).toBeLessThanOrEqual(10_000);
+      expect(CHAT_PERSONA_PROMPT).toContain("tối đa 30 nhịp");
+    });
+  });
+
+  describe("countQueryWords", () => {
+    it("counts the words between spaces, the way NotebookLM does, not characters or punctuation", () => {
+      expect(countQueryWords("")).toBe(0);
+      expect(countQueryWords("  một   hai\nba\tbốn  ")).toBe(4);
+      expect(countQueryWords("a,b,c,d,e")).toBe(1);
+      expect(countQueryWords('{"title":"Định hình lại","excerpts":[]}')).toBe(3);
     });
   });
 });

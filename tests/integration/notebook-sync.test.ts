@@ -337,4 +337,25 @@ describe("queryNotebook", () => {
     });
     expect(toolCalls("notebook_query")).toHaveLength(0);
   });
+
+  it("refuses a question over NotebookLM's word limit, which it would only answer with an opaque invalid_argument", async () => {
+    const caller = await open();
+    const atLimit = Array.from({ length: 700 }, () => "từ").join(" ");
+
+    await expect(
+      sync.queryNotebook(caller, { notebookId: "nb", sourceIds: ["s"], query: `${atLimit} thêm` }),
+    ).rejects.toMatchObject({
+      code: "NOTEBOOKLM_QUERY_TOO_LONG",
+      kind: "REJECTED",
+      details: { words: 701 },
+    });
+    expect(toolCalls("notebook_query")).toHaveLength(0);
+
+    await expect(
+      sync.queryNotebook(caller, { notebookId: "nb", sourceIds: ["s"], query: atLimit }),
+    ).resolves.toMatchObject({
+      sources_used: ["s"],
+    });
+    expect(toolCalls("notebook_query")).toHaveLength(1);
+  });
 });

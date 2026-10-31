@@ -293,11 +293,15 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - Never use `--dangerously-skip-permissions`. When the model only needs to emit JSON, do not grant file-write/shell tools.
 - Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v9`, `scene-plan-v8`, `publish-metadata-v1` — the three last share
   `prompts/publish-rule.ts`, so editing it bumps all three — and for NotebookLM `notebooklm-chapter-detection-v2`,
-  `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v6`, and the notebook's chat persona `notebooklm-chat-persona-v2`, applied once per
+  `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v7`, and the notebook's chat persona `notebooklm-chat-persona-v3`, applied once per
   notebook through `chat_configure` and re-applied when its version changes); changing a prompt's text means bumping its version (the draft and
   persona versions also key the draft cache). Book content is passed as quoted untrusted data. The storytelling text lives in
-  `prompts/storytelling-rule.ts` and is shared like `publish-rule.ts`: editing it bumps every prompt that uses it. Telling a story better is
-  done when the script is written, never by bumping `chapter-analysis` or `lesson-extraction` (that re-analyses every chapter).
+  `prompts/storytelling-rule.ts` and is shared like `publish-rule.ts`: editing it bumps every prompt that uses it, the persona included. Telling
+  a story better is done when the script is written, never by bumping `chapter-analysis` or `lesson-extraction` (that re-analyses every chapter).
+- **A NotebookLM question may not pass 700 words** (`NOTEBOOKLM_QUERY_MAX_WORDS`; NotebookLM refuses about 750 with an opaque `invalid_argument`,
+  counted between spaces, whatever the characters). A draft's long fixed rules therefore live in the chat persona (10,000 characters), and its
+  question carries only the lesson, the angle, the lengths and the format; `queryNotebook` refuses a longer one before sending it. Never budget a
+  NotebookLM question in characters.
 - Validate model output with Zod; on schema failure mark the job `FAILED` and store nothing. No unbounded retries (respect quota errors). Timeouts + best-effort cancel.
 
 ## 10. Storage & security
