@@ -2,10 +2,11 @@ import { createAiProvider } from "@/server/ai";
 import type { AiProvider, AiTaskContext } from "@/server/ai/ai-provider";
 import {
   sceneRegenerationInputSchema,
+  rewrittenSceneSchema,
   sceneRegenerationOutputSchema,
-  storyboardSceneSchema,
   videoScriptInputSchema,
   videoScriptOutputSchema,
+  type RewrittenScene,
   type StoryboardScene,
 } from "@/server/ai/contracts/video-script";
 import { VIDEO_SCRIPT_PROMPT_VERSION } from "@/server/ai/prompts/video-script-prompt";
@@ -15,6 +16,7 @@ import { AppError, NotFoundError } from "@/shared/errors";
 import { formatRange, isWithinRange } from "../domain/duration";
 import { toPace } from "../domain/pace";
 import { describeStoryOrderProblem, findStorySceneOrderProblem } from "../domain/narrative-beats";
+import { parseShotPlan, planShots, rebaseShotPlan } from "../domain/shot-plan";
 import { pickStoryAngle } from "../domain/story-angle";
 import { replaceScript, updateSceneRecord } from "../repositories/video.repository";
 import { inputHash, withAiRun, type AiWaitingForCli } from "./ai-run";
@@ -33,7 +35,7 @@ interface ScriptRun {
 
 const INVALID_SCRIPT_OUTPUT = "Kết quả AI không đúng định dạng kịch bản; không thay đổi gì.";
 
-const toSceneContent = (scene: StoryboardScene) => ({
+const toSceneContent = (scene: StoryboardScene | RewrittenScene) => ({
   type: scene.type,
   title: scene.title ?? null,
   narration: scene.narration,
@@ -41,6 +43,11 @@ const toSceneContent = (scene: StoryboardScene) => ({
   visualVariant: scene.visualVariant,
   hookVariant: null,
   illustration: scene.illustration ?? null,
+});
+
+const toStoryboardContent = (scene: StoryboardScene) => ({
+  ...toSceneContent(scene),
+  shots: planShots(scene.narration, scene.shots),
 });
 
 // Builds hook proposals plus the storyboard; the first hook proposal becomes the HOOK scene until the user picks another.
@@ -109,7 +116,7 @@ export async function runScriptGeneration(
         },
         rate,
       ),
-      ...output.scenes.map((scene) => buildSceneRecord(toSceneContent(scene), rate)),
+      ...output.scenes.map((scene) => buildSceneRecord(toStoryboardContent(scene), rate)),
     ];
     await replaceScript(video.id, {
       hookOptions: output.hookOptions,
@@ -145,7 +152,7 @@ export async function runSceneRegeneration(
     targetDurationSec: video.targetDurationSec,
     pace: toPace(video.pace),
     lessons: lessonSnapshotsOf(video),
-    scene: storyboardSceneSchema.parse({
+    scene: rewrittenSceneSchema.parse({
       type: scene.type,
       title: scene.title ?? undefined,
       narration: scene.narration,
@@ -169,12 +176,14 @@ export async function runSceneRegeneration(
     if (result.status === "waiting_for_cli") return { kind: "waiting", taskDir: result.taskDir };
     const output = sceneRegenerationOutputSchema.parse(result.output);
     if (output.sceneId !== scene.id) throw new AppError("INVALID_AI_OUTPUT", "Kết quả AI không khớp cảnh.", 422);
-    // Rewriting changes the words only; the scene keeps its picture.
+    // Rewriting changes the words only; the scene keeps its picture, its shots moving onto the new words.
+    const previousShots = parseShotPlan(scene.shotsJson);
     const record = buildSceneRecord(
       {
         ...toSceneContent(output.scene),
         type: scene.type,
         illustration: parseIllustration(scene.illustrationJson),
+        shots: previousShots ? rebaseShotPlan(previousShots, scene.narration, output.scene.narration) : null,
       },
       narrationRateOf(video),
     );

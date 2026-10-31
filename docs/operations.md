@@ -270,7 +270,8 @@ pnpm, không phải chẩn đoán này.
   `DATABASE_URL=file:<data>/studio.db pnpm fixture:export --render <id> --name <tên> --from <data>`.
   - `pnpm bench:render --fixture <tên> [--quality draft|final] [--frames a-b] [--concurrency n] [--out tệp.mp4]` render đúng như worker (`--out` giữ lại MP4 để xem) và in
     ms/frame tính trên toàn bộ thời gian render, đã gồm encode.
-  - `pnpm render:stills --fixture <tên>` ghép 4 khung mỗi cảnh thành `DATA_DIR/diagnostics/stills/…/contact.png`.
+  - `pnpm render:stills --fixture <tên> [--shots]` ghép 4 khung mỗi cảnh (hoặc với `--shots`, một khung sau một giây của từng shot)
+    thành `DATA_DIR/diagnostics/stills/…/contact.png`.
   - Chỉ đo khi máy rảnh.
 - **Số gốc** (template v4, 30/10/2026; WSL thấy 4 CPU, 21 GB). Fixture `real-56s`: 6 cảnh, 1.688 frame.
 

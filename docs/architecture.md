@@ -148,9 +148,10 @@ tối đa 8 lần liên tiếp; sản xuất 10 phút, 5 lần; archive 30 phút
   `claude auth status`; chạy `claude -p --output-format json --tools "" --strict-mcp-config --no-session-persistence --json-schema …` từ
   mảng đối số, prompt qua stdin; env bỏ `CLAUDECODE*`/`CLAUDE_CODE_*` (không lồng phiên) và `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN`;
   timeout và huỷ → `SIGTERM`. Lỗi có mã ổn định (`AI_CLI_AUTH`, `AI_QUOTA_EXCEEDED`, `AI_CLI_TIMEOUT`, `INVALID_AI_OUTPUT`…).
-- Prompt có phiên bản; đổi chữ là tăng phiên bản: `chapter-analysis-v1`, `video-script-v9` (v1.1, cùng khung kể với sản xuất, đề xuất độ
-  dài, ngân sách chữ theo nhịp độ, kèm tiêu đề/caption/hashtag, quy tắc kể chuyện và góc kể); `scene-plan-v8` (biên dịch cảnh, kèm
-  tiêu đề/caption/hashtag, quy tắc biên tập giữ sức hút của bản thảo);
+- Prompt có phiên bản; đổi chữ là tăng phiên bản: `chapter-analysis-v1`, `video-script-v10` (v1.1, cùng khung kể với sản xuất, đề xuất độ
+  dài, ngân sách chữ theo nhịp độ, kèm tiêu đề/caption/hashtag, quy tắc kể chuyện, góc kể và shot); `scene-plan-v9` (biên dịch cảnh, kèm
+  tiêu đề/caption/hashtag, quy tắc biên tập giữ sức hút của bản thảo, và shot); hai prompt này dùng chung `prompts/shot-rule.ts` (như
+  `illustration-rule.ts`), đổi chữ ở đó là tăng cả hai;
   `publish-metadata-v1` (chỉ viết lại tiêu đề/caption/hashtag); ba prompt này dùng chung quy tắc `prompts/publish-rule.ts`, đổi chữ ở đó
   là tăng cả ba; `notebooklm-chapter-detection-v2`, `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v7` (câu hỏi bản thảo: bài
   học, góc kể, đề xuất độ dài, ngân sách chữ theo nhịp độ, định dạng JSON),
@@ -182,6 +183,11 @@ tối đa 8 lần liên tiếp; sản xuất 10 phút, 5 lần; archive 30 phút
   `GENERATE_PUBLISH_METADATA` thì job `FAILED` (`PUBLISH_METADATA_UNSUPPORTED_CLAIM` / `INVALID_AI_OUTPUT`), không lưu gì. Bộ hợp lệ
   được ghi trong cùng giao dịch với kịch bản (`replaceScriptWithin`).
 - Hoạt cảnh chỉ nhận giá trị từ danh sách cố định, sinh vào prompt từ `videos/domain/illustration.ts`.
+- **Shot do AI viết** (`aiShotSchema`, `videos/domain/shot-plan.ts`): mọi trường tuỳ chọn, mỗi trường là `.optional().catch(undefined)`.
+  Một trường sai (đồ vật lạ, thẻ sai kiểu, nhãn quá dài) bị bỏ riêng, kịch bản vẫn qua; schema vẫn chuyển được sang JSON Schema cho
+  `--json-schema` (không `.transform`). `from` là vài chữ đầu của đoạn mà shot bắt đầu; `planShots` đổi nó thành vị trí chữ khi lưu.
+  "Viết lại cảnh" dùng `rewrittenSceneSchema` (bỏ `shots`): mô hình không thấy và không viết shot. Bộ chặn khẳng định không căn cứ
+  kiểm cả chữ của shot (`aiShotTexts`).
 - `ClaudeScenePlanCompiler` đặt tên tác vụ theo hash đầu vào nên hỏi lại cùng đầu vào không tốn thêm lượt Claude. Sản xuất hàng loạt chỉ
   chạy với `mock` hoặc `cli-auto`; `cli-task` bị từ chối vì không thể chờ người chạy `pnpm ai:run` từng video.
 
@@ -466,6 +472,28 @@ scriptVersion`. Không đạt thì không ghi gì. Từ đó video theo luật c
     frame; đoạn dài hơn chia đều.
   - Cỡ cảnh xen kẽ WIDE/MEDIUM. Hook mở MEDIUM.
   - Cảnh tiếp ở cùng bối cảnh mở bằng cỡ khác shot cuối của cảnh trước. Màn chữ (`BIG_TAKEAWAY`, `ACTION_CHECKLIST`) là một shot.
+- **Kế hoạch shot** (`domain/shot-plan.ts`, cột `VideoScene.shotsJson`, null = cắt tự động như trên):
+  - Mảng 1–6 shot (hook 2), `fromWord` tăng dần từ 0, đếm chữ như phụ đề (`spokenTokens`).
+  - Mỗi shot đổi điều nó nêu. `setting`/`action` mang sang shot sau; `mood`, `partner`, `props` (≤ 2, có `label`), `tag`, `size`,
+    `card` (`PUNCH`/`LIST`/`VERSUS`/`NUMBER`/`QUOTE`, giới hạn dòng ở `CARD_LIMITS`) chỉ thuộc shot đó.
+  - `serializeShotPlan` ghi khoá theo thứ tự cố định nên cùng kế hoạch luôn ra cùng byte.
+  - `sceneContentHash` chỉ thêm shot khi có, nên cảnh cũ giữ hash. Khoá cache giọng chỉ theo lời dẫn, nên đổi shot làm render lỗi
+    thời mà không tạo lại giọng.
+  - `rebaseShotPlan` dời shot theo chữ khi lời dẫn đổi (sửa tay, "Viết lại cảnh"). `updateScene` coi `shots` gửi lại y nguyên là
+    "giữ", rồi kiểm `shotPlanProblem` (vượt số shot, bắt đầu ngoài lời) → `INVALID_SHOT_PLAN`.
+  - `RenderSnapshot.scenes[].shots` là tuỳ chọn, không default, nên snapshot cũ giữ hash.
+  - `shot-timeline.ts` (`resolveSceneShots`) đổi kế hoạch thành `ResolvedShot` cho props:
+    - cue = khung bắt đầu của chữ theo thời gian từ (giọng hoặc ước lượng), bắt vào đầu trang phụ đề trong 12 frame;
+    - cue làm shot dưới 54 frame thì bỏ;
+    - shot hoạt cảnh dài thì chia đều, xen cỡ cảnh; thẻ chữ không chia;
+    - trong màn chữ, các shot thường gộp lại;
+    - kết quả mang đủ bối cảnh, hành động, cảm xúc, nhân vật phụ, đồ vật, nhãn, thẻ, nên Remotion không tự suy gì.
+  - Remotion:
+    - `stage/stage-shot.tsx` vẽ cảm xúc (`MOOD_FACES`), nhân vật phụ (`PARTNER_POSES`, tông áo BW, quay mặt về nhân vật chính trừ khi
+      cùng đi). Khi có nhân vật phụ, nhân vật chính dùng dáng đứng (`STANDING_POSES`) và camera không gần hơn trung cảnh.
+    - `stage/shot-overlays.tsx` vẽ đồ vật và nhãn trên màn hình, không theo camera.
+    - `text/card-scene.tsx` vẽ năm kiểu thẻ.
+    - Chuyển cảnh nối shot cuối của cảnh trước với shot đầu của cảnh sau.
 - **Lớp hình** (`src/remotion/layers/visual-track.tsx`):
   - Dùng `TransitionSeries`; giọng và phụ đề nằm ở một `Series` riêng (`caption-layer.tsx`).
   - Hình của cảnh _i_ kéo dài thêm đúng độ dài chuyển cảnh sau nó (`d_i = f_i + t_i`, `timeline/scene-transitions.ts`). Nhờ vậy hình
@@ -519,7 +547,8 @@ cảnh báo       HOOK_SILENCE (> 500 ms lặng đầu), LONG_TEXT, MISSING_AUDI
   - Fluent Emoji Flat: `pnpm props:generate --source <assets>`, ra `props/prop-art.generated.ts`, phủ đủ `PROP_IDS`.
 - Mọi chuyển động là hàm của frame. Không `filter`/blur (chậm trong Chromium headless), không ảnh, không ngẫu nhiên, không gói Remotion
   dùng mạng hay WebGL: `render-rules.test.ts` và ESLint kiểm.
-- `illustrationJson` null = mặc định theo loại cảnh; hash cảnh chỉ tính hoạt cảnh khi có lựa chọn nên dữ liệu cũ giữ hash.
+- `illustrationJson` null = mặc định theo loại cảnh; hash cảnh chỉ tính hoạt cảnh khi có lựa chọn nên dữ liệu cũ giữ hash. Cùng quy
+  tắc cho `shotsJson`.
 
 ## 10. Lưu trữ lên Google Drive
 

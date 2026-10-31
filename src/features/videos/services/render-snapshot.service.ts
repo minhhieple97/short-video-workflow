@@ -96,6 +96,7 @@ export async function captureRenderSnapshot(
       hidden: scene.hidden,
       audioAssetId: scene.audioAssetId,
       illustration: scene.illustration,
+      ...(scene.shots ? { shots: scene.shots } : {}),
       illustrative: illustrative.has(scene.type),
     })),
     audio: audioIds.flatMap((assetId) => {

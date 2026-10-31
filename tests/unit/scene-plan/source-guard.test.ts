@@ -57,6 +57,30 @@ function planWith(overrides: { hook?: string; scene?: string; onScreen?: string 
 }
 
 describe("findUnsupportedClaims", () => {
+  it("checks the words a plan's shots put on screen like its narration", () => {
+    const plan = planWith();
+    const withShots = (shots: unknown[]) =>
+      ({
+        ...plan,
+        scenes: plan.scenes.map((scene, index) => (index === 2 ? { ...scene, shots } : scene)),
+      }) as ScenePlan;
+
+    const faithful = withShots([
+      { card: { style: "QUOTE", lines: ["Hãy bắt đầu bằng hai phút đầu tiên của việc cần làm."] } },
+      { from: "bắt đầu", tag: "2 phút" },
+    ]);
+    expect(hasUnsupportedClaims(findUnsupportedClaims(faithful, DRAFT, LESSON))).toBe(false);
+
+    const invented = withShots([
+      { card: { style: "QUOTE", lines: ["Thành công là 99% mồ hôi."] } },
+      { from: "bắt đầu", props: [{ id: "CHART_UP", label: "Tăng 40%" }] },
+    ]);
+    expect(findUnsupportedClaims(invented, DRAFT, LESSON)).toEqual({
+      numbers: ["99", "40"],
+      quotes: ["Thành công là 99% mồ hôi."],
+    });
+  });
+
   it("accepts a plan that only rewords what the draft and lesson say", () => {
     const claims = findUnsupportedClaims(planWith(), DRAFT, LESSON);
 

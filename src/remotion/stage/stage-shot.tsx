@@ -1,22 +1,28 @@
 import { AbsoluteFill, useCurrentFrame } from "remotion";
 
-import type { Illustration } from "@/features/videos/domain/illustration";
 import type { ShotSize } from "@/features/videos/domain/scene-shots";
+import type { ResolvedShot } from "@/features/videos/domain/shot-timeline";
 
 import type { PeepLook } from "../peeps/peep";
 import { Camera, type CameraFraming } from "./camera";
-import { ACTION_POSES, faceFor } from "./cast";
+import { ACTION_POSES, faceFor, PARTNER_POSES, STANDING_POSES, type CastPose } from "./cast";
 import { CastExtras } from "./extras";
 import { PeepActor } from "./peep-actor";
 import { SETS } from "./sets/sets";
+import { ShotProps, ShotTag } from "./shot-overlays";
 
 // Where the character stands: a half-body figure ends behind the set's furniture top (y 1180), a whole one stands on the
 // ground line (y 1260). Both keep the head in the picture band, below the headline.
 const HALF = { x: 486, bottom: 1220, height: 600 } as const;
 const WHOLE = { x: 486, bottom: 1262, height: 650 } as const;
+// Two whole figures side by side, the main character on the right. The partner turns to face it, except when the two walk
+// on together.
+const PAIR = { mainX: 700, partnerX: 360, bottom: 1262, height: 560 } as const;
+
+type Framing = [CameraFraming, CameraFraming];
 
 // Each shot size frames the character a little closer and drifts slowly (never a fast zoom).
-const FRAMING: Record<"half" | "whole", Record<ShotSize, [CameraFraming, CameraFraming]>> = {
+const FRAMING: Record<"half" | "whole" | "pair", Record<ShotSize, Framing>> = {
   half: {
     WIDE: [
       { x: 486, y: 950, zoom: 1 },
@@ -45,42 +51,73 @@ const FRAMING: Record<"half" | "whole", Record<ShotSize, [CameraFraming, CameraF
       { x: 500, y: 700, zoom: 1.66 },
     ],
   },
+  // Two figures never get a closer frame than medium: it would cut one of them.
+  pair: {
+    WIDE: [
+      { x: 505, y: 950, zoom: 1 },
+      { x: 505, y: 950, zoom: 1.03 },
+    ],
+    MEDIUM: [
+      { x: 505, y: 860, zoom: 1.2 },
+      { x: 505, y: 860, zoom: 1.25 },
+    ],
+    CLOSE: [
+      { x: 505, y: 860, zoom: 1.2 },
+      { x: 505, y: 860, zoom: 1.25 },
+    ],
+  },
 };
 
+const walkOffset = (pose: CastPose, frame: number) => (pose.walks ? Math.min(220, frame * 1.4) - 110 : 0);
+const stepLift = (pose: CastPose, frame: number) => (pose.walks ? Math.abs(Math.sin(frame / 6)) * 8 : 0);
+
 export function StageShot({
-  illustration,
-  size,
+  shot,
   look,
+  partnerLook,
   durationInFrames,
 }: {
-  illustration: Illustration;
-  size: ShotSize;
+  shot: ResolvedShot;
   look: PeepLook;
+  partnerLook: PeepLook;
   durationInFrames: number;
 }) {
   const frame = useCurrentFrame();
-  const set = SETS[illustration.setting];
-  const pose = ACTION_POSES[illustration.action];
+  const set = SETS[shot.setting];
+  const paired = shot.partner !== null;
+  const pose = paired ? STANDING_POSES[shot.action] : ACTION_POSES[shot.action];
+  const partnerPose = shot.partner ? PARTNER_POSES[shot.partner] : null;
   const place = pose.full ? WHOLE : HALF;
-  const [from, to] = FRAMING[pose.full ? "whole" : "half"][size];
-  const walk = pose.walks ? Math.min(220, frame * 1.4) - 110 : 0;
-  const step = pose.walks ? Math.abs(Math.sin(frame / 6)) * 8 : 0;
+  const [from, to] = FRAMING[paired ? "pair" : pose.full ? "whole" : "half"][shot.size];
   return (
     <AbsoluteFill style={{ overflow: "hidden", backgroundColor: set.background }}>
       <Camera from={from} to={to} durationInFrames={durationInFrames}>
         <set.Back />
         {pose.full ? <set.Ground /> : null}
+        {partnerPose ? (
+          <PeepActor
+            body={partnerPose.body}
+            face={faceFor(partnerPose, shot.size)}
+            look={partnerLook}
+            x={PAIR.partnerX + walkOffset(partnerPose, frame)}
+            bottom={PAIR.bottom - stepLift(partnerPose, frame)}
+            height={PAIR.height}
+            flip={!partnerPose.walks}
+          />
+        ) : null}
         <PeepActor
           body={pose.body}
-          face={faceFor(pose, size)}
+          face={faceFor(pose, shot.size, shot.mood)}
           look={look}
-          x={place.x + walk}
-          bottom={place.bottom - step}
-          height={place.height}
+          x={(paired ? PAIR.mainX : place.x) + walkOffset(pose, frame)}
+          bottom={(paired ? PAIR.bottom : place.bottom) - stepLift(pose, frame)}
+          height={paired ? PAIR.height : place.height}
         />
         {pose.full ? null : <set.Front />}
-        {pose.extra ? <CastExtras extra={pose.extra} /> : null}
+        {!paired && pose.extra ? <CastExtras extra={pose.extra} /> : null}
       </Camera>
+      {shot.props.length > 0 ? <ShotProps props={shot.props} /> : null}
+      {shot.tag ? <ShotTag text={shot.tag} /> : null}
     </AbsoluteFill>
   );
 }

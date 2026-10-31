@@ -33,6 +33,7 @@ const scene = (id: string, order: number, withAudio = false): SceneDto => ({
   audioAssetId: withAudio ? "asset-1" : null,
   audio: withAudio ? clip : null,
   illustration: null,
+  shots: null,
 });
 
 function panel(scenes: SceneDto[], jobs: SceneVoiceJobs = {}, mode: "edge-tts" | "upload" = "edge-tts") {

@@ -52,7 +52,7 @@ Hard constraints (do not relax without an explicit user decision):
 | Telegram test / retry one failed notification  | `pnpm telegram --test` · `pnpm telegram --retry <notificationId>` |
 | Repair đ/Đ read as ñ/ð in imported PDF books   | `pnpm text:repair [--book <id>] [--apply]`                        |
 | Remotion Studio (inspect compositions)         | `pnpm remotion:studio`                                            |
-| Render fixture: contact sheet / ms per frame   | `pnpm render:stills` · `pnpm bench:render`                        |
+| Render fixture: contact sheet / ms per frame   | `pnpm render:stills [--shots]` · `pnpm bench:render`              |
 | Regenerate character / prop art                | `pnpm peeps:generate` · `pnpm props:generate --source <dir>`      |
 | Lint / format check / typecheck                | `pnpm lint` · `pnpm format:check` · `pnpm typecheck`              |
 | Tests                                          | `pnpm test` (`pnpm test:watch` while developing)                  |
@@ -121,7 +121,8 @@ src/
                        complete answer is kept (`notebook-part-answers`, an `AiRun` of mode `notebooklm-part`) so a retry asks only the missing parts
     lessons/           lesson domain (fields, excerpt verification), repository, review service, library/review UI; the bulk bar also
                        starts production (`ProduceLessonsDialog` from `productions/`), and a row says when its lesson is being made
-    videos/            short-form domain (scene types, layouts, duration budget, pace, story angles, snapshots), script generation/editing, editor UI;
+    videos/            short-form domain (scene types, layouts, duration budget, pace, story angles, shot plans + timeline, snapshots), script
+                       generation/editing, editor UI (scene card with its shot editor);
                        the title/caption/hashtag set to post with (`domain/publish-metadata.ts`: rules + hashtag normalizing,
                        `publish-proposal.ts` for the set written with a script, `publish-generation`/`publish-request` services,
                        Đăng tải tab in `components/publish/`); the create-video dialog makes one video per lesson or one joined video
@@ -175,7 +176,8 @@ src/
   worker/              Standalone process: main.ts, processors/ (dispatcher + one per job type), lifecycle/ (heartbeat + lock renewal, shutdown)
   remotion/            Pure React video code: index.ts (registerRoot), root.tsx (ShortVideo + calculateMetadata), compositions/,
                        layers/ (visual track with transitions, voice + caption track, progress chrome), scenes/ (one scene = its shots
-                       + headline), stage/ (camera, sets, Open Peeps cast per action, extras), text/ (kinetic headline, text cards),
+                       + headline), stage/ (camera, sets, Open Peeps cast per action, mood and partner, extras, prop/tag overlays),
+                       text/ (kinetic headline, text scene, the five shot cards),
                        captions/ (caption pages), timeline/ (scene transitions), peeps/ + props/ (generated art, see
                        THIRD_PARTY_NOTICES.md), theme/ (tokens, bundled font); frame-driven only
   shared/              Truly shared: config/env.ts (Zod-validated env), logger.ts, errors.ts, pagination.ts (`loadPage`/`slicePage`/`Page<T>`
@@ -291,8 +293,9 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - Never add `@anthropic-ai/sdk`, never create `ANTHROPIC_API_KEY`, never read/copy/log Claude tokens, cookies or credentials.
 - Run subprocesses with `spawn`/`execFile` and an argument array — **never** build shell strings from input, never use `exec` with interpolation.
 - Never use `--dangerously-skip-permissions`. When the model only needs to emit JSON, do not grant file-write/shell tools.
-- Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v9`, `scene-plan-v8`, `publish-metadata-v1` — the three last share
-  `prompts/publish-rule.ts`, so editing it bumps all three — and for NotebookLM `notebooklm-chapter-detection-v2`,
+- Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v10`, `scene-plan-v9`, `publish-metadata-v1` — the three last share
+  `prompts/publish-rule.ts`, so editing it bumps all three; `video-script` and `scene-plan` also share `illustration-rule.ts` and
+  `shot-rule.ts` — and for NotebookLM `notebooklm-chapter-detection-v2`,
   `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v7`, and the notebook's chat persona `notebooklm-chat-persona-v3`, applied once per
   notebook through `chat_configure` and re-applied when its version changes); changing a prompt's text means bumping its version (the draft and
   persona versions also key the draft cache). Book content is passed as quoted untrusted data. The storytelling text lives in
@@ -352,12 +355,20 @@ Dependency direction: `app → features/*/services → features/*/repositories �
   scene frames. Captions are pages (`domain/caption-pages.ts`, ≤ 2 lines); word timings come from the voice (edge-tts word
   boundaries on `MediaAsset.wordBoundariesJson`, matched to the narration by `alignWordTimings`) or are estimated by syllables (uploads,
   older voices), and only voice timings light up the spoken word (`karaoke`).
+- **Planned shots** (`domain/shot-plan.ts`, `VideoScene.shotsJson`, null = the automatic cut above): up to 6 shots per scene (hook 2),
+  each starting on a word of the narration (`fromWord`, counted like captions). Claude writes the first words of each shot (`from`);
+  `planShots` finds them. Setting and action carry over; mood, supporting character (dark-top outfit family), ≤ 2 props with labels, a
+  tag, camera size and a full-screen text card (`PUNCH`/`LIST`/`VERSUS`/`NUMBER`/`QUOTE`) belong to one shot. The AI schema is lenient per
+  field (`.optional().catch(undefined)`, never `.transform`, so it stays JSON-Schema convertible). Shot text goes through the source
+  check (a quote card counts as a quotation). A shot change outdates renders but never the voice cache; edited narration moves shots
+  with their words (`rebaseShotPlan`). `shot-timeline.ts` resolves everything into `ResolvedShot` props, so Remotion infers nothing.
 - **Art:** characters are Open Peeps and props are Fluent Emoji Flat, turned into path data by `pnpm peeps:generate` / `pnpm props:generate`
   (never edit `*.generated.ts`; `THIRD_PARTY_NOTICES.md` names sources and licences). Settings and actions come from the fixed lists in
   `features/videos/domain/illustration.ts`, props from `domain/props.ts`; `src/remotion/stage/cast.ts` maps each action to a pose, faces
   and extras, keeping the main character in the light-top outfit family. Claude picks a setting + action per hook and scene (`scene-plan`,
   `video-script`); it is stored on `VideoScene.illustrationJson` (null = the default for the scene type) and is part of the scene's content
-  hash only when chosen, so older scenes keep their hash. Rewriting one scene keeps its picture.
+  hash only when chosen, so older scenes keep their hash (the same holds for `shotsJson`). Rewriting one scene keeps its picture and its
+  shots.
 - Vietnamese diacritics must render correctly (font fallback checked in Chromium on WSL). On-screen text may only use glyphs in the
   bundled font; draw symbols such as ✓ ✗ → as SVG, or the preview and the MP4 pick different system fonts.
 - The official Remotion skills (`.claude/skills/remotion-markup`, `remotion-captions`, pinned in `skills-lock.json`) are API guidance.

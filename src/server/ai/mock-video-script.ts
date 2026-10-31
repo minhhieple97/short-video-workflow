@@ -12,6 +12,7 @@ import type {
   VideoScriptOutput,
 } from "./contracts/video-script";
 import { mockPublishMetadata } from "./mock-publish-metadata";
+import { mockShots } from "./mock-shots";
 
 const MOCK_HOOKS: HookOption[] = [
   {
@@ -45,7 +46,14 @@ function caption(text: string): string {
 }
 
 function scene(type: BodySceneType, title: string, narration: string): StoryboardScene {
-  return { type, title, narration, onScreenText: caption(narration), visualVariant: DEFAULT_VISUAL_VARIANT[type] };
+  return {
+    type,
+    title,
+    narration,
+    onScreenText: caption(narration),
+    visualVariant: DEFAULT_VISUAL_VARIANT[type],
+    shots: mockShots(type, narration),
+  };
 }
 
 const firstSentence = (text: string) => text.split(/(?<=[.!?…])\s+/u)[0] ?? text;

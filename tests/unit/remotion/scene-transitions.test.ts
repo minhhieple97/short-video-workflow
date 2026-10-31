@@ -3,17 +3,34 @@ import { describe, expect, it } from "vitest";
 import { planSceneVisuals, transitionBetween, type SceneCut } from "@/remotion/timeline/scene-transitions";
 
 const cut = (mode: "STAGE" | "TEXT", setting: string, durationInFrames: number): SceneCut => ({
-  mode,
-  setting,
+  enter: { mode, setting },
+  exit: { mode, setting },
   durationInFrames,
 });
 
 describe("scene transitions", () => {
   it("cuts straight within one place, wipes to a new place and slides text cards", () => {
-    expect(transitionBetween(cut("STAGE", "HOME", 90), cut("STAGE", "HOME", 90)).kind).toBe("none");
-    expect(transitionBetween(cut("STAGE", "HOME", 90), cut("STAGE", "PARK", 90)).kind).toBe("wipe");
-    expect(transitionBetween(cut("STAGE", "HOME", 90), cut("TEXT", "HOME", 90)).kind).toBe("slide");
-    expect(transitionBetween(cut("TEXT", "HOME", 90), cut("TEXT", "HOME", 90)).kind).toBe("fade");
+    const edge = (mode: "STAGE" | "TEXT", setting: string) => ({ mode, setting });
+    expect(transitionBetween(edge("STAGE", "HOME"), edge("STAGE", "HOME")).kind).toBe("none");
+    expect(transitionBetween(edge("STAGE", "HOME"), edge("STAGE", "PARK")).kind).toBe("wipe");
+    expect(transitionBetween(edge("STAGE", "HOME"), edge("TEXT", "HOME")).kind).toBe("slide");
+    expect(transitionBetween(edge("TEXT", "HOME"), edge("TEXT", "HOME")).kind).toBe("fade");
+  });
+
+  it("joins a scene's last shot to the next scene's first shot", () => {
+    const endsOnCard: SceneCut = {
+      enter: { mode: "STAGE", setting: "HOME" },
+      exit: { mode: "TEXT", setting: "HOME" },
+      durationInFrames: 120,
+    };
+    const [first] = planSceneVisuals([endsOnCard, cut("STAGE", "HOME", 90)]);
+    expect(first?.after.kind).toBe("slide");
+    const leavesHome: SceneCut = {
+      enter: { mode: "STAGE", setting: "HOME" },
+      exit: { mode: "STAGE", setting: "PARK" },
+      durationInFrames: 120,
+    };
+    expect(planSceneVisuals([leavesHome, cut("STAGE", "PARK", 90)])[0]?.after.kind).toBe("none");
   });
 
   it("starts every picture on its voice's first frame and keeps the video's length", () => {

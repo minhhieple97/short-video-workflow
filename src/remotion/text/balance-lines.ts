@@ -1,14 +1,3 @@
-const LIST_MARKER = /(?=(?:^|\s)\d{1,2}[).]\s)/u;
-
-// "1) … 2) … 3) …" written in one line: one item per line, or null when the text is not such a list.
-export function listItems(text: string): string[] | null {
-  const items = text
-    .split(LIST_MARKER)
-    .map((item) => item.trim())
-    .filter(Boolean);
-  return items.length >= 2 && items.every((item) => /^\d{1,2}[).]\s/u.test(item)) ? items : null;
-}
-
 // Breaks a headline into a few lines of similar length (about `lineChars` characters each), so big type wraps by meaning
 // rather than leaving one word alone on the last line.
 export function balanceLines(text: string, lineChars = 16, maxLines = 4): string[] {

@@ -17,6 +17,7 @@ import { toVideoStatus } from "../domain/video-status";
 import { timedWordsSchema } from "../domain/word-timing";
 import type { VideoDetailRecord } from "../repositories/video.repository";
 import type { PublishMetadataDto, SceneAudioDto, SceneDto, VideoDetail } from "../schemas/video.dto";
+import { parseShotPlan } from "../domain/shot-plan";
 import { parseIllustration, scriptTextHash } from "./scene-records";
 
 const hookOptionsSchema = z.array(hookOptionSchema).catch([]);
@@ -43,6 +44,7 @@ function toSceneDto(scene: VideoDetailRecord["scenes"][number], rate: number): S
     audioAssetId: scene.audioAssetId,
     audio: toSceneAudio(scene),
     illustration: parseIllustration(scene.illustrationJson),
+    shots: parseShotPlan(scene.shotsJson),
   };
 }
 

@@ -1,10 +1,17 @@
 import type { CharacterAction } from "@/features/videos/domain/illustration";
 import type { ShotSize } from "@/features/videos/domain/scene-shots";
+import type { PartnerAction, ShotMood } from "@/features/videos/domain/shot-plan";
 
 import type { PeepBodyName, PeepFaceName, PeepHairName, PeepLook } from "../peeps/peep";
 import { INK, PAPER } from "../theme/tokens";
 
 export type CastExtra = "THOUGHT" | "SPEECH" | "IDEA" | "SWEAT" | "CONFETTI";
+
+// The two people a video can show: its main character and the one supporting character it may bring in.
+export interface Cast {
+  main: PeepLook;
+  partner: PeepLook;
+}
 
 export interface CastPose {
   body: PeepBodyName;
@@ -30,9 +37,47 @@ export const ACTION_POSES: Record<CharacterAction, CastPose> = {
   CELEBRATING: { body: "Shirt", face: "SmileBig", closeFace: "SmileLol", full: false, extra: "CONFETTI" },
 };
 
-export function faceFor(pose: CastPose, size: ShotSize): PeepFaceName {
+export const MOOD_FACES: Record<ShotMood, PeepFaceName> = {
+  CALM: "Calm",
+  HAPPY: "Smile",
+  JOYFUL: "SmileBig",
+  WORRIED: "Concerned",
+  SCARED: "ConcernedFear",
+  ANGRY: "Angry",
+  SURPRISED: "Awe",
+  TIRED: "Tired",
+  FOCUSED: "Driven",
+  DOUBTFUL: "Suspicious",
+  SAD: "Solemn",
+};
+
+// A shot's mood, when it names one, replaces the face the action would give.
+export function faceFor(pose: CastPose, size: ShotSize, mood: ShotMood | null = null): PeepFaceName {
+  if (mood) return MOOD_FACES[mood];
   return size === "CLOSE" ? pose.closeFace : pose.face;
 }
+
+// Beside a supporting character both stand whole on the ground, so the main character's action takes a standing pose.
+export const STANDING_POSES: Record<CharacterAction, CastPose> = {
+  THINKING: { body: "CrossedArmsWB", face: "Blank", closeFace: "Suspicious", full: true },
+  WORRIED: { body: "RestingWB", face: "Concerned", closeFace: "ConcernedFear", full: true },
+  WORKING: { body: "RestingWB", face: "Driven", closeFace: "Serious", full: true },
+  TALKING: { body: "PointingFingerWB", face: "Explaining", closeFace: "Explaining", full: true },
+  WALKING: { body: "WalkingWB", face: "Calm", closeFace: "Smile", full: true, walks: true },
+  PHONE: { body: "RestingWB", face: "Calm", closeFace: "Blank", full: true },
+  IDEA: { body: "PointingFingerWB", face: "Awe", closeFace: "Awe", full: true },
+  CELEBRATING: { body: "RoboDanceWB", face: "SmileBig", closeFace: "SmileLol", full: true },
+};
+
+// The supporting character wears the dark outfit family so it never reads as the main character.
+export const PARTNER_POSES: Record<PartnerAction, CastPose> = {
+  LISTENING: { body: "RestingBW", face: "Calm", closeFace: "Smile", full: true },
+  TALKING: { body: "RestingBW", face: "Explaining", closeFace: "Explaining", full: true },
+  POINTING: { body: "PointingFingerBW", face: "Driven", closeFace: "Driven", full: true },
+  DOUBTING: { body: "CrossedArmsBW", face: "Suspicious", closeFace: "Suspicious", full: true },
+  CELEBRATING: { body: "RoboDanceBW", face: "SmileBig", closeFace: "SmileLol", full: true },
+  WALKING: { body: "WalkingBW", face: "Calm", closeFace: "Smile", full: true, walks: true },
+};
 
 const HAIR: readonly PeepHairName[] = [
   "ShortMessy",
@@ -63,4 +108,23 @@ export function mainLook(seed: string): PeepLook {
     line: INK,
     fill: PAPER,
   };
+}
+
+// The supporting character of a video: another hair style than the main one, chosen from the same seed.
+export function partnerLook(seed: string, main: PeepLook): PeepLook {
+  const value = hash(`${seed}:partner`);
+  const taken = HAIR.indexOf(main.hair);
+  const hair = HAIR[(taken + 3 + (value % (HAIR.length - 4))) % HAIR.length] ?? "Short";
+  return {
+    hair,
+    accessory: main.accessory ? undefined : (value >>> 8) % 3 === 0 ? "GlassRoundThick" : undefined,
+    facialHair: (value >>> 12) % 3 === 0 ? "MoustacheThin" : undefined,
+    line: INK,
+    fill: PAPER,
+  };
+}
+
+export function castFor(seed: string): Cast {
+  const main = mainLook(seed);
+  return { main, partner: partnerLook(seed, main) };
 }

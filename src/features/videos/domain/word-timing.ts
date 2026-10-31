@@ -16,10 +16,12 @@ const PAUSE_AFTER: readonly [RegExp, number][] = [
 const MIN_ALIGNED_SHARE = 0.9;
 const LOOK_AHEAD = 3;
 
-const spokenTokens = (narration: string) => narration.split(/\s+/).filter((token) => /[\p{L}\p{N}]/u.test(token));
+// The narration's words as captions and shot cues count them: whitespace-separated tokens that hold a letter or a digit.
+export const spokenTokens = (narration: string) =>
+  narration.split(/\s+/).filter((token) => /[\p{L}\p{N}]/u.test(token));
 const syllablesIn = (token: string) => Math.max(1, (token.match(/[\p{L}\p{N}]+/gu) ?? []).length);
 // Compared without case, accents written in different Unicode forms, or punctuation.
-const keyOf = (text: string) =>
+export const wordKey = (text: string) =>
   text
     .normalize("NFC")
     .toLocaleLowerCase("vi")
@@ -60,11 +62,11 @@ export function shiftWordTimings(words: readonly TimedWord[], shiftMs: number, d
 export function alignWordTimings(narration: string, boundaries: readonly TimedWord[]): TimedWord[] | null {
   const tokens = spokenTokens(narration);
   if (tokens.length === 0 || boundaries.length === 0) return null;
-  const events = boundaries.map((event) => ({ ...event, key: keyOf(event.text) }));
+  const events = boundaries.map((event) => ({ ...event, key: wordKey(event.text) }));
   const matched: (TimedWord | null)[] = tokens.map(() => null);
   let next = 0;
   tokens.forEach((token, index) => {
-    const key = keyOf(token);
+    const key = wordKey(token);
     const found = events.slice(next, next + LOOK_AHEAD + 1).findIndex((event) => event.key === key);
     if (found === -1) return;
     const event = events[next + found];

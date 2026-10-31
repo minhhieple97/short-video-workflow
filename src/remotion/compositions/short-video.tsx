@@ -6,7 +6,7 @@ import type { ShortVideoProps } from "@/features/videos/domain/composition-props
 import { CaptionLayer } from "../layers/caption-layer";
 import { StoryChrome } from "../layers/story-chrome";
 import { VisualTrack } from "../layers/visual-track";
-import { mainLook } from "../stage/cast";
+import { castFor } from "../stage/cast";
 import { ensureFonts } from "../theme/fonts";
 import { PAPER } from "../theme/tokens";
 
@@ -15,7 +15,7 @@ export function ShortVideo({ title, scenes, bookTitle, showCaptions, paceFactor 
   const { delayRender, continueRender, cancelRender } = useDelayRender();
   const [handle] = useState(() => delayRender("Loading Be Vietnam Pro"));
   const [fontsReady, setFontsReady] = useState(false);
-  const look = useMemo(() => mainLook(title), [title]);
+  const cast = useMemo(() => castFor(title), [title]);
 
   // Text is measured to fit, so nothing is drawn until the bundled font is in: measuring a fallback font would size every
   // line wrongly, and Vietnamese diacritics would come out in another face. Without the font the render fails instead.
@@ -33,7 +33,7 @@ export function ShortVideo({ title, scenes, bookTitle, showCaptions, paceFactor 
     <AbsoluteFill style={{ backgroundColor: PAPER }}>
       {fontsReady ? (
         <>
-          <VisualTrack scenes={scenes} paceFactor={paceFactor} look={look} />
+          <VisualTrack scenes={scenes} paceFactor={paceFactor} cast={cast} />
           <StoryChrome scenes={scenes} bookTitle={bookTitle} />
           <CaptionLayer scenes={scenes} showCaptions={showCaptions} />
         </>

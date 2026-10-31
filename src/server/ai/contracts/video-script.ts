@@ -4,6 +4,7 @@ import { DURATION_PRESETS_SEC, MAX_STORY_SCENES } from "@/features/videos/domain
 import { illustrationSchema } from "@/features/videos/domain/illustration";
 import { lessonSnapshotSchema } from "@/features/videos/domain/lesson-snapshot";
 import { PACES } from "@/features/videos/domain/pace";
+import { aiShotListSchema, MAX_SHOTS_PER_SCENE } from "@/features/videos/domain/shot-plan";
 import { BODY_SCENE_TYPES, HOOK_VARIANTS, VISUAL_VARIANTS } from "@/features/videos/domain/scene-types";
 import { STORY_ANGLES } from "@/features/videos/domain/story-angle";
 
@@ -28,7 +29,12 @@ export const storyboardSceneSchema = z.object({
   onScreenText,
   visualVariant: z.enum(VISUAL_VARIANTS),
   illustration: illustrationSchema.optional(),
+  // The picture shot by shot; optional and forgiving, so a broken shot never fails the script (see shot-plan.ts).
+  shots: aiShotListSchema(MAX_SHOTS_PER_SCENE),
 });
+
+// A rewritten scene keeps the picture it had, so the model is neither shown nor asked for shots.
+export const rewrittenSceneSchema = storyboardSceneSchema.omit({ shots: true });
 
 const durationPreset = z.literal(DURATION_PRESETS_SEC);
 
@@ -66,17 +72,18 @@ export const sceneRegenerationInputSchema = z.object({
   targetDurationSec: z.number().int(),
   pace: z.enum(PACES).default("STANDARD"),
   lessons: z.array(lessonSnapshotSchema).min(1),
-  scene: storyboardSceneSchema,
+  scene: rewrittenSceneSchema,
   promptVersion: z.string(),
 });
 
 export const sceneRegenerationOutputSchema = z.object({
   sceneId: z.string(),
-  scene: storyboardSceneSchema,
+  scene: rewrittenSceneSchema,
 });
 
 export type HookOption = z.infer<typeof hookOptionSchema>;
 export type StoryboardScene = z.infer<typeof storyboardSceneSchema>;
+export type RewrittenScene = z.infer<typeof rewrittenSceneSchema>;
 export type VideoScriptInput = z.infer<typeof videoScriptInputSchema>;
 export type VideoScriptOutput = z.infer<typeof videoScriptOutputSchema>;
 export type SceneRegenerationInput = z.infer<typeof sceneRegenerationInputSchema>;

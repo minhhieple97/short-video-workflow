@@ -1,5 +1,6 @@
 import type { LessonSnapshot } from "@/features/videos/domain/lesson-snapshot";
 import { publishWriteFor } from "@/features/videos/services/publish-proposal";
+import { planShots } from "@/features/videos/domain/shot-plan";
 import { buildSceneRecord } from "@/features/videos/services/scene-records";
 import type { PublishBook } from "@/server/ai/contracts/publish-metadata";
 import { scenePlanArtifactSchema } from "@/server/scene-plan/handoff";
@@ -46,6 +47,7 @@ export async function applyScenePlan(input: {
         visualVariant: scene.visualVariant,
         hookVariant: null,
         illustration: scene.illustration ?? null,
+        shots: planShots(scene.narration, scene.shots),
       }),
     ),
   ];

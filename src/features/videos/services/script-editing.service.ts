@@ -1,5 +1,6 @@
 import { AppError, NotFoundError } from "@/shared/errors";
 
+import { parseShotPlan, rebaseShotPlan, serializeShotPlan, shotPlanProblem } from "../domain/shot-plan";
 import { DEFAULT_VISUAL_VARIANT, SCENE_TYPE_LABELS, toSceneType, type BodySceneType } from "../domain/scene-types";
 import type { LessonSnapshot } from "../domain/lesson-snapshot";
 import {
@@ -60,8 +61,16 @@ export async function updateScene(videoId: string, sceneId: string, input: Updat
 
   const illustration =
     input.illustration === undefined ? parseIllustration(scene.illustrationJson) : input.illustration;
+  const storedShots = parseShotPlan(scene.shotsJson);
+  // The stored shots sent back unchanged (a whole scene saved with new words) follow the words, like absent ones.
+  const keepsShots =
+    input.shots === undefined ||
+    (input.shots !== null && storedShots !== null && serializeShotPlan(input.shots) === serializeShotPlan(storedShots));
+  const shots = keepsShots ? storedShots && rebaseShotPlan(storedShots, scene.narration, input.narration) : input.shots;
+  const shotsProblem = shots ? shotPlanProblem(shots, input.narration, scene.type) : null;
+  if (shotsProblem) throw new AppError("INVALID_SHOT_PLAN", shotsProblem, 400);
   const record = buildSceneRecord(
-    { ...input, illustration, type: scene.type, hookVariant: scene.hookVariant },
+    { ...input, illustration, shots, type: scene.type, hookVariant: scene.hookVariant },
     narrationRateOf(video),
   );
   const narrationChanged = record.narration !== scene.narration;

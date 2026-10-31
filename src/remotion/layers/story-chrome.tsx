@@ -1,7 +1,7 @@
 import { useCurrentFrame } from "remotion";
 
 import type { ShortVideoProps } from "@/features/videos/domain/composition-props";
-import { renderModeFor } from "@/features/videos/domain/scene-shots";
+import { shotRenderMode } from "@/features/videos/domain/scene-shots";
 
 import { SETS } from "../stage/sets/sets";
 import { ACCENT, FONT_FAMILY, INK, LAYOUT, SAFE_BOX } from "../theme/tokens";
@@ -37,9 +37,14 @@ export function StoryChrome({ scenes, bookTitle }: Pick<ShortVideoProps, "scenes
   const ends = scenes.map((_, index) =>
     scenes.slice(0, index + 1).reduce((sum, each) => sum + each.durationInFrames, 0),
   );
-  const scene = scenes[ends.findIndex((end) => end > frame)] ?? scenes.at(-1);
+  const index = ends.findIndex((end) => end > frame);
+  const scene = scenes[index] ?? scenes.at(-1);
   if (!run || !scene) return null;
-  const dark = renderModeFor(scene.layout) === "TEXT" || SETS[scene.illustration.setting].dark;
+  // The chrome reads on whatever shot is up: light on a card or a dark set, dark on a light one.
+  const sceneFrame = frame - ((ends[index] ?? frame) - scene.durationInFrames);
+  const shot = scene.shots.find((candidate) => sceneFrame < candidate.startFrame + candidate.durationInFrames);
+  const current = shot ?? scene.shots.at(-1);
+  const dark = current ? shotRenderMode(scene.layout, current) === "TEXT" || SETS[current.setting].dark : false;
   const lessonStart = runs.find((candidate) => candidate.type === "KEY_TAKEAWAY")?.start;
   const showBook = lessonStart !== undefined && frame >= lessonStart;
   const segments = runs.length <= MAX_SEGMENTS ? runs : [{ ...run, start: 0, end: runs.at(-1)?.end ?? run.end }];

@@ -1,4 +1,5 @@
 import type { LessonSnapshot } from "@/features/videos/domain/lesson-snapshot";
+import { aiShotTexts } from "@/features/videos/domain/shot-plan";
 import { findUnsupportedClaimsIn, type UnsupportedClaims } from "@/features/videos/domain/source-claims";
 import type { ScriptDraft } from "@/server/script-studio/script-studio-contracts";
 
@@ -11,7 +12,7 @@ function textsOf(plan: ScenePlan): string[] {
   return [
     hook.narration,
     hook.onScreenText,
-    ...scenes.flatMap((scene) => [scene.title ?? "", scene.narration, scene.onScreenText]),
+    ...scenes.flatMap((scene) => [scene.title ?? "", scene.narration, scene.onScreenText, ...aiShotTexts(scene.shots)]),
   ];
 }
 

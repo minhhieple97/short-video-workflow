@@ -137,13 +137,13 @@ xuất** (`ProductionBatch`) gồm các mục (`ProductionItem`): mỗi mục = 
   **đúng một bài mỗi video**.
 - `VideoLesson` lưu **snapshot** bài học lúc chọn; sửa bài học sau đó không đổi video đã có.
 - **Thủ công**: chỉ bài **Đã duyệt** mới tạo được video; bản cuối cần kịch bản đã duyệt; sửa kịch bản sau khi duyệt (lời dẫn, chữ,
-  thứ tự, thêm/ẩn/xoá cảnh, đổi hoạt cảnh) đưa về **Kịch bản cần duyệt**.
+  thứ tự, thêm/ẩn/xoá cảnh, đổi hoạt cảnh hay shot) đưa về **Kịch bản cần duyệt**.
 - **Hàng loạt**: không có bước duyệt tay, vì việc duyệt xảy ra tự động ở hai chỗ. (1) Tạo đợt duyệt các bài đã chọn (§4.3). (2) Khi mọi
   cảnh có giọng đọc, kiểm tra tự động (§6.7) quyết định có render bản cuối không; đạt thì **kịch bản được duyệt đúng phiên bản vừa
   kiểm tra** (video thành **Kịch bản đã duyệt**, như khi người bấm Duyệt kịch bản) và phiên bản đó được ghi là đã qua kiểm tra. Không
   đạt thì không duyệt gì. Từ đó video theo đúng luật của luồng thủ công: sửa kịch bản (lời dẫn, chữ, thứ tự, thêm/ẩn/xoá cảnh, đổi
-  hoạt cảnh) đưa về **Kịch bản cần duyệt** và người dùng duyệt lại trước bản cuối tiếp theo; đổi giọng đọc chỉ làm bản render cũ lỗi
-  thời. Huỷ hay lỗi đợt không hoàn lại việc duyệt bài.
+  hoạt cảnh hay shot) đưa về **Kịch bản cần duyệt** và người dùng duyệt lại trước bản cuối tiếp theo; đổi giọng đọc chỉ làm bản
+  render cũ lỗi thời. Huỷ hay lỗi đợt không hoàn lại việc duyệt bài.
 - Kịch bản, cảnh hay âm thanh đổi làm bản render trước **lỗi thời**; MP4 cũ không bao giờ bị tự xoá. Đổi âm thanh không đưa kịch
   bản đã duyệt về cần duyệt. Sửa chữ giữ giọng đọc; sửa lời dẫn gỡ giọng đọc cũ của cảnh.
 - Khi AI đang viết kịch bản hay viết lại cảnh, hoặc mục sản xuất của video còn chạy, video bị **khoá** (không sửa, duyệt, tạo giọng,
@@ -221,7 +221,8 @@ Chưa phân trang: danh mục chọn bài để sản xuất, các đợt nhập
   đổi được trong cài đặt video.
 - **Hook**: 2–3 phương án theo ba kiểu — câu hỏi đánh trúng vấn đề, sai lầm thường gặp, tương phản trước/sau — có lời dẫn, chữ,
   bố cục, hoạt cảnh; chọn rồi sửa được.
-- **Cảnh**: sửa lời dẫn, chữ, bố cục, hoạt cảnh; ẩn, xoá, thêm theo loại, sắp xếp; **Viết lại cảnh này** chỉ đổi đúng cảnh đó.
+- **Cảnh**: sửa lời dẫn, chữ, bố cục, hoạt cảnh, các shot (§6.5); ẩn, xoá, thêm theo loại, sắp xếp; **Viết lại cảnh này** chỉ
+  đổi đúng cảnh đó, giữ hình và các shot.
 - Tổng thời lượng so với khoảng (hiện cả độ dài AI đề xuất và lý do), cảnh báo khi ngắn hơn mức ngắn nhất, sát hoặc vượt mức dài
   nhất; khi vượt chỉ hướng dẫn rút gọn. **Duyệt kịch bản** bị chặn khi chưa
   có cảnh hoặc hook không hợp lệ.
@@ -325,8 +326,8 @@ công thật, không nút giả; xác nhận thao tác phá huỷ. Ngôn ngữ t
 - Tiêu đề một dòng, tối đa 100 ký tự, từ khoá chính ở đầu. Caption tối đa 2.200 ký tự: dòng đầu là câu móc ngắn, vài dòng giá trị,
   dòng nguồn "Sách: <tên> – <tác giả>", một lời mời hành động; không chứa hashtag. 3–8 hashtag, lưu không dấu, chữ thường, không
   trùng.
-- Chữ kịch bản đổi sau khi viết bộ này (sửa, ẩn, thêm, xoá, đổi thứ tự cảnh) → nhãn **Cần xem lại**; đổi giọng đọc hay hoạt cảnh
-  thì không. Lưu bản sửa tay là xác nhận bộ khớp kịch bản hiện tại.
+- Chữ kịch bản đổi sau khi viết bộ này (sửa, ẩn, thêm, xoá, đổi thứ tự cảnh) → nhãn **Cần xem lại**; đổi giọng đọc, hoạt cảnh
+  hay shot thì không. Lưu bản sửa tay là xác nhận bộ khớp kịch bản hiện tại.
 - Yêu cầu render bản cuối chụp bộ hiện tại (không **Cần xem lại**) vào snapshot; bản lưu Drive kèm `publish.txt` (§5.9). Sửa bộ
   sau đó không đổi bản lưu đã có.
 
@@ -439,6 +440,28 @@ video không cùng một dáng, và không lưu gì thêm:
     | Tổng kết     | Quán cà phê | Trò chuyện      |
 
 - **Người dùng đổi** hoạt cảnh từng cảnh trong trình biên tập hoặc "Về mặc định"; đổi hoạt cảnh giữ giọng đọc.
+- **Kế hoạch shot** (tuỳ chọn cho từng cảnh): thay vì tự cắt theo trang phụ đề, cảnh có thể mang 1–6 shot (hook tối đa 2), vẫn
+  chung một giọng đọc.
+  - Mỗi shot bắt đầu ở một chữ của lời dẫn. Claude ghi vài chữ đầu đoạn đó; app tìm chữ ấy trong lời dẫn (bỏ qua hoa thường, dấu
+    câu). Không tìm thấy thì chia đều giữa hai shot bên cạnh.
+  - Điểm cắt rơi đúng lúc chữ được đọc (theo thời gian từng từ của giọng, hoặc ước lượng), và bắt vào đầu trang phụ đề nếu cách
+    dưới 0,4 giây.
+  - Shot ngắn hơn 1,8 giây thì bị bỏ, hình trước giữ tiếp. Shot hoạt cảnh dài hơn 5 giây được chia đều, đổi cỡ cảnh.
+  - Bối cảnh và hành động giữ nguyên qua các shot sau, cho tới khi một shot đổi.
+  - Các thứ sau chỉ thuộc riêng một shot:
+    - cảm xúc của nhân vật chính (11 loại);
+    - một **nhân vật phụ** mặc tông áo tối, đứng cạnh nhân vật chính (6 hành động: lắng nghe, nói chuyện, chỉ tay góp ý, khoanh
+      tay nghi ngờ, ăn mừng, đi cùng);
+    - tối đa 2 đồ vật, mỗi đồ vật có thể kèm chữ ngắn;
+    - một nhãn trên hình (ví dụ "Ngày thứ 3");
+    - cỡ cảnh;
+    - hoặc một **thẻ chữ** toàn màn hình thay cho hoạt cảnh: Câu chốt (1–3 dòng), Danh sách (2–4 mục), Sai / đúng (2 dòng), Con
+      số (số + chú thích), Trích sách (1 câu nguyên văn).
+  - Thẻ không hợp kiểu thì thành Câu chốt nếu được, không thì bị bỏ; chữ không bao giờ bị cắt.
+  - Chữ trên shot (nhãn, chữ kèm đồ vật, thẻ chữ) được bộ chặn khẳng định không căn cứ kiểm như lời dẫn; Trích sách được kiểm như
+    một câu trích.
+  - Đổi shot làm render cũ lỗi thời nhưng giữ giọng đọc. Sửa lời dẫn thì các shot đi theo chữ của chúng.
+  - Cảnh không có kế hoạch shot hiển thị như trước.
 - Chuyển động chỉ phụ thuộc frame, nên xem trước và MP4 giống hệt.
   - Không filter/blur, ảnh, ngẫu nhiên, 3D, GPU hay tài sản mạng.
   - Không chớp nháy hay zoom nhanh.
@@ -481,7 +504,7 @@ bao giờ để lại MP4 hỏng được ghi là thành công; render đã hoà
 - `cli-auto` (tuỳ chọn, tắt trong cấu hình mẫu): worker tự chạy Claude Code CLI của người dùng; chỉ dùng cá nhân trên `127.0.0.1`;
   bắt buộc cho NotebookLM và luồng hàng loạt thật.
 
-Trong luồng hàng loạt, Claude biên tập bản thảo NotebookLM thành kế hoạch cảnh (lời dẫn, chia cảnh, bố cục, chữ, hoạt cảnh); hai
+Trong luồng hàng loạt, Claude biên tập bản thảo NotebookLM thành kế hoạch cảnh (lời dẫn, chia cảnh, bố cục, chữ, hoạt cảnh, shot); hai
 kết quả lưu riêng, có phiên bản riêng, để truy vết Claude đã sửa gì. Claude chỉ sinh JSON: không công cụ, không MCP server từ cấu
 hình người dùng, môi trường đã làm sạch. Mỗi lúc một lần gọi AI; hết hạn mức, chưa đăng nhập, quá thời gian → lỗi có mã rõ ràng,
 không thử lại vô hạn.
@@ -689,6 +712,7 @@ Thiếu thời gian thì ưu tiên lát cắt chạy thật bằng AI mẫu + â
 | Claude Code CLI (`cli-task`, `cli-auto`); edge-tts và tải âm thanh      | Đã triển khai                                                         |
 | Video tới 5 phút, AI đề xuất độ dài trong khoảng; hook 4 giây mọi luồng | Đã triển khai (NotebookLM đề xuất: chỉ kiểm thử với NotebookLM giả)   |
 | Một khung kể cho cả hai luồng; hoạt cảnh SVG do Claude chọn             | Đã triển khai                                                         |
+| Kế hoạch shot (cảm xúc, nhân vật phụ, đồ vật, nhãn, thẻ chữ)            | Đã triển khai; E2E chạy với AI mẫu; **chưa đánh giá với Claude thật** |
 | Nhập PDF, lớp chữ (Poppler), ghép văn bản, tạo chương                   | Đã triển khai; kiểm thử với Poppler thật                              |
 | OCR Mistral Batch và trần chi phí                                       | Có trong mã; **chỉ kiểm thử với Mistral giả**                         |
 | NotebookLM: xác định chương, danh mục, bản thảo                         | Có trong mã; **chỉ kiểm thử với NotebookLM giả**                      |

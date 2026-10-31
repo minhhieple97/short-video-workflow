@@ -17,13 +17,30 @@ import { fixtureProps, loadRenderFixture, serveFixtureAudio } from "./lib/render
 const execFileAsync = promisify(execFile);
 const COLUMNS = 4;
 
-// Renders four stills per scene (its first frame, just after its entrance, its middle and its last frame) and tiles them
-// into one contact sheet, one row per scene, under DATA_DIR/diagnostics/stills/<fixture>-<time>/contact.png.
-//   pnpm render:stills --fixture real-56s [--scale 0.3]
+// Renders four stills per scene (its first frame, just after its entrance, its middle and its last frame), or with --shots
+// one still a second into every shot, and tiles them into one contact sheet under
+// DATA_DIR/diagnostics/stills/<fixture>-<time>/contact.png.
+//   pnpm render:stills --fixture real-56s [--scale 0.3] [--shots]
 const { values } = parseArgs({
-  options: { fixture: { type: "string" }, scale: { type: "string", default: "0.3" } },
+  options: {
+    fixture: { type: "string" },
+    scale: { type: "string", default: "0.3" },
+    shots: { type: "boolean", default: false },
+  },
   strict: true,
 });
+
+// A second into each shot, once its entrance has settled (or its middle, for a shorter shot).
+function framesPerShot(props: ShortVideoProps): number[] {
+  let start = 0;
+  return props.scenes.flatMap((scene) => {
+    const frames = scene.shots.map(
+      (shot) => start + shot.startFrame + Math.min(30, Math.floor(shot.durationInFrames / 2)),
+    );
+    start += scene.durationInFrames;
+    return frames;
+  });
+}
 
 function framesPerScene(props: ShortVideoProps): number[] {
   const frames: number[] = [];
@@ -38,7 +55,7 @@ function framesPerScene(props: ShortVideoProps): number[] {
 
 async function main(): Promise<number> {
   if (!values.fixture) {
-    console.error("Usage: pnpm render:stills --fixture <name> [--scale 0.3]");
+    console.error("Usage: pnpm render:stills --fixture <name> [--scale 0.3] [--shots]");
     return 2;
   }
   const scale = Number(values.scale);
@@ -61,7 +78,7 @@ async function main(): Promise<number> {
       inputProps,
       puppeteerInstance: browser,
     });
-    const frames = framesPerScene(inputProps);
+    const frames = values.shots ? framesPerShot(inputProps) : framesPerScene(inputProps);
     for (const [index, frame] of frames.entries()) {
       await renderStill({
         composition,
@@ -84,10 +101,14 @@ async function main(): Promise<number> {
         "-y",
         "-framerate",
         "1",
+        // Chromium writes some stills with an alpha channel and some without; rebuilding the filters at such a change would
+        // drop the stills gathered so far, so the grid keeps one graph and converts every still to RGB.
+        "-reinit_filter",
+        "0",
         "-i",
         path.join(outputDir, "still-%03d.png"),
         "-vf",
-        `tile=${COLUMNS}x${rows}:padding=6:color=white`,
+        `format=rgb24,tile=${COLUMNS}x${rows}:padding=6:color=white`,
         "-frames:v",
         "1",
         path.join(outputDir, "contact.png"),

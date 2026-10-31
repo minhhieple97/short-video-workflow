@@ -13,6 +13,7 @@ interface SceneJson {
   id: string;
   narration: string;
   version: number;
+  shots: { fromWord: number; mood?: string }[] | null;
 }
 
 interface RenderJson {
@@ -187,6 +188,20 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
     const after = (await (await request.get(`/api/videos/${videoId}`)).json()) as { scenes: SceneJson[] };
     expect(after.scenes[1]?.version).toBe((before.scenes[1]?.version ?? 0) + 1);
     expect(after.scenes.filter((_, index) => index !== 1)).toEqual(before.scenes.filter((_, index) => index !== 1));
+    // The scene's shots moved onto the new words; changing one shot's face changes only the picture.
+    expect(after.scenes[1]?.shots?.[0]?.fromWord).toBe(0);
+
+    // A saved card is rebuilt from the saved scene, so start from a fresh page rather than race that refresh.
+    await open(page, `${url}?tab=story`);
+    await page.locator("[id$='-shot-0-mood']").first().click();
+    await page.getByRole("option", { name: "Mệt mỏi" }).click();
+    await page.getByRole("button", { name: "Lưu cảnh" }).and(page.locator(":enabled")).first().click();
+    await expect
+      .poll(async () => {
+        const video = (await (await request.get(`/api/videos/${videoId}`)).json()) as { scenes: SceneJson[] };
+        return [video.scenes[1]?.shots?.[0]?.mood, video.scenes[1]?.narration];
+      })
+      .toEqual(["TIRED", after.scenes[1]?.narration]);
   });
 
   await test.step("editing a lesson later does not change video A's snapshot", async () => {

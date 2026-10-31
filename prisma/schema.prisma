@@ -258,6 +258,8 @@ model VideoScene {
   hidden           Boolean  @default(false)
   // JSON {setting, action} of the scene's animated cartoon; null means the default picture for its type.
   illustrationJson String?
+  // JSON array of the scene's planned shots (features/videos/domain/shot-plan.ts); null means one shot from the illustration.
+  shotsJson        String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

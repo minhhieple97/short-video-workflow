@@ -4,12 +4,12 @@ import { slide } from "@remotion/transitions/slide";
 import { wipe } from "@remotion/transitions/wipe";
 import { Easing } from "remotion";
 
-import type { ShortVideoProps } from "@/features/videos/domain/composition-props";
-import { renderModeFor } from "@/features/videos/domain/scene-shots";
+import type { CompositionScene, ShortVideoProps } from "@/features/videos/domain/composition-props";
+import { shotRenderMode } from "@/features/videos/domain/scene-shots";
 
-import type { PeepLook } from "../peeps/peep";
 import { SceneView } from "../scenes/scene-view";
-import { planSceneVisuals, type SceneTransition } from "../timeline/scene-transitions";
+import type { Cast } from "../stage/cast";
+import { planSceneVisuals, type CutEdge, type SceneTransition } from "../timeline/scene-transitions";
 
 function presentation(transition: SceneTransition): TransitionPresentation<Record<string, unknown>> {
   if (transition.kind === "fade") return fade() as TransitionPresentation<Record<string, unknown>>;
@@ -18,16 +18,23 @@ function presentation(transition: SceneTransition): TransitionPresentation<Recor
   return slide({ direction: transition.direction }) as TransitionPresentation<Record<string, unknown>>;
 }
 
+function edge(scene: CompositionScene, shot: CompositionScene["shots"][number] | undefined): CutEdge {
+  return {
+    mode: shot ? shotRenderMode(scene.layout, shot) : "STAGE",
+    setting: shot?.setting ?? scene.illustration.setting,
+  };
+}
+
 // The pictures of all scenes, joined by cuts or short transitions (see planSceneVisuals for why lengths stay exact).
 export function VisualTrack({
   scenes,
   paceFactor,
-  look,
-}: Pick<ShortVideoProps, "scenes" | "paceFactor"> & { look: PeepLook }) {
+  cast,
+}: Pick<ShortVideoProps, "scenes" | "paceFactor"> & { cast: Cast }) {
   const plan = planSceneVisuals(
     scenes.map((scene) => ({
-      mode: renderModeFor(scene.layout),
-      setting: scene.illustration.setting,
+      enter: edge(scene, scene.shots[0]),
+      exit: edge(scene, scene.shots.at(-1)),
       durationInFrames: scene.durationInFrames,
     })),
   );
@@ -45,7 +52,7 @@ export function VisualTrack({
           >
             <SceneView
               scene={scene}
-              look={look}
+              cast={cast}
               paceFactor={paceFactor}
               enterAt={enterAt}
               tailFrames={visual.durationInFrames - scene.durationInFrames}

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { estimateNarrationSeconds, secondsToFrames } from "../domain/duration";
 import { illustrationSchema, type Illustration } from "../domain/illustration";
 import { syllablesPerSecond, toPace } from "../domain/pace";
+import { serializeShotPlan, type ShotPlan } from "../domain/shot-plan";
 import type { NewSceneRecord } from "../repositories/video.repository";
 
 export interface SceneContent {
@@ -14,14 +15,18 @@ export interface SceneContent {
   hookVariant: string | null;
   // Null (or absent) means the default picture for the scene's type.
   illustration?: Illustration | null;
+  // Null (or absent) means one shot showing the illustration.
+  shots?: ShotPlan | null;
 }
 
-// The illustration counts only when one is chosen, so scenes saved before illustrations existed keep their hash.
+// The illustration and the shots count only when chosen, so scenes saved before either existed keep their hash. The voice
+// is cached on the narration alone, so a changed shot outdates renders but never the voice-over.
 export function sceneContentHash(
-  scene: Pick<SceneContent, "type" | "narration" | "onScreenText" | "visualVariant" | "illustration">,
+  scene: Pick<SceneContent, "type" | "narration" | "onScreenText" | "visualVariant" | "illustration" | "shots">,
 ): string {
   const parts: unknown[] = [scene.type, scene.narration, scene.onScreenText, scene.visualVariant];
   if (scene.illustration) parts.push(scene.illustration.setting, scene.illustration.action);
+  if (scene.shots) parts.push("shots", serializeShotPlan(scene.shots));
   return createHash("sha256").update(JSON.stringify(parts)).digest("hex");
 }
 
@@ -65,5 +70,6 @@ export function buildSceneRecord(scene: SceneContent, syllablesPerSecond?: numbe
     illustrationJson: scene.illustration
       ? JSON.stringify({ setting: scene.illustration.setting, action: scene.illustration.action })
       : null,
+    shotsJson: scene.shots ? serializeShotPlan(scene.shots) : null,
   };
 }

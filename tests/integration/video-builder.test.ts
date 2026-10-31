@@ -12,6 +12,7 @@ import type * as VideoService from "@/features/videos/services/video.service";
 import type * as DbClient from "@/server/db/client";
 import type { SceneRegenerationInput, VideoScriptInput } from "@/server/ai/contracts/video-script";
 import { MockAiProvider } from "@/server/ai/mock-ai-provider";
+import type { ShotPlan } from "@/features/videos/domain/shot-plan";
 import { pickStoryAngle } from "@/features/videos/domain/story-angle";
 
 import { SAMPLE_BOOK_PATH, setupTestEnvironment, type TestEnvironment } from "../helpers/test-environment";
@@ -187,6 +188,9 @@ describe("script generation and editing", () => {
     const video = await videos.getVideo(videoId);
     expect(video.status).toBe("NEEDS_REVIEW");
     expect(video.scenes[0]).toMatchObject({ type: "HOOK", order: 0, hookVariant: "QUESTION" });
+    // The model's shots are stored on the narration's words.
+    const takeaway = video.scenes.find((scene) => scene.type === "KEY_TAKEAWAY");
+    expect(takeaway?.shots?.[0]).toMatchObject({ fromWord: 0, card: { style: "PUNCH" } });
     expect(video.hookIssues).toEqual([]);
     expect(video.budget.level).not.toBe("over");
     expect(video.durationReason).toMatch(/giây/);
@@ -286,6 +290,59 @@ describe("script generation and editing", () => {
 
     const reset = await editing.updateScene(videoId, target.id, { ...fields, illustration: null });
     expect(reset.scenes[1]!.illustration).toBeNull();
+  });
+
+  it("plans a scene's shots by hand, moves them with the words, keeps them through a rewrite and can drop them", async () => {
+    const target = (await videos.getVideo(videoId)).scenes[1]!;
+    const fields = {
+      title: target.title,
+      narration: "Minh hứa đọc sách mỗi tối. Nhưng mười một giờ đêm, anh vẫn lướt điện thoại.",
+      onScreenText: target.onScreenText,
+      visualVariant: target.visualVariant,
+      hidden: false,
+    };
+    const shots: ShotPlan = [
+      { fromWord: 0, setting: "NIGHT_ROOM", action: "PHONE", props: [{ id: "MOBILE_PHONE", label: "3 tiếng" }] },
+      { fromWord: 6, mood: "TIRED", tag: "23:00" },
+    ];
+
+    const planned = await editing.updateScene(videoId, target.id, { ...fields, shots });
+    expect(planned.scenes[1]!.shots).toEqual(shots);
+    const audio = planned.scenes[1]!.audioAssetId;
+
+    const picture = await editing.updateScene(videoId, target.id, {
+      ...fields,
+      shots: [shots[0]!, { fromWord: 6, mood: "SCARED" }],
+    });
+    expect(picture.scenes[1]).toMatchObject({ version: planned.scenes[1]!.version + 1, audioAssetId: audio });
+
+    const reworded = await editing.updateScene(videoId, target.id, {
+      ...fields,
+      narration: "Tối nào Minh cũng hứa sẽ đọc. Nhưng mười một giờ đêm, màn hình vẫn sáng.",
+      shots: picture.scenes[1]!.shots,
+    });
+    expect(reworded.scenes[1]!.shots?.map((shot) => shot.fromWord)).toEqual([0, 7]);
+
+    await generation.runSceneRegeneration({ videoId, sceneId: target.id, jobRecordId: null });
+    expect((await videos.getVideo(videoId)).scenes[1]!.shots?.[1]).toMatchObject({ mood: "SCARED" });
+
+    await expect(
+      editing.updateScene(videoId, target.id, { ...fields, shots: [{ fromWord: 0 }, { fromWord: 99 }] }),
+    ).rejects.toMatchObject({ code: "INVALID_SHOT_PLAN" });
+    const hook = (await videos.getVideo(videoId)).scenes[0]!;
+    await expect(
+      editing.updateScene(videoId, hook.id, {
+        title: hook.title,
+        narration: hook.narration,
+        onScreenText: hook.onScreenText,
+        visualVariant: hook.visualVariant,
+        hidden: false,
+        shots: [{ fromWord: 0 }, { fromWord: 1 }, { fromWord: 2 }],
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_SHOT_PLAN" });
+
+    const reset = await editing.updateScene(videoId, target.id, { ...fields, shots: null });
+    expect(reset.scenes[1]!.shots).toBeNull();
   });
 
   it("keeps the HOOK first and protected while adding, deleting and reordering scenes", async () => {

@@ -8,6 +8,7 @@ import { RENDER_TEMPLATE_VERSION, SHORT_VIDEO_COMPOSITION_ID, type CompositionSo
 import type { PreflightInput } from "./preflight";
 import { illustrationSchema } from "./illustration";
 import { PACES } from "./pace";
+import { shotPlanSchema } from "./shot-plan";
 import { HOOK_VARIANTS, SCENE_TYPES, VISUAL_VARIANTS } from "./scene-types";
 import { timedWordsSchema } from "./word-timing";
 
@@ -57,6 +58,8 @@ export const renderSnapshotSchema = z.object({
       // Optional without a default: a snapshot stored before illustrations existed must parse back to the same bytes, or
       // its fingerprint would no longer match and the render would stop being trusted.
       illustration: illustrationSchema.nullable().optional(),
+      // The scene's planned shots; absent for a scene with one shot, and for snapshots taken before shots existed.
+      shots: shotPlanSchema.optional(),
       // A scenario made up for the video rather than taken from the book. Optional for the same reason as above.
       illustrative: z.boolean().optional(),
     }),

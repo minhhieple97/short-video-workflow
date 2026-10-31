@@ -7,6 +7,7 @@ import type { Pace } from "../domain/pace";
 import type { HookVariant, SceneType, VisualVariant } from "../domain/scene-types";
 import type { VideoStatus } from "../domain/video-status";
 import type { Illustration } from "../domain/illustration";
+import type { ShotPlan } from "../domain/shot-plan";
 
 export interface HookOptionDto {
   variant: HookVariant;
@@ -34,6 +35,8 @@ export interface SceneDto {
   audio: SceneAudioDto | null;
   // The scene's own cartoon; null means the default picture for its type.
   illustration: Illustration | null;
+  // The scene's planned shots; null means one shot showing the illustration.
+  shots: ShotPlan | null;
 }
 
 export interface SceneAudioDto {

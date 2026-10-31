@@ -2,13 +2,14 @@ import { useMemo } from "react";
 import { AbsoluteFill, spring, useCurrentFrame, useVideoConfig } from "remotion";
 
 import type { PropId } from "@/features/videos/domain/props";
+import { listItems } from "@/features/videos/domain/screen-text";
 import type { VisualVariant } from "@/features/videos/domain/scene-types";
 
 import type { PeepFaceName, PeepLook } from "../peeps/peep";
 import { Prop } from "../props/prop";
 import { PeepActor } from "../stage/peep-actor";
 import { ACCENT, INK, SOLUTION } from "../theme/tokens";
-import { balanceLines, listItems } from "./balance-lines";
+import { balanceLines } from "./balance-lines";
 import { autoEmphasis } from "./emphasis";
 import { KineticHeadline } from "./kinetic-headline";
 
@@ -46,12 +47,15 @@ function Motif({ color }: { color: string }) {
 // Full-screen kinetic text for the lesson and the action: big words, one icon, the main character at the corner.
 export function TextScene({
   text,
+  lines: given,
   layout,
   look,
   enterAt,
   visibleAtStart,
 }: {
   text: string;
+  // The lines to draw when a card names them; otherwise the text is split into a checklist or balanced lines.
+  lines?: readonly string[];
   layout: VisualVariant;
   look: PeepLook;
   enterAt: number;
@@ -60,7 +64,7 @@ export function TextScene({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const style = LOOKS[layout === "ACTION_CHECKLIST" ? "ACTION_CHECKLIST" : "BIG_TAKEAWAY"];
-  const lines = useMemo(() => listItems(text) ?? balanceLines(text, 13, 4), [text]);
+  const lines = useMemo(() => given ?? listItems(text) ?? balanceLines(text, 13, 4), [given, text]);
   const rise = visibleAtStart ? 1 : spring({ frame: frame - enterAt - 10, fps, config: { damping: 16 } });
   const bob = Math.sin(frame / 15) * 10;
   return (

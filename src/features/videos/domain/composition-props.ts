@@ -4,9 +4,11 @@ import { buildCaptionPages } from "./caption-pages";
 import { effectiveSceneFrames, VIDEO_FPS } from "./duration";
 import { DEFAULT_ILLUSTRATION, illustrationSchema, type Illustration } from "./illustration";
 import { paceProfile, toPace } from "./pace";
-import { alternateShotSize, buildSceneShots, renderModeFor, SHOT_SIZES, type ShotSize } from "./scene-shots";
+import { alternateShotSize, renderModeFor, type ShotSize } from "./scene-shots";
 import { SCENE_TYPE_LABELS, SCENE_TYPES, VISUAL_VARIANTS, type SceneType, type VisualVariant } from "./scene-types";
 import type { TimedWord } from "./caption-pages";
+import type { ShotPlan } from "./shot-plan";
+import { resolvedShotSchema, resolveSceneShots } from "./shot-timeline";
 import { alignWordTimings, estimateWordTimings } from "./word-timing";
 
 const captionWordSchema = z.object({
@@ -34,15 +36,8 @@ export const compositionSceneSchema = z.object({
   // True only when the word timings come from the voice itself; estimated timings page the captions but never light up
   // the spoken word.
   karaoke: z.boolean(),
-  shots: z
-    .array(
-      z.object({
-        startFrame: z.number().int().nonnegative(),
-        durationInFrames: z.number().int().positive(),
-        size: z.enum(SHOT_SIZES),
-      }),
-    )
-    .min(1),
+  // Never empty: a scene without a plan is one cartoon cut at its caption pages.
+  shots: z.array(resolvedShotSchema).min(1),
 });
 
 export const shortVideoPropsSchema = z.object({
@@ -73,6 +68,8 @@ export interface CompositionSource {
     audioAssetId: string | null;
     // Absent for scenes made before illustrations existed; they get the default picture for their type.
     illustration?: Illustration | null;
+    // The planned shots; absent for a scene that is one cartoon cut at its caption pages.
+    shots?: ShotPlan | null;
     // Where the voice sits in its clip, and when each word is spoken if the voice reported it.
     audio?: {
       durationMs: number | null;
@@ -86,7 +83,7 @@ export const SHORT_VIDEO_COMPOSITION_ID = "ShortVideo";
 
 // Recorded in every render snapshot. Bump it whenever a change to the Remotion composition or its scenes would make the
 // same props look different, so an old render can be told apart from what the code produces today.
-export const RENDER_TEMPLATE_VERSION = "short-video-template-v5";
+export const RENDER_TEMPLATE_VERSION = "short-video-template-v6";
 
 const framesToMs = (frames: number) => Math.round((frames / VIDEO_FPS) * 1000);
 
@@ -114,22 +111,29 @@ export function toCompositionProps(
     const mode = renderModeFor(scene.visualVariant);
     // Captions follow the voice when its word timings match the narration; otherwise they are spread by syllables.
     const voiced = scene.audio?.wordBoundaries ? alignWordTimings(scene.narration, scene.audio.wordBoundaries) : null;
-    const captionPages = buildCaptionPages(
-      voiced ?? estimateWordTimings(scene.narration, spokenSpan(scene, durationInFrames)),
-      VIDEO_FPS,
-      durationInFrames,
-    );
+    const words = voiced ?? estimateWordTimings(scene.narration, spokenSpan(scene, durationInFrames));
+    const captionPages = buildCaptionPages(words, VIDEO_FPS, durationInFrames);
     // A scene that cuts straight on from the same place opens on the other shot size, so the cut reads as a cut.
-    const continues = previous?.stage === true && mode === "STAGE" && previous.setting === illustration.setting;
+    const openingSetting = scene.shots?.[0]?.setting ?? illustration.setting;
+    const continues = previous?.stage === true && mode === "STAGE" && previous.setting === openingSetting;
     const startWith: ShotSize =
       continues && previous ? alternateShotSize(previous.lastSize) : scene.type === "HOOK" ? "MEDIUM" : "WIDE";
-    const shots = buildSceneShots(
-      captionPages.map((page) => page.startFrame),
-      durationInFrames,
+    const shots = resolveSceneShots({
+      plan: scene.shots ?? null,
+      base: illustration,
+      words,
+      pageStarts: captionPages.map((page) => page.startFrame),
+      sceneFrames: durationInFrames,
+      fps: VIDEO_FPS,
       mode,
       startWith,
-    );
-    previous = { setting: illustration.setting, stage: mode === "STAGE", lastSize: shots.at(-1)?.size ?? startWith };
+    });
+    const lastShot = shots.at(-1);
+    previous = {
+      setting: lastShot?.setting ?? illustration.setting,
+      stage: mode === "STAGE",
+      lastSize: lastShot?.size ?? startWith,
+    };
     return {
       id: scene.id,
       type: scene.type,

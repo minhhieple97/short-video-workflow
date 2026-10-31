@@ -33,6 +33,7 @@ const scene = (overrides: Partial<SceneDto> = {}): SceneDto => ({
   visualVariant: "HOOK_QUESTION",
   hookVariant: "QUESTION",
   illustration: null,
+  shots: null,
   estimatedSeconds: 2,
   durationFrames: 60,
   hidden: false,

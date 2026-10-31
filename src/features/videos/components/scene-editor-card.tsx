@@ -15,9 +15,11 @@ import { cn } from "@/lib/utils";
 
 import { estimateNarrationSeconds, HOOK_MAX_SECONDS } from "../domain/duration";
 import { sameIllustration } from "../domain/illustration";
+import { rebaseShotPlan, serializeShotPlan, type ShotPlan } from "../domain/shot-plan";
 import { SCENE_TYPE_LABELS, VISUAL_VARIANT_LABELS, VISUAL_VARIANTS, toVisualVariant } from "../domain/scene-types";
 import type { SceneDto } from "../schemas/video.dto";
 import { SceneIllustrationPicker } from "./scene-illustration-picker";
+import { SceneShotsEditor, shotsProblem } from "./scene-shots-editor";
 import { SCENE_TONE } from "./scene-tone";
 import { useScriptLocked } from "./script-lock-context";
 import { useVideoAction } from "./use-video-action";
@@ -38,6 +40,13 @@ export function SceneEditorCard({ videoId, scene, sceneIds, syllablesPerSecond }
   const [onScreenText, setOnScreenText] = useState(scene.onScreenText);
   const [visualVariant, setVisualVariant] = useState(scene.visualVariant);
   const [illustration, setIllustration] = useState(scene.illustration);
+  // The shots as last edited and the words they were placed on; while the narration is being rewritten they follow it.
+  const [planned, setPlanned] = useState<{ plan: ShotPlan | null; words: string }>({
+    plan: scene.shots,
+    words: scene.narration,
+  });
+  const shots = planned.plan && rebaseShotPlan(planned.plan, planned.words, narration);
+  const shotsInvalid = shotsProblem(shots, narration, scene.type) !== null;
 
   const isHook = scene.type === "HOOK";
   const index = sceneIds.indexOf(scene.id);
@@ -47,11 +56,12 @@ export function SceneEditorCard({ videoId, scene, sceneIds, syllablesPerSecond }
     narration !== scene.narration ||
     onScreenText !== scene.onScreenText ||
     visualVariant !== scene.visualVariant ||
-    !sameIllustration(illustration, scene.illustration);
+    !sameIllustration(illustration, scene.illustration) ||
+    (shots ? serializeShotPlan(shots) : null) !== (scene.shots ? serializeShotPlan(scene.shots) : null);
   const url = `/api/videos/${videoId}/scenes/${scene.id}`;
   const save = (hidden = scene.hidden) =>
     run(
-      () => sendJson(url, "PATCH", { title, narration, onScreenText, visualVariant, illustration, hidden }),
+      () => sendJson(url, "PATCH", { title, narration, onScreenText, visualVariant, illustration, shots, hidden }),
       "Đã lưu cảnh.",
     );
 
@@ -129,12 +139,20 @@ export function SceneEditorCard({ videoId, scene, sceneIds, syllablesPerSecond }
           onChange={setIllustration}
           disabled={locked}
         />
+        <SceneShotsEditor
+          id={scene.id}
+          sceneType={scene.type}
+          narration={narration}
+          value={shots}
+          onChange={(plan) => setPlanned({ plan, words: narration })}
+          disabled={locked}
+        />
 
         <div className="flex flex-wrap items-center gap-1">
           <Button
             size="sm"
             onClick={() => void save()}
-            disabled={!dirty || pending || !narration.trim() || !onScreenText.trim()}
+            disabled={!dirty || pending || shotsInvalid || !narration.trim() || !onScreenText.trim()}
           >
             <Save aria-hidden /> Lưu cảnh
           </Button>

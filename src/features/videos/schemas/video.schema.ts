@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { DURATION_PRESETS_SEC } from "../domain/duration";
 import { illustrationSchema } from "../domain/illustration";
+import { shotPlanSchema } from "../domain/shot-plan";
 import { PACES } from "../domain/pace";
 import { BODY_SCENE_TYPES, VISUAL_VARIANTS } from "../domain/scene-types";
 import { MAX_LESSONS_PER_VIDEO, MAX_VIDEOS_PER_REQUEST } from "../domain/video-creation";
@@ -87,6 +88,8 @@ export const updateSceneSchema = z.object({
   visualVariant: z.enum(VISUAL_VARIANTS),
   // Absent keeps the scene's picture; null goes back to the default one for its type.
   illustration: illustrationSchema.nullable().optional(),
+  // Absent keeps the scene's shots (moved onto the new words if the narration changed); null goes back to one shot.
+  shots: shotPlanSchema.nullable().optional(),
   hidden: z.boolean().default(false),
 });
 

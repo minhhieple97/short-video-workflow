@@ -115,6 +115,37 @@ describe("render snapshot", () => {
     ).toEqual(withPublish);
   });
 
+  it("keeps the hash of a snapshot stored before shots existed, and draws the shots of one that has them", () => {
+    const old = snapshot();
+    expect(old.scenes[0]).not.toHaveProperty("shots");
+    expect(readStoredRenderSnapshot(JSON.parse(JSON.stringify(old)), fingerprintRenderSnapshot(old))).toEqual(old);
+
+    const planned = snapshot({
+      scenes: [
+        scene({
+          type: "SITUATION",
+          visualVariant: "SCENARIO_CARD",
+          hookVariant: null,
+          audioAssetId: null,
+          narration: "Vì sao bạn cứ hoãn việc mãi đến tận đêm khuya?",
+          durationFrames: 240,
+          shots: [
+            { fromWord: 0, card: { style: "PUNCH", lines: ["Vì sao?"] } },
+            { fromWord: 5, action: "WORRIED", mood: "TIRED" },
+          ],
+        }),
+      ],
+    });
+    expect(fingerprintRenderSnapshot(planned)).not.toBe(fingerprintRenderSnapshot(old));
+    const reread = readStoredRenderSnapshot(JSON.parse(JSON.stringify(planned)), fingerprintRenderSnapshot(planned));
+    expect(reread).toEqual(planned);
+    const shots = toCompositionProps(toCompositionSource(planned)).scenes[0]?.shots ?? [];
+    expect(shots.map((shot) => [shot.card?.style ?? null, shot.mood])).toEqual([
+      ["PUNCH", null],
+      [null, "TIRED"],
+    ]);
+  });
+
   it("keeps the pace a render was made at, and reads a snapshot stored before paces existed as the default", () => {
     const old = snapshot();
     expect(old.video.pace).toBeUndefined();
