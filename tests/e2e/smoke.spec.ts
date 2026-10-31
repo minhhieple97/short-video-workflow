@@ -283,14 +283,21 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
     }
   });
 
-  await test.step("the render page says the final render is on Drive and links to it, as do the video and its list", async () => {
+  await test.step("the render page says both renders are on Drive and links to them, as do the video and its list", async () => {
     const driveFile = /^https:\/\/drive\.google\.com\/file\/d\/[^/]+\/view$/;
     // The render counts as finished a moment before the worker starts its archive, so a page opened in that gap shows
     // no archive yet; once there is one the page follows the upload by itself, from "Đang lưu Drive" to "Đã lưu Drive".
+    const history = page.locator("tbody tr");
     await expect(async () => {
       await open(page, `${videoA}/render`);
-      await expect(page.getByText("Đã lưu Drive", { exact: true }).first()).toBeVisible({ timeout: 15_000 });
+      await expect(history.filter({ hasText: "Đã lưu Drive" })).toHaveCount(2, { timeout: 15_000 });
     }).toPass({ timeout: 120_000 });
+    // The draft is saved like the final one, each from its own row of the history.
+    for (const render of [/Nháp 720×1280/, /Bản cuối 1080×1920/]) {
+      await expect(
+        history.filter({ hasText: render }).getByRole("link", { name: /Mở video trên Drive/ }),
+      ).toHaveAttribute("href", driveFile);
+    }
     await expect(page.getByRole("link", { name: /Mở video trên Drive/ }).first()).toHaveAttribute("href", driveFile);
     await expect(page.getByRole("button", { name: "Sao chép link" })).toBeVisible();
 

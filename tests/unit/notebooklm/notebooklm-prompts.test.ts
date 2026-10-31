@@ -80,7 +80,7 @@ describe("NotebookLM prompts for books in English or Vietnamese", () => {
       revisionNote: null,
     });
 
-    expect(SCRIPT_DRAFT_PROMPT_VERSION).toBe("notebooklm-script-draft-v7");
+    expect(SCRIPT_DRAFT_PROMPT_VERSION).toBe("notebooklm-script-draft-v8");
     expect(prompt).toContain("HOOK → SITUATION → MISTAKE → LESSON → RESOLUTION → ACTION");
     expect(prompt).toContain("dưới 4 giây");
     expect(prompt).toContain("theo quy tắc viết bản thảo đã đặt cho notebook này");
@@ -105,7 +105,7 @@ describe("NotebookLM prompts for books in English or Vietnamese", () => {
   });
 
   it("sets a notebook persona for longer answers that never overrides the JSON and lengths each question asks for", () => {
-    expect(CHAT_PERSONA_VERSION).toBe("notebooklm-chat-persona-v3");
+    expect(CHAT_PERSONA_VERSION).toBe("notebooklm-chat-persona-v4");
     expect(CHAT_RESPONSE_LENGTH).toBe("longer");
     // NotebookLM refuses a custom chat prompt longer than this.
     expect(CHAT_PERSONA_PROMPT.length).toBeLessThanOrEqual(10_000);

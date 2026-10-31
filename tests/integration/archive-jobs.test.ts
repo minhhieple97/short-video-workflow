@@ -128,13 +128,27 @@ describe("requestRenderArchive", () => {
     expect(await archiveJobs()).toHaveLength(0);
   });
 
-  it("archives only finished FINAL renders that asked for it", async () => {
+  it("archives any finished render that asked for it, a draft included, and not one that did not", async () => {
     const draft = await seedRender({ qualityPreset: "DRAFT" });
     const noIntent = await seedRender({ archiveIntentAt: null });
 
-    expect(await requests.requestRenderArchive(draft)).toEqual({ status: "NOT_ARCHIVABLE" });
+    expect(await requests.requestRenderArchive(draft)).toMatchObject({ status: "REQUESTED", created: true });
     expect(await requests.requestRenderArchive(noIntent)).toEqual({ status: "NOT_ARCHIVABLE" });
     expect(await requests.requestRenderArchive("missing")).toEqual({ status: "NOT_ARCHIVABLE" });
+  });
+
+  it("archives a render that never asked when the user asks, but never one that has not finished", async () => {
+    const older = await seedRender({ qualityPreset: "DRAFT", archiveIntentAt: null });
+    const unfinished = await seedRender();
+    await db.prisma.renderRecord.update({ where: { id: unfinished }, data: { status: "RENDERING" } });
+
+    expect(await requests.requestRenderArchive(older, undefined, { userRequested: true })).toMatchObject({
+      status: "REQUESTED",
+      created: true,
+    });
+    expect(await requests.requestRenderArchive(unfinished, undefined, { userRequested: true })).toEqual({
+      status: "NOT_ARCHIVABLE",
+    });
   });
 });
 
@@ -256,14 +270,15 @@ describe("processArchiveRender", () => {
 });
 
 describe("sweepRenderArchives", () => {
-  it("archives finished renders that were waiting for a connection, once", async () => {
+  it("archives finished renders that were waiting for a connection, drafts too, once", async () => {
     await seedRender({ qualityPreset: "DRAFT" });
     await seedRender({ archiveIntentAt: null });
 
-    expect(await requests.sweepRenderArchives()).toEqual({ requested: 1, resumed: 0 });
+    // The final render of beforeEach and the draft; a render that never asked waits for the user's click.
+    expect(await requests.sweepRenderArchives()).toEqual({ requested: 2, resumed: 0 });
     expect(await requests.sweepRenderArchives()).toEqual({ requested: 0, resumed: 0 });
-    expect(await db.prisma.renderArchive.count()).toBe(1);
-    expect(await archiveJobs()).toHaveLength(1);
+    expect(await db.prisma.renderArchive.count()).toBe(2);
+    expect(await archiveJobs()).toHaveLength(2);
   });
 
   it("gives a job back to an unfinished archive that lost its own, and leaves a failed one alone", async () => {

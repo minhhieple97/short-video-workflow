@@ -162,8 +162,8 @@ describe("mock video script", () => {
     const prompt = buildVideoScriptPrompt(input);
 
     expect(prompt).toContain("trong khoảng 30–120 giây");
-    expect(prompt).toContain("30 (30 giây) ≈ 120 âm tiết");
-    expect(prompt).toContain("120 (2 phút) ≈ 480 âm tiết");
+    expect(prompt).toContain("30 (30 giây) ≈ 108 âm tiết");
+    expect(prompt).toContain("120 (2 phút) ≈ 432 âm tiết");
     expect(prompt).not.toContain("180 (3 phút)");
     expect(prompt).toContain('"targetDurationSec", "durationReason"');
   });
@@ -171,11 +171,11 @@ describe("mock video script", () => {
   it("offers more narration for the same lengths at a faster pace, in both the script and the rewrite prompt", () => {
     const fast = buildVideoScriptPrompt({ ...input, pace: "FASTER" });
 
-    expect(fast).toContain("30 (30 giây) ≈ 156 âm tiết");
-    expect(fast).toContain("120 (2 phút) ≈ 624 âm tiết");
+    expect(fast).toContain("30 (30 giây) ≈ 140 âm tiết");
+    expect(fast).toContain("120 (2 phút) ≈ 561 âm tiết");
     expect(fast).toContain("nhịp rất nhanh (khoảng 5,2 âm tiết/giây)");
     expect(fast).not.toContain("Không nói nhanh để vừa");
-    expect(VIDEO_SCRIPT_PROMPT_VERSION).toBe("video-script-v10");
+    expect(VIDEO_SCRIPT_PROMPT_VERSION).toBe("video-script-v11");
   });
 
   it("tells the story the way the assigned angle says, with the shared craft rules", () => {

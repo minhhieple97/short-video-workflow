@@ -78,7 +78,7 @@ export function RenderHistory({ renders, archives, driveConnected }: Readonly<Re
               <ArchiveCell
                 renderId={render.id}
                 archive={archives[render.id] ?? null}
-                archivable={render.quality === "FINAL" && render.status === "COMPLETED"}
+                archivable={render.status === "COMPLETED"}
                 driveConnected={driveConnected}
               />
             </TableCell>

@@ -56,6 +56,8 @@ describe("planCorrection", () => {
 
     expect(plan).toMatchObject({ target: "SCRIPT_STUDIO", rewindTo: "NONE" });
     expect(plan?.note).toContain("kể sâu hơn từ nguồn");
+    expect(plan?.note).toContain("cơ chế thay đổi");
+    expect(plan?.note).not.toContain("nhiều bước hành động hơn");
     expect(plan?.note).toContain("không thêm dữ kiện ngoài nguồn");
   });
 

@@ -48,14 +48,14 @@ const rows = () => db.prisma.notificationDelivery.findMany({ orderBy: { createdA
 const row = () => db.prisma.notificationDelivery.findFirstOrThrow();
 const later = (ms = 1000) => new Date(Date.now() + ms);
 
-async function render() {
+async function render(qualityPreset: "DRAFT" | "FINAL" = "FINAL") {
   return db.prisma.renderRecord.create({
     data: {
       videoId: fixture.videoId,
       status: "COMPLETED",
       scriptVersion: 1,
       outputPath: "videos/test/r.mp4",
-      qualityPreset: "FINAL",
+      qualityPreset,
       width: 1080,
       height: 1920,
       fps: 30,
@@ -284,14 +284,26 @@ describe("business notification sources", () => {
     expect((await rows()).map((entry) => entry.kind)).toEqual(["PIPELINE_FAILED", "VIDEO_READY"]);
   });
 
+  it("says nothing about a draft render's archive, which the render history already shows", async () => {
+    const archive = await import("@/features/archive/repositories/render-archive.repository");
+    const saved = await render("DRAFT");
+    const { archive: item } = await archive.ensureRenderArchive(
+      { renderId: saved.id, provider: "google-drive", destinationKey: "account" },
+      [{ kind: "VIDEO", remoteName: "video.mp4" }],
+    );
+    await archive.setArchiveStatus(item.id, "FAILED", { code: "DRIVE_STORAGE_FULL", message: "Drive hết dung lượng." });
+    await archive.setArchiveStatus(item.id, "RUNNING");
+    await archive.saveRemoteIds(item.id, { folderId: "folder", fileIds: { VIDEO: "draft-video" } });
+    await archive.markFileUploaded(item.id, "VIDEO", 10);
+    await archive.markFileVerified(item.id, "VIDEO");
+    expect(await archive.completeArchive(item.id)).toBe(true);
+    expect(await rows()).toHaveLength(0);
+  });
+
   it("records the missing-Drive warning atomically with a completed FINAL render", async () => {
     const renders = await import("@/features/videos/repositories/render.repository");
     const saved = await render();
-    await renders.completeRenderRecord(
-      saved,
-      { durationMs: 60_000, sizeBytes: 100 },
-      { archive: true, missingDrive: true },
-    );
+    await renders.completeRenderRecord(saved, { durationMs: 60_000, sizeBytes: 100 }, { missingDrive: true });
     expect(await rows()).toHaveLength(1);
     expect((await row()).kind).toBe("VIDEO_LINK_UNAVAILABLE");
   });

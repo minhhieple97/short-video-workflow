@@ -159,7 +159,7 @@ function CreateVideoForm({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Tạo video ngắn 9:16</DialogTitle>
+        <DialogTitle>Tạo short video</DialogTitle>
         <DialogDescription>
           Mỗi bài học nên thành một video riêng. Video mới chưa có kịch bản; muốn hệ thống tự làm hết các bước (kịch
           bản, giọng đọc, render), hãy chọn bài học ở tab Bài học rồi bấm “Tạo video”.

@@ -88,9 +88,9 @@ export async function archiveRenderNow(renderId: string): Promise<ArchiveDto> {
   if (!destination) {
     throw new AppError("DRIVE_NOT_CONNECTED", "Chưa kết nối Google Drive hoặc cần kết nối lại trong Cài đặt.", 409);
   }
-  const outcome = await requestRenderArchive(renderId, destination);
+  const outcome = await requestRenderArchive(renderId, destination, { userRequested: true });
   if (outcome.status !== "REQUESTED") {
-    throw new AppError("ARCHIVE_NOT_ARCHIVABLE", "Chỉ lưu được bản render FINAL đã hoàn tất.", 409);
+    throw new AppError("ARCHIVE_NOT_ARCHIVABLE", "Chỉ lưu được bản render đã hoàn tất.", 409);
   }
   const archive = await findRenderArchive(outcome.archiveId);
   if (!archive) throw new NotFoundError("ARCHIVE_NOT_FOUND", "Không tìm thấy bản lưu trữ.");

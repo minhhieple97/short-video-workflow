@@ -17,11 +17,17 @@ describe("the shared storytelling rules", () => {
     expect(STORYTELLING_RULE).toContain("lời hứa ấy được trả ở phần cách giải quyết");
   });
 
-  it("ask for named people, visible details, a price for the mistake and a turn before the lesson", () => {
+  it("ask for motivation, causal consequences and a turn without forcing a twist", () => {
     expect(STORYTELLING_RULE).toContain("nhân vật có tên");
     expect(STORYTELLING_RULE).toContain("không bằng tính từ");
     expect(STORYTELLING_RULE).toContain("Sai lầm có cái giá");
     expect(STORYTELLING_RULE).toContain("tưởng là A, hoá ra là B");
+    expect(STORYTELLING_RULE).toContain("Cách làm cũ từng hợp lý");
+    expect(STORYTELLING_RULE).toContain("do chính lựa chọn gây ra");
+    expect(STORYTELLING_RULE).toContain("không ép cú đảo chiều khi nguồn không hỗ trợ");
+    expect(STORYTELLING_RULE).toContain("giữ điều kiện, giới hạn của nguồn");
+    expect(STORYTELLING_RULE).toContain("hãy cố gắng hơn");
+    expect(STORYTELLING_RULE).toContain("kết quả nhỏ quan sát được");
   });
 
   it("limit dialogue to the characters the model makes up, and keep the author's words verbatim and in the sources", () => {
@@ -41,6 +47,13 @@ describe("the shared storytelling rules", () => {
     expect(STORYTELLING_RULE.length).toBeLessThanOrEqual(2_400);
     expect(STORY_REWRITE_RULE.length).toBeLessThanOrEqual(500);
     expect(SCENE_EDIT_RULE.length).toBeLessThanOrEqual(1_100);
+  });
+
+  it("preserves the compiler's source boundary while keeping the story's causal mechanism", () => {
+    expect(SCENE_EDIT_RULE).toContain("Giữ lý do của lựa chọn, cơ chế thay đổi và kết quả nhỏ");
+    expect(SCENE_EDIT_RULE).toContain("không bỏ ngoặc kép để lách kiểm tra nguồn");
+    expect(SCENE_EDIT_RULE).not.toContain("muốn đổi lời thì bỏ ngoặc kép");
+    expect(STORYTELLING_RULE).toContain("Minh hoạ không chứng minh nguyên lý");
   });
 
   it("keep a rewritten scene's people and lines, and never open it with a stock question", () => {

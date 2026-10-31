@@ -261,7 +261,8 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - A production item's job is written in the same transaction that makes the item runnable (creation, retry); never start one any other way.
   Its processor claims the item, steps from the checkpoint and defers instead of waiting; cancelling the job cancels the item.
 - An archive and its `ARCHIVE_RENDER` job are written in one transaction (`createArchiveWithJob`); the worker's archive sweep
-  (start-up + every minute) archives FINAL renders that carry an archive intent and re-jobs unfinished archives. The archive
+  (start-up + every minute) archives finished renders, draft or FINAL, that carry an archive intent and re-jobs unfinished archives (`completeRenderRecord` writes the intent
+  for every render; renders from before that have none and are archived only by `archiveRenderNow`). Telegram stays FINAL-only. The archive
   processor only uploads: it never renders, voices or calls an AI.
 - Worker `concurrency = WORKER_CONCURRENCY` (default 1); global AI concurrency = 1; Remotion `concurrency = RENDER_CONCURRENCY` (default 1).
 - **One worker per Redis database** (two would each take jobs and break those limits). Before it reconciles or sweeps, the worker takes
@@ -293,10 +294,10 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - Never add `@anthropic-ai/sdk`, never create `ANTHROPIC_API_KEY`, never read/copy/log Claude tokens, cookies or credentials.
 - Run subprocesses with `spawn`/`execFile` and an argument array — **never** build shell strings from input, never use `exec` with interpolation.
 - Never use `--dangerously-skip-permissions`. When the model only needs to emit JSON, do not grant file-write/shell tools.
-- Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v10`, `scene-plan-v9`, `publish-metadata-v1` — the three last share
+- Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v11`, `scene-plan-v10`, `publish-metadata-v1` — the three last share
   `prompts/publish-rule.ts`, so editing it bumps all three; `video-script` and `scene-plan` also share `illustration-rule.ts` and
   `shot-rule.ts` — and for NotebookLM `notebooklm-chapter-detection-v2`,
-  `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v7`, and the notebook's chat persona `notebooklm-chat-persona-v3`, applied once per
+  `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v8`, and the notebook's chat persona `notebooklm-chat-persona-v4`, applied once per
   notebook through `chat_configure` and re-applied when its version changes); changing a prompt's text means bumping its version (the draft and
   persona versions also key the draft cache). Book content is passed as quoted untrusted data. The storytelling text lives in
   `prompts/storytelling-rule.ts` and is shared like `publish-rule.ts`: editing it bumps every prompt that uses it, the persona included. Telling

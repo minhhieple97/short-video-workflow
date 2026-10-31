@@ -53,8 +53,9 @@ describe("buildScenePlanPrompt", () => {
     expect(prompt).toContain(`(${SCENE_PLAN_PROMPT_VERSION})`);
     expect(prompt).toContain("dài khoảng 60 giây");
     expect(prompt).toContain("trong 30–90 giây");
-    expect(prompt).toContain("khoảng ~240 âm tiết, không dưới ~120 và không quá ~360");
-    expect(prompt).toContain("~15 âm tiết");
+    expect(prompt).toContain("khoảng ~216 âm tiết");
+    expect(prompt).toContain("~14 âm tiết");
+    expect(prompt).not.toContain("không dưới ~");
   });
 
   it("budgets the words at the speed the voice speaks for the chosen pace, and no longer tells the model not to speak faster", () => {
@@ -63,8 +64,8 @@ describe("buildScenePlanPrompt", () => {
 
     expect(standard).toContain("nhịp chuẩn (khoảng 4 âm tiết/giây)");
     expect(faster).toContain("nhịp rất nhanh (khoảng 5,2 âm tiết/giây)");
-    expect(faster).toContain("khoảng ~312 âm tiết, không dưới ~156 và không quá ~468");
-    expect(faster).toContain("~19 âm tiết");
+    expect(faster).toContain("khoảng ~280 âm tiết");
+    expect(faster).toContain("~18 âm tiết");
     expect(faster).not.toContain("Không nói nhanh để vừa");
   });
 
@@ -87,7 +88,7 @@ describe("buildScenePlanPrompt", () => {
   it("edits the draft as a story: keeps its people, lines and turns, and swaps a general opening question for a moment from it", () => {
     const prompt = buildScenePlanPrompt(input());
 
-    expect(SCENE_PLAN_PROMPT_VERSION).toBe("scene-plan-v9");
+    expect(SCENE_PLAN_PROMPT_VERSION).toBe("scene-plan-v10");
     expect(prompt).toContain(SCENE_EDIT_RULE);
     expect(prompt).toContain("đừng làm phẳng chúng thành câu tóm tắt");
     expect(prompt).toContain(

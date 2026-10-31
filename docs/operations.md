@@ -95,6 +95,7 @@ worker.
 Ba giới hạn `DRIVE_*` là của riêng ứng dụng, không phải quota Google Cloud và không liên quan gói dung lượng Drive.
 Trần upload mặc định cao để đợt nhiều sách không bị chặn ở 10 GiB. Nếu `.env` cũ đã đặt
 `DRIVE_MAX_UPLOAD_GIB_PER_DAY=10`, đổi thành `750` để áp dụng mức mới; giá trị đặt riêng vẫn được giữ.
+Bản render nháp cũng được lưu lên Drive nên tính vào dung lượng và các trần này như bản cuối (nháp 720×1280 nhẹ hơn nhiều).
 
 **AI, giọng đọc, video**
 

@@ -90,7 +90,8 @@ export async function notifyArchiveFailureWithin(
     where: { id: archiveId },
     include: { render: { include: { video: { include: { book: true } } } } },
   });
-  if (!archive) return;
+  // A draft's archive is shown in the render history; only a FINAL video is worth a message.
+  if (!archive || archive.render.qualityPreset !== "FINAL") return;
   const job = await tx.jobRecord.findFirst({
     where: { entityType: "ARCHIVE", entityId: archiveId },
     orderBy: { createdAt: "desc" },

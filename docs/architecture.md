@@ -148,14 +148,14 @@ tối đa 8 lần liên tiếp; sản xuất 10 phút, 5 lần; archive 30 phút
   `claude auth status`; chạy `claude -p --output-format json --tools "" --strict-mcp-config --no-session-persistence --json-schema …` từ
   mảng đối số, prompt qua stdin; env bỏ `CLAUDECODE*`/`CLAUDE_CODE_*` (không lồng phiên) và `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN`;
   timeout và huỷ → `SIGTERM`. Lỗi có mã ổn định (`AI_CLI_AUTH`, `AI_QUOTA_EXCEEDED`, `AI_CLI_TIMEOUT`, `INVALID_AI_OUTPUT`…).
-- Prompt có phiên bản; đổi chữ là tăng phiên bản: `chapter-analysis-v1`, `video-script-v10` (v1.1, cùng khung kể với sản xuất, đề xuất độ
-  dài, ngân sách chữ theo nhịp độ, kèm tiêu đề/caption/hashtag, quy tắc kể chuyện, góc kể và shot); `scene-plan-v9` (biên dịch cảnh, kèm
+- Prompt có phiên bản; đổi chữ là tăng phiên bản: `chapter-analysis-v1`, `video-script-v11` (v1.1, cùng khung kể với sản xuất, đề xuất độ
+  dài, ngân sách chữ theo nhịp độ, kèm tiêu đề/caption/hashtag, quy tắc kể chuyện, góc kể và shot); `scene-plan-v10` (biên dịch cảnh, kèm
   tiêu đề/caption/hashtag, quy tắc biên tập giữ sức hút của bản thảo, và shot); hai prompt này dùng chung `prompts/shot-rule.ts` (như
   `illustration-rule.ts`), đổi chữ ở đó là tăng cả hai;
   `publish-metadata-v1` (chỉ viết lại tiêu đề/caption/hashtag); ba prompt này dùng chung quy tắc `prompts/publish-rule.ts`, đổi chữ ở đó
-  là tăng cả ba; `notebooklm-chapter-detection-v2`, `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v7` (câu hỏi bản thảo: bài
+  là tăng cả ba; `notebooklm-chapter-detection-v2`, `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v8` (câu hỏi bản thảo: bài
   học, góc kể, đề xuất độ dài, ngân sách chữ theo nhịp độ, định dạng JSON),
-  `notebooklm-chat-persona-v3` (vai trò của notebook, kèm quy tắc cố định của bản thảo: ngôn ngữ, mạch kể, quy tắc kể chuyện, nguồn);
+  `notebooklm-chat-persona-v4` (vai trò của notebook, kèm quy tắc cố định của bản thảo: ngôn ngữ, mạch kể, quy tắc kể chuyện, nguồn);
   `draftVersion` của cache = phiên bản bản thảo + phiên bản vai trò. Danh sách độ dài được chọn và ngân sách lời của từng mức sinh từ `prompts/duration-choice.ts`.
   Chữ kể chuyện nằm ở `prompts/storytelling-rule.ts`: `STORYTELLING_RULE` và mô tả từng góc dùng chung cho kịch bản thủ công và bản
   thảo NotebookLM, `STORY_REWRITE_RULE` cho "Viết lại cảnh", `SCENE_EDIT_RULE` cho biên tập cảnh; đổi chữ ở đó là tăng phiên bản của
@@ -334,7 +334,7 @@ theo số dòng, không trích nội dung. `cleanup` xoá tệp yêu cầu **cu�
   để còn truy nguồn bài học cũ.
 - Tạo mất phản hồi → `UNKNOWN_OUTCOME`; lần sau **tìm dấu** trong `notebook_list`/`notebook_get` trước rồi mới tạo lại.
 - Trước câu hỏi đầu tiên (`openBookNotebook`, lối vào của mọi nguồn), notebook được đặt "Configure chat" qua `chat_configure`: vai trò
-  tuỳ chỉnh `notebooklm-chat-persona-v3` (phân tích sách + biên kịch video dọc, kể bằng khoảnh khắc cụ thể khi viết bản thảo, bám
+  tuỳ chỉnh `notebooklm-chat-persona-v4` (phân tích sách + biên kịch video dọc, kể bằng khoảnh khắc cụ thể khi viết bản thảo, bám
   nguồn, câu hỏi đòi định dạng nào trả đúng định dạng đó, và một phần chỉ áp dụng cho bản thảo: ngôn ngữ, mạch kể, `STORYTELLING_RULE`,
   quy tắc nguồn và trích đoạn) và câu trả lời `longer`. Phiên bản đã áp lưu ở `NotebookBinding.chatPersonaVersion` — chỉ ghi khi NotebookLM xác nhận; notebook
   cũ hơn phiên bản hiện hành được áp lại ở lần dùng sau. Đặt lại cùng cấu hình vô hại nên mất phản hồi là `TRANSIENT`, không
@@ -511,7 +511,7 @@ scriptVersion`. Không đạt thì không ghi gì. Từ đó video theo luật c
   tại không "Cần xem lại" (`publish`, optional không default nên snapshot cũ giữ hash). Lưu kèm `snapshotHash` (sha256 JSON khoá sắp
   xếp), **không bao giờ ghi đè**; khi đọc phải đúng schema và hash. ESLint cấm `render-runner.ts` đọc video sống.
 - **Pha render** (trọn hoặc không gì): preflight trên snapshot → `renderMedia` → ffprobe kiểm H.264/AAC, kích thước, FPS, thời lượng →
-  `COMPLETED`, cùng câu lệnh đặt `archiveIntentAt` cho FINAL. Lỗi/huỷ trong pha này xoá tệp dở. **Pha sau** chỉ báo tiến độ; lỗi ở đó
+  `COMPLETED`, cùng câu lệnh đặt `archiveIntentAt` (cả nháp lẫn FINAL). Lỗi/huỷ trong pha này xoá tệp dở. **Pha sau** chỉ báo tiến độ; lỗi ở đó
   không bao giờ xoá MP4 hay lật trạng thái. Render đã `COMPLETED` chạy lại là no-op.
 - Bundle một lần mỗi tiến trình worker; mỗi render mở **một** Chromium (`openBrowser`) dùng chung cho `selectComposition` và
   `renderMedia`, đóng trong `finally`; cảnh báo/lỗi của trang (cắt ngắn) vào log worker. Bản nháp dùng `scale = 720/1080` trên cùng
@@ -555,13 +555,15 @@ cảnh báo       HOOK_SILENCE (> 500 ms lặng đầu), LONG_TEXT, MISSING_AUDI
 ### 10.1 Luồng
 
 ```
-render FINAL COMPLETED + archiveIntentAt ─► requestRenderArchive | sweepRenderArchives (khởi động + mỗi phút)
+render COMPLETED (DRAFT hoặc FINAL) + archiveIntentAt ─► requestRenderArchive | sweepRenderArchives (khởi động + mỗi phút)
   ─► RenderArchive + 3–4 RenderArchiveFile + job ARCHIVE_RENDER (một giao dịch, tài khoản đang kết nối)
   ─► dựng script/publish/manifest ─► prepareDestination ─► upload MP4 → script → publish → manifest ─► verify ─► COMPLETED khi mọi tệp VERIFIED
 ```
 
 - Archive tách khỏi render; `destinationKey` = `permissionId` của tài khoản. Chưa kết nối Drive → không làm gì, ý định vẫn nằm trên
-  render. Processor **chỉ upload**.
+  render. Processor **chỉ upload**. Nút **Lưu lên Drive** (`archiveRenderNow`) gọi `requestRenderArchive(..., { userRequested: true })`,
+  bỏ yêu cầu ý định: bản render cũ (trước khi nháp được lưu) chỉ lên Drive khi người dùng bấm, quét nền không tự gom chúng. Tin Telegram
+  về archive (`notifyArchiveFailureWithin`, `notifyVideoReadyWithin`) chỉ cho render FINAL.
 - `script.json` và `manifest.json` (thông số render, `snapshotHash`, tên + byte + SHA-256 của MP4 và script) dựng **chỉ từ snapshot**,
   không có đường dẫn local, JSON khoá sắp xếp nên dựng lại ra cùng byte. Cảnh minh hoạ: snapshot ghi `illustrative` cho từng cảnh lúc
   chụp (nhịp bản thảo có `illustrative` của item sản xuất, ánh xạ sang loại cảnh bằng `SCENE_TYPE_FOR_BEAT`; video làm tay không có

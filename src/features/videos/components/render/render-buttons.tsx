@@ -18,12 +18,12 @@ interface RenderButtonsProps {
   driveConnected: boolean;
 }
 
-// What happens to a finished render, said when it finishes: only the FINAL one goes to Google Drive, by itself.
+// What happens to a finished render, said when it finishes: draft or final, it goes to Google Drive by itself.
 function finishedMessage(quality: RenderQuality, driveConnected: boolean): string {
-  if (quality === "DRAFT") return "Render nháp xong. Bản nháp chỉ để xem, không lưu lên Drive.";
+  const name = quality === "DRAFT" ? "Bản nháp" : "Bản cuối";
   return driveConnected
-    ? "Render xong. Bản cuối đang được lưu lên Google Drive; link hiện ở mục Google Drive bên dưới video."
-    : "Render xong. Chưa kết nối Google Drive nên bản cuối chưa được lưu lên Drive.";
+    ? `Render xong. ${name} đang được lưu lên Google Drive; link hiện ở mục Google Drive bên dưới video.`
+    : `Render xong. Chưa kết nối Google Drive nên ${name.toLowerCase()} chưa được lưu lên Drive.`;
 }
 
 export function RenderButtons({ videoId, blocked, dims, driveConnected }: Readonly<RenderButtonsProps>) {

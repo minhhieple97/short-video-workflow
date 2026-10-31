@@ -12,6 +12,8 @@ const page = z.number().int().min(1);
 
 export const sourceExcerptSchema = z.object({ page, text: z.string().trim().min(1) });
 
+const draftSourceExcerptSchema = sourceExcerptSchema.extend({ page: page.nullable() });
+
 export const detectedChapterSchema = z
   .object({
     title: z.string().trim().min(1),
@@ -36,7 +38,7 @@ export const scriptDraftBeatSchema = z.object({
   beat: z.enum(NARRATIVE_BEATS),
   narration: z.string().trim().min(1).max(600),
   // Kept apart from the narration so claims stay traceable to the book.
-  sourceExcerpts: z.array(sourceExcerptSchema),
+  sourceExcerpts: z.array(draftSourceExcerptSchema),
   // True when the beat contains a scenario invented by the AI rather than taken from the book.
   illustrative: z.boolean(),
 });

@@ -126,14 +126,12 @@ async function produceRender(
   });
   if (problem) throw new AppError("RENDER_VERIFICATION_FAILED", `Kiểm tra MP4 thất bại: ${problem}`, 500);
 
-  // Only a FINAL render is archived. The intent is part of this write, so it is saved with the MP4 or not at all.
+  // Every finished render, draft or final, is archived; the intent is part of this write, so it is saved with the MP4 or
+  // not at all. Only a FINAL render is a finished video worth a "no Drive link" warning.
   await completeRenderRecord(
     render,
     { durationMs: probe.durationMs, sizeBytes: probe.sizeBytes },
-    {
-      archive: quality === "FINAL",
-      missingDrive: quality === "FINAL" && getAppConfig().telegram.enabled && (await missingArchiveDestination()),
-    },
+    { missingDrive: quality === "FINAL" && getAppConfig().telegram.enabled && (await missingArchiveDestination()) },
   );
   return { durationMs: probe.durationMs };
 }

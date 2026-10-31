@@ -195,9 +195,26 @@ describe("POST /api/renders/:renderId/archive", () => {
     expect(await activeArchiveJobs()).toHaveLength(1);
   });
 
-  it("refuses without a connection, and for a render that is not a finished FINAL", async () => {
+  it("archives a draft render, and one made before drafts were archived, on the user's request, up to Drive", async () => {
     const draft = await seedArchivableRender(db, env.dataDir, videoId, { qualityPreset: "DRAFT" });
-    await expect(control.archiveRenderNow(draft)).rejects.toMatchObject({
+    const older = await seedArchivableRender(db, env.dataDir, videoId, {
+      qualityPreset: "DRAFT",
+      archiveIntentAt: null,
+    });
+
+    const draftArchive = await control.archiveRenderNow(draft);
+    const olderArchive = await control.archiveRenderNow(older);
+
+    expect(draftArchive).toMatchObject({ status: "PENDING" });
+    expect(olderArchive).toMatchObject({ status: "PENDING" });
+    await runJob(draftArchive.id);
+    expect(await archive(draftArchive.id)).toMatchObject({ status: "COMPLETED", renderId: draft });
+  });
+
+  it("refuses without a connection, and for a render that has not finished", async () => {
+    const unfinished = await seedArchivableRender(db, env.dataDir, videoId);
+    await db.prisma.renderRecord.update({ where: { id: unfinished }, data: { status: "RENDERING" } });
+    await expect(control.archiveRenderNow(unfinished)).rejects.toMatchObject({
       code: "ARCHIVE_NOT_ARCHIVABLE",
       httpStatus: 409,
     });

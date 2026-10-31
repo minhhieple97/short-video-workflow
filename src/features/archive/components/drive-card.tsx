@@ -10,7 +10,7 @@ import { ArchiveRenderButton } from "./archive-render-button";
 import { DriveLinks } from "./drive-links";
 
 interface DriveCardProps {
-  // The newest finished FINAL render: the one that is, or should be, on Drive. Null before there is one.
+  // The newest finished render, draft or final: the one playing above the card, which is, or should be, on Drive. Null before there is one.
   render: { id: string; label: string; outdated: boolean } | null;
   archive: ArchiveDto | null;
   driveConnected: boolean;
@@ -22,7 +22,7 @@ function ConnectDriveHint() {
       <Link href="/settings" className="text-foreground font-medium underline underline-offset-4">
         Kết nối Google Drive trong Cài đặt
       </Link>{" "}
-      để bản cuối được lưu tự động.
+      để bản nháp và bản cuối được lưu tự động.
     </p>
   );
 }
@@ -32,8 +32,8 @@ function DriveCardBody({ render, archive, driveConnected }: Readonly<DriveCardPr
     return (
       <>
         <p className="text-muted-foreground">
-          Bản cuối tự được lưu lên Google Drive sau khi render xong, và link video hiện ở đây. Chưa có bản cuối nào hoàn
-          tất.
+          Bản nháp và bản cuối tự được lưu lên Google Drive sau khi render xong, và link video hiện ở đây. Chưa có bản
+          render nào hoàn tất.
         </p>
         {driveConnected ? null : <ConnectDriveHint />}
       </>
@@ -42,14 +42,14 @@ function DriveCardBody({ render, archive, driveConnected }: Readonly<DriveCardPr
   if (!archive) {
     return driveConnected ? (
       <>
-        <p>Bản cuối này chưa được lưu lên Drive.</p>
+        <p>Bản render này chưa được lưu lên Drive.</p>
         <div>
           <ArchiveRenderButton renderId={render.id} retry={false} />
         </div>
       </>
     ) : (
       <>
-        <p>Bản cuối này chưa được lưu lên Drive vì chưa kết nối Google Drive.</p>
+        <p>Bản render này chưa được lưu lên Drive vì chưa kết nối Google Drive.</p>
         <ConnectDriveHint />
       </>
     );
@@ -85,7 +85,7 @@ function DriveCardBody({ render, archive, driveConnected }: Readonly<DriveCardPr
       ) : null}
       {render.outdated ? (
         <p className="text-muted-foreground text-xs">
-          Bản trên Drive được render từ kịch bản cũ. Render bản cuối mới để Drive có bản cập nhật.
+          Bản trên Drive được render từ kịch bản cũ. Render lại để Drive có bản cập nhật.
         </p>
       ) : null}
     </>

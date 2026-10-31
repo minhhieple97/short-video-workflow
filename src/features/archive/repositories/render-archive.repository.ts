@@ -212,13 +212,12 @@ export async function recordArchiveRetry(
   return archive.retries;
 }
 
-// Finished FINAL renders that asked to be archived (the intent is written with the render) and have no archive yet in
-// this destination.
+// Finished renders that asked to be archived (the intent is written with the render) and have no archive yet in this
+// destination. Renders made before drafts were archived carry no intent and wait for the user's click.
 export async function listRendersAwaitingArchive(destination: { provider: string; destinationKey: string }) {
   return prisma.renderRecord.findMany({
     where: {
       status: "COMPLETED",
-      qualityPreset: "FINAL",
       archiveIntentAt: { not: null },
       archives: { none: destination },
     },

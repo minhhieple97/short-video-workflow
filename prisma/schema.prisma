@@ -316,8 +316,9 @@ model RenderRecord {
   // What this render was made from, captured when it was requested and never changed afterwards (a RenderSnapshot).
   snapshotJson    Json?
   snapshotHash    String?
-  // Set in the same update that completes a FINAL render, so "this MP4 should be archived" survives any crash or queue outage
-  // after the render; the archive step reads it and never needs the render to be run again.
+  // Set in the same update that completes a render (draft or final), so "this MP4 should be archived" survives any crash or
+  // queue outage after the render; the archive step reads it and never needs the render to be run again. Renders finished
+  // before drafts were archived have none: only the user's click archives them.
   archiveIntentAt DateTime?
   archives        RenderArchive[]
 

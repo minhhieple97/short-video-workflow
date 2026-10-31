@@ -25,7 +25,7 @@ const RETOLD_BEATS = [
 
 export class MockScriptStudioProvider implements ScriptStudioProvider {
   readonly id = "mock-script-studio";
-  readonly draftVersion = "mock-draft-v1";
+  readonly draftVersion = "mock-draft-v2";
   readonly uploadedSources: SourceRef[] = [];
 
   private readonly remoteIdByKey = new Map<string, string>();
@@ -105,7 +105,7 @@ export class MockScriptStudioProvider implements ScriptStudioProvider {
       beats: NARRATIVE_BEATS.map((beat) => ({
         beat,
         narration: narrationFor[beat],
-        sourceExcerpts: beat === "LESSON" ? [{ page: 1, text: lesson.sources[0]?.excerpt ?? "Trích đoạn." }] : [],
+        sourceExcerpts: beat === "LESSON" ? [{ page: null, text: lesson.sources[0]?.excerpt ?? "Trích đoạn." }] : [],
         illustrative: beat === "SITUATION",
       })),
     };

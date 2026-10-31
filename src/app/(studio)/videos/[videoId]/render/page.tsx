@@ -38,8 +38,6 @@ export default async function VideoRenderPage({ params }: Readonly<{ params: Pro
   const draft = preflightFor(video, "DRAFT");
   const final = preflightFor(video, "FINAL");
   const latest = renders.find((render) => render.status === "COMPLETED");
-  // Only a FINAL render goes to Drive: the newest finished one is what the Drive card is about.
-  const finalRender = renders.find((render) => render.quality === "FINAL" && render.status === "COMPLETED");
   const label = (quality: "DRAFT" | "FINAL") => {
     const dims = dimensionsFor(quality);
     return `${dims.width}×${dims.height}`;
@@ -107,15 +105,15 @@ export default async function VideoRenderPage({ params }: Readonly<{ params: Pro
 
       <DriveCard
         render={
-          finalRender
+          latest
             ? {
-                id: finalRender.id,
-                label: `Bản cuối ${finalRender.width}×${finalRender.height} · kịch bản v${finalRender.scriptVersion}`,
-                outdated: finalRender.outdated,
+                id: latest.id,
+                label: `${latest.quality === "FINAL" ? "Bản cuối" : "Nháp"} ${latest.width}×${latest.height} · kịch bản v${latest.scriptVersion}`,
+                outdated: latest.outdated,
               }
             : null
         }
-        archive={finalRender ? (archives[finalRender.id] ?? null) : null}
+        archive={latest ? (archives[latest.id] ?? null) : null}
         driveConnected={drive.connected}
       />
 

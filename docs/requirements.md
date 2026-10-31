@@ -67,7 +67,7 @@ Hai luồng dùng chung sách, chương, bài học, trình biên tập, mẫu v
    chọn một trong 2–3 hook, sửa cảnh, **Duyệt kịch bản**.
 6. **Giọng đọc**: edge-tts hoặc tải âm thanh lên cho từng cảnh.
 7. **Xem trước** trong khung điện thoại, vùng an toàn, **Xem 4 giây đầu**.
-8. **Render** nháp rồi bản cuối, tải MP4; bản cuối tự lưu Drive nếu đã kết nối.
+8. **Render** nháp rồi bản cuối, tải MP4; cả hai tự lưu Drive nếu đã kết nối.
 9. **Đăng tải**: sửa, lưu, sao chép tiêu đề, caption, hashtag; **Tạo lại** khi kịch bản đã đổi. Người dùng tự đăng video.
 
 Với `AI_MODE=cli-task`, bước dùng AI dừng ở **Chờ Claude CLI** tới khi người dùng chạy lệnh hiển thị trong terminal của mình;
@@ -249,11 +249,11 @@ Chưa phân trang: danh mục chọn bài để sản xuất, các đợt nhập
 - Remotion Player trong khung điện thoại 9:16 (phát, dừng, tua, âm thanh), cùng composition và props với render; lớp vùng an toàn
   TikTok / Shorts / Reels; **Xem 4 giây đầu**.
 - Render nháp và bản cuối (§6.7), mỗi lần một bản; lịch sử ghi chất lượng, phiên bản kịch bản, trạng thái, nhãn lỗi thời, trạng
-  thái Drive của bản cuối (kèm nút lưu/thử lại chỉ upload); tải đúng tệp.
-- Ngay dưới video vừa render có thẻ **Google Drive** cho bản cuối mới nhất: chưa có bản cuối, chưa kết nối Drive (kèm lối tới Cài
-  đặt), chưa lưu (kèm nút lưu), đang lưu (số tệp đã xác minh), đã lưu, hoặc lỗi (kèm lý do và thử lại); khi đã có, thẻ có **Mở
-  video trên Drive**, **Sao chép link** và **Mở thư mục Drive** (§5.9). Render xong, thông báo nói luôn bản cuối đang được lưu lên
-  Drive hay chưa kết nối; bản nháp không lên Drive.
+  thái Drive của từng bản (kèm nút lưu/thử lại chỉ upload); tải đúng tệp.
+- Ngay dưới video vừa render có thẻ **Google Drive** cho bản render hoàn tất mới nhất, nháp hay cuối, đúng bản đang phát phía trên:
+  chưa có bản nào, chưa kết nối Drive (kèm lối tới Cài đặt), chưa lưu (kèm nút lưu), đang lưu (số tệp đã xác minh), đã lưu, hoặc lỗi
+  (kèm lý do và thử lại); khi đã có, thẻ có **Mở video trên Drive**, **Sao chép link** và **Mở thư mục Drive** (§5.9). Render xong,
+  thông báo nói luôn bản vừa render đang được lưu lên Drive hay chưa kết nối.
 
 ### 5.8. Sản xuất hàng loạt
 
@@ -277,8 +277,11 @@ Chưa phân trang: danh mục chọn bài để sản xuất, các đợt nhập
 
 ### 5.9. Lưu Google Drive
 
-- Mọi bản render **cuối** hoàn tất (cả hai luồng) được lưu tự động khi đã kết nối; chưa kết nối thì chờ tới khi kết nối. Bản nháp
-  không lưu.
+- Mọi bản render hoàn tất, **nháp lẫn cuối** (cả hai luồng), được lưu tự động khi đã kết nối; chưa kết nối thì chờ tới khi kết nối.
+  Mỗi bản render có thư mục và bản lưu riêng (tên MP4 mang kích thước 720×1280 hay 1080×1920, `manifest.json` ghi chất lượng), nên bản
+  nháp không đè bản cuối. Bản nháp tính vào dung lượng và hạn mức upload như mọi bản khác. Bản render làm **trước** khi nháp được lưu
+  (không có ý định lưu) không tự lên Drive; bấm **Lưu lên Drive** ở lịch sử render để lưu. Telegram, đầu trang video và danh sách
+  vẫn chỉ nói về video FINAL: bản nháp chỉ hiện ở lịch sử và thẻ Google Drive của trang Render.
 - Mỗi bản lưu, dựng từ snapshot render, gồm MP4, `script.json` (cảnh, bài học và trích đoạn nguồn), `publish.txt` (tiêu đề,
   caption, hashtag — chỉ khi bản render có bộ này, §5.13) và `manifest.json` (thông số, phiên bản, âm thanh, kích thước và SHA-256
   các tệp) trong `Book Video Studio/books/<sách>/videos/<video>/renders/<render>/`. Cảnh là tình huống sáng tác cho video (không
@@ -385,10 +388,10 @@ Bài học trong sách và điều rút ra (`KEY_TAKEAWAY`) → Quay lại xử 
 
 - Hook mở giữa một khoảnh khắc cụ thể (một hành động, một câu thoại, một chi tiết lạ) và để lửng điều chưa giải thích, không mở
   bằng khuôn câu hỏi chung chung ("Có phải bạn…", "Bạn có biết…", "Tại sao bạn luôn…").
-- Tình huống được dựng thành cảnh: nhân vật có tên (hoặc "bạn"), nơi chốn, vật nhìn thấy được; sai lầm có cái giá; có một cú
-  "tưởng là A, hoá ra là B" trước bài học; thoại ngắn trong ngoặc kép, chỉ của nhân vật tự nghĩ ra; câu ngắn để đọc thành tiếng.
-- Bài học là điều vừa nhìn ra chứ không phải bài giảng; cách giải quyết chiếu lại đúng khoảnh khắc mở đầu với kết quả khác; hành
-  động đủ cụ thể để hình dung (làm gì, lúc nào, ở đâu).
+- Tình huống có nhân vật, động cơ và lý do khiến cách làm cũ từng hợp lý. Sai lầm có hệ quả do chính lựa chọn gây ra, tương xứng
+  với vấn đề; không ép bi kịch hoặc cú đảo chiều khi nguồn không hỗ trợ. Thoại ngắn chỉ của nhân vật minh hoạ; câu dài ngắn tự nhiên.
+- Bài học giải thích cơ chế thay đổi, giữ điều kiện và giới hạn trong nguồn. Cách giải quyết quay lại tình huống mở đầu ở lần sau
+  hoặc hai phương án được báo hiệu rõ, với kết quả nhỏ quan sát được; kết bằng một hành động cụ thể, không giảng lại cùng ý.
 
 **Góc kể tự động.** Mỗi video được giao một trong sáu góc kể, đều nằm trong khung trên: Bắt đầu từ đỉnh điểm, Cuộc đối thoại, Hai
 lối rẽ, Phá một niềm tin, Cú đảo chiều, Leo thang từng bước. Người dùng không chọn và không thấy góc; hệ thống xoay góc để các

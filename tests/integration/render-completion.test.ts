@@ -116,7 +116,7 @@ describe("runRender completion", () => {
     expect((await db.prisma.video.findUniqueOrThrow({ where: { id: videoId } })).latestRenderId).toBe(id);
   });
 
-  it("does not ask for a draft render to be archived", async () => {
+  it("asks for a draft render to be archived too, with the same intent a final one gets", async () => {
     const { id } = await queueRender("DRAFT");
 
     await runner.runRender(
@@ -124,7 +124,10 @@ describe("runRender completion", () => {
       fakeDeps({ probe: probeFor(720, 1280) }),
     );
 
-    expect(await record(id)).toMatchObject({ status: "COMPLETED", archiveIntentAt: null });
+    const done = await record(id);
+    expect(done).toMatchObject({ status: "COMPLETED", qualityPreset: "DRAFT" });
+    expect(done.archiveIntentAt).not.toBeNull();
+    expect(done.archiveIntentAt?.getTime()).toBe(done.completedAt?.getTime());
   });
 
   it("keeps a completed MP4 and its archive intent when reporting the final progress fails", async () => {

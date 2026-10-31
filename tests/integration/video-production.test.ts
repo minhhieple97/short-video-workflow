@@ -133,4 +133,25 @@ describe("getVideoProduction", () => {
 
     expect((await service.getVideoProduction(videoId))?.draft).toBeNull();
   });
+
+  it("preserves unknown draft pages through the stored artifact and source DTO", async () => {
+    const draft: ScriptDraft = {
+      ...DRAFT,
+      beats: DRAFT.beats.map((beat) => ({
+        ...beat,
+        sourceExcerpts: beat.sourceExcerpts.map((excerpt) => ({ ...excerpt, page: null })),
+      })),
+    };
+    const artifact = createDraftArtifact({ draft, lessonContentHash: "hash", targetDurationSec: 60 });
+    await db.prisma.productionItem.update({ where: { id: itemId }, data: { draftArtifactJson: artifact } });
+
+    const production = await service.getVideoProduction(videoId);
+
+    expect(production?.draft?.find((beat) => beat.beat === "LESSON")?.sources).toEqual([
+      { page: null, text: "Hãy bắt đầu nhỏ." },
+    ]);
+    expect((await db.prisma.productionItem.findUniqueOrThrow({ where: { id: itemId } })).draftArtifactJson).toEqual(
+      artifact,
+    );
+  });
 });

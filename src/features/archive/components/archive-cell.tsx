@@ -10,14 +10,14 @@ import { ArchiveRenderButton } from "./archive-render-button";
 interface ArchiveCellProps {
   renderId: string;
   archive: ArchiveDto | null;
-  // Only finished FINAL renders are archived.
+  // Only a finished render has an MP4 to archive.
   archivable: boolean;
   driveConnected: boolean;
 }
 
 // Where a render stands on Google Drive, kept apart from its local MP4: the local file is the original either way.
 export function ArchiveCell({ renderId, archive, archivable, driveConnected }: Readonly<ArchiveCellProps>) {
-  if (!archivable) return <span className="text-muted-foreground text-xs">Chỉ lưu bản cuối</span>;
+  if (!archivable) return <span className="text-muted-foreground text-xs">Lưu được khi render xong</span>;
   if (!archive) {
     return driveConnected ? (
       <ArchiveRenderButton renderId={renderId} retry={false} />

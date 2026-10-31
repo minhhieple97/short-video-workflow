@@ -7,7 +7,7 @@ export interface DraftBeatDto {
   narration: string;
   // True for a scenario the AI made up to illustrate the lesson rather than took from the book.
   illustrative: boolean;
-  sources: { page: number; text: string }[];
+  sources: { page: number | null; text: string }[];
 }
 
 // How a video relates to the production that made it: whether it is still being worked on (and so locked), and what its

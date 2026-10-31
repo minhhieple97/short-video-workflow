@@ -35,7 +35,9 @@ export function ScriptSourcePanel({ production }: Readonly<{ production: VideoPr
               <ul className="flex flex-col gap-1.5">
                 {beat.sources.map((source, sourceIndex) => (
                   <li key={sourceIndex} className="border-border text-muted-foreground border-l-2 pl-3 text-sm">
-                    <span className="font-medium">Trang {source.page}: </span>
+                    <span className="font-medium">
+                      {source.page === null ? "Chưa xác định trang" : `Trang ${source.page}`}:{" "}
+                    </span>
                     <q>{source.text}</q>
                   </li>
                 ))}

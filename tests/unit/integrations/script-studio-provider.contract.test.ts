@@ -11,6 +11,21 @@ import {
 describeScriptStudioProviderContract("MockScriptStudioProvider", () => new MockScriptStudioProvider());
 
 describe("MockScriptStudioProvider", () => {
+  it("does not invent a page for an excerpt without a page locator", async () => {
+    const draft = await new MockScriptStudioProvider().writeDraft({
+      sources: [],
+      lesson: SAMPLE_LESSON,
+      range: { minDurationSec: 30, maxDurationSec: 60 },
+      pace: "STANDARD",
+      storyAngle: "PEAK_FIRST",
+      revisionNote: null,
+    });
+
+    expect(draft.beats.flatMap((beat) => beat.sourceExcerpts)).toEqual([
+      { page: null, text: SAMPLE_LESSON.sources[0]?.excerpt },
+    ]);
+  });
+
   it("writes about as much as the length it proposes, telling short lesson fields again to reach the minimum", async () => {
     const terse = "Ngắn.";
     const lesson = {

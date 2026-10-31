@@ -98,10 +98,11 @@ const card = (props: Partial<Parameters<typeof DriveCard>[0]> = {}) =>
   );
 
 describe("DriveCard", () => {
-  it("explains what will happen before there is a final render", () => {
+  it("explains what will happen before there is a finished render, draft or final", () => {
     const html = card({ render: null, archive: null });
 
-    expect(html).toContain("Chưa có bản cuối nào hoàn tất");
+    expect(html).toContain("Bản nháp và bản cuối tự được lưu lên Google Drive");
+    expect(html).toContain("Chưa có bản render nào hoàn tất");
     expect(hrefs(html)).not.toContain("/settings");
   });
 
@@ -113,7 +114,7 @@ describe("DriveCard", () => {
     expect(withRender).not.toContain("Lưu lên Drive");
   });
 
-  it("offers to save a final render that has no archive when Drive is connected", () => {
+  it("offers to save a render that has no archive when Drive is connected", () => {
     const html = card({ archive: null });
 
     expect(html).toContain("chưa được lưu lên Drive");

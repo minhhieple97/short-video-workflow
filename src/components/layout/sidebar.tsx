@@ -37,7 +37,7 @@ function Brand() {
       </div>
       <div className="min-w-0">
         <p className="text-base leading-tight font-extrabold text-white">Book Video Studio</p>
-        <p className="text-xs text-white/60">Video ngắn 9:16 từ bài học sách</p>
+        <p className="text-xs text-white/60">Short video</p>
       </div>
     </div>
   );

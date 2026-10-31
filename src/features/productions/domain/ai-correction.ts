@@ -35,7 +35,7 @@ const GUIDANCE: Record<string, string> = {
   OVER_TARGET:
     "Tổng thời lượng vượt mức tối đa của khoảng: rút gọn lời dẫn cho vừa, không nới khoảng và không đọc nhanh hơn.",
   UNDER_MIN:
-    "Video ngắn hơn mức tối thiểu: kể sâu hơn từ nguồn (tình huống chi tiết hơn, nhiều bước hành động hơn), không thêm dữ kiện ngoài nguồn và không đọc chậm hơn.",
+    "Video ngắn hơn mức tối thiểu: kể sâu hơn từ nguồn (lý do của lựa chọn cũ, hệ quả, cơ chế thay đổi và kết quả quan sát được; không lặp ý để kéo dài), không thêm dữ kiện ngoài nguồn và không đọc chậm hơn.",
   OVER_MAX: "Tổng thời lượng vượt giới hạn tuyệt đối: rút gọn mạnh lời dẫn, không đọc nhanh hơn.",
   HOOK_TOO_LONG: `Hook đọc quá ${HOOK_MAX_SECONDS} giây: viết hook ngắn hơn nhưng vẫn gợi đủ vấn đề.`,
   HOOK_MISSING: "Thiếu HOOK ở đầu: mở bằng một HOOK có chữ trên màn hình.",

@@ -29,16 +29,18 @@ export async function currentArchiveDestination(): Promise<ArchiveDestinationRef
 export type ArchiveRequestOutcome =
   { status: "REQUESTED"; archiveId: string; created: boolean } | { status: "NOT_CONNECTED" | "NOT_ARCHIVABLE" };
 
-// Creates the archive of a finished FINAL render, with its job, for the connected account. Asking again returns the same
-// archive. Without a connection nothing happens: the render keeps its archive intent and the sweep picks it up later.
+// Creates the archive of a finished render (draft or final), with its job, for the connected account. Asking again returns
+// the same archive. Without a connection nothing happens: the render keeps its archive intent and the sweep picks it up
+// later. A render without that intent (made before drafts were archived) is archived only when the user asks for it.
 export async function requestRenderArchive(
   renderId: string,
   destination?: ArchiveDestinationRef | null,
+  options: { userRequested?: boolean } = {},
 ): Promise<ArchiveRequestOutcome> {
   const target = destination === undefined ? await currentArchiveDestination() : destination;
   if (!target) return { status: "NOT_CONNECTED" };
   const render = await findRenderForArchive(renderId);
-  if (!render || render.status !== "COMPLETED" || render.qualityPreset !== "FINAL" || !render.archiveIntentAt) {
+  if (!render || render.status !== "COMPLETED" || (!render.archiveIntentAt && !options.userRequested)) {
     return { status: "NOT_ARCHIVABLE" };
   }
   const names = archiveFileNames(render);
