@@ -56,7 +56,7 @@ interface LessonBulkBarProps {
 }
 
 // Approve, reject (archive) or send back to draft every ticked lesson in one request, or make videos of them with no
-// further step by hand. Making videos does not touch a lesson's status.
+// further step by hand. Making videos approves the lessons it is made from, so a draft needs no "Duyệt" first.
 export function LessonBulkBar({
   bookId,
   selected,
@@ -137,7 +137,12 @@ export function LessonBulkBar({
         <span className="bg-border mx-1 hidden h-6 w-px sm:block" aria-hidden />
         <ProduceLessonsDialog
           bookId={bookId}
-          lessons={producible.map(({ id, title, usedInVideoCount }) => ({ id, title, usedInVideoCount }))}
+          lessons={producible.map(({ id, title, status, usedInVideoCount }) => ({
+            id,
+            title,
+            status,
+            usedInVideoCount,
+          }))}
           skipped={notProducible}
           settings={production}
         />

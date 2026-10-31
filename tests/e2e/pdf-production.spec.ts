@@ -41,7 +41,7 @@ function videoFiles(suffix: string): string[] {
   return found;
 }
 
-test("E2E-02: PDF → catalogue → chosen lesson → vertical video archived to Drive, with no approval step", async ({
+test("E2E-02: PDF → catalogue → chosen lesson → vertical video archived to Drive, with nothing approved by hand", async ({
   page,
 }, testInfo) => {
   const pdfFile = testInfo.outputPath("sach-e2e.pdf");
@@ -113,11 +113,17 @@ test("E2E-02: PDF → catalogue → chosen lesson → vertical video archived to
       .not.toContain("(0)");
   });
 
-  await test.step("tick one lesson in the list as it is (still a draft) and make its video in one go", async () => {
+  await test.step("tick one draft lesson in the list and make its video in one go, without approving anything first", async () => {
     await open(page, `${bookUrl}?tab=lessons`);
-    await page.locator("tbody tr").first().getByRole("checkbox").click();
+    const first = page.locator("tbody tr").first();
+    await expect(first).toContainText("Bản nháp");
+    await first.getByRole("checkbox").click();
     await page.getByRole("button", { name: "Tạo 1 video" }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "Tạo 1 video" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(
+      dialog.getByText("1 bài đang là bản nháp sẽ được chuyển sang Đã duyệt khi bạn bấm tạo."),
+    ).toBeVisible();
+    await dialog.getByRole("button", { name: "Tạo 1 video" }).click();
     await page.waitForURL(/\/productions\/[a-z0-9]+$/);
   });
 
@@ -143,6 +149,13 @@ test("E2E-02: PDF → catalogue → chosen lesson → vertical video archived to
     await expect(page.getByText(/^AI đề xuất \d+ (giây|phút): .+/)).toBeVisible();
   });
 
+  await test.step("the video's script was approved by the machine's checks, and the video says so", async () => {
+    await page.getByRole("link", { name: "Mở video", exact: true }).click();
+    await page.waitForURL(/\/videos\/[a-z0-9]+$/);
+    await expect(page.getByText("Kịch bản đã duyệt").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Duyệt kịch bản" })).toHaveCount(0);
+  });
+
   await test.step("the archive carries the title, caption and hashtags written with the scene plan", async () => {
     const [publish, ...others] = videoFiles("-publish.txt").filter((file) => !publishBefore.has(file));
     expect(others).toHaveLength(0);
@@ -151,7 +164,7 @@ test("E2E-02: PDF → catalogue → chosen lesson → vertical video archived to
     );
   });
 
-  await test.step("the render is a 9:16 H.264 + AAC MP4 and the lesson was never approved", async () => {
+  await test.step("the render is a 9:16 H.264 + AAC MP4, and only the lesson that was made into a video is approved", async () => {
     const created = videoFiles(".mp4").filter((file) => !mp4Before.has(file));
     expect(created).toHaveLength(1);
     const probe = JSON.parse(
@@ -172,7 +185,9 @@ test("E2E-02: PDF → catalogue → chosen lesson → vertical video archived to
     expect(probe.streams.find((stream) => stream.codec_name === "h264")).toMatchObject({ width: 1080, height: 1920 });
 
     await open(page, `${bookUrl}?tab=lessons`);
-    await expect(page.getByText("Bản nháp").first()).toBeVisible();
-    await expect(page.getByText("Đã duyệt")).toHaveCount(0);
+    const rows = page.locator("tbody tr");
+    await expect(rows.first()).toContainText("Đã duyệt");
+    await expect(rows.filter({ hasText: "Đã duyệt" })).toHaveCount(1);
+    await expect(rows.filter({ hasText: "Bản nháp" }).first()).toBeVisible();
   });
 });

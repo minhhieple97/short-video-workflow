@@ -4,7 +4,9 @@ import type * as Claim from "@/features/productions/repositories/production-clai
 import type * as Apply from "@/features/productions/services/scene-plan-apply.service";
 import type * as ProductionRequest from "@/features/productions/services/production-request.service";
 import type * as Readiness from "@/features/productions/services/production-readiness.service";
+import type * as AudioService from "@/features/videos/services/audio.service";
 import type * as RenderService from "@/features/videos/services/render.service";
+import type * as ScriptEditing from "@/features/videos/services/script-editing.service";
 import type * as VideoService from "@/features/videos/services/video.service";
 import type * as DbClient from "@/server/db/client";
 import { createScenePlanArtifact } from "@/server/scene-plan/handoff";
@@ -25,6 +27,8 @@ let productions: typeof ProductionRequest;
 let readiness: typeof Readiness;
 let renders: typeof RenderService;
 let videos: typeof VideoService;
+let editing: typeof ScriptEditing;
+let audioService: typeof AudioService;
 
 let itemId: string;
 let videoId: string;
@@ -62,6 +66,8 @@ beforeAll(async () => {
   readiness = await import("@/features/productions/services/production-readiness.service");
   renders = await import("@/features/videos/services/render.service");
   videos = await import("@/features/videos/services/video.service");
+  editing = await import("@/features/videos/services/script-editing.service");
+  audioService = await import("@/features/videos/services/audio.service");
 }, 60_000);
 
 beforeEach(async () => {
@@ -106,32 +112,69 @@ afterAll(async () => {
 });
 
 describe("markProductionItemReady", () => {
-  it("records readiness for the exact script version, moves the item to READY and never marks the video approved", async () => {
+  it("approves the script version it checked, records it as ready and moves the item to READY", async () => {
     await attachAudio();
     const before = await video();
+    expect(before).toMatchObject({ status: "NEEDS_REVIEW", approvedScriptVersion: null });
 
     await expect(readiness.markProductionItemReady({ itemId, claimToken: TOKEN })).resolves.toEqual({
       status: "READY",
     });
 
-    const after = await video();
-    expect(after.autoReadyScriptVersion).toBe(before.scriptVersion);
-    expect(after).toMatchObject({ status: "NEEDS_REVIEW", approvedScriptVersion: null });
+    expect(await video()).toMatchObject({
+      status: "APPROVED",
+      approvedScriptVersion: before.scriptVersion,
+      autoReadyScriptVersion: before.scriptVersion,
+    });
     expect(await checkpoint()).toBe("READY");
   });
 
-  it("lets a FINAL render pass the script gate afterwards, and stops letting it after any later change", async () => {
+  it("lets a FINAL render pass the script gate afterwards", async () => {
     await attachAudio();
     await readiness.markProductionItemReady({ itemId, claimToken: TOKEN });
 
     const ready = await videos.getVideo(videoId);
-    expect(ready.autoReady).toBe(true);
-    expect(renders.preflightFor(ready, "FINAL").blocking).toEqual([]);
 
-    await db.prisma.video.update({ where: { id: videoId }, data: { scriptVersion: { increment: 1 } } });
-    const changed = await videos.getVideo(videoId);
-    expect(changed.autoReady).toBe(false);
-    expect(renders.preflightFor(changed, "FINAL").blocking.map((issue) => issue.code)).toContain("SCRIPT_NOT_APPROVED");
+    expect(ready).toMatchObject({ status: "APPROVED", autoReady: true });
+    expect(renders.preflightFor(ready, "FINAL").blocking).toEqual([]);
+  });
+
+  it("then follows the rules of a script approved by hand: an edit sends it back to review, a new voice does not", async () => {
+    await attachAudio();
+    await readiness.markProductionItemReady({ itemId, claimToken: TOKEN });
+    // The production is over, so the video can be edited again.
+    await db.prisma.productionItem.update({ where: { id: itemId }, data: { status: "COMPLETED", claimToken: null } });
+    const [hook, second] = (await videos.getVideo(videoId)).scenes;
+    if (!hook || !second) throw new Error("the video has no scenes");
+
+    await audioService.detachSceneAudio(second.id);
+    const afterVoice = await videos.getVideo(videoId);
+    expect(afterVoice).toMatchObject({ status: "APPROVED", autoReady: false });
+    expect(renders.preflightFor(afterVoice, "FINAL").blocking.map((issue) => issue.code)).not.toContain(
+      "SCRIPT_NOT_APPROVED",
+    );
+
+    await editing.updateScene(videoId, hook.id, {
+      title: hook.title,
+      narration: hook.narration,
+      onScreenText: `${hook.onScreenText} mới`,
+      visualVariant: hook.visualVariant,
+      hidden: false,
+    });
+    const afterEdit = await videos.getVideo(videoId);
+    expect(afterEdit.status).toBe("NEEDS_REVIEW");
+    expect(afterEdit.approvedScriptVersion).not.toBeNull();
+    expect(renders.preflightFor(afterEdit, "FINAL").blocking.map((issue) => issue.code)).toContain(
+      "SCRIPT_NOT_APPROVED",
+    );
+  });
+
+  it("does not approve a script that failed the checks", async () => {
+    await expect(readiness.markProductionItemReady({ itemId, claimToken: TOKEN })).resolves.toMatchObject({
+      status: "NOT_READY",
+    });
+
+    expect(await video()).toMatchObject({ status: "NEEDS_REVIEW", approvedScriptVersion: null });
   });
 
   it("is not ready while a scene has no audio, and changes nothing", async () => {
@@ -204,14 +247,18 @@ describe("markProductionItemReady", () => {
     });
   });
 
-  it("records nothing when the script changed after it was checked", async () => {
+  it("records and approves nothing when the script changed after it was checked", async () => {
     await attachAudio();
-    const { markAutoReady } = await import("@/features/videos/repositories/video.repository");
+    const { markAutoApproved } = await import("@/features/videos/repositories/video.repository");
     const stale = (await video()).scriptVersion;
     await db.prisma.video.update({ where: { id: videoId }, data: { scriptVersion: { increment: 1 } } });
 
-    expect(await markAutoReady(videoId, stale)).toBe(false);
-    expect((await video()).autoReadyScriptVersion).toBeNull();
+    expect(await markAutoApproved(videoId, stale)).toBe(false);
+    expect(await video()).toMatchObject({
+      status: "NEEDS_REVIEW",
+      approvedScriptVersion: null,
+      autoReadyScriptVersion: null,
+    });
   });
 
   it("leaves the human approval path exactly as it was", async () => {

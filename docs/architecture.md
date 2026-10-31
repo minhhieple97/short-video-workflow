@@ -355,7 +355,9 @@ cũ của chương và ghi `AiRun(mode=notebooklm)`.
 `requestProduction` (`POST /api/productions`; ở giao diện là nút **Tạo N video** của thanh thao tác tab Bài học, trang `/books/:id/produce` giữ
 nguyên): bài học cùng sách, không `ARCHIVED`, có ít nhất một trích đoạn. Một **nested create** ghi
 batch + mỗi bài một item + một `Video` (snapshot bài học dựng như luồng thủ công) + job `RUN_PRODUCTION_ITEM` — đủ cả hoặc không gì. Chọn
-không phải duyệt: không đòi `APPROVED`, không đổi trạng thái bài học. Cùng `idempotencyKey` + cùng `fingerprint` (sách, bài học theo thứ
+không phải duyệt trước: không đòi `APPROVED`, và chính giao dịch này đổi các bài `DRAFT` được chọn thành `APPROVED` (`updateMany` có
+`status = DRAFT`, nên bài đã duyệt giữ nguyên và bài `ARCHIVED` không bao giờ được đưa lại, kể cả khi bị lưu trữ giữa lúc kiểm tra và lúc
+ghi). `createProduction` dùng chung nên đợt nhập nhiều PDF (`produceAllLessons`) cũng duyệt như vậy. Cùng `idempotencyKey` + cùng `fingerprint` (sách, bài học theo thứ
 tự, khoảng thời lượng) → trả batch cũ; cùng khoá khác nội dung → `409`; gửi đua → một batch (bên thua bắt `P2002`).
 
 Server **cố ý** cho sản xuất lại cùng bài dưới khoá mới. Việc ngăn làm một bài hai lần khi bản đầu còn chạy là của giao diện
@@ -397,8 +399,11 @@ status:     PENDING ─claim─► RUNNING ─┬─► COMPLETED
 - **Lồng tiếng:** từng cảnh, đúng thứ tự, qua `runSceneTts` (có cache; không gọi song song dịch vụ trực tuyến). Dừng sớm giữ audio đã tạo;
   chỉ chuyển `VOICED` khi mọi cảnh có audio.
 - **Readiness** (`assessReadiness`) thay cho duyệt tay: mọi quy tắc chặn của preflight FINAL (§9.3) trên audio thật, cộng
-  `UNDER_MIN` (với người chỉ là cảnh báo), `AUDIO_NOT_READY` và `SOURCE_MISSING`; báo mọi vấn đề một lượt. Đạt → ghi `autoReadyScriptVersion = scriptVersion` bằng CAS. Không giả
-  duyệt: `Video.status` vẫn `NEEDS_REVIEW`; sửa sau đó tăng `scriptVersion` nên readiness tự hết hiệu lực.
+  `UNDER_MIN` (với người chỉ là cảnh báo), `AUDIO_NOT_READY` và `SOURCE_MISSING`; báo mọi vấn đề một lượt. Đạt → `markAutoApproved` ghi **một
+  câu lệnh CAS** (`where scriptVersion = đã kiểm`): `autoReadyScriptVersion = scriptVersion`, `status = APPROVED`, `approvedScriptVersion =
+scriptVersion`. Không đạt thì không ghi gì. Từ đó video theo luật của luồng thủ công: sửa kịch bản → `bumpScript` → `NEEDS_REVIEW` (và
+  `autoReady` tự hết hiệu lực vì `scriptVersion` đổi); đổi giọng chỉ `bumpContentVersion`, vẫn `APPROVED`. `autoReady` vẫn có trong snapshot
+  render và preflight, nên bản render FINAL đi qua cả hai cách.
 - **Render** (`queueFinalRender`): chụp snapshot, dùng lại render FINAL đã xong cùng `scriptVersion` hoặc đang chạy; nếu không thì
   preflight rồi tạo `RenderRecord` + job qua outbox (không qua `requestRender` của web vì nó bị khoá `VIDEO_IN_PRODUCTION`).
 
@@ -518,6 +523,10 @@ render FINAL COMPLETED + archiveIntentAt ─► requestRenderArchive | sweepRend
   một mình không chứng minh gì), `archiveFolderUrl` chỉ khi cả archive `COMPLETED`. `getVideoDriveLinks(videoIds)` trả cho mỗi video bản render
   FINAL hoàn tất mới nhất cùng archive mới nhất của nó và cờ `outdated` (`scriptVersion` cũ hơn video), cho đầu trang video và cột Drive của
   danh sách; trang Render dùng `getVideoArchives` cho thẻ `DriveCard` và lịch sử.
+- Link Drive theo sách: `GET /api/books/:id/drive-links` → `getBookDriveLinks` (mọi video của sách, cũ nhất trước, cùng `VideoDriveDto`). Trang
+  tiến độ nhập nhiều PDF (`BookDriveLinks`) chỉ gọi nó khi người dùng mở danh sách và gọi lại khi `refreshKey` (số video xong và số video lên
+  Drive) đổi, nên DTO được hỏi mỗi 3 giây giữ nhẹ: chỉ có số đếm `videosOnDrive` (một truy vấn `renderId IN (…)` có `status = COMPLETED`) và
+  `driveConnected` (`currentArchiveDestination`), không có danh sách video.
 - `publish.txt` (tiêu đề, rồi caption + hashtag sẵn để dán; `formatPublishText`) chỉ có khi snapshot có `publish`: archive tạo hàng
   `PUBLISH` lúc được yêu cầu, `manifest.json` thêm `files.publish`. Archive chạy theo **chính các hàng tệp của nó**, nên archive tạo
   trước khi có `publish.txt` vẫn chạy tiếp với ba tệp; `prepareDestination` cấp ID cho mọi loại, ID thừa không dùng. Cây Drive:

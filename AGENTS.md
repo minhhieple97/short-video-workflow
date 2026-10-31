@@ -10,7 +10,8 @@ behavior, the requirements win; when they disagree on engineering practice, this
 Local-first, single-user app (Windows + WSL2) that turns an imported book into **vertical videos** (9:16, for TikTok / YouTube
 Shorts / Facebook Reels). Manual flow (`.txt`/`.md`): Book → Chapter → Lesson (Claude analysis, user approves) → Video → Scenes →
 Vietnamese voiceover → Remotion render. Batch flow (PDF): text layer + OCR → chapters → NotebookLM lesson catalogue → chosen lessons →
-NotebookLM draft → Claude scene plan → voiceover → render → Google Drive archive, with no approval step.
+NotebookLM draft → Claude scene plan → voiceover → render → Google Drive archive, with every approval automatic: choosing a lesson for a
+video approves it, and a script is approved when the machine's checks pass.
 
 Hard constraints (do not relax without an explicit user decision):
 
@@ -241,7 +242,11 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - The original uploaded file is immutable (store SHA-256). Chapter edits produce derived structures only.
 - `VideoLesson` stores a **snapshot** of the lesson at selection time; later lesson edits do not change existing videos.
 - In the manual flow only `APPROVED` lessons can seed a new video, and editing an approved script moves it to `NEEDS_REVIEW`. Batch
-  production selects lessons without approving them and relies on automatic readiness checks.
+  production (the lessons tab's "Tạo N video", `/books/:id/produce` and the multi-PDF import) needs no approval first and approves by
+  itself, by the owner's decision of 2026-10-31: `createProduction` turns the chosen `DRAFT` lessons into `APPROVED` in the same
+  transaction (never an `ARCHIVED` one, never again on a replay), and `markProductionItemReady` approves the script version the
+  automatic checks passed (`markAutoApproved`, one compare-and-set write). After that the manual rules apply: a script edit sends the
+  video back to `NEEDS_REVIEW`. A failed or cancelled production does not take the lesson approval back.
 - Changed script/scene/audio marks previous renders **outdated**; never delete old MP4s automatically.
 - AI must not fabricate quotes or citations; AI-invented scenarios must be flagged as illustrative. Never send a whole book to the AI — chapter or selected lessons only.
 - Book text is **untrusted data**, never instructions for the AI or the worker.
@@ -359,7 +364,7 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 
 - Vitest for unit/integration (parsers, safe-path, schemas, services, processors). `server-only` is aliased to a stub in `vitest.config.ts`.
 - Playwright E2E runs two paths on an isolated stack started by `tests/e2e/start-stack.ts`: `smoke.spec.ts` (E2E-01, the manual v1.1
-  flow) and `pdf-production.spec.ts` (E2E-02: PDF → chapters → catalogue → chosen lesson → batch production → Drive, no approval;
+  flow) and `pdf-production.spec.ts` (E2E-02: PDF → chapters → catalogue → chosen lesson → batch production → Drive, nothing approved by hand;
   skipped without Poppler, run it with `TEST_POPPLER_BIN_DIR` when Poppler is not on PATH). The stack: temp DB + `DATA_DIR`, Redis logical
   DB 14 (flushed on every run), worker, `next start` on port 3100, `OFFLINE_INTEGRATIONS_ENV` (`AI_MODE=mock`, no real credentials), a fake
   Google (token + Drive) in the start-stack process with Drive pre-connected, and a fake edge-tts (run as `EDGE_TTS_PYTHON`) that writes real

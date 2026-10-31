@@ -118,7 +118,9 @@ export interface NewProductionItem {
 }
 
 // The batch, one item per lesson, one video (with its lesson snapshot) per item and each item's job are written in one
-// transaction: either the whole request exists or none of it does, so a retry can never find half of one.
+// transaction: either the whole request exists or none of it does, so a retry can never find half of one. The lessons
+// are approved in the same transaction: choosing a lesson for a video is the decision a person would otherwise take by
+// hand, and writing it with the batch means an approved lesson never lacks the video it was approved for.
 export function createProduction(input: {
   bookId: string;
   idempotencyKey: string;
@@ -169,6 +171,11 @@ export function createProduction(input: {
         },
       },
       include: WITH_ITEMS,
+    });
+    // Only drafts move: an approved lesson stays as it is, and an archived one is never brought back.
+    await tx.lesson.updateMany({
+      where: { id: { in: input.items.map((item) => item.lessonId) }, bookId: input.bookId, status: "DRAFT" },
+      data: { status: "APPROVED" },
     });
     for (const item of batch.items) await startItemJobWithin(tx, item.id);
     return batch;

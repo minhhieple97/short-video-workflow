@@ -78,8 +78,9 @@ function replay(existing: ProductionRecord, fingerprint: string): { production: 
   return { production: toProductionDto(existing), reused: true };
 }
 
-// Records the user's selection and makes one video, with a snapshot of its lesson, for every selected lesson.
-// Selecting a lesson is not approving it, so lesson statuses are left exactly as they are.
+// Records the user's selection and makes one video, with a snapshot of its lesson, for every selected lesson. Choosing
+// a lesson is the approval: a draft becomes APPROVED together with the batch (an approved one stays, an archived one is
+// refused above), so nothing has to be approved by hand first. A replayed request changes nothing.
 export async function requestProduction(
   input: CreateProductionInput,
 ): Promise<{ production: ProductionDto; reused: boolean }> {

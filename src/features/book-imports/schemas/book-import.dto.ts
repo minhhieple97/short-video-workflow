@@ -23,7 +23,11 @@ export interface BookImportDto {
     errorMessage: string | null;
     productionIds: string[];
     videosCompleted: number;
+    // Videos whose final render has every file verified on Google Drive.
+    videosOnDrive: number;
     videosTotal: number;
   }[];
   cooldowns: { provider: string; message: string; blockedUntil: string }[];
+  // Whether a Google Drive account is connected now; without one the videos stay on this machine.
+  driveConnected: boolean;
 }

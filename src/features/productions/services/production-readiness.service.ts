@@ -1,7 +1,7 @@
 import type { PreflightIssue } from "@/features/videos/domain/preflight";
 import { lessonSnapshotSchema } from "@/features/videos/domain/lesson-snapshot";
 import { assessReadiness } from "@/features/videos/domain/readiness";
-import { markAutoReady } from "@/features/videos/repositories/video.repository";
+import { markAutoApproved } from "@/features/videos/repositories/video.repository";
 import { toVideoDetail } from "@/features/videos/services/video-mapper";
 import { requireVideo } from "@/features/videos/services/video.service";
 import { AppError } from "@/shared/errors";
@@ -25,8 +25,9 @@ const hasExcerpt = (snapshotJson: unknown): boolean => {
 };
 
 // The READY step: once every scene has its audio, the automated checks stand in for the person who would approve the
-// script. Passing records the script version that was checked and moves the item on. It never sets the video to
-// APPROVED, because nobody approved it; editing the video afterwards bumps its version and the readiness no longer matches.
+// script. Passing approves the script version that was checked (the video becomes APPROVED, as if "Duyệt kịch bản" had
+// been pressed), records that version as ready and moves the item on. Editing the video afterwards follows the manual
+// rules: a script edit sends it back to review, and the readiness no longer matches the new version.
 export async function markProductionItemReady(input: {
   itemId: string;
   claimToken: string;
@@ -46,7 +47,7 @@ export async function markProductionItemReady(input: {
   });
   if (!report.ready) return { status: "NOT_READY", issues: report.issues };
 
-  if (!(await markAutoReady(record.id, record.scriptVersion))) {
+  if (!(await markAutoApproved(record.id, record.scriptVersion))) {
     return {
       status: "NOT_READY",
       issues: [{ code: "SCRIPT_CHANGED", message: "Kịch bản đã thay đổi trong lúc kiểm tra; cần kiểm tra lại." }],

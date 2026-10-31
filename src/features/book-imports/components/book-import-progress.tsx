@@ -17,6 +17,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { BookDriveLinks } from "@/features/archive/components/book-drive-links";
 import { apiRequest, errorMessage, sendJson } from "@/lib/api-client";
 import { formatDateTime } from "@/lib/format";
 
@@ -81,6 +82,17 @@ export function BookImportProgress({ initial }: Readonly<{ initial: BookImportDt
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
+      {!batch.driveConnected && batch.items.some((item) => item.videosTotal > 0) ? (
+        <Alert>
+          <AlertDescription>
+            Chưa kết nối Google Drive nên video mới chỉ nằm trên máy này.{" "}
+            <Link href="/settings" className="text-foreground font-medium underline underline-offset-4">
+              Kết nối trong Cài đặt
+            </Link>
+            ; bản cuối đã render sẽ tự được lưu lên Drive sau đó và link hiện ở đây.
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <ol className="flex flex-col gap-3">
         {batch.items.map((item) => (
           <li key={item.id} className="bg-card flex min-w-0 flex-col gap-2 rounded-lg border p-4">
@@ -94,7 +106,8 @@ export function BookImportProgress({ initial }: Readonly<{ initial: BookImportDt
             </div>
             {item.videosTotal > 0 ? (
               <p className="text-muted-foreground text-sm">
-                Video hoàn tất: {item.videosCompleted}/{item.videosTotal}
+                Video hoàn tất: {item.videosCompleted}/{item.videosTotal} · Đã lưu Drive: {item.videosOnDrive}/
+                {item.videosTotal}
               </p>
             ) : null}
             {item.errorMessage ? <p className="text-destructive text-sm wrap-break-word">{item.errorMessage}</p> : null}
@@ -110,6 +123,9 @@ export function BookImportProgress({ initial }: Readonly<{ initial: BookImportDt
                 </Link>
               ))}
             </div>
+            {item.bookId && item.videosTotal > 0 ? (
+              <BookDriveLinks bookId={item.bookId} refreshKey={`${item.videosCompleted}-${item.videosOnDrive}`} />
+            ) : null}
           </li>
         ))}
       </ol>

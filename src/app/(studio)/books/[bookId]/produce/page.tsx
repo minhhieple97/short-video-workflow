@@ -23,7 +23,7 @@ export default async function ProduceVideosPage({ params }: Readonly<{ params: P
       />
       <PageHeader
         title="Sản xuất video"
-        description="Chọn các bài học cần làm video; mỗi bài học thành một video theo mạch kể tình huống → sai lầm → bài học → cách làm → hành động. Kịch bản được máy kiểm tra sau khi lồng tiếng, không cần duyệt tay."
+        description="Chọn các bài học cần làm video; mỗi bài học thành một video theo mạch kể tình huống → sai lầm → bài học → cách làm → hành động. Bài học được chọn tự chuyển sang Đã duyệt, và kịch bản được duyệt tự động khi máy kiểm tra đạt sau lồng tiếng, nên không cần duyệt tay."
       />
       {catalogue.lessons.length === 0 ? (
         <EmptyState

@@ -102,7 +102,10 @@ export default async function LessonPage({
             </CardHeader>
             <CardContent className="text-sm">
               {lesson.videos.length === 0 ? (
-                <p className="text-muted-foreground">Chưa được dùng. Chỉ bài học đã duyệt mới dùng để tạo video.</p>
+                <p className="text-muted-foreground">
+                  Chưa được dùng. Bài học đã duyệt tạo được video thủ công; chọn bài ở tab Bài học và bấm “Tạo video” để
+                  làm tự động, bài nháp sẽ được duyệt luôn.
+                </p>
               ) : (
                 <ul className="flex flex-col gap-1">
                   {lesson.videos.map((video) => (

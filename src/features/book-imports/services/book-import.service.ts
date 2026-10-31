@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
+import { currentArchiveDestination } from "@/features/archive/services/archive-request.service";
 import { sanitizeFileName } from "@/features/books/domain/source-file";
 import { importPdfBookForBatch } from "@/features/extraction/services/pdf-import.service";
 import { listProviderCooldowns } from "@/features/jobs/repositories/provider-cooldown.repository";
@@ -13,6 +14,7 @@ import {
   createBookImport,
   findBookImport,
   findBookImportByKey,
+  listArchivedRenderIds,
   listBookImports,
   rejectBookImportUpload,
   startBookImport,
@@ -28,6 +30,16 @@ export async function requireBookImport(id: string): Promise<BookImportRecord> {
 }
 
 export async function toBookImportDto(batch: BookImportRecord): Promise<BookImportDto> {
+  const renderIds = batch.items.flatMap((item) =>
+    item.productions.flatMap((production) =>
+      production.items.flatMap((video) => (video.renderId ? [video.renderId] : [])),
+    ),
+  );
+  const [cooldowns, archivedRenders, destination] = await Promise.all([
+    listProviderCooldowns(),
+    listArchivedRenderIds(renderIds),
+    currentArchiveDestination(),
+  ]);
   return {
     id: batch.id,
     status: batch.status,
@@ -45,14 +57,16 @@ export async function toBookImportDto(batch: BookImportRecord): Promise<BookImpo
         errorMessage: item.errorMessage,
         productionIds: item.productions.map((production) => production.id),
         videosCompleted: videos.filter((video) => video.status === "COMPLETED").length,
+        videosOnDrive: videos.filter((video) => video.renderId !== null && archivedRenders.has(video.renderId)).length,
         videosTotal: videos.length,
       };
     }),
-    cooldowns: (await listProviderCooldowns()).map((cooldown) => ({
+    cooldowns: cooldowns.map((cooldown) => ({
       provider: cooldown.provider,
       message: cooldown.message,
       blockedUntil: cooldown.blockedUntil.toISOString(),
     })),
+    driveConnected: destination !== null,
   };
 }
 

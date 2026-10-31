@@ -19,7 +19,7 @@ export default async function VideosPage({ searchParams }: Readonly<{ searchPara
         videos={videos.items}
         drives={drives}
         showBook
-        emptyHint="Mở một cuốn sách, duyệt bài học rồi chọn “Tạo video” ở tab Video."
+        emptyHint="Mở một cuốn sách, chọn bài học ở tab Bài học rồi bấm “Tạo video”."
       />
       <Pagination page={videos} />
     </section>

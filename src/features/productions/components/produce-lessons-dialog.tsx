@@ -15,6 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import type { LessonStatus } from "@/features/lessons/domain/lesson-fields";
 import { DurationRangePicker } from "@/features/videos/components/duration-range-picker";
 import { PaceSelect } from "@/features/videos/components/pace-select";
 import type { DurationRange } from "@/features/videos/domain/duration";
@@ -26,6 +27,7 @@ import { useStartProduction } from "./use-start-production";
 export interface ProduceLesson {
   id: string;
   title: string;
+  status: LessonStatus;
   usedInVideoCount: number;
 }
 
@@ -49,15 +51,16 @@ function ProduceLessonsForm({ bookId, lessons, skipped, settings }: Readonly<Pro
   const [range, setRange] = useState<DurationRange>(settings.defaultRange);
   const [pace, setPace] = useState<Pace>(settings.defaultPace);
   const alreadyMade = lessons.filter((lesson) => lesson.usedInVideoCount > 0).length;
+  const drafts = lessons.filter((lesson) => lesson.status === "DRAFT").length;
 
   return (
     <>
       <DialogHeader>
         <DialogTitle>Tạo {lessons.length} video tự động</DialogTitle>
         <DialogDescription>
-          Mỗi bài học thành một video 9:16. Hệ thống tự viết bản thảo, biên tập cảnh, tạo giọng đọc, kiểm tra rồi render
-          bản cuối (và lưu lên Drive nếu đã kết nối). Bạn không phải duyệt từng kịch bản, và trạng thái các bài học giữ
-          nguyên.
+          Mỗi bài học thành một video 9:16. Hệ thống tự viết bản thảo, biên tập cảnh, tạo giọng đọc, kiểm tra, duyệt
+          kịch bản rồi render bản cuối (và lưu lên Drive nếu đã kết nối). Bài học được chọn cũng tự chuyển sang Đã
+          duyệt, nên bạn không phải duyệt gì thêm.
         </DialogDescription>
       </DialogHeader>
 
@@ -79,6 +82,11 @@ function ProduceLessonsForm({ bookId, lessons, skipped, settings }: Readonly<Pro
             </li>
           ))}
         </ol>
+        {drafts > 0 ? (
+          <p className="text-muted-foreground text-xs">
+            {drafts} bài đang là bản nháp sẽ được chuyển sang Đã duyệt khi bạn bấm tạo.
+          </p>
+        ) : null}
         {alreadyMade > 0 ? (
           <p className="text-muted-foreground text-xs">
             {alreadyMade} bài đã có video; vẫn tạo thêm video mới cho chúng.

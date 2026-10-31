@@ -18,8 +18,8 @@ import type { CatalogueLessonDto } from "../schemas/catalogue.dto";
 import type { ProductionSettingsDto } from "../schemas/production-settings.dto";
 import { useStartProduction } from "./use-start-production";
 
-// One video per chosen lesson. Choosing is not approving: the lessons keep their status, and the scripts are checked by
-// the machine after voicing instead of by hand.
+// One video per chosen lesson. Choosing is the approval: a draft lesson becomes approved when the request is made, and
+// the machine's checks approve each script after voicing, so nothing is approved by hand.
 export function ProductionRequestForm({
   bookId,
   lessons,
@@ -37,6 +37,7 @@ export function ProductionRequestForm({
 
   const selectable = useMemo(() => lessons.filter((lesson) => lesson.unavailableReason === null), [lessons]);
   const allSelected = selectable.length > 0 && selected.length === selectable.length;
+  const drafts = lessons.filter((lesson) => selected.includes(lesson.id) && lesson.status === "DRAFT").length;
 
   function toggle(id: string, checked: boolean): void {
     setSelected((current) => (checked ? [...current, id] : current.filter((value) => value !== id)));
@@ -152,7 +153,9 @@ export function ProductionRequestForm({
         <p className="text-sm">
           {selected.length === 0
             ? "Chọn ít nhất một bài học."
-            : `${selected.length} bài học → ${selected.length} video, mỗi video ${formatRange(duration)}.`}
+            : `${selected.length} bài học → ${selected.length} video, mỗi video ${formatRange(duration)}.${
+                drafts > 0 ? ` ${drafts} bài đang là bản nháp sẽ được duyệt tự động.` : ""
+              }`}
         </p>
         <Button onClick={() => void submit()} disabled={pending || selected.length === 0 || unavailable !== null}>
           <Clapperboard aria-hidden />

@@ -39,3 +39,9 @@ export interface VideoDriveDto {
   // The script changed after this render, so the copy on Drive shows an older version.
   outdated: boolean;
 }
+
+// Every video of a book with where it stands on Drive, in the order the videos were made: the result of a batch.
+export interface BookDriveLinksDto {
+  bookId: string;
+  videos: { id: string; title: string; drive?: VideoDriveDto }[];
+}

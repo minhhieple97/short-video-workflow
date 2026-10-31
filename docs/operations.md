@@ -200,6 +200,7 @@ Sản xuất lại cùng bài học ở đợt khác thường ra góc kể khá
 - Mọi bản render cuối hoàn tất được lưu lên Drive khi đã kết nối, kể cả bản xong trước khi kết nối (worker quét lúc khởi
   động và mỗi phút); bản render có nút **Lưu lên Drive** / **Thử lại lưu Drive**. Link video trên Drive hiện ở thẻ **Google Drive** dưới
   video ở trang Render (mở hoặc sao chép), ở đầu trang video, ở cột **Google Drive** của danh sách video và ở trang tiến độ sản xuất.
+  Với đợt nhập nhiều PDF, trang tiến độ có nút **Link Drive của video** cho từng sách (danh sách link, kèm **Sao chép N link**).
   Thư mục
   `Book Video Studio/books/<bookId>/videos/<videoId>/renders/<renderId>/` gồm MP4, `script.json`, `publish.txt` (tiêu đề,
   caption, hashtag — khi bản render có bộ này), `manifest.json`, tệp nào cũng được xác minh checksum với bản local.

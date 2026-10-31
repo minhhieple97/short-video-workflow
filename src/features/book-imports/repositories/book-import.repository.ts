@@ -212,6 +212,16 @@ export function findImportArchives(renderIds: string[]) {
   return prisma.renderArchive.findMany({ where: { renderId: { in: renderIds } }, orderBy: { createdAt: "desc" } });
 }
 
+// Which of these renders are on Drive: some archive of the render has every file verified.
+export async function listArchivedRenderIds(renderIds: readonly string[]): Promise<Set<string>> {
+  if (renderIds.length === 0) return new Set();
+  const archives = await prisma.renderArchive.findMany({
+    where: { renderId: { in: [...renderIds] }, status: "COMPLETED" },
+    select: { renderId: true },
+  });
+  return new Set(archives.map((archive) => archive.renderId));
+}
+
 export function findLatestImportChapterJob(chapterId: string) {
   return prisma.jobRecord.findFirst({
     where: { entityType: "CHAPTER", entityId: chapterId, jobType: "ANALYZE_CHAPTER" },

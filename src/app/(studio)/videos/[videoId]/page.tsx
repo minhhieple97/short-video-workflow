@@ -145,7 +145,7 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
           <AlertDescription>
             {inProduction
               ? "Kịch bản, giọng đọc, render và xoá video tạm khoá cho tới khi đợt sản xuất xong hoặc bị huỷ."
-              : "Kịch bản được viết theo bản thảo ở tab Nguồn kịch bản và được máy kiểm tra sau khi lồng tiếng."}{" "}
+              : "Kịch bản được viết theo bản thảo ở tab Nguồn kịch bản, được máy kiểm tra sau khi lồng tiếng và tự duyệt khi đạt. Sửa kịch bản sau đó thì cần duyệt lại như video làm thủ công."}{" "}
             {production.correction ? `${production.correction}. ` : null}
             <Link href={`/productions/${production.productionId}`} className="font-medium underline underline-offset-4">
               Xem tiến độ sản xuất

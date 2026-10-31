@@ -73,6 +73,35 @@ test("E2E-03: two PDFs produce every lesson, one book at a time, through render 
   expect(sawSequentialProduction).toBe(true);
   expect(batch.items.map((item) => item.videosTotal)).toEqual([2, 2]);
   expect(batch.items.every((item) => item.videosCompleted === item.videosTotal)).toBe(true);
+  expect(batch.driveConnected).toBe(true);
+  expect(batch.items.every((item) => item.videosOnDrive === item.videosTotal)).toBe(true);
+
+  // Nothing was approved by hand, yet every lesson made into a video and every video's script ended up approved.
+  for (const item of batch.items) {
+    const { lessons } = (await (await page.request.get(`/api/books/${item.bookId ?? ""}/lessons`)).json()) as {
+      lessons: { status: string }[];
+    };
+    expect(lessons.length).toBeGreaterThan(0);
+    expect(lessons.every((lesson) => lesson.status === "APPROVED")).toBe(true);
+    const { videos } = (await (await page.request.get(`/api/videos?bookId=${item.bookId ?? ""}`)).json()) as {
+      videos: { status: string }[];
+    };
+    expect(videos).toHaveLength(item.videosTotal);
+    expect(videos.every((video) => video.status === "APPROVED")).toBe(true);
+  }
+
+  // The batch's own page ends with the result: how many videos are on Drive, and the list of their links.
+  await page.goto(`/book-imports/${batch.id}`);
+  await expect(page.getByText(/Đã lưu Drive: 2\/2/)).toHaveCount(2);
+  await page.getByRole("button", { name: "Link Drive của video" }).first().click();
+  await expect(page.getByText("2/2 video đã có link Drive")).toBeVisible();
+  const driveLinks = page.getByRole("link", { name: /Mở video/ });
+  await expect(driveLinks).toHaveCount(2);
+  for (const link of await driveLinks.all()) {
+    await expect(link).toHaveAttribute("href", /^https:\/\/drive\.google\.com\/file\/d\/[^/]+\/view$/);
+  }
+  await expect(page.getByRole("button", { name: "Sao chép 2 link" })).toBeVisible();
+
   const productionId = batch.items[1]?.productionIds[0];
   expect(productionId).toBeTruthy();
   await page.goto(`/productions/${productionId ?? ""}`);

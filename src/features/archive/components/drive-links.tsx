@@ -3,7 +3,7 @@ import { ExternalLink, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 import type { ArchiveDto } from "../schemas/archive.dto";
-import { CopyLinkButton } from "./copy-link-button";
+import { CopyButton } from "./copy-button";
 
 // The ways into a render's copy on Drive: the video itself (open or copy the link) and the folder that holds it with the
 // script and the post text. Shows only the links that are ready.
@@ -19,7 +19,7 @@ export function DriveLinks({ archive }: Readonly<{ archive: Pick<ArchiveDto, "vi
               Mở video trên Drive
             </a>
           </Button>
-          <CopyLinkButton url={archive.videoUrl} />
+          <CopyButton text={archive.videoUrl} label="Sao chép link" successMessage="Đã sao chép link Drive." />
         </>
       ) : null}
       {archive.folderUrl ? (

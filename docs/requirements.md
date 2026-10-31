@@ -29,6 +29,7 @@ Hai luồng dùng chung sách, chương, bài học, trình biên tập, mẫu v
   và duyệt kịch bản, tạo giọng đọc, render.
 - **Hàng loạt** (thường với sách PDF 300–700 trang, dùng được cho mọi sách có bài học kèm trích đoạn): trích văn bản + OCR,
   NotebookLM lập danh mục bài học, người dùng **chọn** bài cần làm; mỗi bài thành một video tự động tới khi lưu Google Drive.
+  Chọn bài là duyệt bài, và kịch bản tự được duyệt khi máy kiểm tra đạt: không có bước duyệt tay nào.
 
 ### 1.4. Ngoài phạm vi
 
@@ -77,9 +78,10 @@ với `cli-auto`, worker tự chạy Claude Code CLI của người dùng.
 1. **Nhập sách → "Sách PDF"**: tải PDF; tệp gốc lưu nguyên byte, phần còn lại chạy nền.
 2. **Trích xuất**: Đọc PDF → OCR trang cần thiết → Ghép văn bản → Tạo chương (§5.3).
 3. **Phân tích tất cả chương**: NotebookLM lập danh mục bài học có trích đoạn nguyên văn và số trang; không cần duyệt.
-4. **Sản xuất video**: chọn bài học (một, nhiều hoặc tất cả) và khoảng thời lượng.
+4. **Sản xuất video**: chọn bài học (một, nhiều hoặc tất cả) và khoảng thời lượng. Bài đang là bản nháp tự chuyển sang **Đã duyệt**.
 5. Mỗi bài là **một video**: bản thảo và độ dài đề xuất (NotebookLM) → biên tập cảnh, kèm tiêu đề, caption, hashtag (Claude) →
-   áp dụng kịch bản → lồng tiếng (edge-tts) → kiểm tra tự động → render bản cuối → lưu Drive (kèm `publish.txt`).
+   áp dụng kịch bản → lồng tiếng (edge-tts) → kiểm tra tự động, đạt thì **duyệt kịch bản** → render bản cuối → lưu Drive
+   (kèm `publish.txt`).
 6. Theo dõi ở mục **Sản xuất**; video mở được trong trình biên tập như mọi video.
 
 Chạy với `AI_MODE=cli-auto` (NotebookLM + Claude thật, cần profile NotebookLM đã đăng nhập) hoặc `mock` (dữ liệu mẫu). `cli-task`
@@ -115,11 +117,14 @@ xuất** (`ProductionBatch`) gồm các mục (`ProductionItem`): mỗi mục = 
   có xác nhận) hoặc **Trả về nháp** đúng các bài đã chọn trong một yêu cầu; số trên nút là số bài thật sự đổi được theo luật chuyển
   trạng thái (ví dụ bài đã lưu trữ không duyệt thẳng được), nút tắt khi không đổi được bài nào. Bài không đổi được vì trạng thái đã
   thay đổi sau khi trang hiện ra được đếm và báo, không làm hỏng cả yêu cầu. Chỉ các bài ở trang đang xem mới tính; bỏ chọn sau khi gửi.
-- Cùng thanh đó có **Tạo N video**: làm video tự động từ các bài đã chọn bằng luồng hàng loạt (§5.8), không cần duyệt từng bài hay
-  từng kịch bản, trạng thái bài học giữ nguyên. N là số bài tạo được; bài đã lưu trữ, bài chưa có trích đoạn nguồn và bài đang được
-  sản xuất trong một đợt khác bị bỏ qua và dòng trạng thái của thanh nói rõ mỗi loại bao nhiêu bài. Bài đang sản xuất hiện nhãn
-  **Đang sản xuất** (bấm để xem tiến độ), danh sách tự cập nhật cho tới khi xong, nên không vô tình làm một video hai lần. Hộp thoại
-  xác nhận liệt kê bài sẽ làm và bài bị bỏ qua kèm lý do, cho chọn khoảng thời lượng và nhịp độ, rồi chuyển tới trang tiến độ. Khi
+- Cùng thanh đó có **Tạo N video**: làm video tự động từ các bài đã chọn bằng luồng hàng loạt (§5.8). Chọn bài để làm video là
+  duyệt bài: bài đang là bản nháp chuyển sang **Đã duyệt** cùng lúc với việc tạo đợt (một giao dịch, nên không có bài đã duyệt mà thiếu
+  video, và đợt bị từ chối thì không bài nào đổi); bài đã duyệt giữ nguyên, bài đã lưu trữ không bao giờ được đưa lại. Kịch bản của
+  video cũng tự được duyệt khi máy kiểm tra đạt (§4.4), nên không phải duyệt từng bài hay từng kịch bản. N là số bài tạo được; bài
+  đã lưu trữ, bài chưa có trích đoạn nguồn và bài đang được sản xuất trong một đợt khác bị bỏ qua và dòng trạng thái của thanh nói
+  rõ mỗi loại bao nhiêu bài. Bài đang sản xuất hiện nhãn **Đang sản xuất** (bấm để xem tiến độ), danh sách tự cập nhật cho tới khi
+  xong, nên không vô tình làm một video hai lần. Hộp thoại xác nhận liệt kê bài sẽ làm và bài bị bỏ qua kèm lý do, nói trước bao
+  nhiêu bài nháp sẽ được duyệt, cho chọn khoảng thời lượng và nhịp độ, rồi chuyển tới trang tiến độ. Khi
   máy chưa chạy được sản xuất tự động (`AI_MODE=cli-task`, hoặc `cli-auto` chưa đặt `NOTEBOOKLM_PROFILE`) hộp thoại nói rõ điều cần
   đặt và khoá nút xác nhận, thay vì để từng video lỗi. Thanh này có cả ở trang chi tiết một chương.
 
@@ -130,9 +135,12 @@ xuất** (`ProductionBatch`) gồm các mục (`ProductionItem`): mỗi mục = 
 - `VideoLesson` lưu **snapshot** bài học lúc chọn; sửa bài học sau đó không đổi video đã có.
 - **Thủ công**: chỉ bài **Đã duyệt** mới tạo được video; bản cuối cần kịch bản đã duyệt; sửa kịch bản sau khi duyệt (lời dẫn, chữ,
   thứ tự, thêm/ẩn/xoá cảnh, đổi hoạt cảnh) đưa về **Kịch bản cần duyệt**.
-- **Hàng loạt**: chọn bài **không phải** duyệt; trạng thái bài học giữ nguyên. Khi mọi cảnh có giọng đọc, kiểm tra tự động (§6.7)
-  quyết định có render bản cuối không. Kết quả gắn với đúng phiên bản kịch bản đó, lưu tách khỏi trạng thái duyệt; mọi thay đổi sau
-  đó (kể cả giọng đọc) làm nó hết hiệu lực, và bản cuối tiếp theo cần người dùng duyệt như luồng thủ công.
+- **Hàng loạt**: không có bước duyệt tay, vì việc duyệt xảy ra tự động ở hai chỗ. (1) Tạo đợt duyệt các bài đã chọn (§4.3). (2) Khi mọi
+  cảnh có giọng đọc, kiểm tra tự động (§6.7) quyết định có render bản cuối không; đạt thì **kịch bản được duyệt đúng phiên bản vừa
+  kiểm tra** (video thành **Kịch bản đã duyệt**, như khi người bấm Duyệt kịch bản) và phiên bản đó được ghi là đã qua kiểm tra. Không
+  đạt thì không duyệt gì. Từ đó video theo đúng luật của luồng thủ công: sửa kịch bản (lời dẫn, chữ, thứ tự, thêm/ẩn/xoá cảnh, đổi
+  hoạt cảnh) đưa về **Kịch bản cần duyệt** và người dùng duyệt lại trước bản cuối tiếp theo; đổi giọng đọc chỉ làm bản render cũ lỗi
+  thời. Huỷ hay lỗi đợt không hoàn lại việc duyệt bài.
 - Kịch bản, cảnh hay âm thanh đổi làm bản render trước **lỗi thời**; MP4 cũ không bao giờ bị tự xoá. Đổi âm thanh không đưa kịch
   bản đã duyệt về cần duyệt. Sửa chữ giữ giọng đọc; sửa lời dẫn gỡ giọng đọc cũ của cảnh.
 - Khi AI đang viết kịch bản hay viết lại cảnh, hoặc mục sản xuất của video còn chạy, video bị **khoá** (không sửa, duyệt, tạo giọng,
@@ -247,7 +255,8 @@ Chưa phân trang: danh mục chọn bài để sản xuất, các đợt nhập
 
 - Danh mục: bài học chưa lưu trữ theo thứ tự chương, kèm trích đoạn và số trang; bài thiếu trích đoạn không chọn được. Một đợt
   tối đa 100 bài, cùng một khoảng thời lượng; mỗi video có độ dài riêng do NotebookLM đề xuất.
-- Tạo đợt là tạo ngay mọi video và snapshot, tất cả hoặc không gì. Gửi trùng (bấm hai lần, gửi lại) trả về đợt cũ.
+- Tạo đợt là tạo ngay mọi video và snapshot và duyệt các bài đã chọn, tất cả hoặc không gì. Gửi trùng (bấm hai lần, gửi lại) trả về
+  đợt cũ và không duyệt lại.
 - Mỗi video tiến theo checkpoint; khởi động lại hay thử lại tiếp từ bước cuối đã xong. Bản thảo hợp lệ được cache: NotebookLM xong
   mà Claude lỗi thì chỉ chạy lại Claude.
 - **Một lượt sửa AI mỗi video**, gửi tới bước sửa được vấn đề: nội dung/nguồn (bản thảo sai mạch kể, độ dài đề xuất ngoài khoảng,
@@ -585,9 +594,10 @@ Không thêm dịch vụ đám mây khác, không Anthropic API, không gộp OC
 
 ### 10.2. E2E-02 — PDF tới Drive, không bước duyệt (hàng loạt)
 
-Tải PDF ở "Sách PDF" → trích xuất, có chương → **Phân tích tất cả chương** → ở tab Bài học tick một bài **vẫn là bản nháp** →
-**Tạo 1 video** (xác nhận trong hộp thoại) → video hoàn tất, **Đã lưu Drive** kèm liên kết video, liên kết thư mục và
-`publish.txt` → MP4 1080×1920 H.264 + AAC; bài học vẫn **Bản nháp**.
+Tải PDF ở "Sách PDF" → trích xuất, có chương → **Phân tích tất cả chương** → ở tab Bài học tick một bài đang **Bản nháp** →
+**Tạo 1 video** (hộp thoại báo bài nháp sẽ được duyệt) → video hoàn tất, **Đã lưu Drive** kèm liên kết video, liên kết thư mục và
+`publish.txt` → MP4 1080×1920 H.264 + AAC; bài đó thành **Đã duyệt** (các bài không chọn vẫn **Bản nháp**) và video là
+**Kịch bản đã duyệt**, không ai bấm Duyệt.
 
 ### 10.3. Trường hợp biên và lỗi
 
@@ -623,7 +633,13 @@ Drive thật (mạch kể, âm thanh, ffprobe, checksum Drive). Danh sách kiể
 - Người dùng chọn khoảng thời lượng và nhịp độ cho cả đợt. Luồng tự động mới tạo **một video cho mỗi bài học**
   tìm được trong mỗi sách, theo quyết định của chủ dự án. Luồng chọn bài học hiện có vẫn dùng được riêng.
 - Xử lý một sách tại một thời điểm, kể cả giữa nhiều đợt. OCR → phân tích lần lượt từng chương bằng NotebookLM →
-  bản thảo NotebookLM → cảnh JSON Claude Code → giọng đọc → Remotion. Không thêm bước duyệt kịch bản.
+  bản thảo NotebookLM → cảnh JSON Claude Code → giọng đọc → Remotion. Không có bước duyệt tay: mọi bài học được làm video tự chuyển
+  sang Đã duyệt và kịch bản từng video tự được duyệt khi máy kiểm tra đạt (quyết định của chủ dự án, 2026-10-31).
+- Kết quả cuối của đợt là một loạt video có link Drive. Trang tiến độ nói với từng sách số video đã hoàn tất và số video **Đã lưu
+  Drive**, và có nút **Link Drive của video**: bấm mới tải danh sách video của sách (cũ nhất trước) kèm trạng thái Drive và link
+  mở từng video, tự cập nhật khi có video xong; **Sao chép N link** chép mọi link đang có, mỗi dòng gồm tiêu đề, dấu tab, link, để dán
+  thẳng vào bảng tính. Chưa kết nối Google Drive thì trang nói rõ video mới chỉ nằm trên máy và chỉ tới Cài đặt; kết nối xong, bản cuối
+  đã render tự được lưu và link hiện ở đó.
 - UI nhập sách thống nhất tại `/books/import`: chọn PDF, TXT/Markdown hoặc dán văn bản. PDF nhận 1–15 tệp và có
   hai lựa chọn **Chỉ nhập sách** (mặc định) / **Tự động làm video**; chỉ chế độ tự động hiện thời lượng và nhịp độ,
   giống nhau khi chọn một hay nhiều PDF. TXT/Markdown vẫn kiểm tra chương và dùng luồng thủ công. Nút hành động là

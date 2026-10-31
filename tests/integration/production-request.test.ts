@@ -176,13 +176,61 @@ describe("requestProduction", () => {
     expect(link.lessonSnapshotJson).toMatchObject({ title: "Một", principle: "Nguyên tắc" });
   });
 
-  it("does not require approval and does not mark the lesson approved", async () => {
+  const statusOf = async (id: string) => (await db.prisma.lesson.findUniqueOrThrow({ where: { id } })).status;
+
+  it("needs no approval first: choosing a draft lesson approves it, and an approved one stays approved", async () => {
     const approved = await newLesson(bookId, "Đã duyệt", { status: "APPROVED" });
 
     await productions.requestProduction(request({ lessonIds: [lessonIds[0] ?? "", approved.id] }));
 
-    expect((await db.prisma.lesson.findUniqueOrThrow({ where: { id: lessonIds[0] ?? "" } })).status).toBe("DRAFT");
-    expect((await db.prisma.lesson.findUniqueOrThrow({ where: { id: approved.id } })).status).toBe("APPROVED");
+    expect(await statusOf(lessonIds[0] ?? "")).toBe("APPROVED");
+    expect(await statusOf(approved.id)).toBe("APPROVED");
+  });
+
+  it("approves only the lessons that were chosen", async () => {
+    await productions.requestProduction(request({ lessonIds: [lessonIds[1] ?? ""] }));
+
+    expect(await statusOf(lessonIds[0] ?? "")).toBe("DRAFT");
+    expect(await statusOf(lessonIds[1] ?? "")).toBe("APPROVED");
+    expect(await statusOf(lessonIds[2] ?? "")).toBe("DRAFT");
+  });
+
+  it("approves nothing when the request is refused", async () => {
+    const unsourced = await newLesson(bookId, "Thiếu nguồn", { excerpt: null });
+
+    await expect(
+      productions.requestProduction(request({ lessonIds: [lessonIds[0] ?? "", unsourced.id] })),
+    ).rejects.toMatchObject({ code: "LESSON_SOURCE_MISSING" });
+
+    expect(await statusOf(lessonIds[0] ?? "")).toBe("DRAFT");
+    expect(await statusOf(unsourced.id)).toBe("DRAFT");
+  });
+
+  it("does not approve again on a replay, so a lesson sent back to draft since stays there", async () => {
+    const input = request({ lessonIds: [lessonIds[0] ?? ""] });
+    await productions.requestProduction(input);
+    await db.prisma.lesson.update({ where: { id: lessonIds[0] ?? "" }, data: { status: "DRAFT" } });
+
+    const replay = await productions.requestProduction(input);
+
+    expect(replay.reused).toBe(true);
+    expect(await statusOf(lessonIds[0] ?? "")).toBe("DRAFT");
+  });
+
+  it("never brings an archived lesson back, even if it was archived after the request was checked", async () => {
+    const { createProduction } = await import("@/features/productions/repositories/production.repository");
+    const archived = await newLesson(bookId, "Vừa bị lưu trữ", { status: "ARCHIVED" });
+
+    await createProduction({
+      bookId,
+      idempotencyKey: `key-${Math.random()}`,
+      fingerprint: "f",
+      range: { minDurationSec: 30, maxDurationSec: 60 },
+      pace: "STANDARD",
+      items: [{ lessonId: archived.id, position: 1, videoTitle: "V", snapshot: {} }],
+    });
+
+    expect(await statusOf(archived.id)).toBe("ARCHIVED");
   });
 
   it("returns the same production for a replayed key and creates nothing more", async () => {

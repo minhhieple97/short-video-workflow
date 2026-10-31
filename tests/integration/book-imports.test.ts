@@ -163,8 +163,76 @@ describe("multi-book import", () => {
     expect(await db.prisma.productionBatch.count()).toBe(2);
     expect(await db.prisma.productionItem.count()).toBe(103);
     expect(await db.prisma.jobDispatch.count({ where: { jobRecord: { jobType: "RUN_PRODUCTION_ITEM" } } })).toBe(103);
-    expect(await db.prisma.lesson.count({ where: { status: "APPROVED" } })).toBe(0);
+    expect(await db.prisma.lesson.count({ where: { status: "APPROVED" } })).toBe(103);
+    expect(await db.prisma.lesson.count({ where: { status: { not: "APPROVED" } } })).toBe(0);
   }, 30_000);
+
+  it("approves every lesson it makes a video of, and leaves archived lessons archived and unproduced", async () => {
+    const batch = await imports.requestBookImport(input(1));
+    await upload(batch, 0);
+    await imports.beginBookImport(batch.id);
+    const item = await readyForProduction(batch, 3);
+    const lessons = await db.prisma.lesson.findMany({
+      where: { bookId: item.bookId ?? "" },
+      orderBy: { title: "asc" },
+    });
+    await db.prisma.lesson.update({ where: { id: lessons[0]?.id ?? "" }, data: { status: "ARCHIVED" } });
+    await db.prisma.lesson.update({ where: { id: lessons[1]?.id ?? "" }, data: { status: "APPROVED" } });
+
+    await run.sweepBookImports();
+    await run.sweepBookImports();
+
+    const status = async (index: number) =>
+      (await db.prisma.lesson.findUniqueOrThrow({ where: { id: lessons[index]?.id ?? "" } })).status;
+    expect(await status(0)).toBe("ARCHIVED");
+    expect(await status(1)).toBe("APPROVED");
+    expect(await status(2)).toBe("APPROVED");
+    expect(await db.prisma.productionItem.count()).toBe(2);
+    expect(await db.prisma.productionItem.count({ where: { lessonId: lessons[0]?.id ?? "" } })).toBe(0);
+  });
+
+  it("counts the videos that are on Drive and says whether Drive is connected", async () => {
+    const { CONNECTED_CREDENTIAL } = await import("../helpers/archive-fixture");
+    const store = await import("@/server/archive/google-drive/drive-credential-store");
+    const batch = await imports.requestBookImport(input(1));
+    await upload(batch, 0);
+    await imports.beginBookImport(batch.id);
+    await readyForProduction(batch, 3);
+    await run.sweepBookImports();
+    await run.sweepBookImports();
+    const items = await db.prisma.productionItem.findMany({ orderBy: { position: "asc" } });
+    const onDrive = async (item: (typeof items)[number], archiveStatus: string) => {
+      const render = await db.prisma.renderRecord.create({
+        data: {
+          videoId: item.videoId ?? "",
+          scriptVersion: 1,
+          outputPath: "x.mp4",
+          status: "COMPLETED",
+          qualityPreset: "FINAL",
+          width: 1080,
+          height: 1920,
+          fps: 30,
+        },
+      });
+      await db.prisma.productionItem.update({ where: { id: item.id }, data: { renderId: render.id } });
+      await db.prisma.renderArchive.create({
+        data: { renderId: render.id, provider: "google-drive", destinationKey: "account-1", status: archiveStatus },
+      });
+    };
+    await onDrive(items[0] as (typeof items)[number], "COMPLETED");
+    await onDrive(items[1] as (typeof items)[number], "RUNNING");
+
+    const withoutDrive = await imports.getBookImport(batch.id);
+    expect(withoutDrive.items[0]).toMatchObject({ videosTotal: 3, videosOnDrive: 1 });
+    expect(withoutDrive.driveConnected).toBe(false);
+
+    await store.writeDriveCredential(CONNECTED_CREDENTIAL);
+    try {
+      expect((await imports.getBookImport(batch.id)).driveConnected).toBe(true);
+    } finally {
+      await store.deleteDriveCredential();
+    }
+  });
 
   it("moves on after a permanent book failure and keeps its reason", async () => {
     const batch = await imports.requestBookImport(input());

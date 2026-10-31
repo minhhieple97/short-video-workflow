@@ -64,6 +64,15 @@ export function listVideoRecords(filter: { bookId?: string }, range?: { skip: nu
   });
 }
 
+// Every video of the book in the order it was made, with nothing else: for screens that list results, not work in progress.
+export function listBookVideoRefs(bookId: string): Promise<{ id: string; title: string }[]> {
+  return prisma.video.findMany({
+    where: { bookId, book: { deletedAt: null } },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: { id: true, title: true },
+  });
+}
+
 export function countVideoRecords(filter: { bookId?: string }): Promise<number> {
   return prisma.video.count({ where: { bookId: filter.bookId, book: { deletedAt: null } } });
 }
@@ -132,12 +141,13 @@ export function deleteVideoRecord(id: string): Promise<Video> {
   return prisma.video.delete({ where: { id } });
 }
 
-// Records that the automated checks passed for this script version. False when the script changed in the meantime, in
+// Records that the automated checks passed for this script version and approves exactly that version, in one write: the
+// checks stand in for the person who would have approved the script. False when the script changed in the meantime, in
 // which case nothing is recorded and the checks must run again.
-export async function markAutoReady(id: string, scriptVersion: number): Promise<boolean> {
+export async function markAutoApproved(id: string, scriptVersion: number): Promise<boolean> {
   const { count } = await prisma.video.updateMany({
     where: { id, scriptVersion },
-    data: { autoReadyScriptVersion: scriptVersion },
+    data: { autoReadyScriptVersion: scriptVersion, status: "APPROVED", approvedScriptVersion: scriptVersion },
   });
   return count > 0;
 }
