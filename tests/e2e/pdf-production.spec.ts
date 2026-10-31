@@ -47,6 +47,8 @@ test("E2E-02: PDF → catalogue → chosen lesson → vertical video archived to
   );
   const mp4Before = new Set(videoFiles(".mp4"));
   const publishBefore = new Set(videoFiles("-publish.txt"));
+  const scriptBefore = new Set(videoFiles("-script.json"));
+  const manifestBefore = new Set(videoFiles("-manifest.json"));
 
   await test.step("upload the PDF and wait for its chapters", async () => {
     const lanes = await pauseAllLanes();
@@ -146,6 +148,47 @@ test("E2E-02: PDF → catalogue → chosen lesson → vertical video archived to
     await page.waitForURL(/\/videos\/[a-z0-9]+$/);
     await expect(page.getByText("Kịch bản đã duyệt").first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Duyệt kịch bản" })).toHaveCount(0);
+  });
+
+  await test.step("the video says which models and which people its script was made with, and the Drive record repeats them", async () => {
+    const videoId = page.url().split("/").at(-1) ?? "";
+    const video = (await (await page.request.get(`/api/videos/${videoId}`)).json()) as {
+      cast?: { primaryCharacterId: string; profiles: { id: string; name: string }[] };
+      generation?: {
+        mode: string;
+        script: { model: string; effort: string };
+        scene: { model: string; effort: string };
+      };
+      scenes: { shots: { actors?: { characterId: string }[] }[] | null }[];
+    };
+    expect(video.generation).toMatchObject({
+      mode: "mock",
+      script: { model: "claude-opus-5-5", effort: "xhigh" },
+      scene: { model: "claude-sonnet-5-5", effort: "xhigh" },
+    });
+    const castIds = new Set(video.cast?.profiles.map((profile) => profile.id));
+    expect(castIds.has(video.cast?.primaryCharacterId ?? "")).toBe(true);
+    const shots = video.scenes.flatMap((scene) => scene.shots ?? []);
+    expect(shots.length).toBeGreaterThan(0);
+    for (const shot of shots) {
+      expect(shot.actors?.length ?? 0).toBeLessThanOrEqual(2);
+      for (const actor of shot.actors ?? []) expect(castIds.has(actor.characterId)).toBe(true);
+    }
+
+    await open(page, `${page.url().split("?")[0]}?tab=sources`);
+    await expect(page.getByText("Nhân vật của video")).toBeVisible();
+    await expect(page.getByText("Logic câu chuyện")).toBeVisible();
+    await expect(page.getByText(/Nhân vật chính/).first()).toBeVisible();
+
+    const [script, ...otherScripts] = videoFiles("-script.json").filter((file) => !scriptBefore.has(file));
+    const [manifest, ...otherManifests] = videoFiles("-manifest.json").filter((file) => !manifestBefore.has(file));
+    expect(otherScripts).toHaveLength(0);
+    expect(otherManifests).toHaveLength(0);
+    for (const file of [script, manifest]) {
+      const record = JSON.parse(fs.readFileSync(file ?? "", "utf8")) as typeof video;
+      expect(record.cast).toEqual(video.cast);
+      expect(record.generation).toEqual(video.generation);
+    }
   });
 
   await test.step("the archive carries the title, caption and hashtags written with the scene plan", async () => {

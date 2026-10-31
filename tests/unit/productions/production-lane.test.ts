@@ -4,6 +4,10 @@ import { productionLaneFor } from "@/features/productions/domain/production-lane
 import { ITEM_CHECKPOINTS } from "@/features/productions/domain/production-status";
 
 describe("productionLaneFor", () => {
+  it("sends Opus drafts to the Claude lane without changing legacy drafts", () => {
+    expect(productionLaneFor("NONE", true)).toBe("claude");
+    expect(productionLaneFor("NONE", false)).toBe("notebooklm");
+  });
   it("runs each step in the lane of the resource it holds", () => {
     expect(productionLaneFor("NONE")).toBe("notebooklm");
     expect(productionLaneFor("DRAFTED")).toBe("claude");

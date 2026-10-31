@@ -20,6 +20,8 @@ import type { VideoDetail } from "../schemas/video.dto";
 import { dimensionsFor } from "./render.service";
 import { toVideoDetail } from "./video-mapper";
 import { requireVideo } from "./video.service";
+import { findGenerationRun } from "../repositories/script-generation-run.repository";
+import { storyDraftArtifactSchema } from "@/server/script-draft/artifacts";
 
 // A video made by hand has no draft saying which parts the AI made up. Its story (characters, places, lines) runs through
 // the hook, the situation, the mistake and the way it is put right; only the lesson and the action come from the book.
@@ -27,7 +29,12 @@ const MADE_UP_WITHOUT_DRAFT: readonly SceneType[] = ["HOOK", "SITUATION", "COMMO
 
 // The parts of the story that are scenarios made up for the video, not taken from the book: what the production's draft
 // marked as illustrative, or, for a video made by hand, the scenes that tell the made-up story.
-async function illustrativeSceneTypes(videoId: string): Promise<ReadonlySet<SceneType>> {
+async function illustrativeSceneTypes(videoId: string, generationRunId?: string): Promise<ReadonlySet<SceneType>> {
+  if (generationRunId) {
+    const run = await findGenerationRun(generationRunId);
+    const draft = storyDraftArtifactSchema.parse(run?.draftArtifactJson);
+    return new Set(draft.draft.beats.filter((beat) => beat.illustrative).map((beat) => SCENE_TYPE_FOR_BEAT[beat.beat]));
+  }
   const artifact = scriptDraftArtifactSchema.safeParse(await findProductionDraftForVideo(videoId));
   if (!artifact.success) return new Set(MADE_UP_WITHOUT_DRAFT);
   return new Set(
@@ -65,9 +72,11 @@ export async function captureRenderSnapshot(
     );
   }
 
-  const illustrative = await illustrativeSceneTypes(videoId);
+  const illustrative = await illustrativeSceneTypes(videoId, video.generation?.runId);
   const dims = dimensionsFor(quality);
   const snapshot: RenderSnapshot = {
+    ...(video.cast ? { cast: video.cast } : {}),
+    ...(video.generation ? { generation: video.generation } : {}),
     ...currentSnapshotIdentity(),
     capturedAt: new Date().toISOString(),
     video: {

@@ -5,6 +5,7 @@ import {
   type ConcurrencySettings,
 } from "@/features/settings/domain/concurrency-settings";
 import { getConcurrencySettings } from "@/features/settings/services/concurrency-settings.service";
+import { getAiSettings } from "@/features/settings/services/ai-settings.service";
 import { PREVIEW_FRAME } from "@/features/videos/domain/safe-zones";
 import { resolveDatabaseFile } from "@/server/db/client";
 import { redactRedisUrl } from "@/server/queue/redis-connection";
@@ -68,13 +69,35 @@ function buildConfigRows(concurrency: ConcurrencySettings | null): ConfigRow[] {
 }
 
 export async function getDiagnosticsSnapshot(): Promise<DiagnosticsSnapshot> {
-  const [concurrency, checks] = await Promise.all([getConcurrencySettings().catch(() => null), runChecks()]);
+  const [concurrency, checks, aiSettings] = await Promise.all([
+    getConcurrencySettings().catch(() => null),
+    runChecks(),
+    getAiSettings().catch(() => null),
+  ]);
   return {
     generatedAt: new Date().toISOString(),
     overall: checks.some((check) => check.status === "error") ? "degraded" : "ok",
     app: { name: pkg.name, version: pkg.version },
     checks,
-    config: buildConfigRows(concurrency),
+    config: [
+      ...(aiSettings
+        ? [
+            {
+              label: "Viết kịch bản · model yêu cầu",
+              value: `${aiSettings.settings.script.model} · ${aiSettings.settings.script.effort}`,
+            },
+            {
+              label: "Lập cảnh · model yêu cầu",
+              value: `${aiSettings.settings.scene.model} · ${aiSettings.settings.scene.effort}`,
+            },
+            {
+              label: "Giới hạn nhân vật",
+              value: `${aiSettings.settings.characters.maxCharacters} người trong truyện · tối đa 2 người/shot`,
+            },
+          ]
+        : []),
+      ...buildConfigRows(concurrency),
+    ],
   };
 }
 

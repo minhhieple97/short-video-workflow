@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { truncateText } from "@/lib/format";
+import type { CastSnapshot } from "../domain/characters";
+import { ShotActorsEditor } from "./shot-actors-editor";
 
 import {
   CHARACTER_ACTION_LABELS,
@@ -93,6 +95,7 @@ export function ShotRow({
   onChange,
   onRemove,
   disabled,
+  cast,
 }: Readonly<{
   id: string;
   index: number;
@@ -104,6 +107,7 @@ export function ShotRow({
   onChange: (next: PlannedShot) => void;
   onRemove: () => void;
   disabled: boolean;
+  cast?: CastSnapshot;
 }>) {
   // A field set back to undefined is left out when the plan is saved.
   const set = (patch: Partial<PlannedShot>) => onChange({ ...shot, ...patch });
@@ -199,6 +203,7 @@ export function ShotRow({
         />
       ) : (
         <div className="flex flex-wrap items-end gap-2">
+          {cast ? <ShotActorsEditor id={id} cast={cast} shot={shot} disabled={disabled} onChange={onChange} /> : null}
           <Choice
             id={`${id}-setting`}
             label="Bối cảnh"
@@ -209,16 +214,18 @@ export function ShotRow({
             onChange={(setting) => set({ setting })}
             disabled={disabled}
           />
-          <Choice
-            id={`${id}-action`}
-            label="Nhân vật đang"
-            value={shot.action}
-            options={CHARACTER_ACTIONS}
-            labels={CHARACTER_ACTION_LABELS}
-            none="Như shot trước"
-            onChange={(action) => set({ action })}
-            disabled={disabled}
-          />
+          {cast ? null : (
+            <Choice
+              id={`${id}-action`}
+              label="Nhân vật đang"
+              value={shot.action}
+              options={CHARACTER_ACTIONS}
+              labels={CHARACTER_ACTION_LABELS}
+              none="Như shot trước"
+              onChange={(action) => set({ action })}
+              disabled={disabled}
+            />
+          )}
           <Choice
             id={`${id}-mood`}
             label="Cảm xúc"
@@ -229,16 +236,18 @@ export function ShotRow({
             onChange={(mood) => set({ mood })}
             disabled={disabled}
           />
-          <Choice
-            id={`${id}-partner`}
-            label="Nhân vật phụ"
-            value={shot.partner}
-            options={PARTNER_ACTIONS}
-            labels={PARTNER_ACTION_LABELS}
-            none="Không có"
-            onChange={(partner) => set({ partner })}
-            disabled={disabled}
-          />
+          {cast ? null : (
+            <Choice
+              id={`${id}-partner`}
+              label="Nhân vật phụ"
+              value={shot.partner}
+              options={PARTNER_ACTIONS}
+              labels={PARTNER_ACTION_LABELS}
+              none="Không có"
+              onChange={(partner) => set({ partner })}
+              disabled={disabled}
+            />
+          )}
           <Choice
             id={`${id}-size`}
             label="Khung hình"

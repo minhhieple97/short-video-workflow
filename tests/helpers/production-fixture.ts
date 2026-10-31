@@ -7,6 +7,7 @@ export async function seedProduction(deps: {
   db: typeof DbClient;
   productions: typeof ProductionRequest;
   lessonCount?: number;
+  pipeline?: "legacy" | "opus";
 }): Promise<{ bookId: string; lessonId: string; itemId: string; videoId: string; itemIds: string[] }> {
   const { db, productions, lessonCount = 1 } = deps;
   await db.prisma.book.deleteMany();
@@ -49,6 +50,17 @@ export async function seedProduction(deps: {
     minDurationSec: 30,
     maxDurationSec: 60,
   });
+  if (deps.pipeline !== "opus") {
+    await db.prisma.productionItem.updateMany({
+      where: { batchId: production.id },
+      data: { scriptGenerationRunId: null },
+    });
+    for (const item of production.items)
+      await db.prisma.jobDispatch.updateMany({
+        where: { jobRecord: { jobType: "RUN_PRODUCTION_ITEM", entityId: item.id } },
+        data: { payloadJson: JSON.stringify({ itemId: item.id, lane: "notebooklm" }) },
+      });
+  }
   return {
     bookId: book.id,
     lessonId: lessonIds[0] ?? "",

@@ -11,12 +11,16 @@ import { PACES } from "./pace";
 import { shotPlanSchema } from "./shot-plan";
 import { HOOK_VARIANTS, SCENE_TYPES, VISUAL_VARIANTS } from "./scene-types";
 import { timedWordsSchema } from "./word-timing";
+import { castSnapshotSchema } from "./characters";
+import { generationProvenanceSchema } from "./generation-provenance";
 
 export const RENDER_SNAPSHOT_VERSION = "render-snapshot-v1";
 
 // Everything a render is made from, captured when the render is requested. A render reads this and never the live video,
 // so an edit made while it waits or runs cannot be mixed into it, and the record of what was rendered stays true.
 export const renderSnapshotSchema = z.object({
+  cast: castSnapshotSchema.optional(),
+  generation: generationProvenanceSchema.optional(),
   schemaVersion: z.literal(RENDER_SNAPSHOT_VERSION),
   templateVersion: z.string().min(1),
   compositionId: z.string().min(1),
@@ -116,7 +120,13 @@ export function toCompositionSource(snapshot: RenderSnapshot): CompositionSource
   const scenes = [...snapshot.scenes]
     .sort((left, right) => left.order - right.order)
     .map((scene) => ({ ...scene, audio: scene.audioAssetId ? (audioById.get(scene.audioAssetId) ?? null) : null }));
-  return { title: snapshot.video.title, book: { title: snapshot.video.bookTitle }, pace: snapshot.video.pace, scenes };
+  return {
+    title: snapshot.video.title,
+    book: { title: snapshot.video.bookTitle },
+    pace: snapshot.video.pace,
+    scenes,
+    ...(snapshot.cast ? { cast: snapshot.cast } : {}),
+  };
 }
 
 export function toPreflightInput(snapshot: RenderSnapshot): PreflightInput {

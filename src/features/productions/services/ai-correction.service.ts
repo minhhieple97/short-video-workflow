@@ -5,6 +5,7 @@ import { planCorrection, type CorrectionIssue, type CorrectionTarget } from "../
 import type { ItemCheckpoint } from "../domain/production-status";
 import { spendAiCorrection } from "../repositories/production-step.repository";
 import { requireHeldProductionItem } from "./production-step";
+import { findItemRunState } from "../repositories/production-jobs.repository";
 
 const logger = createLogger("productions.ai-correction");
 
@@ -24,7 +25,8 @@ export async function requestAiCorrection(input: {
   issues: readonly CorrectionIssue[];
 }): Promise<CorrectionOutcome> {
   await requireHeldProductionItem(input.itemId, input.claimToken);
-  const plan = planCorrection(input.issues);
+  const state = await findItemRunState(input.itemId);
+  const plan = planCorrection(input.issues, Boolean(state?.scriptGenerationRunId));
   if (!plan) return { status: "NOT_CORRECTABLE" };
 
   const result = await spendAiCorrection({

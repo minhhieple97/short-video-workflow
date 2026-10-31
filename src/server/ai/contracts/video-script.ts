@@ -4,9 +4,11 @@ import { DURATION_PRESETS_SEC, MAX_STORY_SCENES } from "@/features/videos/domain
 import { illustrationSchema } from "@/features/videos/domain/illustration";
 import { lessonSnapshotSchema } from "@/features/videos/domain/lesson-snapshot";
 import { PACES } from "@/features/videos/domain/pace";
-import { aiShotListSchema, MAX_SHOTS_PER_SCENE } from "@/features/videos/domain/shot-plan";
+import { aiShotListSchema, MAX_SHOTS_PER_SCENE, MAX_HOOK_SHOTS } from "@/features/videos/domain/shot-plan";
 import { BODY_SCENE_TYPES, HOOK_VARIANTS, VISUAL_VARIANTS } from "@/features/videos/domain/scene-types";
 import { STORY_ANGLES } from "@/features/videos/domain/story-angle";
+import { castSnapshotSchema } from "@/features/videos/domain/characters";
+import { scriptSourcePackSchema } from "@/features/videos/domain/script-source-pack";
 
 import { publishBookSchema, publishMetadataDraftSchema } from "./publish-metadata";
 
@@ -20,6 +22,7 @@ export const hookOptionSchema = z.object({
   visualVariant: z.enum(VISUAL_VARIANTS),
   // Optional: without it the scene gets the default cartoon for its type.
   illustration: illustrationSchema.optional(),
+  shots: aiShotListSchema(MAX_HOOK_SHOTS),
 });
 
 export const storyboardSceneSchema = z.object({
@@ -66,6 +69,13 @@ export const videoScriptOutputSchema = z.object({
 });
 
 export const sceneRegenerationInputSchema = z.object({
+  storyContext: z
+    .object({
+      cast: castSnapshotSchema.optional(),
+      sourcePack: scriptSourcePackSchema,
+      scenes: z.array(z.object({ type: z.string(), narration: z.string() })),
+    })
+    .optional(),
   videoId: z.string(),
   sceneId: z.string(),
   attempt: z.number().int().nonnegative(),

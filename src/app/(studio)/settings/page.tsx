@@ -12,6 +12,8 @@ import { NotebookLmCard } from "@/features/notebooklm/components/notebooklm-card
 import { getNotebookLmOverview } from "@/features/notebooklm/services/notebooklm-overview.service";
 import { ConcurrencySettingsCard } from "@/features/settings/components/concurrency-settings-card";
 import { getConcurrencySettingsOverview } from "@/features/settings/services/concurrency-settings.service";
+import { AiSettingsCard } from "@/features/settings/components/ai-settings-card";
+import { getAiSettings } from "@/features/settings/services/ai-settings.service";
 import { getDiagnosticsSnapshot } from "@/server/diagnostics/get-diagnostics-snapshot";
 import type { CheckResult, CheckStatus } from "@/server/diagnostics/types";
 
@@ -72,12 +74,13 @@ interface SettingsPageProps {
 }
 
 export default async function SettingsPage({ searchParams }: Readonly<SettingsPageProps>) {
-  const [snapshot, driveOverview, notebookLmOverview, concurrency, query] = await Promise.all([
+  const [snapshot, driveOverview, notebookLmOverview, concurrency, query, aiSettings] = await Promise.all([
     getDiagnosticsSnapshot(),
     getDriveOverview(),
     getNotebookLmOverview(),
     getConcurrencySettingsOverview(),
     searchParams,
+    getAiSettings(),
   ]);
 
   return (
@@ -105,6 +108,8 @@ export default async function SettingsPage({ searchParams }: Readonly<SettingsPa
           <AlertDescription>{driveCallbackError(query.drive_error)}</AlertDescription>
         </Alert>
       ) : null}
+
+      <AiSettingsCard overview={aiSettings} />
 
       <section aria-labelledby="worker-heading" className="flex flex-col gap-4">
         <h2 id="worker-heading" className="text-lg font-bold">
@@ -151,7 +156,10 @@ export default async function SettingsPage({ searchParams }: Readonly<SettingsPa
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Cấu hình video ngắn &amp; tài nguyên</CardTitle>
-          <CardDescription>Giá trị đọc từ biến môi trường (.env), chỉ để xem.</CardDescription>
+          <CardDescription>
+            Cấu hình đang dùng. AI và nhân vật được chỉnh trong form phía trên; cấu hình AI từ .env dành cho các tác vụ
+            cũ và phân tích chương.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-[auto_1fr]">

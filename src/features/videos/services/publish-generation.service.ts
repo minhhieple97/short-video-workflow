@@ -21,6 +21,7 @@ export async function runPublishMetadataGeneration(run: {
   provider?: AiProvider;
   resume?: AiTaskContext["resume"];
   signal?: AbortSignal;
+  execution?: AiTaskContext["execution"];
 }): Promise<{ hashtags: number } | AiWaitingForCli> {
   const video = await requireVideo(run.videoId);
   const scenes = video.scenes
@@ -41,7 +42,9 @@ export async function runPublishMetadataGeneration(run: {
     jobRecordId: run.jobRecordId,
     mode: provider.mode,
     promptVersion: PUBLISH_METADATA_PROMPT_VERSION,
-    hash: inputHash(input),
+    hash: inputHash(run.execution ? { input, execution: run.execution } : input),
+    execution: run.execution,
+    stage: run.execution ? "publish-metadata" : undefined,
     invalidOutputMessage: "Kết quả AI không đúng định dạng tiêu đề, caption và hashtag; không thay đổi gì.",
     resume: run.resume,
     signal: run.signal,

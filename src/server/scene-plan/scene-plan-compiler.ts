@@ -8,6 +8,9 @@ import type { Pace } from "@/features/videos/domain/pace";
 import { hookOptionSchema, storyboardSceneSchema } from "@/server/ai/contracts/video-script";
 import type { CallOptions } from "@/server/integrations/call-options";
 import type { ScriptDraft } from "@/server/script-studio/script-studio-contracts";
+import type { AiMode, AiTaskContext } from "@/server/ai/ai-provider";
+import type { AiExecution } from "@/features/settings/domain/ai-settings";
+import type { StorySceneContext } from "./story-scene-plan";
 
 export const scenePlanSchema = z
   .object({
@@ -25,6 +28,10 @@ export const scenePlanSchema = z
 export type ScenePlan = z.infer<typeof scenePlanSchema>;
 
 export interface ScenePlanRequest {
+  story?: StorySceneContext;
+  execution?: AiExecution;
+  taskContext?: AiTaskContext;
+  mode?: AiMode;
   draft: ScriptDraft;
   lesson: LessonSnapshot;
   // For the caption's source line.

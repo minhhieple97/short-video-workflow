@@ -23,8 +23,10 @@ import { SceneShotsEditor, shotsProblem } from "./scene-shots-editor";
 import { SCENE_TONE } from "./scene-tone";
 import { useScriptLocked } from "./script-lock-context";
 import { useVideoAction } from "./use-video-action";
+import type { CastSnapshot } from "../domain/characters";
 
 interface SceneEditorCardProps {
+  cast?: CastSnapshot;
   videoId: string;
   scene: SceneDto;
   sceneIds: readonly string[];
@@ -32,7 +34,13 @@ interface SceneEditorCardProps {
   syllablesPerSecond: number;
 }
 
-export function SceneEditorCard({ videoId, scene, sceneIds, syllablesPerSecond }: Readonly<SceneEditorCardProps>) {
+export function SceneEditorCard({
+  videoId,
+  scene,
+  sceneIds,
+  syllablesPerSecond,
+  cast,
+}: Readonly<SceneEditorCardProps>) {
   const { pending, run, runJob } = useVideoAction();
   const locked = useScriptLocked();
   const [title, setTitle] = useState(scene.title ?? "");
@@ -140,6 +148,7 @@ export function SceneEditorCard({ videoId, scene, sceneIds, syllablesPerSecond }
           disabled={locked}
         />
         <SceneShotsEditor
+          cast={cast}
           id={scene.id}
           sceneType={scene.type}
           narration={narration}

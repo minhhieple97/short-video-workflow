@@ -5,6 +5,7 @@ const envelopeSchema = z
     is_error: z.boolean().optional(),
     result: z.string().optional(),
     structured_output: z.unknown().optional(),
+    modelUsage: z.record(z.string(), z.unknown()).optional(),
   })
   .loose();
 
@@ -12,11 +13,38 @@ export interface ClaudeEnvelope {
   isError: boolean;
   text: string;
   structured: unknown;
+  // Every model the CLI says it used. It also lists the small model (Haiku) it calls for housekeeping on every run, so
+  // the model that did the task is `primaryModel`: the one that cost the most.
+  models?: string[];
+  primaryModel?: string;
 }
+
+const modelUsageEntrySchema = z.object({ costUSD: z.number().optional(), outputTokens: z.number().optional() }).loose();
+
+function primaryModelOf(usage: Record<string, unknown>): string | undefined {
+  const weight = (entry: unknown): [number, number] => {
+    const parsed = modelUsageEntrySchema.safeParse(entry);
+    return parsed.success ? [parsed.data.costUSD ?? 0, parsed.data.outputTokens ?? 0] : [0, 0];
+  };
+  return Object.entries(usage)
+    .map(([model, entry]) => ({ model, weight: weight(entry) }))
+    .sort((left, right) => right.weight[0] - left.weight[0] || right.weight[1] - left.weight[1])[0]?.model;
+}
+
+// A reported model is the requested one when it is the same ID or a dated snapshot of it (claude-opus-5-5-20261001).
+export const isRequestedModel = (reported: string, requested: string): boolean =>
+  reported === requested || reported.startsWith(`${requested}-`);
 
 export function parseClaudeEnvelope(stdout: string): ClaudeEnvelope {
   const envelope = envelopeSchema.parse(JSON.parse(stdout));
-  return { isError: envelope.is_error ?? false, text: envelope.result ?? "", structured: envelope.structured_output };
+  const primaryModel = envelope.modelUsage ? primaryModelOf(envelope.modelUsage) : undefined;
+  return {
+    isError: envelope.is_error ?? false,
+    text: envelope.result ?? "",
+    structured: envelope.structured_output,
+    ...(envelope.modelUsage ? { models: Object.keys(envelope.modelUsage) } : {}),
+    ...(primaryModel ? { primaryModel } : {}),
+  };
 }
 
 // Accepts plain JSON or JSON wrapped in prose / ```json fences and returns the outermost object.

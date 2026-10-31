@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildArchiveManifest, buildArchiveScript, toArchiveJson } from "@/features/archive/domain/archive-record";
+import { captureCast, DEFAULT_CHARACTERS } from "@/features/videos/domain/characters";
 import { currentSnapshotIdentity, type RenderSnapshot } from "@/features/videos/domain/render-snapshot";
 
 type SnapshotScene = RenderSnapshot["scenes"][number];
@@ -71,5 +72,46 @@ describe("illustrative scenes in the Drive record", () => {
 
     expect(toArchiveJson(buildArchiveScript(value, facts))).not.toContain("illustrative");
     expect(toArchiveJson(manifestOf(value))).not.toContain("illustrative");
+  });
+});
+
+describe("who is in the video, in the Drive record", () => {
+  const cast = captureCast(DEFAULT_CHARACTERS, [
+    { characterId: "hoang", role: "Người thử cách mới" },
+    { characterId: "mai", role: "Người bạn góp ý" },
+  ]);
+  const generation = {
+    mode: "cli-auto" as const,
+    runId: "run-1",
+    script: { model: "claude-opus-5-5", effort: "xhigh" as const },
+    scene: { model: "claude-sonnet-5-5", effort: "xhigh" as const },
+    draftPromptVersion: "script-draft-v1",
+    scenePromptVersion: "scene-plan-v11",
+  };
+
+  it("adds the cast and the models only for a video made with them, and rebuilds an older record as it was", () => {
+    const old = snapshot([scene(0, "HOOK")]);
+    expect(buildArchiveScript(old, facts)).not.toHaveProperty("cast");
+    expect(buildArchiveScript(old, facts)).not.toHaveProperty("generation");
+    expect(manifestOf(old)).not.toHaveProperty("cast");
+    expect(manifestOf(old)).not.toHaveProperty("generation");
+
+    const made: RenderSnapshot = { ...old, cast, generation };
+    const script = buildArchiveScript(made, facts);
+    expect(script).toMatchObject({ cast, generation });
+    expect(manifestOf(made)).toMatchObject({ cast, generation });
+    const { cast: _cast, generation: _generation, ...rest } = script;
+    expect(rest).toEqual(buildArchiveScript(old, facts));
+  });
+
+  it("takes them from the snapshot, so a later change of the library cannot rewrite a finished record", () => {
+    const made: RenderSnapshot = { ...snapshot([scene(0, "HOOK")]), cast, generation };
+    const before = toArchiveJson(buildArchiveScript(made, facts));
+    const library = structuredClone(DEFAULT_CHARACTERS);
+    const first = library.profiles[0];
+    if (first) first.name = "Tên mới";
+    expect(toArchiveJson(buildArchiveScript(made, facts))).toBe(before);
+    const stored = JSON.parse(before) as { cast: { profiles: unknown[] } };
+    expect(stored.cast.profiles[0]).toMatchObject({ id: "hoang", name: "Hoàng" });
   });
 });

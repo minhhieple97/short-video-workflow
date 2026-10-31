@@ -13,6 +13,14 @@ export const MAX_SHOTS_PER_SCENE = 6;
 // The hook lasts at most four seconds, so it has room for two shots at most.
 export const MAX_HOOK_SHOTS = 2;
 export const MAX_SHOT_PROPS = 2;
+export const MAX_VISIBLE_CHARACTERS = 2;
+export const shotActorsSchema = z
+  .array(z.object({ characterId: z.string().min(1).max(60), action: z.enum(CHARACTER_ACTIONS) }))
+  .max(MAX_VISIBLE_CHARACTERS)
+  .refine(
+    (actors) => new Set(actors.map((actor) => actor.characterId)).size === actors.length,
+    "Một người không được xuất hiện hai lần trong cùng shot.",
+  );
 export const SHOT_TAG_MAX = 24;
 export const PROP_LABEL_MAX = 18;
 
@@ -125,6 +133,7 @@ export const plannedShotSchema = z.object({
   props: z.array(shotPropSchema).max(MAX_SHOT_PROPS).optional(),
   tag: z.string().trim().min(1).max(SHOT_TAG_MAX).optional(),
   card: shotCardSchema.optional(),
+  actors: shotActorsSchema.optional(),
 });
 
 export const shotPlanSchema = z
@@ -157,6 +166,7 @@ const lenient = <T extends z.ZodType>(schema: T) => schema.optional().catch(unde
 
 export const aiShotSchema = z.object({
   from: lenient(z.string().trim().max(80)),
+  actors: shotActorsSchema.optional(),
   setting: lenient(z.enum(ILLUSTRATION_SETTINGS)),
   action: lenient(z.enum(CHARACTER_ACTIONS)),
   mood: lenient(z.enum(SHOT_MOODS)),
@@ -203,6 +213,7 @@ function normalizeShot(shot: Omit<AiShot, "from">, fromWord: number): PlannedSho
       : {}),
     ...(shot.tag ? { tag: shot.tag } : {}),
     ...(card ? { card } : {}),
+    ...(shot.actors ? { actors: shot.actors } : {}),
   };
 }
 

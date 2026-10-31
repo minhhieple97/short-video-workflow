@@ -138,8 +138,8 @@ describe("productionUnavailableReason", () => {
     expect(settings.productionUnavailableReason(withAi("cli-auto", "toi"))).toBeNull();
   });
 
-  it("says what to set when NotebookLM has no profile", () => {
-    expect(settings.productionUnavailableReason(withAi("cli-auto"))).toContain("NOTEBOOKLM_PROFILE");
+  it("lets existing lessons be produced without a NotebookLM profile", () => {
+    expect(settings.productionUnavailableReason(withAi("cli-auto"))).toBeNull();
   });
 
   it("says that cli-task cannot run a batch, because each task waits for a person", () => {

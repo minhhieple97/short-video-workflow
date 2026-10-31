@@ -1,6 +1,7 @@
 import { notifyPublishMetadataMissingWithin } from "@/features/notifications/repositories/notification-events.repository";
 import type { Prisma, Video, VideoScene } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
+import { AppError } from "@/shared/errors";
 
 import { upsertPublishMetadataWithin, type PublishMetadataWrite } from "./publish-metadata.repository";
 
@@ -40,8 +41,13 @@ export interface NewSceneRecord {
   shotsJson: string | null;
 }
 
-export function findVideoDetail(id: string) {
-  return prisma.video.findFirst({ where: { id, book: { deletedAt: null } }, include: DETAIL_INCLUDE });
+export async function findVideoDetail(id: string) {
+  const video = await prisma.video.findFirst({ where: { id, book: { deletedAt: null } }, include: DETAIL_INCLUDE });
+  if (!video?.scriptGenerationRunId) return video;
+  const generationRun = await prisma.scriptGenerationRun.findUnique({ where: { id: video.scriptGenerationRunId } });
+  if (!generationRun)
+    throw new AppError("SCRIPT_GENERATION_NOT_FOUND", "Không tìm thấy dữ liệu nguồn và nhân vật của kịch bản.", 409);
+  return { ...video, generationRun };
 }
 
 export async function listSceneIds(videoId: string): Promise<string[]> {
@@ -182,6 +188,7 @@ async function rewriteOrder(tx: Tx, orderedIds: readonly string[]): Promise<void
 }
 
 export type ReplacementScript = {
+  generation?: { id: string };
   hookOptions: Prisma.InputJsonValue;
   scenes: readonly NewSceneRecord[];
   // The length the AI wrote this script for, when it proposed one with it.
@@ -195,12 +202,39 @@ export type ReplacementScript = {
 // The one place a whole script is written, so the manual flow and the production flow cannot drift apart. The caller
 // supplies the transaction when the write must be atomic with something else.
 export async function replaceScriptWithin(tx: Tx, videoId: string, script: ReplacementScript): Promise<Video> {
+  if (script.generation) {
+    const run = await tx.scriptGenerationRun.findUniqueOrThrow({ where: { id: script.generation.id } });
+    if (run.videoId !== videoId || !run.castJson || !run.scenePlanArtifactJson)
+      throw new AppError("SCRIPT_GENERATION_INVALID", "Lần tạo kịch bản chưa có đủ cảnh và nhân vật.", 409);
+    if (run.appliedScriptVersion !== null) {
+      const current = await tx.video.findUniqueOrThrow({ where: { id: videoId } });
+      if (current.scriptGenerationRunId !== run.id)
+        throw new AppError("SCRIPT_GENERATION_STALE", "Video đã có kịch bản mới hơn.", 409);
+      return current;
+    }
+    const expectedVersion = run.baseScriptVersion;
+    const gate = await tx.video.updateMany({
+      where: { id: videoId, scriptVersion: expectedVersion },
+      data: { scriptGenerationRunId: run.id },
+    });
+    if (!gate.count)
+      throw new AppError(
+        "SCRIPT_GENERATION_STALE",
+        "Video đã được sửa trong lúc AI chạy. Kịch bản hiện tại được giữ nguyên.",
+        409,
+      );
+  }
   await tx.videoScene.deleteMany({ where: { videoId } });
   await tx.videoScene.createMany({
     data: script.scenes.map((scene, order) => ({ ...scene, videoId, order })),
   });
   if (script.publish) await upsertPublishMetadataWithin(tx, videoId, script.publish);
   const video = await bumpScript(tx, videoId, { hookOptionsJson: script.hookOptions, ...script.duration });
+  if (script.generation)
+    await tx.scriptGenerationRun.update({
+      where: { id: script.generation.id },
+      data: { appliedScriptVersion: video.scriptVersion },
+    });
   if (script.publishIssue) await notifyPublishMetadataMissingWithin(tx, video, script.publishIssue);
   return video;
 }
@@ -229,9 +263,21 @@ export function updateSceneRecord(
   videoId: string,
   sceneId: string,
   data: Partial<NewSceneRecord> & { hidden?: boolean },
-  change: { contentChanged: boolean; narrationChanged: boolean },
+  change: { contentChanged: boolean; narrationChanged: boolean; expectedVersion?: number },
 ): Promise<VideoScene> {
   return prisma.$transaction(async (tx) => {
+    if (change.expectedVersion !== undefined) {
+      const gate = await tx.videoScene.updateMany({
+        where: { id: sceneId, videoId, version: change.expectedVersion },
+        data: { updatedAt: new Date() },
+      });
+      if (!gate.count)
+        throw new AppError(
+          "SCENE_REGENERATION_STALE",
+          "Cảnh đã được sửa trong lúc AI chạy. Nội dung hiện tại được giữ nguyên.",
+          409,
+        );
+    }
     const scene = await tx.videoScene.update({
       where: { id: sceneId, videoId },
       data: {

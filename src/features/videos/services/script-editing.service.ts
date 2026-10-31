@@ -1,6 +1,6 @@
 import { AppError, NotFoundError } from "@/shared/errors";
 
-import { parseShotPlan, rebaseShotPlan, serializeShotPlan, shotPlanProblem } from "../domain/shot-plan";
+import { planShots, parseShotPlan, rebaseShotPlan, serializeShotPlan, shotPlanProblem } from "../domain/shot-plan";
 import { DEFAULT_VISUAL_VARIANT, SCENE_TYPE_LABELS, toSceneType, type BodySceneType } from "../domain/scene-types";
 import type { LessonSnapshot } from "../domain/lesson-snapshot";
 import {
@@ -37,6 +37,7 @@ export async function selectHookOption(videoId: string, optionIndex: number): Pr
       visualVariant: option.visualVariant,
       hookVariant: option.variant,
       illustration: option.illustration ?? null,
+      shots: planShots(option.narration, option.shots, 2),
     },
     narrationRateOf(video),
   );
@@ -69,6 +70,16 @@ export async function updateScene(videoId: string, sceneId: string, input: Updat
   const shots = keepsShots ? storedShots && rebaseShotPlan(storedShots, scene.narration, input.narration) : input.shots;
   const shotsProblem = shots ? shotPlanProblem(shots, input.narration, scene.type) : null;
   if (shotsProblem) throw new AppError("INVALID_SHOT_PLAN", shotsProblem, 400);
+  const cast = toVideoDetail(video).cast;
+  if (
+    cast &&
+    shots?.some(
+      (shot) =>
+        shot.partner ||
+        shot.actors?.some((actor) => !cast.profiles.some((profile) => profile.id === actor.characterId)),
+    )
+  )
+    throw new AppError("INVALID_SHOT_ACTOR", "Shot phải dùng nhân vật thuộc video này.", 400);
   const record = buildSceneRecord(
     { ...input, illustration, shots, type: scene.type, hookVariant: scene.hookVariant },
     narrationRateOf(video),

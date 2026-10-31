@@ -5,7 +5,7 @@ import type { ResolvedShot } from "@/features/videos/domain/shot-timeline";
 
 import type { PeepLook } from "../peeps/peep";
 import { Camera, type CameraFraming } from "./camera";
-import { ACTION_POSES, faceFor, PARTNER_POSES, STANDING_POSES, type CastPose } from "./cast";
+import { ACTION_POSES, faceFor, PARTNER_POSES, STANDING_POSES, type CastPose, type Cast } from "./cast";
 import { CastExtras } from "./extras";
 import { PeepActor } from "./peep-actor";
 import { SETS } from "./sets/sets";
@@ -76,17 +76,32 @@ export function StageShot({
   look,
   partnerLook,
   durationInFrames,
+  cast,
 }: {
   shot: ResolvedShot;
   look: PeepLook;
   partnerLook: PeepLook;
   durationInFrames: number;
+  cast?: Cast;
 }) {
   const frame = useCurrentFrame();
   const set = SETS[shot.setting];
-  const paired = shot.partner !== null;
-  const pose = paired ? STANDING_POSES[shot.action] : ACTION_POSES[shot.action];
-  const partnerPose = shot.partner ? PARTNER_POSES[shot.partner] : null;
+  const actors = cast?.characters ? shot.actors : undefined;
+  const first = actors?.[0];
+  const second = actors?.[1];
+  const actorLook = first ? cast?.characters?.[first.characterId] : look;
+  const secondLook = second ? cast?.characters?.[second.characterId] : partnerLook;
+  if (!actorLook || !secondLook) throw new Error("Unknown character in shot.");
+  const paired = actors ? second !== undefined : shot.partner !== null;
+  const action = first?.action ?? shot.action;
+  const pose = paired ? STANDING_POSES[action] : ACTION_POSES[action];
+  const partnerPose = actors
+    ? second
+      ? STANDING_POSES[second.action]
+      : null
+    : shot.partner
+      ? PARTNER_POSES[shot.partner]
+      : null;
   const place = pose.full ? WHOLE : HALF;
   const [from, to] = FRAMING[paired ? "pair" : pose.full ? "whole" : "half"][shot.size];
   return (
@@ -98,21 +113,23 @@ export function StageShot({
           <PeepActor
             body={partnerPose.body}
             face={faceFor(partnerPose, shot.size)}
-            look={partnerLook}
+            look={secondLook}
             x={PAIR.partnerX + walkOffset(partnerPose, frame)}
             bottom={PAIR.bottom - stepLift(partnerPose, frame)}
             height={PAIR.height}
             flip={!partnerPose.walks}
           />
         ) : null}
-        <PeepActor
-          body={pose.body}
-          face={faceFor(pose, shot.size, shot.mood)}
-          look={look}
-          x={(paired ? PAIR.mainX : place.x) + walkOffset(pose, frame)}
-          bottom={(paired ? PAIR.bottom : place.bottom) - stepLift(pose, frame)}
-          height={paired ? PAIR.height : place.height}
-        />
+        {actors?.length === 0 ? null : (
+          <PeepActor
+            body={pose.body}
+            face={faceFor(pose, shot.size, shot.mood)}
+            look={actorLook}
+            x={(paired ? PAIR.mainX : place.x) + walkOffset(pose, frame)}
+            bottom={(paired ? PAIR.bottom : place.bottom) - stepLift(pose, frame)}
+            height={paired ? PAIR.height : place.height}
+          />
+        )}
         {pose.full ? null : <set.Front />}
         {!paired && pose.extra ? <CastExtras extra={pose.extra} /> : null}
       </Camera>

@@ -130,7 +130,7 @@ thì số đã lưu được dùng khi khởi động.
 | Ô trong Cài đặt      | Mặc định | Cho phép | Việc                                                                                      |
 | -------------------- | -------- | -------- | ----------------------------------------------------------------------------------------- |
 | Claude CLI           | 1        | 1–8      | phân tích chương sách TXT/Markdown, kịch bản, tiêu đề/caption, kế hoạch cảnh của sản xuất |
-| NotebookLM           | 2        | 1–8      | mục lục bài học của sách PDF, bản thảo của sản xuất                                       |
+| NotebookLM           | 2        | 1–8      | mục lục bài học của sách PDF, bản thảo của các item cũ                                    |
 | Giọng đọc            | 1        | 1–8      | lồng tiếng (các cảnh của một video vẫn đọc lần lượt)                                      |
 | Render video         | 1        | 1–8      | mỗi lượt một Chromium                                                                     |
 | Luồng mỗi lần render | 1        | 1–16     | số tab Chromium chụp khung hình của một video (thay `RENDER_CONCURRENCY`)                 |
@@ -139,7 +139,7 @@ thì số đã lưu được dùng khi khởi động.
 
 Mỗi loại là một **làn** (queue riêng, cùng một tiến trình worker, vẫn một worker mỗi Redis DB). Việc nhẹ (kiểm tra hệ thống, áp kế
 hoạch cảnh, kiểm tra sẵn sàng, chờ render) chạy ở làn chung, cố định 2 việc. Một video trong đợt sản xuất đi qua nhiều làn: bản thảo ở
-làn NotebookLM, kế hoạch cảnh ở làn Claude, giọng đọc ở làn giọng đọc; nhờ vậy bản thảo video sau được viết trong lúc video trước render,
+làn Claude (Opus), kế hoạch cảnh cũng ở làn Claude (Sonnet), giọng đọc ở làn giọng đọc; item cũ giữ draft ở làn NotebookLM. Bản thảo video sau có thể được viết trong lúc video trước render,
 và Drive upload ngay khi render xong. Việc nằm sẵn trong hàng đợi cũ `studio-jobs` từ trước khi có làn được tự chuyển sang đúng làn.
 
 Gợi ý: giữ 1 cho các việc nặng (render, Claude, giọng đọc) tới khi đo máy bằng `pnpm bench:render` và theo dõi RAM; tăng NotebookLM,
@@ -349,6 +349,15 @@ pnpm, không phải chẩn đoán này.
 | `AI_CLI_AUTH`, `AI_QUOTA_EXCEEDED`      | Chưa đăng nhập Claude / hết hạn mức      | `claude` rồi `/login` / đợi hạn mức; rồi **Thử lại**                     |
 | `AI_CLI_MISSING`, `AI_CLI_TIMEOUT`      | Thiếu lệnh `claude` / quá thời gian      | Sửa `CLAUDE_CLI_COMMAND` / tăng `AI_TASK_TIMEOUT_SEC`                    |
 | `AI_MODE_UNSUPPORTED`                   | Sản xuất hàng loạt ở `cli-task`          | `AI_MODE=cli-auto` (hoặc `mock` để thử)                                  |
+| `AI_CLI_MODEL_UNAVAILABLE`              | Model sai / tài khoản không dùng được    | Sửa ID model ở Cài đặt → AI theo công đoạn, rồi **Thử lại**              |
+| `AI_CLI_MODEL_MISMATCH`                 | CLI dùng model khác cấu hình             | Kết quả bị bỏ; kiểm tra model ở Cài đặt, rồi **Thử lại**                 |
+| `SCRIPT_SOURCE_*`                       | Nguồn bài học thiếu, lệch hoặc quá lớn   | Kiểm tra trích đoạn bài học; tách video ghép thành ít bài hơn            |
+| `SCRIPT_DRAFT_INVALID`                  | Bản thảo Opus không đạt kiểm tra         | Hàng loạt tự sửa một lần; thủ công: **Tạo lại kịch bản**                 |
+| `SCENE_PLAN_STORY_CHANGED`              | Sonnet đã đổi lời kể của bản thảo        | Như dòng trên (lỗi nằm ở bước viết bản thảo)                             |
+| `SCENE_PLAN_CAST_INVALID`               | Shot dùng người ngoài dàn nhân vật       | Như dòng trên                                                            |
+| `SCRIPT_GENERATION_STALE`               | Video bị sửa trong lúc AI chạy           | Giữ kịch bản hiện tại; tải lại trang rồi tạo lại                         |
+| `SCENE_REGENERATION_STALE`              | Cảnh bị sửa trong lúc AI viết lại        | Giữ nội dung hiện tại; thử lại                                           |
+| `AI_SETTINGS_CONFLICT`                  | Cài đặt AI đã đổi ở tab khác             | Tải lại trang rồi lưu lại                                                |
 | `SCRIPT_STUDIO_NOT_AVAILABLE`           | Chưa đặt `NOTEBOOKLM_PROFILE`            | Đặt profile (§3.4), khởi động lại worker                                 |
 | `SCRIPT_GENERATION_IN_PROGRESS`         | Đang tạo kịch bản / viết lại cảnh        | Chờ, hoặc **Huỷ tạo kịch bản** / **Huỷ viết lại cảnh**                   |
 | `TTS_REJECTED` (403)                    | Bản edge-tts đã cũ                       | `pip install -U edge-tts`, hoặc tải âm thanh lên                         |
@@ -509,6 +518,22 @@ Drive; không mất tiến độ khi khởi động lại, không chạy lại c
       hashtag không dấu, không số liệu hay trích dẫn ngoài nguồn.
 - [ ] Dừng rồi chạy lại worker giữa một đợt sản xuất: tiến độ không mất, không có video hay tệp Drive trùng.
 
+### Kết quả nghiệm thu Opus → Sonnet với Claude thật (2026-10-31)
+
+Chạy trong một stack cô lập (DB riêng chỉ có một sách PDF, hai chương và ba bài học chép từ DB thật; Redis DB 15; `cli-auto`;
+không đặt `CLAUDE_MODEL`/`CLAUDE_EFFORT`; không Telegram, Drive hay NotebookLM) với Claude Code `2.1.306`: ba bài học thành ba video
+FINAL. Bằng chứng ở `data/diagnostics/ai-stage-pilot-20261031/` (`report.md` có bảng chấm sáu tiêu chí; MP4 và kịch bản cũ không bị đổi).
+
+- Model và effort đúng Cài đặt cho từng công đoạn. CLI luôn liệt kê thêm `claude-haiku-5-5` (việc phụ), nên chỉ so model chính.
+- Một lượt Opus mất 3,5–5,8 phút, Sonnet 0,4–4,3 phút (nguồn khoảng 4.200 ký tự); `AI_TASK_TIMEOUT_SEC=600` đủ.
+- Cả ba bản thảo qua kiểm tra nguồn và kiểm tra lời kể ngay lần đầu; Opus chọn hai nhân vật. Một video vượt hook 4 giây và dùng lượt
+  sửa AI duy nhất (hook 15 → 11 từ, dàn nhân vật giữ nguyên).
+- MP4: 1080×1920, 30 fps, H.264 + AAC, dài 120–135 giây (AI tự đề xuất 120 giây trong khoảng 60–300 giây đã đặt).
+- edge-tts chập chờn nên bước giọng đọc phải thử lại. Chạy bộ test nặng cạnh worker làm worker mất khoá và một mục thất bại
+  `PRODUCTION_CLAIM_LOST`; **Thử lại** chạy tiếp từ checkpoint, không viết lại bản thảo.
+- Chưa kiểm: video ghép nhiều bài học, `cli-task` với CLI thật, Drive/NotebookLM/Telegram với luồng mới, một đợt lớn, và việc chủ dự
+  án đọc kịch bản.
+
 ### Nhập tự động tối đa 15 PDF
 
 1. Giữ nguyên số mặc định ở **Cài đặt → Chạy song song** (render, Claude, giọng đọc 1; NotebookLM, Drive 2) cho tới khi đo máy.
@@ -524,7 +549,7 @@ Drive; không mất tiến độ khi khởi động lại, không chạy lại c
 
 Hết quota Claude: worker không thất bại vì phải chờ nhiều giờ. Lịch chờ nằm trong SQLite và giữ qua restart. Có giờ
 reset hoặc thông báo còn 30 phút / 1 giờ thì job được xếp chạy lại từ đúng mốc đó, không thức dậy kiểm tra mỗi phút.
-Trong lúc chờ, bản thảo NotebookLM và checkpoint được giữ nguyên. Không có giờ reset thì thử lại tối đa một tác vụ thực mỗi
+Trong lúc chờ, nguồn, bản thảo và checkpoint được giữ nguyên. Không có giờ reset thì thử lại tối đa một tác vụ thực mỗi
 phút. Đây là cơ chế phản hồi từ CLI và chờ, **không phải** số phần trăm quota lấy từ tài khoản. Giới hạn tuần có thể
 chặn lâu hơn 5 giờ. Không tự mua lượt dùng, đổi tài khoản, đổi API key hay bật trả phí vượt hạn mức.
 
@@ -560,6 +585,27 @@ queue tests dùng `TEST_REDIS_URL` và queue có tên riêng.
   (`public/fonts/BeVietnamPro-OFL.txt`).
 
 ## 11. Chọn model Claude và nhận thông báo Telegram
+
+**Kịch bản mới:** mở `/settings`, chỉnh **AI theo công đoạn** và **Nhân vật xuyên suốt**, rồi lưu. Mặc định Opus 5.5/xhigh viết
+kịch bản và viết lại lời cảnh; Sonnet 5.5/xhigh lập cảnh/shot và viết thông tin đăng tải. Đổi tên, xưng hô, preset, người chính hoặc
+giới hạn nhân vật tại đây. Thư viện ban đầu sáu người; Opus tự chọn ít người nhất cần dùng, mỗi shot tối đa hai người.
+
+Cấu hình được chụp cho từng yêu cầu mới; retry giữ nguyên bản đã chụp, không cần restart. Video cũ giữ nguyên cho tới khi chủ động
+tạo lại kịch bản. Tab **Nguồn kịch bản** cho cả video thủ công và tự động hiển thị bản thảo, logic, cast, nguồn và model yêu cầu.
+Nếu đã sửa tay, tab nói rõ bản thảo là nội dung AI trước chỉnh sửa. MP4 cũ không bị xóa.
+
+Gói nguồn đọc từ văn bản chương đã trích xuất, xác minh excerpt, lấy ngữ cảnh quanh nó và gộp phần trùng. Tối đa 40.000 ký tự nguồn;
+giảm ngữ cảnh trước, không cắt excerpt hay bỏ bài học. Các mã `SCRIPT_SOURCE_MISSING`, `SCRIPT_SOURCE_EXCERPT_MISMATCH`,
+`SCRIPT_SOURCE_BOOK_MISMATCH`, `SCRIPT_SOURCE_TOO_LARGE` dừng trước AI: kiểm tra nguồn hoặc tách video ghép thành ít bài học hơn.
+Nguồn TXT/Markdown có trang `null`; PDF giữ trang bắt đầu đúng câu trích, kể cả khi ngữ cảnh bắt đầu ở trang trước.
+
+`cli-task` chờ hai stage riêng. Tiếp tục dùng `pnpm ai:run --list` và `pnpm ai:run --job <jobId> [--dry-run]`; lệnh tìm đúng task đang
+chờ, hiển thị execution config đã chụp và không ghi đè output của stage trước. `execution.json` trong thư mục task ghi model/effort
+yêu cầu, model chính và danh sách model CLI báo đã dùng. Claude Code luôn gọi thêm một model nhỏ (Haiku) cho việc phụ và liệt kê nó
+cạnh model làm việc (đã kiểm với bản `2.1.306`), nên chỉ **model chính** (chi phí cao nhất trong `modelUsage`) được so với yêu cầu: khác
+yêu cầu → `AI_CLI_MODEL_MISMATCH`, không áp dụng kết quả. Tab **Nguồn kịch bản** hiện model thực tế này khi có.
+
+**Phân tích chương và task cũ:** các biến sau vẫn là mặc định khi task thiếu execution config riêng.
 
 Trong `.env`, đặt `CLAUDE_MODEL=claude-sonnet-5-5` hoặc `CLAUDE_MODEL=claude-opus-5-5`. Để trống giữ mặc định Claude CLI.
 Model cần được bản CLI và tài khoản hiện tại cho phép; ứng dụng không tự đổi sang model khác. `pnpm diagnose` chỉ hiển thị

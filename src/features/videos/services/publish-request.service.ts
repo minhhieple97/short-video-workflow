@@ -5,6 +5,7 @@ import { toJobDto } from "@/features/jobs/services/job-dto";
 import { enqueueTrackedJob } from "@/features/jobs/services/job-service";
 import { AppError } from "@/shared/errors";
 import type { JobDto } from "@/shared/types/job";
+import { getAiSettings } from "@/features/settings/services/ai-settings.service";
 
 import type { PublishMetadata } from "../domain/publish-metadata";
 import { upsertPublishMetadata } from "../repositories/publish-metadata.repository";
@@ -29,7 +30,7 @@ export async function requestPublishMetadataGeneration(videoId: string): Promise
     jobType: "GENERATE_PUBLISH_METADATA",
     entityType: "VIDEO",
     entityId: videoId,
-    payload: { videoId },
+    payload: { videoId, execution: (await getAiSettings()).settings.scene },
   });
   return job;
 }

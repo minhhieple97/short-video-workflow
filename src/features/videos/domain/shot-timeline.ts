@@ -10,7 +10,14 @@ import {
   type ShotCue,
   type ShotSize,
 } from "./scene-shots";
-import { PARTNER_ACTIONS, SHOT_MOODS, shotCardSchema, shotPropSchema, type ShotPlan } from "./shot-plan";
+import {
+  PARTNER_ACTIONS,
+  SHOT_MOODS,
+  shotActorsSchema,
+  shotCardSchema,
+  shotPropSchema,
+  type ShotPlan,
+} from "./shot-plan";
 
 // One piece of a scene's picture on its frames, with everything the renderer needs: nothing is carried over or looked up
 // at render time.
@@ -25,6 +32,7 @@ export const resolvedShotSchema = z.object({
   props: z.array(shotPropSchema),
   tag: z.string().nullable(),
   card: shotCardSchema.nullable(),
+  actors: shotActorsSchema.optional(),
 });
 export type ResolvedShot = z.infer<typeof resolvedShotSchema>;
 
@@ -44,6 +52,7 @@ function visualsOf(plan: ShotPlan, base: Illustration): Visuals[] {
       props: shot.props ?? [],
       tag: shot.tag ?? null,
       card: shot.card ?? null,
+      ...(shot.actors ? { actors: shot.actors } : {}),
     };
   });
 }

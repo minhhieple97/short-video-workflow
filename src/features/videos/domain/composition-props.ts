@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { castSnapshotSchema, type CastSnapshot } from "./characters";
 
 import { buildCaptionPages } from "./caption-pages";
 import { effectiveSceneFrames, VIDEO_FPS } from "./duration";
@@ -42,6 +43,7 @@ export const compositionSceneSchema = z.object({
 
 export const shortVideoPropsSchema = z.object({
   title: z.string(),
+  cast: castSnapshotSchema.optional(),
   bookTitle: z.string(),
   showCaptions: z.boolean(),
   // How much faster scene animation plays (1 = as designed); only the pictures speed up, never the voice or the captions.
@@ -53,6 +55,7 @@ export type CompositionScene = z.infer<typeof compositionSceneSchema>;
 export type ShortVideoProps = z.infer<typeof shortVideoPropsSchema>;
 
 export interface CompositionSource {
+  cast?: CastSnapshot;
   title: string;
   book: { title: string };
   // The video's pace; absent for a render captured before paces existed, which reads as the default.
@@ -83,7 +86,7 @@ export const SHORT_VIDEO_COMPOSITION_ID = "ShortVideo";
 
 // Recorded in every render snapshot. Bump it whenever a change to the Remotion composition or its scenes would make the
 // same props look different, so an old render can be told apart from what the code produces today.
-export const RENDER_TEMPLATE_VERSION = "short-video-template-v6";
+export const RENDER_TEMPLATE_VERSION = "short-video-template-v7";
 
 const framesToMs = (frames: number) => Math.round((frames / VIDEO_FPS) * 1000);
 
@@ -118,7 +121,7 @@ export function toCompositionProps(
     const continues = previous?.stage === true && mode === "STAGE" && previous.setting === openingSetting;
     const startWith: ShotSize =
       continues && previous ? alternateShotSize(previous.lastSize) : scene.type === "HOOK" ? "MEDIUM" : "WIDE";
-    const shots = resolveSceneShots({
+    const resolved = resolveSceneShots({
       plan: scene.shots ?? null,
       base: illustration,
       words,
@@ -127,6 +130,13 @@ export function toCompositionProps(
       fps: VIDEO_FPS,
       mode,
       startWith,
+    });
+    const shots = resolved.map((shot) => {
+      if (!source.cast) return shot;
+      const actors = shot.actors ?? [{ characterId: source.cast.primaryCharacterId, action: shot.action }];
+      if (actors.some((actor) => !source.cast?.profiles.some((profile) => profile.id === actor.characterId)))
+        throw new Error("Shot references an unknown character.");
+      return { ...shot, actors };
     });
     const lastShot = shots.at(-1);
     previous = {
@@ -150,6 +160,7 @@ export function toCompositionProps(
   });
   return {
     title: source.title,
+    ...(source.cast ? { cast: source.cast } : {}),
     bookTitle: source.book.title,
     showCaptions: true,
     paceFactor: paceProfile(toPace(source.pace)).animationFactor,

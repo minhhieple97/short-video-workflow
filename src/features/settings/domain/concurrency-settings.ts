@@ -18,14 +18,14 @@ export const CONCURRENCY_SETTINGS: Record<ConcurrencyKey, ConcurrencySettingDefi
   claude: {
     label: "Claude CLI",
     description:
-      "Phân tích chương sách TXT/Markdown, tạo kịch bản, tiêu đề và caption, kế hoạch cảnh. Mỗi lượt là một tiến trình claude -p dùng hạn mức tài khoản Claude của bạn.",
+      "Phân tích chương sách TXT/Markdown, viết bản thảo (Opus) và lập cảnh (Sonnet) cho kịch bản mới, tiêu đề và caption. Mỗi lượt là một tiến trình claude -p dùng hạn mức tài khoản Claude của bạn.",
     defaultValue: 1,
     max: 8,
   },
   notebooklm: {
     label: "NotebookLM",
     description:
-      "Lập mục lục bài học cho sách PDF và viết bản thảo video. Mỗi lượt là một tiến trình uvx; hạn mức NotebookLM tính theo cửa sổ khoảng 5 giờ nên nhiều lượt dùng hết nhanh hơn.",
+      "Lập mục lục bài học cho sách PDF và viết bản thảo của các mục sản xuất cũ. Mỗi lượt là một tiến trình uvx; hạn mức NotebookLM tính theo cửa sổ khoảng 5 giờ nên nhiều lượt dùng hết nhanh hơn.",
     defaultValue: 2,
     max: 8,
   },

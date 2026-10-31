@@ -150,6 +150,8 @@ thumbnails, SEO tooling beyond the suggested title, caption and hashtags, EPUB i
       <ul>
         <li>Pick one of 2–3 generated hooks, then edit narration, on-screen text, layout and illustration per scene</li>
         <li>Rewrite a single scene without touching the others</li>
+        <li>Opus writes the story from the lesson's verified book passages and picks who is in it; Sonnet plans scenes and shots without changing a word. Models and effort are set under Settings</li>
+        <li>A fixed cast of up to six characters (name, pronoun, look): a person looks the same in every shot, and a shot shows two at most</li>
         <li>Phone-frame preview with platform safe zones and a “play the first 4 seconds” button</li>
         <li>Voice-over with edge-tts, or upload your own audio per scene</li>
       </ul>
@@ -221,7 +223,7 @@ flowchart TB
 
     subgraph V["One resumable job per video"]
         direction LR
-        D1["Draft<br/>NotebookLM"] --> D2["Scene plan<br/>Claude"] --> D3["Voice<br/>edge-tts"] --> D4["Readiness<br/>checks"] --> D5["Render<br/>Remotion"] --> D6["Archive<br/>Google Drive"]
+        D1["Draft<br/>Opus, from a verified source pack"] --> D2["Scene plan<br/>Sonnet"] --> D3["Voice<br/>edge-tts"] --> D4["Readiness<br/>checks"] --> D5["Render<br/>Remotion"] --> D6["Archive<br/>Google Drive"]
     end
 ```
 
@@ -254,6 +256,10 @@ stateDiagram-v2
 | `cli-auto`           | The worker runs your own logged-in Claude Code CLI right away. Opt-in, off by default                    | Personal localhost use, batch with real AI |
 
 Batch production needs `mock` or `cli-auto`, because `cli-task` would wait for you to run a command for every single video.
+
+A new script runs in two stages, each with its own task folder: Opus writes the draft from a local source pack, then Sonnet plans
+the scenes. With `cli-task` the job waits twice: run `pnpm ai:run --job <id>` again when the second stage is waiting. Which model
+and effort each stage uses, and the cast of characters, are set under **Settings** and captured when you ask for the script.
 
 ## Screenshots
 
@@ -340,17 +346,17 @@ sequenceDiagram
 
 ## Tech stack
 
-| Layer            | Choice                                                                                        |
-| ---------------- | --------------------------------------------------------------------------------------------- |
-| Web app          | Next.js 16 (App Router), React 19, TypeScript 6 (strict), Tailwind CSS 4, shadcn/ui, Zod 4    |
-| Data             | Prisma 7 with SQLite (better-sqlite3 adapter, WAL)                                            |
-| Queue and worker | BullMQ 6 + Redis 7, standalone Node.js worker                                                 |
-| Video            | Remotion 4 (Player for preview, renderer for MP4), FFmpeg / ffprobe, flat SVG illustrations   |
-| Voice            | edge-tts (Vietnamese `vi-VN-NamMinhNeural` by default), or your own audio uploads             |
-| AI               | Claude Code CLI (your own login), NotebookLM through an MCP stdio subprocess, a mock provider |
-| PDF and OCR      | Poppler, Mistral OCR Batch (your own key)                                                     |
-| Archive          | Google Drive, OAuth with the minimal `drive.file` scope                                       |
-| Quality          | ESLint 9, Prettier, Vitest 5, Playwright 1.64                                                 |
+| Layer            | Choice                                                                                         |
+| ---------------- | ---------------------------------------------------------------------------------------------- |
+| Web app          | Next.js 16 (App Router), React 19, TypeScript 6 (strict), Tailwind CSS 4, shadcn/ui, Zod 4     |
+| Data             | Prisma 7 with SQLite (better-sqlite3 adapter, WAL)                                             |
+| Queue and worker | BullMQ 6 + Redis 7, standalone Node.js worker                                                  |
+| Video            | Remotion 4 (Player for preview, renderer for MP4), FFmpeg / ffprobe, flat SVG illustrations    |
+| Voice            | edge-tts (Vietnamese `vi-VN-NamMinhNeural` by default), or your own audio uploads              |
+| AI               | Claude Code CLI (your own login: Opus writes, Sonnet plans), NotebookLM over MCP stdio, a mock |
+| PDF and OCR      | Poppler, Mistral OCR Batch (your own key)                                                      |
+| Archive          | Google Drive, OAuth with the minimal `drive.file` scope                                        |
+| Quality          | ESLint 9, Prettier, Vitest 5, Playwright 1.64                                                  |
 
 ## Quick start
 
@@ -444,6 +450,10 @@ How many tasks of each kind run at once (Claude, NotebookLM, voice-over, render,
 render) is **not** an environment variable: set it under **Settings → Chạy song song**. The worker picks a new number up within
 seconds, so you can raise it when you move to a stronger machine. Heavy work defaults to 1; NotebookLM and Drive default to 2.
 
+The model and effort of each stage (**AI theo công đoạn**) and the library of characters (**Nhân vật xuyên suốt**) are on the same
+page, saved in the database and applied to the next request; `CLAUDE_MODEL` and `CLAUDE_EFFORT` in `.env` remain the defaults for
+chapter analysis and for tasks made before stages existed.
+
 The full table, with limits and troubleshooting, is in [`docs/operations.md`](docs/operations.md).
 
 <details>
@@ -533,7 +543,8 @@ Both flows are implemented and covered by end-to-end tests. Integrations with ex
 | Videos up to 5 min, AI-proposed length inside your range, 4 s hook            | Implemented                                                  |
 | PDF import, text layer, chapters                                              | Implemented, tested with real Poppler                        |
 | Batch production with checkpoints, correction pass, cancel and retry          | Implemented, covered by `E2E-02` with mock AI and fake Drive |
-| Title, caption and hashtags (with the script, on demand, `publish.txt`)       | Implemented with mock AI; not yet judged with real Claude    |
+| Opus draft, Sonnet scene plan and a fixed cast, in both flows                 | Implemented; mock AI in e2e, real Claude on three lessons    |
+| Title, caption and hashtags (with the script, on demand, `publish.txt`)       | Implemented; real Claude wrote three sets, not judged        |
 | Mistral OCR Batch, NotebookLM, Google Drive adapters                          | In the code, **tested against local fakes**                  |
 | Acceptance run with real Mistral, NotebookLM and Google accounts              | **Tracked in [`docs/operations.md`](docs/operations.md)**    |
 | Background music · EPUB · manual chapter split for PDFs · word-level captions | Not built                                                    |

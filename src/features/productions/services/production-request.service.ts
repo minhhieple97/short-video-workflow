@@ -9,6 +9,7 @@ import { assertDurationRangeAllowed } from "@/features/videos/services/video.ser
 import { getAppConfig } from "@/shared/config/env";
 import { AppError, NotFoundError } from "@/shared/errors";
 import { createLogger } from "@/shared/logger";
+import { getAiSettings } from "@/features/settings/services/ai-settings.service";
 
 import { DEFAULT_PACE, type Pace } from "@/features/videos/domain/pace";
 import { toBatchStatus, toItemCheckpoint, toItemStatus } from "../domain/production-status";
@@ -117,6 +118,9 @@ export async function requestProduction(
   try {
     const record = await createProduction({
       bookId: book.id,
+      book: { title: book.title, author: book.author },
+      aiSettings: (await getAiSettings()).settings,
+      aiMode: getAppConfig().ai.mode,
       idempotencyKey: input.idempotencyKey,
       fingerprint,
       range: { minDurationSec: input.minDurationSec, maxDurationSec: input.maxDurationSec },

@@ -9,6 +9,15 @@ import { withProviderCooldown } from "@/features/jobs/services/provider-cooldown
 import { createDraftArtifact, createScenePlanArtifact, scriptDraftArtifactSchema } from "@/server/scene-plan/handoff";
 import type { ScenePlanCompiler } from "@/server/scene-plan/scene-plan-compiler";
 import type { ScriptStudioProvider, SourceRef } from "@/server/script-studio/script-studio-provider";
+import type { ScriptDraftWriter } from "@/server/script-draft/script-draft-writer";
+import type { AiMode } from "@/server/ai/ai-provider";
+import {
+  compileGenerationPlan,
+  writeGenerationDraft,
+  generationReplacement,
+} from "@/features/videos/services/script-pipeline.service";
+import { applyScenePlanOnce } from "../repositories/scene-plan-apply.repository";
+import { storySceneArtifactSchema } from "@/server/script-draft/artifacts";
 import { AppError, JobCancelledError, NotFoundError } from "@/shared/errors";
 import { createLogger, toSafeErrorMessage } from "@/shared/logger";
 import type { WorkLane } from "@/shared/types/work-lane";
@@ -52,6 +61,9 @@ const BACKOFF_MAX_MS = 10 * 60_000;
 const MAX_STEPS_PER_RUN = 16;
 
 export interface PipelineDeps {
+  jobRecordId?: string;
+  scriptWriter?: ScriptDraftWriter;
+  mode?: AiMode;
   scriptStudio: ScriptStudioProvider;
   compiler: ScenePlanCompiler;
   // The sources the script studio reads for a lesson (NotebookLM sources); none for the offline mock.
@@ -117,6 +129,33 @@ async function draftStep(
   deps: PipelineDeps,
   onProviderSuccess: () => void,
 ): Promise<StepOutcome> {
+  if (item.scriptGenerationRunId && deps.scriptWriter) {
+    try {
+      const artifact = await writeGenerationDraft(
+        {
+          generationRunId: item.scriptGenerationRunId,
+          jobRecordId: deps.jobRecordId ?? null,
+          mode: deps.mode ?? "mock",
+          signal,
+          revisionNote: item.aiCorrectionTarget === "SCRIPT_STUDIO" ? item.aiCorrectionNote : null,
+        },
+        deps.scriptWriter,
+      );
+      if ("waitingForCli" in artifact)
+        throw new AppError("AI_MODE_UNSUPPORTED", "Sản xuất tự động không chờ CLI thủ công.", 409);
+      onProviderSuccess();
+      if (!(await saveDraftArtifact(item.id, claimToken, artifact))) throw lostClaim();
+      return { kind: "CONTINUE" };
+    } catch (error) {
+      return correctRejected(
+        item.id,
+        claimToken,
+        error instanceof AppError && error.code === "INVALID_AI_OUTPUT"
+          ? new AppError("DRAFT_INVALID", error.message, 422)
+          : error,
+      );
+    }
+  }
   const lesson = lessonOf(item);
   const videoId = requireVideoId(item);
   const range = rangeOf(item);
@@ -168,6 +207,26 @@ async function compileStep(
   signal: AbortSignal | undefined,
   deps: PipelineDeps,
 ): Promise<StepOutcome> {
+  if (item.scriptGenerationRunId && deps.scriptWriter) {
+    try {
+      const artifact = await compileGenerationPlan(
+        {
+          generationRunId: item.scriptGenerationRunId,
+          jobRecordId: deps.jobRecordId ?? null,
+          mode: deps.mode ?? "mock",
+          signal,
+          revisionNote: item.aiCorrectionTarget === "SCENE_COMPILER" ? item.aiCorrectionNote : null,
+        },
+        deps.compiler,
+      );
+      if ("waitingForCli" in artifact)
+        throw new AppError("AI_MODE_UNSUPPORTED", "Sản xuất tự động không chờ CLI thủ công.", 409);
+      if (!(await saveScenePlanArtifact(item.id, claimToken, artifact))) throw lostClaim();
+      return { kind: "CONTINUE" };
+    } catch (error) {
+      return correctRejected(item.id, claimToken, error);
+    }
+  }
   const draftArtifact = scriptDraftArtifactSchema.safeParse(item.draftArtifactJson);
   if (!draftArtifact.success) {
     return failed("PRODUCTION_ARTIFACT_INVALID", "Bản thảo đã lưu bị hỏng hoặc không khớp fingerprint.");
@@ -204,7 +263,11 @@ async function compileStep(
 // Output an AI got wrong (a draft out of order, a plan with bad structure or unsupported claims) is exactly what the one
 // correction is for. Any other rejection, such as a refused request, cannot be fixed by asking again.
 function correctRejected(itemId: string, claimToken: string, error: unknown): Promise<StepOutcome> {
-  if (error instanceof IntegrationError && error.kind === "REJECTED" && isCorrectableIssue(error.code)) {
+  if (
+    ((error instanceof IntegrationError && error.kind === "REJECTED") ||
+      (error instanceof AppError && error.httpStatus === 422)) &&
+    isCorrectableIssue(error.code)
+  ) {
     // The user only sees the message; which fields of the answer were wrong stays here (paths and rules, never book text).
     logger.warn("AI output rejected", { itemId, code: error.code, details: error.details });
     return correct(itemId, claimToken, [{ code: error.code, message: error.message }], error.message);
@@ -263,6 +326,18 @@ async function executeStep(
     case "DRAFTED":
       return compileStep(item, claimToken, signal, deps);
     case "COMPILED":
+      if (item.scriptGenerationRunId && deps.scriptWriter) {
+        const artifact = storySceneArtifactSchema.parse(item.scenePlanArtifactJson);
+        const script = await generationReplacement(item.scriptGenerationRunId);
+        const applied = await applyScenePlanOnce({
+          itemId: item.id,
+          claimToken,
+          planFingerprint: artifact.fingerprint,
+          script,
+        });
+        if (applied.status !== "APPLIED" && applied.status !== "ALREADY_APPLIED") throw lostClaim();
+        return { kind: "CONTINUE" };
+      }
       await applyScenePlan({
         itemId: item.id,
         claimToken,
@@ -331,7 +406,10 @@ export async function runProductionStep(input: {
   // Cancelling is checked before every step, so once an item is cancelled no later step starts.
   if (item.status === "CANCELLED") return { kind: "CANCELLED" };
   if (input.signal?.aborted) throw new JobCancelledError();
-  const lane = productionLaneFor(toItemCheckpoint(item.checkpoint));
+  const lane = productionLaneFor(
+    toItemCheckpoint(item.checkpoint),
+    Boolean(item.scriptGenerationRunId && input.deps.scriptWriter),
+  );
   if (input.lane !== undefined && lane !== input.lane) return { kind: "HANDOFF", lane };
 
   try {
@@ -349,7 +427,7 @@ export async function runProductionStep(input: {
         onProviderSuccess,
       );
     const outcome =
-      item.checkpoint === "NONE"
+      item.checkpoint === "NONE" && !(item.scriptGenerationRunId && input.deps.scriptWriter)
         ? await withProviderCooldown("notebooklm", execute, { isSuccessful: () => providerSucceeded })
         : item.checkpoint === "APPLIED"
           ? await withProviderCooldown("edge-tts", execute, { isSuccessful: () => providerSucceeded })

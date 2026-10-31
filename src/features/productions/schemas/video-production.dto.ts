@@ -1,4 +1,5 @@
 import type { NarrativeBeat } from "@/features/videos/domain/narrative-beats";
+import type { AiExecution } from "@/features/settings/domain/ai-settings";
 
 import type { VideoContent } from "../domain/production-progress";
 import type { ItemCheckpoint, ItemStatus } from "../domain/production-status";
@@ -14,6 +15,7 @@ export interface DraftBeatDto {
 // How a video relates to the production that made it: whether it is still being worked on (and so locked), and what its
 // script was drawn from.
 export interface VideoProductionDto {
+  generationModels?: { script: AiExecution; scene: AiExecution };
   productionId: string;
   status: ItemStatus;
   checkpoint: ItemCheckpoint;

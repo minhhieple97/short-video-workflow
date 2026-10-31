@@ -88,7 +88,7 @@ describe("buildScenePlanPrompt", () => {
   it("edits the draft as a story: keeps its people, lines and turns, and swaps a general opening question for a moment from it", () => {
     const prompt = buildScenePlanPrompt(input());
 
-    expect(SCENE_PLAN_PROMPT_VERSION).toBe("scene-plan-v10");
+    expect(SCENE_PLAN_PROMPT_VERSION).toBe("scene-plan-v11");
     expect(prompt).toContain(SCENE_EDIT_RULE);
     expect(prompt).toContain("đừng làm phẳng chúng thành câu tóm tắt");
     expect(prompt).toContain(

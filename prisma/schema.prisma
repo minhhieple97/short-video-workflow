@@ -185,6 +185,7 @@ model Video {
   hookOptionsJson        Json?
   // Loose pointer to RenderRecord.id (no relation) to avoid a circular reference.
   latestRenderId         String?
+  scriptGenerationRunId  String?
   createdAt              DateTime             @default(now())
   updatedAt              DateTime             @updatedAt
 
@@ -444,6 +445,9 @@ model AiRun {
   mode          String
   promptVersion String
   inputHash     String
+  stage         String?
+  taskId        String?
+  executionJson Json?
   outputPath    String?
   status        String
   errorMessage  String?
@@ -688,6 +692,7 @@ model ProductionItem {
   checkpoint             String          @default("NONE")
   // Fingerprint of the scene plan whose scenes are currently on the video, so applying the same plan again changes nothing.
   appliedPlanFingerprint String?
+  scriptGenerationRunId  String?
   // The single AI correction a video gets: where it went (SCRIPT_STUDIO | SCENE_COMPILER) and what it was told. Null while unused.
   aiCorrectionTarget     String?
   aiCorrectionNote       String?
@@ -814,4 +819,29 @@ model ScriptDraftCache {
   createdAt    DateTime @default(now())
 
   @@index([lessonId])
+}
+
+model AiGenerationSetting {
+  id           String   @id
+  revision     Int      @default(0)
+  settingsJson Json
+  updatedAt    DateTime @updatedAt
+}
+
+model ScriptGenerationRun {
+  id                    String   @id @default(cuid())
+  ownerKey              String   @unique
+  videoId               String
+  baseScriptVersion     Int
+  settingsJson          Json
+  inputJson             Json
+  sourcePackJson        Json?
+  draftArtifactJson     Json?
+  scenePlanArtifactJson Json?
+  castJson              Json?
+  appliedScriptVersion  Int?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([videoId])
 }

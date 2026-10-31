@@ -175,7 +175,7 @@ describe("mock video script", () => {
     expect(fast).toContain("120 (2 phút) ≈ 561 âm tiết");
     expect(fast).toContain("nhịp rất nhanh (khoảng 5,2 âm tiết/giây)");
     expect(fast).not.toContain("Không nói nhanh để vừa");
-    expect(VIDEO_SCRIPT_PROMPT_VERSION).toBe("video-script-v11");
+    expect(VIDEO_SCRIPT_PROMPT_VERSION).toBe("video-script-v12");
   });
 
   it("tells the story the way the assigned angle says, with the shared craft rules", () => {

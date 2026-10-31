@@ -1,4 +1,5 @@
 import type { JobType } from "@/shared/types/job";
+import type { AiExecution } from "@/features/settings/domain/ai-settings";
 
 import type { ChapterAnalysisInput, ChapterAnalysisOutput } from "./contracts/chapter-analysis";
 import type { PublishMetadataInput, PublishMetadataOutput } from "./contracts/publish-metadata";
@@ -21,6 +22,8 @@ export interface AiTaskContext {
   taskId: string;
   resume?: { jobType: JobType; payload: Record<string, unknown> };
   signal?: AbortSignal;
+  execution?: AiExecution;
+  stage?: string;
 }
 
 export interface AiProvider {

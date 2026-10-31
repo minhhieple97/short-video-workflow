@@ -10,7 +10,7 @@ import { SHOT_JSON, SHOT_RULE } from "./shot-rule";
 import { STORY_REWRITE_RULE, STORYTELLING_RULE, storyAngleRule } from "./storytelling-rule";
 import { fenceUntrustedText, UNTRUSTED_TEXT_RULE } from "./untrusted-text";
 
-export const VIDEO_SCRIPT_PROMPT_VERSION = "video-script-v11";
+export const VIDEO_SCRIPT_PROMPT_VERSION = "video-script-v12";
 
 const sharedRules = (pace: Pace) => [
   `- ${UNTRUSTED_TEXT_RULE}`,
@@ -58,11 +58,26 @@ export function buildSceneRegenerationPrompt(input: SceneRegenerationInput): str
     "## Quy tắc",
     ...sharedRules(input.pace),
     STORY_REWRITE_RULE,
+    ...(input.storyContext
+      ? [
+          "Giữ đúng dàn nhân vật, tên, giới tính và cách xưng hô trong storyContext. Cơ chế, hành động và kết quả phải khớp các cảnh còn lại. Không thêm người hay sự kiện. Gói nguồn là căn cứ sách; cảnh khác là ngữ cảnh kể chuyện.",
+        ]
+      : []),
     "",
     "## Định dạng đầu ra",
     `Chỉ trả về JSON: {"sceneId": "${input.sceneId}", "scene": {"type","title","narration","onScreenText","visualVariant"}}`,
     "",
     "## Cảnh hiện tại và bài học nguồn",
-    fenceUntrustedText(JSON.stringify({ scene: input.scene, lessons: input.lessons }, null, 2)),
+    fenceUntrustedText(
+      JSON.stringify(
+        {
+          scene: input.scene,
+          lessons: input.lessons,
+          ...(input.storyContext ? { storyContext: input.storyContext } : {}),
+        },
+        null,
+        2,
+      ),
+    ),
   ].join("\n");
 }

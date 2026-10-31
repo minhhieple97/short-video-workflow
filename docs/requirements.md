@@ -357,7 +357,7 @@ H.264 + AAC. Font Be Vietnam Pro đóng gói sẵn; dấu tiếng Việt đúng 
 - Độ dài là một trong các mức **30 / 45 / 60 / 90 / 120 / 180 / 240 / 300 giây**. Người dùng đặt **khoảng** cho mỗi video hoặc
   mỗi đợt (ngắn nhất – dài nhất), mặc định **30 giây – 5 phút**; mức dài nhất không vượt trần cấu hình của máy (tối đa 300 giây).
 - **AI đề xuất độ dài** hợp với nội dung, trong khoảng đó, kèm một câu lý do, rồi viết lời dẫn khớp độ dài đó: luồng thủ công →
-  Claude khi tạo kịch bản; luồng hàng loạt → NotebookLM khi viết bản thảo (vì nó đọc nguồn). Bài nhiều chi tiết, ví dụ, bước làm thì
+  Opus khi viết bản thảo từ nguồn đã kiểm chứng, cho cả luồng thủ công và hàng loạt. Bài nhiều chi tiết, ví dụ, bước làm thì
   dài hơn; ý đơn giản thì ngắn; không kéo dài cho đủ. Đề xuất ngoài khoảng bị từ chối. Đổi khoảng giữ đề xuất nếu còn nằm trong
   khoảng, không thì kéo về đầu gần nhất.
 - Giới hạn cứng là **mức dài nhất**: bản cuối dài hơn thì chặn. Dài hơn đề xuất nhưng vẫn trong khoảng thì vẫn đạt. Ngắn hơn mức
@@ -383,6 +383,19 @@ H.264 + AAC. Font Be Vietnam Pro đóng gói sẵn; dấu tiếng Việt đúng 
   video.
 
 ### 6.4. Khung kể
+
+Kịch bản mới do Opus viết từ snapshot bài học và gói nguồn cục bộ đã kiểm chứng, gồm cả ngữ cảnh quanh trích đoạn. Bản thảo lưu
+riêng logic biên tập: câu hỏi trung tâm, động cơ của lựa chọn cũ, cơ chế của nguyên lý, các hành động thay đổi, kết quả quan sát được
+và điều kiện/giới hạn. Lời kể phải thể hiện các mắt xích này; phần logic không thay thế lời kể. Sonnet giữ nguyên lời kể và hook khi lập cảnh.
+
+Cài đặt có thư viện khởi đầu sáu nhân vật (ba nam, ba nữ), cho đổi tên, cách xưng hô, preset và nhân vật chính mặc định. Opus chọn ít
+người nhất đủ kể chuyện, bao gồm nhân vật chính, trong giới hạn người dùng đặt từ 1 đến số nhân vật đang bật; không có bộ đôi/bộ ba
+cố định. Mỗi shot tối đa hai người, câu chuyện có thể dùng cả sáu qua các shot khác nhau. ID, danh tính và ngoại hình được chụp theo lần
+tạo, đi xuyên suốt bản thảo, shot, preview, MP4 và archive; thay tiêu đề hay Cài đặt sau đó không đổi nhân vật của video đã có.
+
+Ưu tiên câu chuyện minh họa mới từ bài học. Người thật/sự kiện/trích dẫn trong sách được giữ đúng khi dẫn nguồn; không đổi tên người
+thật thành preset rồi kể như chuyện thật. Kiểm tra cấu trúc và nguồn không chứng minh kịch bản sâu sắc: nghiệm thu phải đọc cơ chế,
+hành động và kết quả, tránh bước nhảy như “mở website” tự động dẫn đến “có khách toàn cầu”.
 
 Mỗi video: **một ý chính, một tình huống cụ thể, một cách xử lý, một hành động** làm được ngay.
 
@@ -518,10 +531,12 @@ bao giờ để lại MP4 hỏng được ghi là thành công; render đã hoà
 - `cli-auto` (tuỳ chọn, tắt trong cấu hình mẫu): worker tự chạy Claude Code CLI của người dùng; chỉ dùng cá nhân trên `127.0.0.1`;
   bắt buộc cho NotebookLM và luồng hàng loạt thật.
 
-Trong luồng hàng loạt, Claude biên tập bản thảo NotebookLM thành kế hoạch cảnh (lời dẫn, chia cảnh, bố cục, chữ, hoạt cảnh, shot); hai
-kết quả lưu riêng, có phiên bản riêng, để truy vết Claude đã sửa gì. Claude chỉ sinh JSON: không công cụ, không MCP server từ cấu
-hình người dùng, môi trường đã làm sạch. Mỗi lúc một lần gọi AI; hết hạn mức, chưa đăng nhập, quá thời gian → lỗi có mã rõ ràng,
-không thử lại vô hạn.
+Trong cả hai luồng, Opus viết bản thảo và chọn nhân vật từ gói nguồn cục bộ; Sonnet lập cảnh, chữ nhấn, shot và thông tin đăng tải,
+giữ nguyên lời kể. NotebookLM tiếp tục phân tích chương và tìm bài học; task sản xuất cũ tiếp tục đường NotebookLM draft cũ.
+Mỗi `ScriptGenerationRun` giữ cấu hình, snapshot bài học, nguồn và hai artifact riêng; retry không đọc lại Cài đặt. Claude chỉ sinh
+JSON: không công cụ, không MCP server từ cấu hình người dùng, môi trường đã làm sạch. Giới hạn chạy đồng thời theo làn trong Cài đặt;
+hết hạn mức được hoãn qua outbox, lỗi có mã rõ ràng, không thử lại vô hạn. Manual `cli-task` chờ riêng từng stage nhưng vẫn dùng
+`pnpm ai:run --job <jobId>`. Video chỉ nhận kịch bản/cast mới khi cả hai bước hợp lệ; script version được kiểm tra khi áp dụng.
 
 ### 7.2. Quy tắc nội dung
 
@@ -587,10 +602,12 @@ Không thêm dịch vụ đám mây khác, không Anthropic API, không gộp OC
 
 ### 8.1. Model Claude và thông báo Telegram
 
-- `CLAUDE_MODEL` chọn model cho mọi lần gọi Claude của ứng dụng, ví dụ `claude-sonnet-5-5` hoặc `claude-opus-5-5`; để trống giữ
-  mặc định CLI. Không sửa settings toàn máy. Đổi cấu hình cần khởi động lại web/worker; không tự chạy lại artifact đã xong.
-- `CLAUDE_EFFORT` chọn effort cho mọi lần gọi Claude: `low`, `medium`, `high`, `xhigh`, `max`; để trống dùng settings/mặc định CLI.
-  Giá trị sai bị từ chối khi đọc cấu hình. Thay effort tách cache Claude scene plan cho lần gọi mới, không đổi cache NotebookLM.
+- **Cài đặt → AI theo công đoạn:** mặc định viết kịch bản/viết lại lời cảnh dùng `claude-opus-5-5`/`xhigh`; lập cảnh/shot và thông tin
+  đăng tải dùng `claude-sonnet-5-5`/`xhigh`. Lưu trong SQLite có revision, không cần khởi động lại; áp dụng cho yêu cầu mới. Không tự
+  đổi model nếu lỗi. Log/task phân biệt model yêu cầu và model chính CLI báo đã dùng (bỏ qua model phụ); effort hiển thị là mức yêu cầu.
+- `CLAUDE_MODEL` và `CLAUDE_EFFORT` trong `.env` tiếp tục làm mặc định cho phân tích chương và task cũ thiếu execution config; đổi
+  chúng cần khởi động lại. Không sửa Claude settings toàn máy, không chạy lại video đã hoàn tất. Muốn áp dụng cấu hình mới cho video
+  cũ phải chủ động tạo lại kịch bản; MP4 cũ được giữ và đánh dấu outdated theo phiên bản.
 - Khi bật Telegram, **mỗi bản render hoàn tất, nháp lẫn cuối**, báo xong sau khi archive được xác minh, kèm link đúng MP4 của
   bản đó trên Drive (bản nháp: link bản nháp; bản cuối: link bản cuối); tin nói rõ **Bản nháp** hay **Bản cuối** và kích thước. Chưa
   kết nối Drive thì báo bản đó đã render local, cần kết nối; lỗi archive nói rõ MP4 vẫn có và lỗi ở bước lưu Drive. Mỗi bản render
@@ -681,7 +698,7 @@ Drive thật (mạch kể, âm thanh, ffprobe, checksum Drive). Danh sách kiể
 - Người dùng chọn khoảng thời lượng và nhịp độ cho cả đợt. Luồng tự động mới tạo **một video cho mỗi bài học**
   tìm được trong mỗi sách, theo quyết định của chủ dự án. Luồng chọn bài học hiện có vẫn dùng được riêng.
 - Xử lý một sách tại một thời điểm, kể cả giữa nhiều đợt. OCR → phân tích các chương bằng NotebookLM (cùng lúc tới số đặt ở Cài đặt,
-  mặc định 2; video của sách vẫn theo thứ tự chương) → bản thảo NotebookLM → cảnh JSON Claude Code → giọng đọc → Remotion; mỗi bước chạy
+  mặc định 2; video của sách vẫn theo thứ tự chương) → nguồn cục bộ và bản thảo Opus → cảnh JSON Sonnet → giọng đọc → Remotion; mỗi bước chạy
   ở làn của nó nên bản thảo video sau không chờ render video trước. Không có bước duyệt tay: mọi bài học được làm video tự chuyển
   sang Đã duyệt và kịch bản từng video tự được duyệt khi máy kiểm tra đạt (quyết định của chủ dự án, 2026-10-31).
 - Kết quả cuối của đợt là một loạt video có link Drive. Trang tiến độ nói với từng sách số video đã hoàn tất và số video **Đã lưu
@@ -727,19 +744,20 @@ Thiếu thời gian thì ưu tiên lát cắt chạy thật bằng AI mẫu + â
 
 ## 12. Hiện trạng triển khai
 
-| Năng lực                                                                | Trạng thái                                                            |
-| ----------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Luồng thủ công từ `.md`/`.txt` tới render nháp/cuối                     | Đã triển khai; E2E-01 chạy với AI mẫu                                 |
-| Claude Code CLI (`cli-task`, `cli-auto`); edge-tts và tải âm thanh      | Đã triển khai                                                         |
-| Video tới 5 phút, AI đề xuất độ dài trong khoảng; hook 4 giây mọi luồng | Đã triển khai (NotebookLM đề xuất: chỉ kiểm thử với NotebookLM giả)   |
-| Một khung kể cho cả hai luồng; hoạt cảnh SVG do Claude chọn             | Đã triển khai                                                         |
-| Kế hoạch shot (cảm xúc, nhân vật phụ, đồ vật, nhãn, thẻ chữ)            | Đã triển khai; E2E chạy với AI mẫu; **chưa đánh giá với Claude thật** |
-| Nhập PDF, lớp chữ (Poppler), ghép văn bản, tạo chương                   | Đã triển khai; kiểm thử với Poppler thật                              |
-| OCR Mistral Batch và trần chi phí                                       | Có trong mã; **chỉ kiểm thử với Mistral giả**                         |
-| NotebookLM: xác định chương, danh mục, bản thảo                         | Có trong mã; **chỉ kiểm thử với NotebookLM giả**                      |
-| Claude biên tập cảnh; kịch bản tiếng Việt từ sách tiếng Anh             | Có trong mã; chưa chạy với NotebookLM thật                            |
-| Sản xuất hàng loạt (checkpoint, sửa AI, kiểm tra tự động, huỷ/thử lại)  | Đã triển khai; E2E-02 chạy với AI mẫu và Drive giả                    |
-| Lưu Google Drive                                                        | Có trong mã; **chỉ kiểm thử với Google giả**                          |
-| Tiêu đề, caption, hashtag (cùng kịch bản, Tạo lại, `publish.txt`)       | Đã triển khai; E2E chạy với AI mẫu; **chưa đánh giá với Claude thật** |
-| Nghiệm thu với tài khoản Mistral, NotebookLM, Google thật               | **Chưa thực hiện**                                                    |
-| Nhạc nền; EPUB; tách chương thủ công cho PDF                            | Chưa có                                                               |
+| Năng lực                                                                | Trạng thái                                                          |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Luồng thủ công từ `.md`/`.txt` tới render nháp/cuối                     | Đã triển khai; E2E-01 chạy với AI mẫu                               |
+| Claude Code CLI (`cli-task`, `cli-auto`); edge-tts và tải âm thanh      | Đã triển khai                                                       |
+| Video tới 5 phút, AI đề xuất độ dài trong khoảng; hook 4 giây mọi luồng | Đã triển khai (NotebookLM đề xuất: chỉ kiểm thử với NotebookLM giả) |
+| Một khung kể cho cả hai luồng; hoạt cảnh SVG do Claude chọn             | Đã triển khai                                                       |
+| Kế hoạch shot (cảm xúc, nhân vật phụ, đồ vật, nhãn, thẻ chữ)            | Đã triển khai; E2E AI mẫu; Claude thật 3 bài, chưa đánh giá rộng    |
+| Nhập PDF, lớp chữ (Poppler), ghép văn bản, tạo chương                   | Đã triển khai; kiểm thử với Poppler thật                            |
+| OCR Mistral Batch và trần chi phí                                       | Có trong mã; **chỉ kiểm thử với Mistral giả**                       |
+| NotebookLM: xác định chương, danh mục, bản thảo                         | Có trong mã; **chỉ kiểm thử với NotebookLM giả**                    |
+| Claude biên tập cảnh; kịch bản tiếng Việt từ sách tiếng Anh             | Có trong mã; chưa chạy với NotebookLM thật                          |
+| Bản thảo Opus từ nguồn cục bộ, lập cảnh Sonnet, nhân vật cố định        | Đã triển khai (cả hai luồng); E2E AI mẫu; Claude thật 3 bài (31/10) |
+| Sản xuất hàng loạt (checkpoint, sửa AI, kiểm tra tự động, huỷ/thử lại)  | Đã triển khai; E2E-02 chạy với AI mẫu và Drive giả                  |
+| Lưu Google Drive                                                        | Có trong mã; **chỉ kiểm thử với Google giả**                        |
+| Tiêu đề, caption, hashtag (cùng kịch bản, Tạo lại, `publish.txt`)       | Đã triển khai; E2E AI mẫu; Claude thật 3 bài, chưa đánh giá rộng    |
+| Nghiệm thu với tài khoản Mistral, NotebookLM, Google thật               | **Chưa thực hiện**                                                  |
+| Nhạc nền; EPUB; tách chương thủ công cho PDF                            | Chưa có                                                             |

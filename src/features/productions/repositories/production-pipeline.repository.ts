@@ -27,7 +27,7 @@ export async function saveDraftArtifact(
   itemId: string,
   claimToken: string,
   artifact: Prisma.InputJsonObject,
-  proposal: { videoId: string; targetDurationSec: number; durationReason: string },
+  proposal?: { videoId: string; targetDurationSec: number; durationReason: string },
 ): Promise<boolean> {
   return prisma.$transaction(async (tx) => {
     const { count } = await tx.productionItem.updateMany({
@@ -35,10 +35,11 @@ export async function saveDraftArtifact(
       data: { draftArtifactJson: artifact, checkpoint: "DRAFTED" },
     });
     if (count === 0) return false;
-    await tx.video.update({
-      where: { id: proposal.videoId },
-      data: { targetDurationSec: proposal.targetDurationSec, durationReason: proposal.durationReason },
-    });
+    if (proposal)
+      await tx.video.update({
+        where: { id: proposal.videoId },
+        data: { targetDurationSec: proposal.targetDurationSec, durationReason: proposal.durationReason },
+      });
     return true;
   });
 }

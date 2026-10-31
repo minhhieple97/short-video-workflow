@@ -10,7 +10,7 @@ behavior, the requirements win; when they disagree on engineering practice, this
 Local-first, single-user app (Windows + WSL2) that turns an imported book into **vertical videos** (9:16, for TikTok / YouTube
 Shorts / Facebook Reels). Manual flow (`.txt`/`.md`): Book → Chapter → Lesson (Claude analysis, user approves) → Video → Scenes →
 Vietnamese voiceover → Remotion render. Batch flow (PDF): text layer + OCR → chapters → NotebookLM lesson catalogue → chosen lessons →
-NotebookLM draft → Claude scene plan → voiceover → render → Google Drive archive, with every approval automatic: choosing a lesson for a
+verified local source pack → Opus story draft → Sonnet scene plan → voiceover → render → Google Drive archive, with every approval automatic: choosing a lesson for a
 video approves it, and a script is approved when the machine's checks pass.
 
 Hard constraints (do not relax without an explicit user decision):
@@ -312,7 +312,18 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - Never add `@anthropic-ai/sdk`, never create `ANTHROPIC_API_KEY`, never read/copy/log Claude tokens, cookies or credentials.
 - Run subprocesses with `spawn`/`execFile` and an argument array — **never** build shell strings from input, never use `exec` with interpolation.
 - Never use `--dangerously-skip-permissions`. When the model only needs to emit JSON, do not grant file-write/shell tools.
-- Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v11`, `scene-plan-v10`, `publish-metadata-v1` — the three last share
+- New full-script requests capture `AiGenerationSetting` in `ScriptGenerationRun` when enqueued. The worker captures a bounded,
+  verified local `ScriptSourcePack` once before AI. `ScriptDraftWriter` uses Opus 5.5/xhigh by default, then the scene compiler uses
+  Sonnet 5.5/xhigh; Settings controls both. Never mutate global env/config to route a stage. A stage's result is refused (`AI_CLI_MODEL_MISMATCH`)
+  when the model that did the work (`primaryModel`: the highest cost in the CLI's `modelUsage`) is not the configured one; the CLI also lists a
+  small helper model (Haiku) on every call, so never compare every listed model. New production drafts use the Claude lane;
+  NotebookLM remains responsible for chapter/lesson analysis and legacy production items. Existing tasks/artifacts retain their old path.
+- Draft and scene outputs are write-once per generation, with separate task IDs and AiRun stages. A correction creates a successor
+  generation with the same captured inputs; the previous video/cast stays intact until atomic script application. Keep one correction.
+- Cast IDs, names, pronouns and looks are captured per generation and passed through DTOs, shot actors and render snapshots. Opus selects
+  the fewest necessary from the enabled library including its primary character, up to the configured limit (initial library: six).
+  At most two actors per shot. New videos never choose appearance from the title; preserve legacy rendering until explicit regeneration.
+- Prompt templates are versioned (`chapter-analysis-v1`, `script-draft-v1`, `video-script-v12`, `scene-plan-v11`, `publish-metadata-v1` — `video-script`, `scene-plan`, and `publish-metadata` share
   `prompts/publish-rule.ts`, so editing it bumps all three; `video-script` and `scene-plan` also share `illustration-rule.ts` and
   `shot-rule.ts` — and for NotebookLM `notebooklm-chapter-detection-v2`,
   `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v9`, and the notebook's two chat personas, `notebooklm-analysis-persona-v1` (chapter
@@ -431,7 +442,9 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 Both flows are implemented and pass the gate (E2E-01 manual, E2E-02 PDF → Drive). Mistral OCR, NotebookLM and Google Drive run only against
 local fakes so far; `docs/requirements.md` (implementation status) and `docs/operations.md` (real-account acceptance) say what is still
 unverified. The hook limit is 4 s / 120 frames for every flow. Each video carries one title/caption/hashtag set written with its script
-(and archived as `publish.txt`); its quality with real Claude is not yet judged.
+(and archived as `publish.txt`). The Opus draft → Sonnet scene plan → fixed cast path ran against real Claude on three lessons
+(2026-10-31, evidence in `data/diagnostics/ai-stage-pilot-20261031/`); that is not a bulk judgement of script quality, and joined
+videos and `cli-task` with the real CLI are still unverified.
 
 ## 15. Visual language ("Studio Ink")
 

@@ -5,7 +5,7 @@ import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 
 import { HOOK_MAX_SECONDS } from "../../src/features/videos/domain/duration";
-import { E2E_DATA_DIR } from "./stack";
+import { E2E_DATA_DIR, pauseAllLanes } from "./stack";
 
 const SAMPLE_BOOK = path.join(process.cwd(), "prisma/seed-data/atomic-habits-sample.md");
 
@@ -13,7 +13,23 @@ interface SceneJson {
   id: string;
   narration: string;
   version: number;
-  shots: { fromWord: number; mood?: string }[] | null;
+  shots: { fromWord: number; mood?: string; actors?: { characterId: string }[] }[] | null;
+}
+
+interface AiSettingsJson {
+  revision: number;
+  settings: {
+    script: { model: string; effort: string };
+    scene: { model: string; effort: string };
+    characters: { profiles: { id: string; name: string }[] };
+  };
+}
+
+interface ScriptedVideoJson {
+  scriptVersion: number;
+  scenes: SceneJson[];
+  cast?: { primaryCharacterId: string; profiles: { id: string; name: string }[] };
+  generation?: { script: { model: string; effort: string }; scene: { model: string; effort: string } };
 }
 
 interface RenderJson {
@@ -73,6 +89,21 @@ async function generateScript(page: Page): Promise<void> {
 }
 
 test("E2E-01: one book, several short videos, rendered as vertical MP4", async ({ page, request }) => {
+  await test.step("configure AI stages and a dynamic cast limit in Settings", async () => {
+    await open(page, "/settings");
+    await expect(page.locator("#ai-model-script")).toHaveValue("claude-opus-5-5");
+    await expect(page.locator("#ai-effort-script")).toHaveValue("xhigh");
+    await expect(page.locator("#ai-model-scene")).toHaveValue("claude-sonnet-5-5");
+    await expect(page.locator("#ai-effort-scene")).toHaveValue("xhigh");
+    await page.getByLabel("Số nhân vật tối đa trong câu chuyện").fill("3");
+    await page.getByRole("button", { name: "Lưu AI và nhân vật" }).click();
+    await expect(page.getByText("Đã lưu AI và nhân vật cho các yêu cầu mới.")).toBeVisible();
+    await page.reload();
+    await expect(page.getByLabel("Số nhân vật tối đa trong câu chuyện")).toHaveValue("3");
+    await page.getByLabel("Số nhân vật tối đa trong câu chuyện").fill("6");
+    await page.getByRole("button", { name: "Lưu AI và nhân vật" }).click();
+    await expect(page.getByText("Đã lưu AI và nhân vật cho các yêu cầu mới.")).toBeVisible();
+  });
   await test.step("import the sample book with a renamed chapter", async () => {
     await open(page, "/books/import");
     const analyse = page.getByRole("button", { name: "Phân tích cấu trúc chương" });
@@ -111,6 +142,17 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
         .locator("tbody a")
         .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
       await open(page, hrefs[0] ?? "");
+      const lessonApi = `/api/lessons/${hrefs[0]?.split("/").at(-1) ?? ""}`;
+      const lesson = (await (await request.get(lessonApi)).json()) as Record<string, unknown>;
+      const changed = await request.patch(lessonApi, {
+        data: {
+          ...lesson,
+          realLifeScenario:
+            "Hoàng cùng Minh, Nam, Linh, Mai và Thảo thử thay đổi một thói quen nhỏ trong nhóm học tập.",
+        },
+      });
+      expect(changed.ok()).toBe(true);
+      await page.reload();
       await page.getByRole("button", { name: "Duyệt", exact: true }).click();
       await expect(page.getByText("Đã duyệt bài học.")).toBeVisible();
 
@@ -149,6 +191,24 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
     expect(created.pace).toBe("FASTER");
     await expect(page.getByText("Khoảng 30 giây – 60 giây")).toBeVisible();
     await generateScript(page);
+    const scripted = (await (
+      await request.get(`/api/videos/${url.split("/").at(-1) ?? ""}`)
+    ).json()) as ScriptedVideoJson;
+    expect(scripted.cast?.profiles).toHaveLength(6);
+    expect(scripted.generation).toMatchObject({
+      script: { model: "claude-opus-5-5", effort: "xhigh" },
+      scene: { model: "claude-sonnet-5-5", effort: "xhigh" },
+    });
+    // Six people tell the story, but a shot shows two at most, and only people of this video's cast.
+    const castIds = new Set(scripted.cast?.profiles.map((profile) => profile.id));
+    const shots = scripted.scenes.flatMap((scene) => scene.shots ?? []);
+    expect(shots.length).toBeGreaterThan(0);
+    for (const shot of shots) {
+      expect(shot.actors?.length ?? 0).toBeLessThanOrEqual(2);
+      for (const actor of shot.actors ?? []) expect(castIds.has(actor.characterId)).toBe(true);
+    }
+    const shown = new Set(shots.flatMap((shot) => (shot.actors ?? []).map((actor) => actor.characterId)));
+    expect(shown.size).toBeGreaterThan(2);
     await expect(page.getByText(/^AI đề xuất (30|45|60) giây · 30 giây – 60 giây$/)).toBeVisible();
     await page.getByRole("button", { name: "Dùng hook này" }).first().click();
     await expect(page.getByText("Đã chọn hook.")).toBeVisible();
@@ -193,7 +253,8 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
 
     // A saved card is rebuilt from the saved scene, so start from a fresh page rather than race that refresh.
     await open(page, `${url}?tab=story`);
-    await page.locator("[id$='-shot-0-mood']").first().click();
+    // The hook has planned shots too, so the first mood select on the page is not necessarily the second scene's.
+    await page.locator(`[id='${after.scenes[1]?.id ?? ""}-shot-0-mood']`).click();
     await page.getByRole("option", { name: "Mệt mỏi" }).click();
     await page.getByRole("button", { name: "Lưu cảnh" }).and(page.locator(":enabled")).first().click();
     await expect
@@ -309,6 +370,58 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
     const rows = page.locator("tbody tr");
     await expect(rows.filter({ hasText: "Đã lưu Drive" })).toHaveCount(1);
     await expect(rows.filter({ hasText: "Chưa render bản cuối" })).toHaveCount(1);
+  });
+
+  await test.step("regenerating a script while Settings change keeps the models and people it was asked with, and only outdates the old renders", async () => {
+    const videoId = videoA.split("/").at(-1) ?? "";
+    const read = async () => (await (await request.get(`/api/videos/${videoId}`)).json()) as ScriptedVideoJson;
+    const renders = async () =>
+      (
+        (await (await request.get(`/api/videos/${videoId}/renders`)).json()) as {
+          renders: (RenderJson & { outdated: boolean })[];
+        }
+      ).renders.filter((render) => render.status === "COMPLETED");
+    const before = await read();
+    expect(await renders()).toHaveLength(2);
+    expect((await renders()).some((render) => render.outdated)).toBe(false);
+    const current = (await (await request.get("/api/settings/ai")).json()) as AiSettingsJson;
+
+    const lanes = await pauseAllLanes();
+    let jobId = "";
+    try {
+      const started = await request.post(`/api/videos/${videoId}/generate-script`);
+      expect(started.status()).toBe(202);
+      jobId = ((await started.json()) as { jobId: string }).jobId;
+      const changed = structuredClone(current.settings);
+      changed.script.effort = "high";
+      const renamed = changed.characters.profiles[0];
+      if (renamed) renamed.name = "Hùng";
+      const saved = await request.put("/api/settings/ai", { data: { revision: current.revision, settings: changed } });
+      expect(saved.ok()).toBe(true);
+    } finally {
+      await lanes.resume();
+    }
+    await expect
+      .poll(async () => ((await (await request.get(`/api/jobs/${jobId}`)).json()) as { status: string }).status, {
+        timeout: 120_000,
+        intervals: [2_000],
+      })
+      .toBe("COMPLETED");
+
+    const after = await read();
+    expect(after.scriptVersion).toBeGreaterThan(before.scriptVersion);
+    expect(after.generation?.script).toEqual({ model: "claude-opus-5-5", effort: "xhigh" });
+    expect(after.cast?.profiles.find((profile) => profile.id === "hoang")?.name).toBe("Hoàng");
+    const old = await renders();
+    expect(old).toHaveLength(2);
+    expect(old.every((render) => render.outdated)).toBe(true);
+    for (const render of old) expect((await request.get(render.fileUrl ?? "")).ok()).toBe(true);
+
+    const latest = (await (await request.get("/api/settings/ai")).json()) as AiSettingsJson;
+    const restored = await request.put("/api/settings/ai", {
+      data: { revision: latest.revision, settings: current.settings },
+    });
+    expect(restored.ok()).toBe(true);
   });
 
   await test.step("everything is still there after a reload", async () => {

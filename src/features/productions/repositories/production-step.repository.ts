@@ -1,4 +1,5 @@
 import { prisma } from "@/server/db/client";
+import { Prisma } from "@/generated/prisma/client";
 
 import {
   hasReachedCheckpoint,
@@ -53,22 +54,49 @@ export async function spendAiCorrection(input: {
   note: string;
   rewindTo: ItemCheckpoint;
 }): Promise<SpendCorrectionResult> {
-  const reachable = ITEM_CHECKPOINTS.filter((checkpoint) => hasReachedCheckpoint(checkpoint, input.rewindTo));
-  const { count } = await prisma.productionItem.updateMany({
-    where: {
-      id: input.itemId,
-      claimToken: input.claimToken,
-      aiCorrectionTarget: null,
-      checkpoint: { in: [...reachable] },
-    },
-    data: { aiCorrectionTarget: input.target, aiCorrectionNote: input.note, checkpoint: input.rewindTo },
-  });
-  if (count > 0) return { status: "SPENT" };
+  return prisma.$transaction(async (tx): Promise<SpendCorrectionResult> => {
+    const reachable = ITEM_CHECKPOINTS.filter((checkpoint) => hasReachedCheckpoint(checkpoint, input.rewindTo));
+    const { count } = await tx.productionItem.updateMany({
+      where: {
+        id: input.itemId,
+        claimToken: input.claimToken,
+        aiCorrectionTarget: null,
+        checkpoint: { in: [...reachable] },
+      },
+      data: { aiCorrectionTarget: input.target, aiCorrectionNote: input.note, checkpoint: input.rewindTo },
+    });
+    if (count > 0) {
+      const item = await tx.productionItem.findUniqueOrThrow({
+        where: { id: input.itemId },
+        select: { scriptGenerationRunId: true, video: { select: { scriptVersion: true } } },
+      });
+      if (item.scriptGenerationRunId) {
+        const previous = await tx.scriptGenerationRun.findUniqueOrThrow({ where: { id: item.scriptGenerationRunId } });
+        const next = await tx.scriptGenerationRun.create({
+          data: {
+            ownerKey: `${previous.ownerKey}:correction`,
+            videoId: previous.videoId,
+            baseScriptVersion: item.video?.scriptVersion ?? previous.baseScriptVersion,
+            settingsJson: previous.settingsJson as Prisma.InputJsonValue,
+            inputJson: previous.inputJson as Prisma.InputJsonValue,
+            sourcePackJson:
+              previous.sourcePackJson === null ? Prisma.DbNull : (previous.sourcePackJson as Prisma.InputJsonValue),
+            castJson: previous.castJson === null ? Prisma.DbNull : (previous.castJson as Prisma.InputJsonValue),
+            ...(input.target === "SCENE_COMPILER" && previous.draftArtifactJson !== null
+              ? { draftArtifactJson: previous.draftArtifactJson as Prisma.InputJsonValue }
+              : {}),
+          },
+        });
+        await tx.productionItem.update({ where: { id: input.itemId }, data: { scriptGenerationRunId: next.id } });
+      }
+      return { status: "SPENT" };
+    }
 
-  const item = await prisma.productionItem.findUnique({
-    where: { id: input.itemId },
-    select: { claimToken: true, aiCorrectionTarget: true },
+    const item = await tx.productionItem.findUnique({
+      where: { id: input.itemId },
+      select: { claimToken: true, aiCorrectionTarget: true },
+    });
+    if (!item || item.claimToken !== input.claimToken) return { status: "LOST_CLAIM" };
+    return item.aiCorrectionTarget !== null ? { status: "ALREADY_SPENT" } : { status: "WOULD_MOVE_FORWARD" };
   });
-  if (!item || item.claimToken !== input.claimToken) return { status: "LOST_CLAIM" };
-  return item.aiCorrectionTarget !== null ? { status: "ALREADY_SPENT" } : { status: "WOULD_MOVE_FORWARD" };
 }

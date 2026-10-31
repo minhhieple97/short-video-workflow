@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { aiExecutionSchema } from "@/features/settings/domain/ai-settings";
 
 // "notebooklm" signs in as the configured profile in the worker (the web never starts the MCP server).
 const DIAGNOSTIC_KINDS = ["ping", "mock-ai", "notebooklm"] as const;
@@ -24,11 +25,16 @@ export const analyzeChapterPayloadSchema = baseJobPayloadSchema.extend({
 });
 
 export const generateScriptPayloadSchema = baseJobPayloadSchema.extend({
+  execution: aiExecutionSchema.optional(),
+  generationRunId: z.string().min(1).optional(),
   videoId: z.string().min(1),
   sceneId: z.string().min(1).optional(),
 });
 
-export const generatePublishMetadataPayloadSchema = baseJobPayloadSchema.extend({ videoId: z.string().min(1) });
+export const generatePublishMetadataPayloadSchema = baseJobPayloadSchema.extend({
+  videoId: z.string().min(1),
+  execution: aiExecutionSchema.optional(),
+});
 
 export const archiveRenderPayloadSchema = baseJobPayloadSchema.extend({ archiveId: z.string().min(1) });
 

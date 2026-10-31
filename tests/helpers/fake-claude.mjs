@@ -2,6 +2,7 @@
 // Stand-in for the Claude Code CLI in tests. Answers `auth status --json` and `-p` like the real binary.
 // FAKE_CLAUDE_MODE: "ok" (structured_output), "quota", "quota-30m", "quota-1h", "logged-out", "bad-output", "slow".
 // FAKE_CLAUDE_LOG receives the arguments and the security-relevant environment of the `-p` call.
+// FAKE_CLAUDE_MODEL names the one model reported in `modelUsage`; FAKE_CLAUDE_MODEL_USAGE is the whole JSON object.
 import fs from "node:fs";
 
 const mode = process.env.FAKE_CLAUDE_MODE ?? "ok";
@@ -54,5 +55,17 @@ process.stdin.on("end", () => {
     process.exit(1);
   }
   const structured = mode === "bad-output" ? { unexpected: true } : JSON.parse(process.env.FAKE_CLAUDE_OUTPUT ?? "{}");
-  process.stdout.write(JSON.stringify({ type: "result", is_error: false, result: "", structured_output: structured }));
+  process.stdout.write(
+    JSON.stringify({
+      type: "result",
+      is_error: false,
+      result: "",
+      structured_output: structured,
+      ...(process.env.FAKE_CLAUDE_MODEL_USAGE
+        ? { modelUsage: JSON.parse(process.env.FAKE_CLAUDE_MODEL_USAGE) }
+        : process.env.FAKE_CLAUDE_MODEL
+          ? { modelUsage: { [process.env.FAKE_CLAUDE_MODEL]: {} } }
+          : {}),
+    }),
+  );
 });

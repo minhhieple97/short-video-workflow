@@ -1,6 +1,7 @@
 import type { CharacterAction } from "@/features/videos/domain/illustration";
 import type { ShotSize } from "@/features/videos/domain/scene-shots";
 import type { PartnerAction, ShotMood } from "@/features/videos/domain/shot-plan";
+import type { CastSnapshot } from "@/features/videos/domain/characters";
 
 import type { PeepBodyName, PeepFaceName, PeepHairName, PeepLook } from "../peeps/peep";
 import { INK, PAPER } from "../theme/tokens";
@@ -11,6 +12,18 @@ export type CastExtra = "THOUGHT" | "SPEECH" | "IDEA" | "SWEAT" | "CONFETTI";
 export interface Cast {
   main: PeepLook;
   partner: PeepLook;
+  characters?: Readonly<Record<string, PeepLook>>;
+}
+
+export function castFromSnapshot(snapshot: CastSnapshot): Cast {
+  const characters = Object.fromEntries(snapshot.profiles.map((profile) => [profile.id, profile.look]));
+  const main = characters[snapshot.primaryCharacterId];
+  if (!main) throw new Error("Missing primary character in render snapshot.");
+  return {
+    main,
+    partner: snapshot.profiles.find((profile) => profile.id !== snapshot.primaryCharacterId)?.look ?? main,
+    characters,
+  };
 }
 
 export interface CastPose {
@@ -127,4 +140,10 @@ export function partnerLook(seed: string, main: PeepLook): PeepLook {
 export function castFor(seed: string): Cast {
   const main = mainLook(seed);
   return { main, partner: partnerLook(seed, main) };
+}
+
+// The people a video is drawn with: the ones captured with its script, so the title never decides who appears; a video
+// made before that has two looks drawn from its title.
+export function resolveCast(title: string, snapshot: CastSnapshot | undefined): Cast {
+  return snapshot ? castFromSnapshot(snapshot) : castFor(title);
 }

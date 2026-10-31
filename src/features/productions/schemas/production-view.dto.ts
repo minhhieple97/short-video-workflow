@@ -7,7 +7,7 @@ export interface ProductionItemViewDto {
   lessonTitle: string;
   videoId: string | null;
   videoTitle: string | null;
-  // The length NotebookLM proposed for this video, and why; null until its draft is written.
+  // The length the script writer proposed for this video, and why; null until its draft is written.
   proposedDuration: { seconds: number; reason: string } | null;
   status: ItemStatus;
   checkpoint: ItemCheckpoint;

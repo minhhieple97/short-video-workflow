@@ -8,6 +8,7 @@ import { maxShotsFor, shotPlanProblem, shotPlanSchema, type PlannedShot, type Sh
 import type { SceneType } from "../domain/scene-types";
 import { spokenTokens } from "../domain/word-timing";
 import { ShotRow } from "./shot-row";
+import type { CastSnapshot } from "../domain/characters";
 
 // Why the shots cannot be saved as they are, or null.
 export function shotsProblem(plan: ShotPlan | null, narration: string, sceneType: SceneType): string | null {
@@ -25,6 +26,7 @@ export function SceneShotsEditor({
   value,
   onChange,
   disabled,
+  cast,
 }: Readonly<{
   id: string;
   sceneType: SceneType;
@@ -32,6 +34,7 @@ export function SceneShotsEditor({
   value: ShotPlan | null;
   onChange: (next: ShotPlan | null) => void;
   disabled: boolean;
+  cast?: CastSnapshot;
 }>) {
   const words = spokenTokens(narration);
   const limit = maxShotsFor(sceneType);
@@ -62,6 +65,7 @@ export function SceneShotsEditor({
               onChange={(next) => replace(index, next)}
               onRemove={() => onChange(value.filter((_, at) => at !== index))}
               disabled={disabled}
+              cast={cast}
             />
           ))}
         </ol>

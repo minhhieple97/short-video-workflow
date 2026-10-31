@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { aiSettingsSchema } from "@/features/settings/domain/ai-settings";
+import { castSnapshotSchema } from "../domain/characters";
+import { generationInputSchema } from "@/server/script-draft/contracts";
 
 import { hookOptionSchema } from "@/server/ai/contracts/video-script";
 
@@ -100,6 +103,9 @@ export function hookIssues(scenes: readonly SceneDto[]): string[] {
 }
 
 export function toVideoDetail(video: VideoDetailRecord): VideoDetail {
+  const run = "generationRun" in video ? video.generationRun : null;
+  const settings = run ? aiSettingsSchema.parse(run.settingsJson) : null;
+  const input = run ? generationInputSchema.parse(run.inputJson) : null;
   const pace = toPace(video.pace);
   const rate = syllablesPerSecond(pace);
   const scenes = video.scenes.map((scene) => toSceneDto(scene, rate));
@@ -109,6 +115,19 @@ export function toVideoDetail(video: VideoDetailRecord): VideoDetail {
       .reduce((sum, scene) => sum + effectiveSceneFrames(scene.durationFrames), 0) / VIDEO_FPS;
   return {
     id: video.id,
+    ...(run && settings && input
+      ? {
+          cast: castSnapshotSchema.parse(run.castJson),
+          generation: {
+            runId: run.id,
+            mode: input.aiMode,
+            script: settings.script,
+            scene: settings.scene,
+            draftPromptVersion: input.draftPromptVersion,
+            scenePromptVersion: input.scenePromptVersion,
+          },
+        }
+      : {}),
     title: video.title,
     description: video.description,
     status: toVideoStatus(video.status),

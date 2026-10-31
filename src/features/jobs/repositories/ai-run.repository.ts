@@ -6,17 +6,34 @@ interface NewAiRun {
   mode: string;
   promptVersion: string;
   inputHash: string;
+  stage?: string;
+  taskId?: string;
+  executionJson?: { model: string; effort: string };
 }
 
 // A job resumed after `pnpm ai:run` continues the AI run it started instead of opening a new one.
 export async function startAiRun(data: NewAiRun): Promise<AiRun> {
   if (data.jobRecordId) {
     const waiting = await prisma.aiRun.findFirst({
-      where: { jobRecordId: data.jobRecordId, status: "WAITING_FOR_CLI" },
+      where: {
+        jobRecordId: data.jobRecordId,
+        stage: data.stage ?? null,
+        ...(data.stage ? { inputHash: data.inputHash } : {}),
+        status: "WAITING_FOR_CLI",
+      },
     });
     if (waiting) return prisma.aiRun.update({ where: { id: waiting.id }, data: { status: "RUNNING" } });
   }
   return prisma.aiRun.create({ data: { ...data, status: "RUNNING" } });
+}
+
+export async function findWaitingTaskId(jobRecordId: string): Promise<string | null> {
+  const run = await prisma.aiRun.findFirst({
+    where: { jobRecordId, status: "WAITING_FOR_CLI" },
+    orderBy: { createdAt: "desc" },
+    select: { taskId: true },
+  });
+  return run?.taskId ?? null;
 }
 
 export function markAiRunWaiting(id: string): Promise<AiRun> {

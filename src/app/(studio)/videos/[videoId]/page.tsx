@@ -14,6 +14,7 @@ import { ScriptSourcePanel } from "@/features/productions/components/script-sour
 import { ITEM_STATUS_LABELS } from "@/features/productions/domain/production-labels";
 import { describeProductionStep } from "@/features/productions/domain/production-progress";
 import { getVideoProduction } from "@/features/productions/services/video-production.service";
+import { getScriptSourceView } from "@/features/videos/services/script-source-view.service";
 import { PUBLISH_JOB_LABELS, scriptJobLabels } from "@/features/videos/components/active-job-labels";
 import { ActiveJobWatcher } from "@/features/videos/components/active-job-watcher";
 import { AddSceneControl } from "@/features/videos/components/add-scene-control";
@@ -57,12 +58,13 @@ interface VideoEditorPageProps {
 export default async function VideoEditorPage({ params, searchParams }: Readonly<VideoEditorPageProps>) {
   const [{ videoId }, { tab }] = await Promise.all([params, searchParams]);
   const video = await orNotFound(getVideo(videoId));
-  const [activeJob, production, publishJob, voiceJobs, drives] = await Promise.all([
+  const [activeJob, production, publishJob, voiceJobs, drives, scriptSource] = await Promise.all([
     findActiveVideoJob(videoId),
     getVideoProduction(videoId),
     findActivePublishJob(videoId),
     getVoiceJobs(videoId),
     getVideoDriveLinks([videoId]),
+    getScriptSourceView(videoId),
   ]);
   const drive = drives[videoId];
   // The page follows an upload to Drive until it ends, so the link shows up in the header without a reload.
@@ -224,6 +226,7 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
                       key={`${hookScene.id}-${hookScene.version}`}
                       videoId={video.id}
                       scene={hookScene}
+                      cast={video.cast}
                       sceneIds={sceneIds}
                       syllablesPerSecond={rate}
                     />
@@ -246,6 +249,7 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
                         key={`${scene.id}-${scene.version}-${scene.order}`}
                         videoId={video.id}
                         scene={scene}
+                        cast={video.cast}
                         sceneIds={sceneIds}
                         syllablesPerSecond={rate}
                       />
@@ -255,8 +259,16 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
                 </ScriptLock>
               ),
           },
-          ...(production
-            ? [{ value: "sources", label: "Nguồn kịch bản", content: <ScriptSourcePanel production={production} /> }]
+          ...(production || scriptSource
+            ? [
+                {
+                  value: "sources",
+                  label: "Nguồn kịch bản",
+                  content: (
+                    <ScriptSourcePanel production={production ?? undefined} source={scriptSource ?? undefined} />
+                  ),
+                },
+              ]
             : []),
           {
             value: "voice",

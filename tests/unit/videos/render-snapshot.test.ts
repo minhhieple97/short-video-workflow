@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { captureCast, DEFAULT_CHARACTERS } from "@/features/videos/domain/characters";
 import { runPreflight } from "@/features/videos/domain/preflight";
 import {
   currentSnapshotIdentity,
@@ -144,6 +145,40 @@ describe("render snapshot", () => {
       ["PUNCH", null],
       [null, "TIRED"],
     ]);
+  });
+
+  it("keeps the hash of a snapshot stored before characters were captured, and draws each person by ID from one that has them", () => {
+    const old = snapshot();
+    expect(old).not.toHaveProperty("cast");
+    expect(readStoredRenderSnapshot(JSON.parse(JSON.stringify(old)), fingerprintRenderSnapshot(old))).toEqual(old);
+    expect(toCompositionProps(toCompositionSource(old)).cast).toBeUndefined();
+
+    const cast = captureCast(DEFAULT_CHARACTERS, [
+      { characterId: "hoang", role: "Người thử cách mới" },
+      { characterId: "linh", role: "Người bạn góp ý" },
+    ]);
+    const withCast = snapshot({
+      cast,
+      generation: {
+        mode: "mock",
+        runId: "run-1",
+        script: { model: "claude-opus-5-5", effort: "xhigh" },
+        scene: { model: "claude-sonnet-5-5", effort: "xhigh" },
+        draftPromptVersion: "script-draft-v1",
+        scenePromptVersion: "scene-plan-v11",
+      },
+      scenes: [scene({ shots: [{ fromWord: 0, actors: [{ characterId: "linh", action: "TALKING" }] }] })],
+    });
+    expect(fingerprintRenderSnapshot(withCast)).not.toBe(fingerprintRenderSnapshot(old));
+    const reread = readStoredRenderSnapshot(JSON.parse(JSON.stringify(withCast)), fingerprintRenderSnapshot(withCast));
+    expect(reread).toEqual(withCast);
+    const props = toCompositionProps(toCompositionSource(withCast));
+    expect(props.cast).toEqual(cast);
+    expect(props.scenes[0]?.shots.every((shot) => shot.actors?.[0]?.characterId === "linh")).toBe(true);
+
+    const edited = JSON.parse(JSON.stringify(withCast)) as { cast: { profiles: { name: string }[] } };
+    if (edited.cast.profiles[0]) edited.cast.profiles[0].name = "Người khác";
+    expect(readStoredRenderSnapshot(edited, fingerprintRenderSnapshot(withCast))).toBeNull();
   });
 
   it("keeps the pace a render was made at, and reads a snapshot stored before paces existed as the default", () => {

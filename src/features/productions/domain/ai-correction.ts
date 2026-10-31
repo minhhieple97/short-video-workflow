@@ -9,11 +9,18 @@ export interface CorrectionIssue {
 }
 
 // A video gets one AI correction, and it goes to the step that can fix the problem. What the book says, and which source
-// backs it, belongs to the script studio (NotebookLM); so does a video too short for its range, because only the script
-// studio can tell more from the sources (the compiler would have to invent). Wording, structure and length over the
-// maximum belong to the compiler (Claude). Anything else (a voice-over that failed, a script that changed under the
-// check) is not something an AI can repair.
-const SCRIPT_STUDIO_CODES = new Set(["SOURCE_MISSING", "DRAFT_INVALID", "DRAFT_LENGTH_OUT_OF_RANGE", "UNDER_MIN"]);
+// backs it, belongs to the script writer (Opus for an item with a generation run, NotebookLM for an older one); so does
+// a video too short for its range, because only the writer can tell more from the sources (the compiler would have to
+// invent). Wording, structure and length over the maximum belong to the compiler (Claude), except that an Opus draft's
+// narration is final (the compiler keeps it word for word), so its length problems go back to the writer. Anything else
+// (a voice-over that failed, a script that changed under the check) is not something an AI can repair.
+const SCRIPT_STUDIO_CODES = new Set([
+  "SOURCE_MISSING",
+  "DRAFT_INVALID",
+  "DRAFT_LENGTH_OUT_OF_RANGE",
+  "UNDER_MIN",
+  "SCRIPT_DRAFT_INVALID",
+]);
 const SCENE_COMPILER_CODES = new Set([
   "OVER_TARGET",
   "OVER_MAX",
@@ -23,6 +30,8 @@ const SCENE_COMPILER_CODES = new Set([
   "EMPTY_TEXT",
   "INVALID_AI_OUTPUT",
   "SCENE_PLAN_UNSUPPORTED_CLAIM",
+  "SCENE_PLAN_CAST_INVALID",
+  "SCENE_PLAN_STORY_CHANGED",
 ]);
 
 const MAX_NOTE_CHARS = 600;
@@ -58,11 +67,15 @@ export interface CorrectionPlan {
 // Picks where the single correction goes, or null when none of the problems can be fixed by asking an AI again. With
 // problems of both kinds the earlier step wins, because the compile step runs again afterwards anyway, and the note
 // still carries every problem so the corrected draft is also written to the right length.
-export function planCorrection(issues: readonly CorrectionIssue[]): CorrectionPlan | null {
+export function planCorrection(issues: readonly CorrectionIssue[], opusWritesNarration = false): CorrectionPlan | null {
   const fixable = issues.filter((issue) => isCorrectableIssue(issue.code));
   if (fixable.length === 0) return null;
 
-  const target: CorrectionTarget = fixable.some((issue) => SCRIPT_STUDIO_CODES.has(issue.code))
+  const target: CorrectionTarget = fixable.some(
+    (issue) =>
+      SCRIPT_STUDIO_CODES.has(issue.code) ||
+      (opusWritesNarration && ["OVER_TARGET", "OVER_MAX", "HOOK_TOO_LONG"].includes(issue.code)),
+  )
     ? "SCRIPT_STUDIO"
     : "SCENE_COMPILER";
   const lines = [...new Set(fixable.map((issue) => GUIDANCE[issue.code] ?? issue.message ?? issue.code))];

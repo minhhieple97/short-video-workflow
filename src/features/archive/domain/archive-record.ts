@@ -39,6 +39,8 @@ export function toArchiveJson(value: unknown): string {
 export function buildArchiveScript(snapshot: RenderSnapshot, facts: Pick<ArchiveRenderFacts, "renderId">) {
   const fps = snapshot.render.fps;
   return {
+    ...(snapshot.cast ? { cast: snapshot.cast } : {}),
+    ...(snapshot.generation ? { generation: snapshot.generation } : {}),
     schemaVersion: ARCHIVE_SCRIPT_VERSION,
     renderId: facts.renderId,
     videoId: snapshot.video.id,
@@ -86,6 +88,8 @@ export function buildArchiveManifest(
   files: { video: ArchiveFileDigest; script: ArchiveFileDigest; publish?: ArchiveFileDigest },
 ) {
   return {
+    ...(snapshot.cast ? { cast: snapshot.cast } : {}),
+    ...(snapshot.generation ? { generation: snapshot.generation } : {}),
     schemaVersion: ARCHIVE_MANIFEST_VERSION,
     renderId: facts.renderId,
     videoId: snapshot.video.id,

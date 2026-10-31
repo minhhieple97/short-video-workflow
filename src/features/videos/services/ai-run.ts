@@ -29,6 +29,9 @@ export async function withAiRun<T>(
     invalidOutputMessage: string;
     resume?: AiTaskContext["resume"];
     signal?: AbortSignal;
+    taskId?: string;
+    stage?: string;
+    execution?: AiTaskContext["execution"];
   },
   work: (context: AiTaskContext) => Promise<AiWorkResult<T>>,
 ): Promise<T | AiWaitingForCli> {
@@ -37,10 +40,19 @@ export async function withAiRun<T>(
     mode: meta.mode,
     promptVersion: meta.promptVersion,
     inputHash: meta.hash,
+    ...(meta.taskId ? { taskId: meta.taskId } : {}),
+    ...(meta.stage ? { stage: meta.stage } : {}),
+    ...(meta.execution ? { executionJson: meta.execution } : {}),
   });
-  const taskId = meta.jobRecordId ?? aiRun.id;
+  const taskId = meta.taskId ?? meta.jobRecordId ?? aiRun.id;
   try {
-    const result = await work({ taskId, resume: meta.resume, signal: meta.signal });
+    const result = await work({
+      taskId,
+      resume: meta.resume,
+      signal: meta.signal,
+      execution: meta.execution,
+      stage: meta.stage,
+    });
     if (result.kind === "waiting") {
       await markAiRunWaiting(aiRun.id);
       return { waitingForCli: true, taskDir: result.taskDir };

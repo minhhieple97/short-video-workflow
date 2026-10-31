@@ -4,6 +4,12 @@ import { AppError } from "@/shared/errors";
 
 import { ACTIVE_ITEM_STATUSES } from "../domain/production-status";
 import { startItemJobWithin } from "./production-jobs.repository";
+import type { AiSettings } from "@/features/settings/domain/ai-settings";
+import { createGenerationRunWithin } from "@/features/videos/repositories/script-generation-run.repository";
+import { generationInputSchema, SCRIPT_DRAFT_PROMPT_VERSION } from "@/server/script-draft/contracts";
+import { SCENE_PLAN_PROMPT_VERSION } from "@/server/ai/prompts/scene-plan-prompt";
+import { pickStoryAngle } from "@/features/videos/domain/story-angle";
+import type { AiMode } from "@/server/ai/ai-provider";
 
 const WITH_ITEMS = {
   items: { orderBy: { position: "asc" }, include: { lesson: { select: { title: true } } } },
@@ -68,6 +74,7 @@ export function findProductionItemForVideo(videoId: string) {
     where: { videoId },
     select: {
       batchId: true,
+      scriptGenerationRunId: true,
       status: true,
       checkpoint: true,
       aiCorrectionTarget: true,
@@ -132,6 +139,9 @@ export interface NewProductionItem {
 // are approved in the same transaction: choosing a lesson for a video is the decision a person would otherwise take by
 // hand, and writing it with the batch means an approved lesson never lacks the video it was approved for.
 export function createProduction(input: {
+  aiMode?: AiMode;
+  aiSettings?: AiSettings;
+  book?: { title: string; author: string | null };
   bookId: string;
   idempotencyKey: string;
   fingerprint: string;
@@ -169,7 +179,7 @@ export function createProduction(input: {
                 title: item.videoTitle,
                 ...input.range,
                 pace: input.pace,
-                // NotebookLM proposes the length when it writes the draft; until then the plan is the maximum.
+                // The script writer proposes the length when it writes the draft; until then the plan is the maximum.
                 targetDurationSec: input.range.maxDurationSec,
                 status: "DRAFT",
                 videoLessons: {
@@ -187,7 +197,33 @@ export function createProduction(input: {
       where: { id: { in: input.items.map((item) => item.lessonId) }, bookId: input.bookId, status: "DRAFT" },
       data: { status: "APPROVED" },
     });
-    for (const item of batch.items) await startItemJobWithin(tx, item.id);
+    for (const item of batch.items) {
+      if (input.aiSettings && input.book && item.videoId) {
+        const source = input.items.find((candidate) => candidate.lessonId === item.lessonId);
+        if (!source) throw new Error("Missing production lesson snapshot.");
+        const run = await createGenerationRunWithin(tx, {
+          ownerKey: `production:${item.id}`,
+          videoId: item.videoId,
+          baseScriptVersion: 1,
+          settings: input.aiSettings,
+          context: generationInputSchema.parse({
+            aiMode: input.aiMode ?? "mock",
+            videoId: item.videoId,
+            title: source.videoTitle,
+            bookId: input.bookId,
+            book: input.book,
+            lessons: [source.snapshot],
+            ...input.range,
+            pace: input.pace,
+            storyAngle: pickStoryAngle(batch.id, item.position),
+            draftPromptVersion: SCRIPT_DRAFT_PROMPT_VERSION,
+            scenePromptVersion: SCENE_PLAN_PROMPT_VERSION,
+          }),
+        });
+        await tx.productionItem.update({ where: { id: item.id }, data: { scriptGenerationRunId: run.id } });
+      }
+      await startItemJobWithin(tx, item.id);
+    }
     return batch;
   });
 }

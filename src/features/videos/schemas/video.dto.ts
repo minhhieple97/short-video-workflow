@@ -1,15 +1,18 @@
 import type { JobStatus } from "@/shared/types/job";
 
 import type { TimedWord } from "../domain/caption-pages";
+import type { CastSnapshot } from "../domain/characters";
 import type { DurationBudget } from "../domain/duration";
+import type { GenerationProvenance } from "../domain/generation-provenance";
 import type { PublishOrigin } from "../domain/publish-metadata";
 import type { Pace } from "../domain/pace";
 import type { HookVariant, SceneType, VisualVariant } from "../domain/scene-types";
 import type { VideoStatus } from "../domain/video-status";
 import type { Illustration } from "../domain/illustration";
-import type { ShotPlan } from "../domain/shot-plan";
+import type { ShotPlan, AiShot } from "../domain/shot-plan";
 
 export interface HookOptionDto {
+  shots?: AiShot[];
   variant: HookVariant;
   narration: string;
   onScreenText: string;
@@ -96,6 +99,8 @@ export interface VideoSummary {
 }
 
 export interface VideoDetail {
+  cast?: CastSnapshot;
+  generation?: GenerationProvenance;
   id: string;
   title: string;
   description: string | null;

@@ -16,16 +16,16 @@ const RUNNABLE_STATUSES = ["PENDING", "WAITING", "RUNNING"];
 // Every change that makes an item runnable starts its job in the same transaction, so an item never waits for a job that
 // was not recorded. The outbox delivers it to the lane of the step the item stands at.
 export async function startItemJobWithin(tx: Tx, itemId: string): Promise<JobRecord> {
-  const { checkpoint } = await tx.productionItem.findUniqueOrThrow({
+  const { checkpoint, scriptGenerationRunId } = await tx.productionItem.findUniqueOrThrow({
     where: { id: itemId },
-    select: { checkpoint: true },
+    select: { checkpoint: true, scriptGenerationRunId: true },
   });
   const intent = await createJobIntentWithin(tx, {
     bullmqJobId: randomUUID(),
     jobType: "RUN_PRODUCTION_ITEM",
     entityType: PRODUCTION_ITEM_ENTITY,
     entityId: itemId,
-    payload: { itemId, lane: productionLaneFor(toItemCheckpoint(checkpoint)) },
+    payload: { itemId, lane: productionLaneFor(toItemCheckpoint(checkpoint), scriptGenerationRunId !== null) },
   });
   return intent.jobRecord;
 }
@@ -114,7 +114,7 @@ export function listRunnableItemIds(): Promise<string[]> {
 export function findItemRunState(itemId: string) {
   return prisma.productionItem.findUnique({
     where: { id: itemId },
-    select: { status: true, claimExpiresAt: true, batchId: true },
+    select: { status: true, claimExpiresAt: true, batchId: true, scriptGenerationRunId: true },
   });
 }
 

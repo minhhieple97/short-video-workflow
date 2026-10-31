@@ -7,6 +7,9 @@ import { contentFromEarlierPass, videoContentOf } from "../domain/production-pro
 import { isTerminalItemStatus, toItemCheckpoint, toItemStatus } from "../domain/production-status";
 import { findProductionItemForVideo } from "../repositories/production.repository";
 import type { VideoProductionDto } from "../schemas/video-production.dto";
+import { storyDraftArtifactSchema, storySceneArtifactSchema } from "@/server/script-draft/artifacts";
+import { z } from "zod";
+import { requireGenerationRun } from "@/features/videos/services/script-generation-run.service";
 
 // Null for a video made by hand. The stored artifacts are shown only when they still match their fingerprints.
 export async function getVideoProduction(videoId: string): Promise<VideoProductionDto | null> {
@@ -14,9 +17,13 @@ export async function getVideoProduction(videoId: string): Promise<VideoProducti
   if (!item) return null;
   const status = toItemStatus(item.status);
   const checkpoint = toItemCheckpoint(item.checkpoint);
-  const draft = scriptDraftArtifactSchema.safeParse(item.draftArtifactJson);
-  const plan = scenePlanArtifactSchema.safeParse(item.scenePlanArtifactJson);
+  const draft = z.union([storyDraftArtifactSchema, scriptDraftArtifactSchema]).safeParse(item.draftArtifactJson);
+  const plan = z.union([storySceneArtifactSchema, scenePlanArtifactSchema]).safeParse(item.scenePlanArtifactJson);
+  const generation = item.scriptGenerationRunId ? await requireGenerationRun(item.scriptGenerationRunId) : null;
   return {
+    ...(generation
+      ? { generationModels: { script: generation.settings.script, scene: generation.settings.scene } }
+      : {}),
     productionId: item.batchId,
     status,
     checkpoint,

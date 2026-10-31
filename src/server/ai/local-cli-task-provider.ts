@@ -68,6 +68,8 @@ export class LocalCliTaskProvider implements AiProvider {
         promptVersion,
         createdAt: new Date().toISOString(),
         resume: context.resume ?? null,
+        ...(context.execution ? { execution: context.execution } : {}),
+        ...(context.stage ? { stage: context.stage } : {}),
       },
       input,
       prompt,

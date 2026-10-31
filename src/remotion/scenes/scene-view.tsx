@@ -82,7 +82,15 @@ function ShotPicture({
       />
     );
   }
-  return <StageShot shot={shot} look={cast.main} partnerLook={cast.partner} durationInFrames={shot.durationInFrames} />;
+  return (
+    <StageShot
+      shot={shot}
+      look={cast.main}
+      partnerLook={cast.partner}
+      cast={cast}
+      durationInFrames={shot.durationInFrames}
+    />
+  );
 }
 
 export function SceneView({

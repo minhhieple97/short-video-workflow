@@ -2,10 +2,24 @@ import { getAppConfig } from "@/shared/config/env";
 import { IntegrationError } from "@/server/integrations/integration-error";
 import { AppError, JobCancelledError } from "@/shared/errors";
 import { createLogger, toSafeErrorMessage } from "@/shared/logger";
+import type { AiExecution } from "@/features/settings/domain/ai-settings";
 
-import { claudeQuotaRetryAfterMs, classifyCliFailure, extractJsonObject, parseClaudeEnvelope } from "./claude-output";
+import {
+  claudeQuotaRetryAfterMs,
+  classifyCliFailure,
+  extractJsonObject,
+  isRequestedModel,
+  parseClaudeEnvelope,
+} from "./claude-output";
 import { checkClaudeAuth, runClaudePrint } from "./claude-runner";
-import { readTaskText, TASK_OUTPUT_SCHEMAS, writeRawOutput, type TaskKind } from "./task-files";
+import {
+  readTaskMeta,
+  readTaskText,
+  TASK_OUTPUT_SCHEMAS,
+  writeRawOutput,
+  writeTaskExecution,
+  type TaskKind,
+} from "./task-files";
 
 const failure = (code: string, message: string) =>
   ["AI_CLI_TIMEOUT", "AI_CLI_ERROR"].includes(code)
@@ -16,7 +30,7 @@ const logger = createLogger("ai.claude");
 const modelFailure = () =>
   failure(
     "AI_CLI_MODEL_UNAVAILABLE",
-    "Model Claude không hợp lệ hoặc tài khoản không được phép dùng. Kiểm tra CLAUDE_MODEL.",
+    "Model Claude không hợp lệ hoặc tài khoản không được phép dùng. Kiểm tra cấu hình AI của tác vụ.",
   );
 
 // Runs one prepared task (prompt.md + schema.json) through the user's own Claude Code CLI and returns the
@@ -25,7 +39,7 @@ const modelFailure = () =>
 export async function askClaude(
   taskId: string,
   kind: TaskKind,
-  options: { signal?: AbortSignal; onStart?: (authMethod: string) => void } = {},
+  options: { signal?: AbortSignal; onStart?: (authMethod: string) => void; execution?: AiExecution } = {},
 ): Promise<unknown> {
   const { withProviderCooldown } = await import("@/features/jobs/services/provider-cooldown.service");
   return withProviderCooldown("claude", () => executeClaude(taskId, kind, options));
@@ -34,9 +48,14 @@ export async function askClaude(
 async function executeClaude(
   taskId: string,
   kind: TaskKind,
-  options: { signal?: AbortSignal; onStart?: (authMethod: string) => void },
+  options: { signal?: AbortSignal; onStart?: (authMethod: string) => void; execution?: AiExecution },
 ): Promise<unknown> {
-  const { claudeCliCommand, claudeModel, claudeEffort, taskTimeoutMs } = getAppConfig().ai;
+  const ai = getAppConfig().ai;
+  const meta = await readTaskMeta(taskId);
+  const execution = meta.execution ?? options.execution;
+  const { claudeCliCommand, taskTimeoutMs } = ai;
+  const claudeModel = execution?.model ?? ai.claudeModel;
+  const claudeEffort = execution?.effort ?? ai.claudeEffort;
   const auth = await checkClaudeAuth(claudeCliCommand).catch((error: unknown) => {
     throw failure(
       "AI_CLI_MISSING",
@@ -89,6 +108,19 @@ async function executeClaude(
     if (failureKind === "AUTH") throw failure("AI_CLI_AUTH", "Claude Code chưa đăng nhập hoặc phiên đã hết hạn.");
     throw failure("AI_CLI_ERROR", "Claude Code báo lỗi; xem output.raw.txt trong thư mục tác vụ.");
   }
+
+  await writeTaskExecution(taskId, {
+    requestedModel: claudeModel ?? null,
+    requestedEffort: claudeEffort ?? null,
+    primaryModel: envelope.primaryModel ?? null,
+    observedModels: envelope.models ?? [],
+  });
+  // Only the model that did the work counts: the CLI also reports a small helper model on every run.
+  if (execution && envelope.primaryModel && !isRequestedModel(envelope.primaryModel, execution.model))
+    throw failure(
+      "AI_CLI_MODEL_MISMATCH",
+      "Claude Code đã dùng model khác cấu hình của tác vụ; kết quả không được áp dụng.",
+    );
 
   let candidate: unknown;
   try {

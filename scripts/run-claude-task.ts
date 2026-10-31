@@ -3,7 +3,7 @@ import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { parseArgs } from "node:util";
 
-import { failWaitingAiRuns } from "@/features/jobs/repositories/ai-run.repository";
+import { failWaitingAiRuns, findWaitingTaskId } from "@/features/jobs/repositories/ai-run.repository";
 import {
   findJobRecordById,
   listJobsWaitingForCli,
@@ -69,27 +69,30 @@ async function runTask(jobId: string): Promise<number> {
     console.error(`Tác vụ đang ở trạng thái ${record.status}, không chờ Claude CLI.`);
     return 1;
   }
-  const meta = await readTaskMeta(jobId);
+  const taskId = (await findWaitingTaskId(jobId)) ?? jobId;
+  const meta = await readTaskMeta(taskId);
   if (values["dry-run"]) {
     const ai = getAppConfig().ai;
+    const model = meta.execution?.model ?? ai.claudeModel;
+    const effort = meta.execution?.effort ?? ai.claudeEffort;
     console.log(
-      `Thư mục tác vụ: ${taskDirectory(jobId)}\nPrompt: prompt.md · Schema: schema.json · Loại: ${meta.kind}`,
+      `Thư mục tác vụ: ${taskDirectory(taskId)}\nPrompt: prompt.md · Schema: schema.json · Loại: ${meta.kind}`,
     );
     console.log(
-      `Lệnh sẽ chạy: ${ai.claudeCliCommand} -p${ai.claudeModel ? " --model <CLAUDE_MODEL>" : ""}${ai.claudeEffort ? ` --effort ${ai.claudeEffort}` : ""} --output-format json --tools "" --strict-mcp-config --no-session-persistence --json-schema <schema.json> < prompt.md`,
+      `Lệnh sẽ chạy: ${ai.claudeCliCommand} -p${model ? ` --model ${model}` : ""}${effort ? ` --effort ${effort}` : ""} --output-format json --tools "" --strict-mcp-config --no-session-persistence --json-schema <schema.json> < prompt.md`,
     );
-    console.log(`Model yêu cầu: ${ai.claudeModel ?? "Theo mặc định Claude CLI"}`);
-    console.log(`Effort yêu cầu: ${ai.claudeEffort ?? "Theo mặc định Claude CLI"}`);
+    console.log(`Model yêu cầu: ${model ?? "Theo mặc định Claude CLI"}`);
+    console.log(`Effort yêu cầu: ${effort ?? "Theo mặc định Claude CLI"}`);
     return 0;
   }
 
   try {
-    const existing = await readTaskOutput(jobId);
+    const existing = await readTaskOutput(taskId);
     if (existing === undefined) {
-      const output = await askClaude(jobId, meta.kind, {
+      const output = await askClaude(taskId, meta.kind, {
         onStart: (method) => console.log(`Đang gọi Claude Code (${method}) cho ${meta.kind}…`),
       });
-      await writeTaskOutput(jobId, output);
+      await writeTaskOutput(taskId, output);
     } else console.log("Đã có output.json hợp lệ — không gọi lại Claude.");
     await requeue(jobId, meta);
     console.log("Xong. Worker sẽ kiểm tra lại kết quả và lưu vào Studio; theo dõi ở trang Tác vụ.");

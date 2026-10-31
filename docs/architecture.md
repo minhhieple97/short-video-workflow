@@ -76,8 +76,8 @@ Số việc chạy cùng lúc đặt theo **thứ giới hạn nó**, không the
 
 ## 2. Mô hình dữ liệu
 
-Prisma 7 + SQLite (`prisma/schema.prisma`), migration chỉ cộng thêm. Sáu loại dữ liệu lưu riêng: tệp gốc (bất biến) → bản trích xuất →
-catalogue (chương, bài học, nguồn) → bản thảo NotebookLM → kế hoạch cảnh Claude (đầu vào duy nhất của Remotion) → snapshot render (bất
+Prisma 7 + SQLite (`prisma/schema.prisma`), migration chỉ cộng thêm. Các loại dữ liệu lưu riêng: tệp gốc (bất biến) → bản trích xuất →
+catalogue (chương, bài học, nguồn) → gói nguồn cục bộ → bản thảo Opus → kế hoạch cảnh Sonnet (đầu vào duy nhất của Remotion) → snapshot render (bất
 biến, nguồn của manifest Drive).
 
 - **Sách:** `Book` (tệp gốc + `sourceHash`; `md`/`txt`/`pdf`; xoá mềm, bị chặn khi có video) · `Chapter` (duy nhất `(bookId, order)`)
@@ -96,6 +96,11 @@ biến, nguồn của manifest Drive).
   `requestKey`, ghi **trước** khi gửi; `outputStoredAt` có trước `cleanedAt`).
 - **NotebookLM:** `NotebookBinding` (duy nhất `(bookId, profile)`) · `NotebookSourceBinding` (duy nhất
   `(notebookBindingId, sourceKey, contentHash)`) · `ScriptDraftCache` (duy nhất `cacheKey`).
+- **AI theo công đoạn:** `AiGenerationSetting` (singleton, JSON được Zod kiểm tra + revision) · `ScriptGenerationRun` (owner key duy nhất,
+  video, script version nền, cấu hình và đầu vào đã chụp, source pack ghi một lần, hai artifact có fingerprint, cast và version áp dụng).
+  `ProductionItem.scriptGenerationRunId` trỏ lần đang làm; `Video.scriptGenerationRunId` chỉ đổi khi áp dụng nguyên tử. Lượt sửa tạo
+  successor run, giữ nguồn/cấu hình và dàn người; không thay run đã áp dụng. Artifact và nguồn dùng conditional write, nên hai job cùng
+  kết thúc không ghi đè kết quả đã nhận. AiRun lưu stage, task ID và execution config riêng.
 - **Sản xuất:** `ProductionBatch` (duy nhất `idempotencyKey`; khoảng thời lượng chép sang từng video, cột `targetDurationSec` cũ chỉ còn
   ghi bằng mức dài nhất) · `ProductionItem` (duy nhất `(batchId, lessonId)`, `(batchId, position)`,
   `videoId`; một bài học = một item = một video; `lessonId` `Restrict`).
@@ -175,6 +180,18 @@ tối đa 8 lần liên tiếp; sản xuất 10 phút, 5 lần; archive 30 phút
 
 ## 4. AI và Claude
 
+- Kịch bản mới dùng `ScriptDraftWriter` (Opus 5.5/xhigh mặc định) rồi `ScenePlanCompiler` (Sonnet 5.5/xhigh mặc định).
+  `GET/PUT /api/settings/ai` đọc/lưu cấu hình có revision. Execution config từng stage nằm trong task metadata và được `askClaude()`
+  ưu tiên trước `.env`. Model dùng ID đầy đủ; writer và compiler không thay `process.env` hoặc global config.
+- Source pack đọc canonical chapter qua `loadChapterSource`, kiểm chứng excerpt, gộp đoạn trùng, lấy ngữ cảnh ±2.000 ký tự rồi giảm
+  ngữ cảnh nếu vượt 40.000 ký tự. Không bỏ bài học hoặc cắt excerpt để vừa. Trang trích dẫn được đối chiếu bằng vị trí trong đoạn,
+  không lấy nhầm trang bắt đầu ngữ cảnh. Văn bản nguồn luôn nằm trong fence dữ liệu không đáng tin.
+- Draft v2 có logic biên tập, nguồn, 2–3 hook và lựa chọn cast. Compiler v2 giữ nguyên lời kể từng beat, dùng `actors` theo ID, tối đa
+  hai người/shot. `cast` và `generation` là field optional không default trong render snapshot v1 để giữ hash snapshot cũ; template
+  mới là `short-video-template-v7`. Player và worker đều nhận props qua `toCompositionProps()`.
+- Stage có task ID và AiRun riêng; output ghi một lần, retry đọc lại. Mỗi generation mới có namespace riêng, nên yêu cầu tạo lại rõ
+  ràng không dùng nhầm output của một lần tạo đã thất bại. `execution.json` ghi model yêu cầu, model chính (chi phí cao nhất trong `modelUsage`, vì CLI còn liệt kê model phụ như Haiku) và các model CLI báo đã dùng; không lưu token.
+
 - `AiProvider` theo `AI_MODE`: `mock` (tất định, không mạng); `cli-task` (mặc định: ghi tác vụ vào `ai-tasks/<taskId>/`, job
   `WAITING_FOR_CLI`, người dùng chạy `pnpm ai:run --job <id>`); `cli-auto` (tuỳ chọn: vẫn ghi đủ tệp nhưng worker gọi `askClaude()` ngay).
 - `CLAUDE_MODEL` tuỳ chọn đi qua `askClaude()` tới argument `--model`. Model được log cùng taskId và tham gia cache scene plan;
@@ -184,13 +201,13 @@ tối đa 8 lần liên tiếp; sản xuất 10 phút, 5 lần; archive 30 phút
   diagnostics/dry-run hiển thị cấu hình yêu cầu mà không gọi AI. Không sửa settings Claude toàn máy.
 - Thư mục tác vụ: `input.json`, `prompt.md`, `schema.json` (JSON Schema draft-7 sinh từ chính schema Zod của đầu ra), `task.json`, rồi
   `output.json` hoặc `output.raw.txt`. Loại: `chapter-analysis`, `video-script`, `scene-regeneration`, `scene-plan`,
-  `publish-metadata`.
+  `publish-metadata`, `script-draft`, `story-scene-plan`. Hai loại cuối dùng schema v2 riêng; task cũ vẫn dùng schema cũ.
 - `askClaude()` là đường duy nhất tới Claude (dùng bởi `pnpm ai:run`, `AutomatedCliProvider`, `ClaudeScenePlanCompiler`): kiểm
   `claude auth status`; chạy `claude -p --output-format json --tools "" --strict-mcp-config --no-session-persistence --json-schema …` từ
   mảng đối số, prompt qua stdin; env bỏ `CLAUDECODE*`/`CLAUDE_CODE_*` (không lồng phiên) và `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN`;
   timeout và huỷ → `SIGTERM`. Lỗi có mã ổn định (`AI_CLI_AUTH`, `AI_QUOTA_EXCEEDED`, `AI_CLI_TIMEOUT`, `INVALID_AI_OUTPUT`…).
-- Prompt có phiên bản; đổi chữ là tăng phiên bản: `chapter-analysis-v1`, `video-script-v11` (v1.1, cùng khung kể với sản xuất, đề xuất độ
-  dài, ngân sách chữ theo nhịp độ, kèm tiêu đề/caption/hashtag, quy tắc kể chuyện, góc kể và shot); `scene-plan-v10` (biên dịch cảnh, kèm
+- Prompt có phiên bản; đổi chữ là tăng phiên bản: `chapter-analysis-v1`, `script-draft-v1`, `video-script-v12` (task cũ và viết lại cảnh, cùng khung kể với sản xuất, đề xuất độ
+  dài, ngân sách chữ theo nhịp độ, kèm tiêu đề/caption/hashtag, quy tắc kể chuyện, góc kể và shot); `scene-plan-v11` (biên dịch cảnh, kèm
   tiêu đề/caption/hashtag, quy tắc biên tập giữ sức hút của bản thảo, và shot); hai prompt này dùng chung `prompts/shot-rule.ts` (như
   `illustration-rule.ts`), đổi chữ ở đó là tăng cả hai;
   `publish-metadata-v1` (chỉ viết lại tiêu đề/caption/hashtag); ba prompt này dùng chung quy tắc `prompts/publish-rule.ts`, đổi chữ ở đó
