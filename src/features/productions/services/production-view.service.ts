@@ -5,6 +5,7 @@ import { NotFoundError } from "@/shared/errors";
 import { loadPage, mapPage, type Page, type PageRequest } from "@/shared/pagination";
 
 import { CORRECTION_LABELS } from "../domain/production-labels";
+import { contentFromEarlierPass, videoContentOf } from "../domain/production-progress";
 import {
   isTerminalItemStatus,
   ITEM_STATUSES,
@@ -46,6 +47,7 @@ export async function getProductionView(productionId: string): Promise<Productio
     counts[status] += 1;
     const render = item.renderId ? renderStatus.get(item.renderId) : undefined;
     const archive = archives.find((entry) => entry.renderId === item.renderId);
+    const checkpoint = toItemCheckpoint(item.checkpoint);
     return {
       id: item.id,
       position: item.position,
@@ -56,9 +58,11 @@ export async function getProductionView(productionId: string): Promise<Productio
         ? { seconds: item.video.targetDurationSec, reason: item.video.durationReason }
         : null,
       status,
-      checkpoint: toItemCheckpoint(item.checkpoint),
+      checkpoint,
       reason: reasonFor(item, status, render),
       correction: item.aiCorrectionTarget ? (CORRECTION_LABELS[item.aiCorrectionTarget] ?? null) : null,
+      correctionNote: item.aiCorrectionTarget ? item.aiCorrectionNote : null,
+      earlierPass: item.video ? contentFromEarlierPass(checkpoint, videoContentOf(item.video)) : null,
       render: item.renderId && render ? { id: item.renderId, status: render } : null,
       archive: archive
         ? {

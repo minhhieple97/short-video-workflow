@@ -10,6 +10,7 @@ const production: VideoProductionDto = {
   checkpoint: "RENDERED",
   inProgress: false,
   correction: null,
+  earlierPass: null,
   scenePlanVersion: "scene-plan-v9",
   draft: [
     {

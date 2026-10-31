@@ -1,4 +1,4 @@
-import type { BatchStatus, ItemCheckpoint, ItemStatus } from "./production-status";
+import { ITEM_CHECKPOINTS, type BatchStatus, type ItemCheckpoint, type ItemStatus } from "./production-status";
 
 export type StatusTone = "slate" | "violet" | "amber" | "mint" | "rose" | "blue";
 
@@ -20,22 +20,21 @@ export const BATCH_STATUS_LABELS: Record<BatchStatus, { label: string; tone: Sta
   CANCELLED: { label: "Đã huỷ", tone: "slate" },
 };
 
-// The step an item works on next, named for the person watching; a checkpoint records the step last finished.
-const NEXT_STEP: Record<ItemCheckpoint, string> = {
-  NONE: "Viết bản thảo",
-  DRAFTED: "Biên tập cảnh",
-  COMPILED: "Áp dụng kịch bản",
-  APPLIED: "Lồng tiếng",
-  VOICED: "Kiểm tra tự động",
-  READY: "Render bản cuối",
-  RENDERED: "Đã render",
-};
+// The six steps of the pipeline in order, named for the person watching; the checkpoint an item stands at counts the steps finished.
+export const PRODUCTION_STEP_LABELS = [
+  "Viết bản thảo",
+  "Biên tập cảnh",
+  "Áp dụng kịch bản",
+  "Lồng tiếng",
+  "Kiểm tra tự động",
+  "Render bản cuối",
+] as const;
 
-export const PRODUCTION_STEP_COUNT = 6;
+export const PRODUCTION_STEP_COUNT = PRODUCTION_STEP_LABELS.length;
 
 export function productionStep(checkpoint: ItemCheckpoint): { done: number; total: number; label: string } {
-  const order: readonly ItemCheckpoint[] = ["NONE", "DRAFTED", "COMPILED", "APPLIED", "VOICED", "READY", "RENDERED"];
-  return { done: order.indexOf(checkpoint), total: PRODUCTION_STEP_COUNT, label: NEXT_STEP[checkpoint] };
+  const done = ITEM_CHECKPOINTS.indexOf(checkpoint);
+  return { done, total: PRODUCTION_STEP_COUNT, label: PRODUCTION_STEP_LABELS[done] ?? "Đã render" };
 }
 
 export const CORRECTION_LABELS: Record<string, string> = {

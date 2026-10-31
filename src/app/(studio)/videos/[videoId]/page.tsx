@@ -11,7 +11,8 @@ import { VideoDriveStatus } from "@/features/archive/components/video-drive-stat
 import { getVideoDriveLinks } from "@/features/archive/services/archive-control.service";
 import { JobsAutoRefresh } from "@/features/jobs/components/jobs-auto-refresh";
 import { ScriptSourcePanel } from "@/features/productions/components/script-source-panel";
-import { ITEM_STATUS_LABELS, productionStep } from "@/features/productions/domain/production-labels";
+import { ITEM_STATUS_LABELS } from "@/features/productions/domain/production-labels";
+import { describeProductionStep } from "@/features/productions/domain/production-progress";
 import { getVideoProduction } from "@/features/productions/services/video-production.service";
 import { PUBLISH_JOB_LABELS, scriptJobLabels } from "@/features/videos/components/active-job-labels";
 import { ActiveJobWatcher } from "@/features/videos/components/active-job-watcher";
@@ -139,13 +140,15 @@ export default async function VideoEditorPage({ params, searchParams }: Readonly
           <Factory aria-hidden />
           <AlertTitle>
             {inProduction
-              ? `Đang sản xuất tự động · ${ITEM_STATUS_LABELS[production.status].label} · tiếp theo: ${productionStep(production.checkpoint).label}`
-              : `Video của một đợt sản xuất · ${ITEM_STATUS_LABELS[production.status].label}`}
+              ? `Đang sản xuất tự động · ${describeProductionStep(production.checkpoint, production.status)}`
+              : `Video của một đợt sản xuất · ${ITEM_STATUS_LABELS[production.status].label}${production.status === "COMPLETED" ? "" : ` · ${describeProductionStep(production.checkpoint, production.status)}`}`}
           </AlertTitle>
           <AlertDescription>
             {inProduction
               ? "Kịch bản, giọng đọc, render và xoá video tạm khoá cho tới khi đợt sản xuất xong hoặc bị huỷ."
-              : "Kịch bản được viết theo bản thảo ở tab Nguồn kịch bản, được máy kiểm tra sau khi lồng tiếng và tự duyệt khi đạt. Sửa kịch bản sau đó thì cần duyệt lại như video làm thủ công."}{" "}
+              : production.earlierPass
+                ? `Đợt sản xuất dừng trước bước “Áp dụng kịch bản”, nên kịch bản v${production.earlierPass.scriptVersion} và giọng đọc dưới đây là phần còn lại từ trước và chưa được máy duyệt. Bấm Thử lại ở trang tiến độ để viết lại, hoặc sửa và duyệt kịch bản tại đây.`
+                : "Kịch bản được viết theo bản thảo ở tab Nguồn kịch bản, được máy kiểm tra sau khi lồng tiếng và tự duyệt khi đạt. Sửa kịch bản sau đó thì cần duyệt lại như video làm thủ công."}{" "}
             {production.correction ? `${production.correction}. ` : null}
             <Link href={`/productions/${production.productionId}`} className="font-medium underline underline-offset-4">
               Xem tiến độ sản xuất

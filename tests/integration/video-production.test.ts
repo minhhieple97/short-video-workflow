@@ -123,6 +123,31 @@ describe("getVideoProduction", () => {
     ]);
   });
 
+  it("reports the script and voices a video keeps while its item stands before the step that writes them", async () => {
+    await db.prisma.videoScene.createMany({
+      data: [1, 2].map((order) => ({
+        videoId,
+        order,
+        type: "LESSON",
+        narration: "Lời dẫn.",
+        onScreenText: "Chữ",
+        visualVariant: "SCENARIO_CARD",
+        contentHash: `hash-${order}`,
+        audioAssetId: order === 1 ? "audio-1" : null,
+      })),
+    });
+    await db.prisma.productionItem.update({ where: { id: itemId }, data: { status: "FAILED", checkpoint: "NONE" } });
+
+    expect((await service.getVideoProduction(videoId))?.earlierPass).toEqual({
+      scriptVersion: 1,
+      sceneCount: 2,
+      voicedSceneCount: 1,
+    });
+
+    await db.prisma.productionItem.update({ where: { id: itemId }, data: { checkpoint: "APPLIED" } });
+    expect((await service.getVideoProduction(videoId))?.earlierPass).toBeNull();
+  });
+
   it("does not show an artifact that no longer matches its fingerprint", async () => {
     const draftArtifact = createDraftArtifact({ draft: DRAFT, lessonContentHash: "hash", targetDurationSec: 60 });
     const tampered = {

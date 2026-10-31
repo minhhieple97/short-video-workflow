@@ -30,7 +30,16 @@ export async function findProductionView(id: string) {
         orderBy: { position: "asc" },
         include: {
           lesson: { select: { title: true } },
-          video: { select: { id: true, title: true, targetDurationSec: true, durationReason: true } },
+          video: {
+            select: {
+              id: true,
+              title: true,
+              targetDurationSec: true,
+              durationReason: true,
+              scriptVersion: true,
+              scenes: { where: { hidden: false }, select: { audioAssetId: true } },
+            },
+          },
         },
       },
     },
@@ -64,6 +73,7 @@ export function findProductionItemForVideo(videoId: string) {
       aiCorrectionTarget: true,
       draftArtifactJson: true,
       scenePlanArtifactJson: true,
+      video: { select: { scriptVersion: true, scenes: { where: { hidden: false }, select: { audioAssetId: true } } } },
     },
   });
 }

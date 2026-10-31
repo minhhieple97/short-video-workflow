@@ -1,5 +1,6 @@
 import type { NarrativeBeat } from "@/features/videos/domain/narrative-beats";
 
+import type { VideoContent } from "../domain/production-progress";
 import type { ItemCheckpoint, ItemStatus } from "../domain/production-status";
 
 export interface DraftBeatDto {
@@ -18,6 +19,8 @@ export interface VideoProductionDto {
   checkpoint: ItemCheckpoint;
   inProgress: boolean;
   correction: string | null;
+  // The script and voice-overs left from an earlier pass while the item stands before the step that writes them.
+  earlierPass: VideoContent | null;
   scenePlanVersion: string | null;
   draft: DraftBeatDto[] | null;
 }

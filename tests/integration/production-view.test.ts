@@ -18,6 +18,23 @@ let batchId: string;
 const update = (data: Record<string, unknown>) => db.prisma.productionItem.update({ where: { id: itemId }, data });
 const viewItem = async () => (await view.getProductionView(batchId)).items[0];
 
+// Scenes the way an earlier pass left them on the video: written, some with a voice-over.
+async function leaveScenes(voiced: number, total: number): Promise<void> {
+  await db.prisma.videoScene.createMany({
+    data: Array.from({ length: total }, (_, index) => ({
+      videoId,
+      order: index + 1,
+      type: "LESSON",
+      narration: `Lời dẫn ${index + 1}.`,
+      onScreenText: `Chữ ${index + 1}`,
+      visualVariant: "SCENARIO_CARD",
+      contentHash: `hash-${index}`,
+      audioAssetId: index < voiced ? `audio-${index}` : null,
+    })),
+  });
+  await db.prisma.video.update({ where: { id: videoId }, data: { scriptVersion: 14 } });
+}
+
 async function render(status: string): Promise<string> {
   const record = await db.prisma.renderRecord.create({
     data: {
@@ -66,6 +83,8 @@ describe("getProductionView", () => {
       reason: null,
       proposedDuration: null,
       correction: null,
+      correctionNote: null,
+      earlierPass: null,
       render: null,
       archive: null,
       canRetry: false,
@@ -103,6 +122,41 @@ describe("getProductionView", () => {
       canCancel: false,
     });
     expect((await view.getProductionView(batchId)).inProgress).toBe(false);
+  });
+
+  it("explains an item the AI correction sent back to step 1: the correction's reason and the script and voices the video still holds", async () => {
+    await leaveScenes(12, 12);
+    await update({
+      status: "FAILED",
+      checkpoint: "NONE",
+      errorMessage:
+        "Đã dùng hết lượt sửa AI nên dừng ở lỗi này: Câu trả lời của NotebookLM không đúng định dạng JSON yêu cầu.",
+      aiCorrectionTarget: "SCRIPT_STUDIO",
+      aiCorrectionNote: "Video ngắn hơn mức tối thiểu: kể sâu hơn từ nguồn.",
+    });
+
+    expect(await viewItem()).toMatchObject({
+      checkpoint: "NONE",
+      correction: "Đã dùng lượt sửa AI ở bản thảo",
+      correctionNote: "Video ngắn hơn mức tối thiểu: kể sâu hơn từ nguồn.",
+      earlierPass: { scriptVersion: 14, sceneCount: 12, voicedSceneCount: 12 },
+    });
+  });
+
+  it("leaves hidden scenes out of what the video holds, and says nothing once the item has written its own scenes", async () => {
+    await leaveScenes(2, 3);
+    await db.prisma.videoScene.updateMany({ where: { videoId, order: 3 }, data: { hidden: true } });
+    await update({ status: "RUNNING", checkpoint: "COMPILED" });
+    expect((await viewItem())?.earlierPass).toEqual({ scriptVersion: 14, sceneCount: 2, voicedSceneCount: 2 });
+
+    await update({ checkpoint: "APPLIED" });
+    expect((await viewItem())?.earlierPass).toBeNull();
+  });
+
+  it("gives no correction note before a correction is used, and no earlier pass for a video without scenes", async () => {
+    await update({ aiCorrectionNote: "Ghi chú cũ." });
+
+    expect(await viewItem()).toMatchObject({ correctionNote: null, earlierPass: null });
   });
 
   it("links the Drive folder only once the archive is verified, and the video as soon as its own file is", async () => {

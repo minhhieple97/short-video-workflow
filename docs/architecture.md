@@ -414,6 +414,10 @@ status:     PENDING ─claim─► RUNNING ─┬─► COMPLETED
 ```
 
 - `status` tách khỏi `checkpoint` (bước cuối đã xong) nên khởi động lại tiếp tục sau bước đã làm.
+- Trang tiến độ không đọc "x/6" một mình: `domain/production-progress.ts` liệt kê sáu bước có tên (xong / đang ở / dừng ở / chưa tới) và một
+  câu nói đang ở bước nào. Lượt sửa AI lùi checkpoint nhưng kịch bản và giọng đọc của lượt trước vẫn nằm trên video tới bước `apply`, nên khi
+  checkpoint chưa tới `APPLIED` mà video đã có cảnh, DTO mang `earlierPass` (phiên bản kịch bản, số cảnh, số cảnh có giọng) và `correctionNote`
+  (điều lượt sửa được yêu cầu sửa); worker ghi log `AI output rejected` kèm mã và các trường sai (không có nội dung sách).
 - `claimProductionItem`: lease nguyên tử 10 phút bằng một `UPDATE … WHERE`; chỉ người giữ gia hạn/nhả; lease hết thì nhận lại được; item đã
   kết thúc không bao giờ được trao lại. Gặp item còn bị giữ (worker trước chết) → hoãn tới lúc lease hết.
 - Một job đi nhiều bước liên tiếp và **không bao giờ chờ**: render đang chạy (kiểm lại sau 15 giây) hay lỗi tạm → `deferred`. Mọi bước ghi

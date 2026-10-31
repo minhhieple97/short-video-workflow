@@ -348,7 +348,7 @@ pnpm, không phải chẩn đoán này.
 | `NOTEBOOKLM_QUERY_TOO_LONG`             | Câu hỏi quá 740 từ (NotebookLM từ chối)  | Bài học rất lớn: rút ngắn rồi tạo lại video (**Thử lại** vô ích)         |
 | `NOTEBOOKLM_INVALID_REQUEST`            | NotebookLM báo yêu cầu không hợp lệ      | **Thử lại** không giúp: câu hỏi quá dài hoặc nguồn hỏng; xem log worker  |
 | `NOTEBOOKLM_*_INVALID`, `DRAFT_INVALID` | Sai định dạng hoặc sai mạch kể           | Bản thảo: lượt sửa tự động; chương: **Phân tích lại**                    |
-| `PRODUCTION_CORRECTION_EXHAUSTED`       | Đã dùng lượt sửa AI mà vẫn chưa đạt      | Xem lý do (thường quá dài/ngắn); sửa bài học / đợt mới với khoảng khác   |
+| `PRODUCTION_CORRECTION_EXHAUSTED`       | Đã dùng hết lượt sửa AI nên dừng         | Xem lý do lượt sửa + lỗi cuối; **Thử lại** chạy lại từ bước dừng         |
 | `UNDER_MIN`                             | Video ngắn hơn mức ngắn nhất             | Làm tay: chỉ cảnh báo. Hàng loạt: NotebookLM viết lại sâu hơn (một lượt) |
 | `DRAFT_LENGTH_OUT_OF_RANGE`             | NotebookLM đề xuất độ dài ngoài khoảng   | Tự sửa bằng lượt sửa AI; lặp lại thì kiểm tra prompt/NotebookLM          |
 | `DURATION_OVER_LIMIT`                   | Khoảng dài hơn `MAX_VIDEO_DURATION_SEC`  | Chọn mức dài nhất thấp hơn, hoặc nâng biến này (≤ 300) và khởi động lại  |

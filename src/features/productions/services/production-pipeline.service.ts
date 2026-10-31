@@ -202,6 +202,8 @@ async function compileStep(
 // correction is for. Any other rejection, such as a refused request, cannot be fixed by asking again.
 function correctRejected(itemId: string, claimToken: string, error: unknown): Promise<StepOutcome> {
   if (error instanceof IntegrationError && error.kind === "REJECTED" && isCorrectableIssue(error.code)) {
+    // The user only sees the message; which fields of the answer were wrong stays here (paths and rules, never book text).
+    logger.warn("AI output rejected", { itemId, code: error.code, details: error.details });
     return correct(itemId, claimToken, [{ code: error.code, message: error.message }], error.message);
   }
   throw error;
@@ -219,7 +221,7 @@ async function correct(
   return failed(
     result.status === "BUDGET_SPENT" ? "PRODUCTION_CORRECTION_EXHAUSTED" : "PRODUCTION_NOT_CORRECTABLE",
     result.status === "BUDGET_SPENT"
-      ? `Đã dùng hết lượt sửa AI mà video vẫn chưa đạt: ${summary}`
+      ? `Đã dùng hết lượt sửa AI nên dừng ở lỗi này: ${summary}`
       : `Video chưa đạt và không thể nhờ AI sửa: ${summary}`,
   );
 }

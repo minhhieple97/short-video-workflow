@@ -226,7 +226,8 @@ Chưa phân trang: danh mục chọn bài để sản xuất, các đợt nhập
 - Tổng thời lượng so với khoảng (hiện cả độ dài AI đề xuất và lý do), cảnh báo khi ngắn hơn mức ngắn nhất, sát hoặc vượt mức dài
   nhất; khi vượt chỉ hướng dẫn rút gọn. **Duyệt kịch bản** bị chặn khi chưa
   có cảnh hoặc hook không hợp lệ.
-- Video của đợt sản xuất: hiện trạng thái mục, bước tiếp theo, lượt sửa AI; tab **Nguồn kịch bản** hiện bản thảo theo nhịp, trích
+- Video của đợt sản xuất: hiện trạng thái mục, đang/dừng ở bước nào, lượt sửa AI; khi đợt dừng trước bước áp dụng kịch bản mà video còn kịch
+  bản và giọng đọc từ trước thì nói rõ đó là phần còn lại, chưa được máy duyệt; tab **Nguồn kịch bản** hiện bản thảo theo nhịp, trích
   đoạn kèm số trang, đánh dấu minh hoạ.
 
 ### 5.6. Giọng đọc
@@ -272,7 +273,8 @@ Chưa phân trang: danh mục chọn bài để sản xuất, các đợt nhập
   động có giới hạn.
 - Trạng thái video: Chờ chạy, Đang chạy, Đang chờ, Hoàn tất, Lỗi, Đã huỷ. Trạng thái đợt suy ra từ video: Đang xếp hàng, Đang chạy,
   Hoàn tất, Xong một phần, Lỗi, Đã huỷ.
-- Trang tiến độ: từng video với bước tiếp theo, lý do chờ/lỗi, lượt sửa AI, render, Drive. **Huỷ** (có xác nhận; chặn mọi bước sau,
+- Trang tiến độ: từng video với sáu bước có tên (xong / đang ở / dừng ở), lý do chờ/lỗi, lượt sửa AI kèm lý do, kịch bản và giọng đọc video
+  còn giữ từ lượt trước (khi lượt sửa AI đưa mục về bước đầu), render, Drive. **Huỷ** (có xác nhận; chặn mọi bước sau,
   thắng mọi kết quả về muộn) và **Thử lại** (tiếp từ checkpoint, không tạo video mới) cho từng video hoặc cả đợt.
 
 ### 5.9. Lưu Google Drive
