@@ -174,6 +174,8 @@ export class McpStdioClient {
     if (this.exited) return Promise.reject(this.exited);
     options.signal?.throwIfAborted();
     const id = this.nextId++;
+    const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
+    const call = method === "tools/call" && typeof params.name === "string" ? params.name : method;
     return new Promise((resolve, reject) => {
       const cancel = (error: Error) => {
         if (!this.pending.delete(id)) return;
@@ -183,8 +185,16 @@ export class McpStdioClient {
         reject(error);
       };
       const timer = setTimeout(
-        () => cancel(transportFailure("MCP_TIMEOUT", "Máy chủ MCP không trả lời kịp.")),
-        options.timeoutMs ?? REQUEST_TIMEOUT_MS,
+        () =>
+          cancel(
+            new IntegrationError(
+              "MCP_TIMEOUT",
+              `Máy chủ MCP không trả lời "${call}" sau ${timeoutMs / 1000} s.`,
+              "TRANSIENT",
+              { details: { call, timeoutMs } },
+            ),
+          ),
+        timeoutMs,
       );
       const onAbort = () =>
         cancel(options.signal?.reason instanceof Error ? options.signal.reason : new Error("Aborted"));

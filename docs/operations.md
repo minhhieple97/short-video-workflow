@@ -84,7 +84,7 @@ worker.
 | `NOTEBOOKLM_PROFILE`             | _(trống)_                    | Profile đã `nlm login` (≤ 64 ký tự: chữ, số, `_.-`) |
 | `NOTEBOOKLM_MCP_COMMAND`         | `uvx`                        | Lệnh worker dùng để chạy máy chủ MCP                |
 | `NOTEBOOKLM_MCP_PACKAGE`         | `notebooklm-mcp-cli==0.15.8` | Gói ghim phiên bản (dùng API không chính thức)      |
-| `NOTEBOOKLM_CALL_TIMEOUT_SEC`    | `180`                        | Thời gian tối đa mỗi lời gọi NotebookLM             |
+| `NOTEBOOKLM_CALL_TIMEOUT_SEC`    | `360`                        | Thời gian tối đa mỗi lời gọi NotebookLM             |
 | `GOOGLE_OAUTH_CLIENT_ID`         | _(trống)_                    | OAuth client Desktop app; trống thì chỉ lưu local   |
 | `GOOGLE_OAUTH_CLIENT_SECRET`     | _(trống)_                    | Secret của client đó (không bao giờ ghi log)        |
 | `GOOGLE_API_BASE_URL`            | _(trống)_                    | Chỉ cho kiểm thử: API Google từ fake cục bộ         |
@@ -339,6 +339,7 @@ pnpm, không phải chẩn đoán này.
 | `NOTEBOOKLM_PROFILE_MISSING`            | Profile chưa đăng nhập hoặc hết hạn      | `nlm login` lại (§3.4), rồi **Kiểm tra NotebookLM**                      |
 | `NOTEBOOKLM_AUTH_REQUIRED`              | NotebookLM báo cần đăng nhập lại         | Như dòng trên                                                            |
 | `NOTEBOOKLM_QUOTA`                      | Hết hạn mức NotebookLM                   | Xem giờ đặt lại ở Cài đặt → NotebookLM, rồi **Thử lại**                  |
+| `MCP_TIMEOUT`                           | NotebookLM trả lời chậm quá hạn chờ      | Tự thử lại 5 lần; lặp lại thì nâng `NOTEBOOKLM_CALL_TIMEOUT_SEC`         |
 | `NOTEBOOKLM_*_INVALID`, `DRAFT_INVALID` | Sai định dạng hoặc sai mạch kể           | Bản thảo: lượt sửa tự động; chương: **Phân tích lại**                    |
 | `PRODUCTION_CORRECTION_EXHAUSTED`       | Đã dùng lượt sửa AI mà vẫn chưa đạt      | Xem lý do (thường quá dài/ngắn); sửa bài học / đợt mới với khoảng khác   |
 | `UNDER_MIN`                             | Video ngắn hơn mức ngắn nhất             | Làm tay: chỉ cảnh báo. Hàng loạt: NotebookLM viết lại sâu hơn (một lượt) |

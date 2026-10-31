@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
+import fs from "node:fs";
 import path from "node:path";
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type * as Analysis from "@/features/chapters/services/notebook-chapter-analysis.service";
+import type * as PartAnswers from "@/features/chapters/services/notebook-part-answers.service";
 import { assembleCanonicalMarkdown } from "@/features/extraction/domain/canonical-document";
 import type * as DbClient from "@/server/db/client";
 import { LESSON_EXTRACTION_PROMPT_VERSION } from "@/server/script-studio/notebooklm/prompts/lesson-extraction-prompt";
@@ -14,6 +16,7 @@ import { setupTestEnvironment, type TestEnvironment } from "../helpers/test-envi
 let env: TestEnvironment;
 let db: typeof DbClient;
 let analysis: typeof Analysis;
+let partAnswers: typeof PartAnswers;
 let nlm: FakeNotebookLm;
 
 const SENTENCE_ONE = "Thói quen nhỏ cộng dồn thành kết quả lớn theo thời gian.";
@@ -91,6 +94,7 @@ beforeAll(async () => {
   env = setupTestEnvironment();
   db = await import("@/server/db/client");
   analysis = await import("@/features/chapters/services/notebook-chapter-analysis.service");
+  partAnswers = await import("@/features/chapters/services/notebook-part-answers.service");
 }, 60_000);
 
 beforeEach(async () => {
@@ -180,6 +184,83 @@ describe("runNotebookChapterAnalysis", () => {
     expect(await activeLessons(bookId)).toHaveLength(1);
   });
 
+  describe("a retry after a later part timed out", () => {
+    const wholeAnswer = (title: string, excerpt: { page: number; text: string }, complete = true) =>
+      notebookAnswer({ complete, lessons: [lesson(title, [excerpt])] });
+    const partOne = (complete = true) =>
+      wholeAnswer("Cộng dồn thói quen nhỏ", { page: 2, text: SENTENCE_ONE }, complete);
+    const partTwo = () => wholeAnswer("Thiết kế môi trường", { page: 3, text: SENTENCE_TWO });
+    // The second part's question is never answered: the call is given up on after one second.
+    const runUntilSecondPartTimesOut = async (chapterId: string, firstAnswer: Record<string, unknown>) => {
+      nlm.script({ notebook_query: [firstAnswer, { __hang: true }] });
+      await expect(
+        analysis.runNotebookChapterAnalysis({
+          chapterId,
+          jobRecordId: null,
+          force: false,
+          settings: { ...nlm.settings, callTimeoutMs: 1_000 },
+        }),
+      ).rejects.toMatchObject({ code: "MCP_TIMEOUT", kind: "TRANSIENT" });
+    };
+
+    it("asks only the parts it has not answered, and keeps how long each question took or why it failed", async () => {
+      const { bookId, chapterId } = await seedPdfChapter(400);
+      await runUntilSecondPartTimesOut(chapterId, partOne());
+      expect(await chapterOf(chapterId)).toMatchObject({ analysisStatus: "FAILED" });
+      expect(nlm.calls("notebook_query")).toHaveLength(2);
+
+      nlm.script({ notebook_query: [partTwo()] });
+      await expect(run(chapterId)).resolves.toMatchObject({ skipped: false, lessonsCreated: 2, partial: false });
+
+      const queries = nlm.calls("notebook_query");
+      expect(queries).toHaveLength(3);
+      expect(String(queries[2]?.query)).toContain("phần 2/2");
+      expect((await activeLessons(bookId)).map((item) => item.title)).toEqual([
+        "Cộng dồn thói quen nhỏ",
+        "Thiết kế môi trường",
+      ]);
+      expect(await chapterOf(chapterId)).toMatchObject({ analysisStatus: "ANALYZED" });
+      const partRuns = await db.prisma.aiRun.findMany({
+        where: { mode: "notebooklm-part" },
+        orderBy: { createdAt: "asc" },
+      });
+      expect(partRuns.map((item) => item.status)).toEqual(["COMPLETED", "FAILED", "COMPLETED"]);
+      expect(partRuns[1]?.errorMessage).toContain("notebook_query");
+    });
+
+    it("asks a part again when its earlier answer stopped early", async () => {
+      const { chapterId } = await seedPdfChapter(400);
+      await runUntilSecondPartTimesOut(chapterId, partOne(false));
+
+      nlm.script({ notebook_query: [partOne(), partTwo()] });
+      await expect(run(chapterId)).resolves.toMatchObject({ partial: false });
+
+      expect(nlm.calls("notebook_query")).toHaveLength(4);
+    });
+
+    it("asks a part again when its stored answer is gone", async () => {
+      const { chapterId } = await seedPdfChapter(400);
+      await runUntilSecondPartTimesOut(chapterId, partOne());
+      const kept = await db.prisma.aiRun.findFirstOrThrow({ where: { mode: "notebooklm-part", status: "COMPLETED" } });
+      fs.rmSync(path.join(env.dataDir, kept.outputPath ?? ""));
+
+      nlm.script({ notebook_query: [partOne(), partTwo()] });
+      await run(chapterId);
+
+      expect(nlm.calls("notebook_query")).toHaveLength(4);
+    });
+
+    it("asks every part again for a forced run once an analysis has finished", async () => {
+      const { chapterId } = await seedPdfChapter(400);
+      nlm.script({ notebook_query: [partOne(), partTwo(), partOne(), partTwo()] });
+      await run(chapterId);
+      expect(nlm.calls("notebook_query")).toHaveLength(2);
+
+      await run(chapterId, true);
+      expect(nlm.calls("notebook_query")).toHaveLength(4);
+    });
+  });
+
   it("stores nothing and fails the chapter when the answer is not the JSON asked for", async () => {
     const { bookId, chapterId } = await seedPdfChapter();
     nlm.script({ notebook_query: [{ status: "success", answer: "Chương này nói về thói quen.", sources_used: [] }] });
@@ -211,5 +292,32 @@ describe("runNotebookChapterAnalysis", () => {
       analysis.notebookAnalysisSettingsFor(textBook.chapters[0]?.id ?? "", nlm.settings),
     ).resolves.toBeNull();
     await expect(analysis.notebookAnalysisSettingsFor(chapterId, null)).resolves.toBeNull();
+  });
+});
+
+describe("notebookPartInputHash", () => {
+  const question = {
+    bookTitle: "Sách",
+    chapterTitle: "Chương 1",
+    partNumber: 1,
+    partCount: 2,
+    pages: { first: 2, last: 9 },
+    markdown: "Văn bản của phần.",
+  };
+
+  it("changes with anything the answer is written from, and with nothing else", () => {
+    const hash = partAnswers.notebookPartInputHash(question);
+
+    expect(partAnswers.notebookPartInputHash({ ...question })).toBe(hash);
+    for (const changed of [
+      { markdown: "Văn bản khác của phần." },
+      { chapterTitle: "Chương 2" },
+      { bookTitle: "Sách khác" },
+      { partNumber: 2 },
+      { partCount: 3 },
+      { pages: { first: 2, last: 10 } },
+    ]) {
+      expect(partAnswers.notebookPartInputHash({ ...question, ...changed })).not.toBe(hash);
+    }
   });
 });

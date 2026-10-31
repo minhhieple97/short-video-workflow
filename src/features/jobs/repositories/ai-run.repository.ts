@@ -35,6 +35,23 @@ export async function hasCompletedAiRun(inputHash: string): Promise<boolean> {
   return (await prisma.aiRun.count({ where: { inputHash, status: "COMPLETED" } })) > 0;
 }
 
+// The latest completed run of this kind for this input; with `completedAfter`, only one that finished after that time.
+export function findCompletedAiRun(input: {
+  mode: string;
+  inputHash: string;
+  completedAfter: Date | null;
+}): Promise<AiRun | null> {
+  return prisma.aiRun.findFirst({
+    where: {
+      mode: input.mode,
+      inputHash: input.inputHash,
+      status: "COMPLETED",
+      ...(input.completedAfter ? { completedAt: { gt: input.completedAfter } } : {}),
+    },
+    orderBy: { completedAt: "desc" },
+  });
+}
+
 export async function failWaitingAiRuns(jobRecordId: string, errorMessage: string): Promise<void> {
   await prisma.aiRun.updateMany({
     where: { jobRecordId, status: { in: ["WAITING_FOR_CLI", "RUNNING"] } },

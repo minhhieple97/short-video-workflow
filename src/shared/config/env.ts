@@ -67,7 +67,8 @@ const envSchema = z
         .regex(/^[\w.-]{1,64}$/)
         .optional(),
     ),
-    NOTEBOOKLM_CALL_TIMEOUT_SEC: positiveInt(180),
+    // A question about a chapter part takes 100–170 s on a real account and sometimes more than 180 s.
+    NOTEBOOKLM_CALL_TIMEOUT_SEC: positiveInt(360),
     DRIVE_MIN_REQUEST_INTERVAL_MS: z.coerce.number().int().min(0).max(60_000).default(1000),
     DRIVE_MAX_REQUESTS_PER_DAY: z.coerce.number().int().positive().max(1_000_000).default(5000),
     DRIVE_MAX_UPLOAD_GIB_PER_DAY: z.coerce.number().positive().max(750).default(750),

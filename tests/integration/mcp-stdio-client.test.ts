@@ -122,6 +122,27 @@ describe("McpStdioClient", () => {
     expect(cancelled).toMatchObject({ params: { requestId: 2 } });
   });
 
+  it("says which call it gave up on and after how long, for a tool and for the handshake", async () => {
+    const mcp = server("hang-on-call");
+    await mcp.start();
+
+    await expect(mcp.callTool("echo", {}, { timeoutMs: 200 })).rejects.toMatchObject({
+      message: 'Máy chủ MCP không trả lời "echo" sau 0.2 s.',
+      details: { call: "echo", timeoutMs: 200 },
+    });
+    await mcp.close();
+
+    client = new McpStdioClient({
+      command: process.execPath,
+      args: ["-e", "process.stdin.resume()"],
+      env: { PATH: process.env.PATH ?? "" },
+    });
+    await expect(client.start({ timeoutMs: 200 })).rejects.toMatchObject({
+      message: 'Máy chủ MCP không trả lời "initialize" sau 0.2 s.',
+      details: { call: "initialize", timeoutMs: 200 },
+    });
+  });
+
   it("stops waiting when the caller cancels, sending nothing once already cancelled", async () => {
     const mcp = server("hang-on-call");
     await mcp.start();

@@ -106,6 +106,34 @@ describe("durable provider cooldown", () => {
     expect(called).toBe(false);
   });
 
+  it("does not tell a task held back by another task's temporary failure that it failed too, but keeps a quota's words", async () => {
+    await expect(
+      cooldown.withProviderCooldown("notebooklm", async () => {
+        throw new IntegrationError("MCP_TIMEOUT", 'Máy chủ MCP không trả lời "notebook_query" sau 360 s.', "TRANSIENT");
+      }),
+    ).rejects.toMatchObject({ code: "MCP_TIMEOUT", kind: "TRANSIENT" });
+
+    const held: unknown = await cooldown
+      .withProviderCooldown("notebooklm", async () => 1)
+      .catch((error: unknown) => error);
+    expect(held).toMatchObject({
+      code: "MCP_TIMEOUT",
+      kind: "QUOTA",
+      message: "NotebookLM vừa lỗi ở một tác vụ khác; tạm nghỉ rồi tự thử lại.",
+    });
+    expect((held as IntegrationError).retryAfterMs).toBeGreaterThan(50_000);
+
+    await expect(
+      cooldown.withProviderCooldown("claude", async () => {
+        throw new IntegrationError("AI_QUOTA_EXCEEDED", "Hết hạn mức Claude.", "QUOTA", { retryAfterMs: 3_600_000 });
+      }),
+    ).rejects.toMatchObject({ kind: "QUOTA" });
+    await expect(cooldown.withProviderCooldown("claude", async () => 1)).rejects.toMatchObject({
+      code: "AI_QUOTA_EXCEEDED",
+      message: "Hết hạn mức Claude.",
+    });
+  });
+
   it.each(["AUTH", "REJECTED", "UNKNOWN_OUTCOME"] as const)(
     "does not turn %s into an automatic quota retry",
     async (kind) => {

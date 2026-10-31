@@ -35,6 +35,7 @@ import { createLogger, toSafeErrorMessage } from "@/shared/logger";
 import { mergeLessonCandidates } from "../domain/lesson-candidates";
 import { findChapterWithBook, setChapterAnalysisStatus } from "../repositories/chapter.repository";
 import type { ChapterAnalysisResult } from "./chapter-analysis.service";
+import { answerPart } from "./notebook-part-answers.service";
 
 const logger = createLogger("chapters.notebook-analysis");
 
@@ -116,32 +117,58 @@ function toDraft(
 
 async function readParts(
   run: NotebookChapterAnalysisRun,
-  chapter: { bookId: string; title: string; book: { title: string } },
+  chapter: { id: string; bookId: string; title: string; analyzedAt: Date | null; book: { title: string } },
   parts: readonly ChapterPartDocument[],
+  taskDir: string,
 ): Promise<LessonExtraction[]> {
   const studio = new NotebookLmScriptStudio(run.settings);
   const book = { id: chapter.bookId, title: chapter.book.title };
   try {
     const extractions: LessonExtraction[] = [];
     for (const part of parts) {
-      if (!part.pages) {
+      const { pages } = part;
+      if (!pages) {
         throw new AppError("CHAPTER_PAGES_MISSING", "Phần chương này không ứng với trang PDF nào.", 409);
       }
-      const source = await studio.ensureSource({ book, document: part.document, known: null }, { signal: run.signal });
-      extractions.push(
-        await studio.extractLessons(
-          {
-            sources: [source],
-            bookTitle: book.title,
-            chapterTitle: chapter.title,
-            partNumber: part.partNumber,
-            partCount: part.partCount,
-            startPage: part.pages.first,
-            endPage: part.pages.last,
-          },
-          { signal: run.signal },
-        ),
-      );
+      const { extraction, reused } = await answerPart({
+        question: {
+          bookTitle: book.title,
+          chapterTitle: chapter.title,
+          partNumber: part.partNumber,
+          partCount: part.partCount,
+          pages,
+          markdown: part.document.markdown,
+        },
+        analyzedAt: chapter.analyzedAt,
+        jobRecordId: run.jobRecordId,
+        taskDir,
+        ask: async () => {
+          const source = await studio.ensureSource(
+            { book, document: part.document, known: null },
+            { signal: run.signal },
+          );
+          return studio.extractLessons(
+            {
+              sources: [source],
+              bookTitle: book.title,
+              chapterTitle: chapter.title,
+              partNumber: part.partNumber,
+              partCount: part.partCount,
+              startPage: pages.first,
+              endPage: pages.last,
+            },
+            { signal: run.signal },
+          );
+        },
+      });
+      if (reused) {
+        logger.info("Part answer kept from an earlier attempt", {
+          chapterId: chapter.id,
+          partNumber: part.partNumber,
+          partCount: part.partCount,
+        });
+      }
+      extractions.push(extraction);
       await run.onProgress?.(10 + Math.round((part.partNumber / part.partCount) * 70));
     }
     return extractions;
@@ -179,8 +206,9 @@ export async function runNotebookChapterAnalysis(
     inputHash,
   });
   try {
+    const taskDir = `ai-tasks/${run.jobRecordId ?? aiRun.id}`;
     const { source, parts } = await chapterPartDocuments(chapter, chapter.book.sourceFormat);
-    const extractions = await readParts(run, chapter, parts);
+    const extractions = await readParts(run, chapter, parts, taskDir);
     const partial = extractions.some((extraction) => !extraction.complete);
     const lessons = mergeLessonCandidates(extractions.flatMap((extraction) => extraction.lessons));
 
@@ -191,7 +219,7 @@ export async function runNotebookChapterAnalysis(
       return draft;
     });
 
-    const outputPath = `ai-tasks/${run.jobRecordId ?? aiRun.id}/notebooklm-lessons.json`;
+    const outputPath = `${taskDir}/notebooklm-lessons.json`;
     await writeFileAtomic(dataPath(outputPath), `${JSON.stringify(extractions, null, 2)}\n`);
     const { created, archived } = await replaceChapterDraftLessons({
       bookId: chapter.bookId,

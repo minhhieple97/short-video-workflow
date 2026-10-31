@@ -117,7 +117,8 @@ src/
                        layer writes as ñ/ð (whole book or nothing), `text-layer-repair.service.ts` + `pnpm text:repair` do it for books already imported
     chapters/          chapter listing/reading/rename, analysis runner (worker) + analysis requests (web, server-only; the chapters tab ticks
                        chapters through `useChapterSelection`, shared by the analyse button and the table);
-                       PDF chapters are catalogued by NotebookLM part by part when it is set up (`notebook-chapter-analysis`)
+                       PDF chapters are catalogued by NotebookLM part by part when it is set up (`notebook-chapter-analysis`); a part's
+                       complete answer is kept (`notebook-part-answers`, an `AiRun` of mode `notebooklm-part`) so a retry asks only the missing parts
     lessons/           lesson domain (fields, excerpt verification), repository, review service, library/review UI; the bulk bar also
                        starts production (`ProduceLessonsDialog` from `productions/`), and a row says when its lesson is being made
     videos/            short-form domain (scene types, layouts, duration budget, pace, story angles, snapshots), script generation/editing, editor UI;

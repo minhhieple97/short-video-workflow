@@ -316,6 +316,9 @@ theo số dòng, không trích nội dung. `cleanup` xoá tệp yêu cầu **cu�
   văn bản lỗi chỉ dùng để phân loại, không bao giờ được hiện ra. Công cụ thay đổi dữ liệu quá hạn hay trả lời hỏng → `UNKNOWN_OUTCOME`.
 - Một tiến trình MCP cho một lần chạy job: mở ở lời gọi đầu, kiểm tra `usage_get` trước khi xử lý, đóng trong `finally`; lúc đóng đọc `usage_get` và ghi
   `data/integrations/notebooklm-status.json` (phần trăm — vắng là "không rõ", không phải 0 —, giờ đặt lại, gói; không cookie).
+- Lời gọi công cụ chờ tối đa `NOTEBOOKLM_CALL_TIMEOUT_SEC` (mặc định 360 giây; một câu hỏi về một phần chương mất 100–170 giây trên tài
+  khoản thật, đôi khi hơn 180), bắt tay và `tools/list` chờ 60 giây. Quá hạn → `MCP_TIMEOUT` (`TRANSIENT`) với lỗi nêu tên lời gọi và số
+  giây, và `details: { call, timeoutMs }`; riêng công cụ thay đổi dữ liệu thì là `UNKNOWN_OUTCOME`.
 
 ### 7.2 Notebook và nguồn
 
@@ -338,6 +341,12 @@ Mỗi phần là nguồn `chapter:<id>:part:<n>` có `[Trang N]` đầu mỗi tr
 đánh dấu tình huống tự nghĩ). Bài trùng tiêu đề giữa các phần được gộp. Trang lưu cho trích đoạn là trang **nơi tìm thấy** nó, không phải
 trang mô hình khai. Phần trả `complete: false` → chương `PARTIAL`; sai định dạng → `FAILED`, không lưu gì. Mỗi lần chạy thay bài nháp AI
 cũ của chương và ghi `AiRun(mode=notebooklm)`.
+
+Mỗi phần được hỏi (`notebook-part-answers.service.ts`) ghi thêm `AiRun(mode=notebooklm-part)`: thời gian hỏi hoặc lý do lỗi, và câu trả lời
+trong `ai-tasks/<job>/notebooklm-part-<n>-<hash>.json`. `inputHash` = sha256(phiên bản prompt, tên sách, tên chương, số phần, trang, hash
+văn bản phần). Lần chạy sau (tự thử lại sau lỗi tạm thời, hay job mới do **Thử lại**) không hỏi lại phần có câu trả lời đầy đủ hoàn tất sau
+`Chapter.analyzedAt`; vì mỗi lần phân tích xong đặt `analyzedAt`, **Phân tích lại** một chương đã xong hỏi lại mọi phần. Câu trả lời
+`complete: false`, hỏng schema hay mất file thì hỏi lại.
 
 ### 7.4 Bản thảo và cache
 
@@ -648,6 +657,9 @@ tạm thời không chặn việc xử lý, nhưng lỗi đăng nhập hoặc qu
 mọi `Retry-After` được tôn trọng.
 Outage cũng mở khoảng nghỉ dùng chung; chỉ lỗi tạm thời thực tế tăng bộ đếm retry. `UNKNOWN_OUTCOME` vẫn qua đối soát
 của adapter hiện có. Job phân tích chương có bộ đếm lỗi tạm thời riêng để quota dài không làm hết lượt retry.
+Job bị giữ lại bởi khoảng nghỉ do lỗi tạm thời của tác vụ khác được ghi lý do "<Dịch vụ> vừa lỗi ở một tác vụ khác; tạm nghỉ rồi tự thử
+lại." (mã lỗi gốc giữ nguyên) thay vì lặp lại lỗi của tác vụ kia, vì nó chưa lỗi; khoảng nghỉ do quota giữ nguyên lời của quota. Worker
+ghi một dòng log khi khoảng nghỉ bắt đầu và một dòng khi job phân tích chương bị hoãn vì lỗi tạm thời.
 
 ## 14. Thông báo Telegram
 

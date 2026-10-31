@@ -110,6 +110,13 @@ export function createJobDispatcher(processors: Record<JobType, JobProcessor>): 
           await recordJobWaitReason(jobRecordId, error);
           await deferJobEntity(record);
           if (!(await deferRunningJob(jobRecordId, job.data, retryAfterMs))) return await finishCancelled();
+          logger.warn("Job deferred after a temporary failure", {
+            ...fields,
+            errorCode: error.code,
+            error: toSafeErrorMessage(error),
+            failures,
+            retryAfterMs,
+          });
           return { deferred: true, retryAfterMs };
         }
       }

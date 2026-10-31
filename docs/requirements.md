@@ -111,6 +111,9 @@ xuất** (`ProductionBatch`) gồm các mục (`ProductionItem`): mỗi mục = 
   hình tự khai.
 - Phân tích lại một chương chỉ thay bài nháp do AI tạo từ riêng chương đó (chuyển sang lưu trữ); bài đã duyệt và bài thủ công không
   bao giờ bị đụng tới.
+- Chương PDF do NotebookLM phân tích theo từng phần. Lỗi tạm thời (NotebookLM trả lời quá hạn, mất kết nối) được thử lại tự động tối
+  đa 5 lần, nghỉ 30 giây rồi gấp đôi tới 8 phút; phần đã có câu trả lời đầy đủ không bị hỏi lại ở lần thử sau, kể cả khi bấm
+  **Thử lại**. **Phân tích lại** một chương đã xong thì hỏi lại mọi phần.
 - Gộp bài: bằng chứng chuyển sang bài đích, bài bị gộp được lưu trữ. NotebookLM tự gộp bài trùng tiêu đề trong cùng một chương.
 - Bài học hiện "Đã dùng trong N video"; dùng lại được, chỉ cảnh báo.
 - Mỗi bài học trong danh sách có **ô chọn** (ô ở tiêu đề chọn cả trang). Thanh phía trên danh sách **Duyệt**, **Từ chối** (lưu trữ,
