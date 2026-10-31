@@ -559,10 +559,12 @@ Chỉ các dịch vụ dưới đây được phép, mỗi dịch vụ sau một
   phí không tự nâng, không tự đổi nhà cung cấp; tệp phía Mistral bị xoá sau khi kết quả đã lưu.
 - **NotebookLM** (MCP stdio, tiến trình con của worker, chỉ khi `cli-auto`): qua công cụ không chính thức `notebooklm-mcp-cli` với
   profile đã đăng nhập của người dùng và hạn mức gói của họ. Một notebook mỗi sách, một nguồn mỗi phần chương; mỗi câu hỏi chỉ rõ
-  nguồn được dùng. Notebook của mỗi sách được cấu hình trò chuyện (vai trò phân tích sách + biên kịch video, quy tắc cố định của bản
-  thảo, câu trả lời dài hơn) trước câu hỏi đầu tiên; vai trò không bao giờ thắng định dạng JSON và độ dài mà từng câu hỏi yêu cầu.
-  Nội dung chương luôn nằm ở nguồn của notebook, không bao giờ trong câu hỏi; một câu hỏi tối đa 700 từ vì NotebookLM từ chối câu hỏi
-  dài hơn khoảng 750 từ.
+  nguồn được dùng. Notebook của mỗi sách được cấu hình trò chuyện trước mỗi câu hỏi theo việc của nó: vai trò ngắn (phân tích sách + biên kịch
+  video, câu trả lời dài hơn) cho xác định chương và lập danh mục bài học, để trích dẫn đúng nguyên văn; vai trò dài hơn, kèm quy tắc cố
+  định của bản thảo, chỉ khi viết bản thảo. Vai trò không bao giờ thắng định dạng JSON và độ dài mà từng câu hỏi yêu cầu.
+  Nội dung chương luôn nằm ở nguồn của notebook, không bao giờ trong câu hỏi; một câu hỏi tối đa 740 từ vì NotebookLM từ chối câu hỏi
+  dài hơn khoảng 800 từ. Bài học luôn được gửi nguyên vẹn trong câu hỏi: không bị rút ngắn hay bỏ trích đoạn để cho vừa, và câu hỏi
+  quá dài thì báo lỗi rõ thay vì cắt.
 - **Google Drive** (OAuth `drive.file`): quyền tối thiểu, ứng dụng chỉ thấy tệp nó tạo. Token chỉ ở máy cục bộ, không trong cơ sở
   dữ liệu, giao diện hay log. Ngắt kết nối thu hồi quyền, không xoá gì trên Drive. Ứng dụng tự giới hạn nhịp và lượng gửi mỗi 24
   giờ, kiểm tra dung lượng trước khi upload.

@@ -5,7 +5,11 @@ import type { CallOptions } from "@/server/integrations/call-options";
 import { IntegrationError } from "@/server/integrations/integration-error";
 import { NotebookLmSession } from "@/server/script-studio/notebooklm/notebooklm-session";
 import { buildChapterDetectionPrompt } from "@/server/script-studio/notebooklm/prompts/chapter-detection-prompt";
-import { CHAT_PERSONA_VERSION } from "@/server/script-studio/notebooklm/prompts/chat-persona-prompt";
+import {
+  ANALYSIS_PERSONA,
+  DRAFT_PERSONA,
+  type ChatPersona,
+} from "@/server/script-studio/notebooklm/prompts/chat-persona-prompt";
 import { buildLessonExtractionPrompt } from "@/server/script-studio/notebooklm/prompts/lesson-extraction-prompt";
 import {
   buildScriptDraftPrompt,
@@ -39,6 +43,7 @@ import {
   openBookNotebook,
   type NotebookStudioSettings,
 } from "./notebook-studio.service";
+import { ensureChatPersona } from "./notebook-sync.service";
 
 const logger = createLogger("notebooklm.studio");
 const MAX_CHAPTERS = 500;
@@ -66,12 +71,15 @@ function splitRefs(sources: readonly SourceRef[]): { notebookId: string; sourceI
 
 // The script studio on NotebookLM: one MCP server process, opened on first use and kept for the run (close() ends it).
 // Each book has one notebook; each source is uploaded once per revision of its text; every question names exactly the
-// sources it is about, and its answer must be the JSON asked for.
+// sources it is about, and its answer must be the JSON asked for. The notebook's chat persona is set before each question
+// to the one its kind of work needs (ANALYSIS_PERSONA for the catalogue, DRAFT_PERSONA for a draft), never left to chance.
 export class NotebookLmScriptStudio implements ScriptStudioProvider {
   readonly id = "notebooklm";
   // The notebook's chat persona shapes the draft as much as the question does, so both versions key the draft cache.
-  readonly draftVersion = `${SCRIPT_DRAFT_PROMPT_VERSION}+${CHAT_PERSONA_VERSION}`;
+  readonly draftVersion = `${SCRIPT_DRAFT_PROMPT_VERSION}+${DRAFT_PERSONA.version}`;
   private session: Promise<NotebookLmSession> | null = null;
+  // The binding of each notebook this studio opened, which a question needs to record the persona it set.
+  private readonly bindingIds = new Map<string, string>();
 
   constructor(private readonly settings: NotebookStudioSettings) {}
 
@@ -80,6 +88,7 @@ export class NotebookLmScriptStudio implements ScriptStudioProvider {
     signal?.throwIfAborted();
     const caller = await this.open(signal);
     const notebook = await openBookNotebook(caller, this.settings.profile, request.book, signal);
+    this.bindingIds.set(notebook.notebookId, notebook.bindingId);
     const sourceId = await ensureNotebookDocument(notebook, request.document, signal);
     return { key: request.document.key, remoteId: `${notebook.notebookId}${REF_SEPARATOR}${sourceId}` };
   }
@@ -94,6 +103,7 @@ export class NotebookLmScriptStudio implements ScriptStudioProvider {
       }),
       "NOTEBOOKLM_CHAPTERS_INVALID",
       z.array(detectedChapterSchema).max(MAX_CHAPTERS),
+      ANALYSIS_PERSONA,
       options,
     );
   }
@@ -110,6 +120,7 @@ export class NotebookLmScriptStudio implements ScriptStudioProvider {
       }),
       "NOTEBOOKLM_LESSONS_INVALID",
       lessonExtractionSchema,
+      ANALYSIS_PERSONA,
       options,
     );
   }
@@ -128,6 +139,7 @@ export class NotebookLmScriptStudio implements ScriptStudioProvider {
       }),
       "DRAFT_INVALID",
       draftAnswerSchema,
+      DRAFT_PERSONA,
       options,
     );
     if (!isWithinRange(answer.targetDurationSec, request.range)) {
@@ -177,12 +189,22 @@ export class NotebookLmScriptStudio implements ScriptStudioProvider {
     query: string,
     code: string,
     schema: z.ZodType<T>,
+    persona: ChatPersona,
     options: CallOptions | undefined,
   ): Promise<T> {
     const signal = options?.signal;
     signal?.throwIfAborted();
     const { notebookId, sourceIds } = splitRefs(sources);
     const caller = await this.open(signal);
+    const bindingId = this.bindingIds.get(notebookId);
+    if (!bindingId) {
+      throw new IntegrationError(
+        "NOTEBOOKLM_SOURCES_INVALID",
+        "Các nguồn hỏi NotebookLM phải do chính phiên làm việc này tạo.",
+        "REJECTED",
+      );
+    }
+    await ensureChatPersona(caller, bindingId, notebookId, persona, signal);
     return askNotebookForJson({ caller, notebookId }, { sourceIds, query, code }, schema, signal);
   }
 }

@@ -5,11 +5,7 @@ import { IntegrationError } from "@/server/integrations/integration-error";
 import type { NotebookLmPayload } from "@/server/script-studio/notebooklm/notebooklm-envelope";
 import { countQueryWords, NOTEBOOKLM_QUERY_MAX_WORDS } from "@/server/script-studio/notebooklm/notebooklm-query-limit";
 import type { NotebookLmTool } from "@/server/script-studio/notebooklm/notebooklm-session";
-import {
-  CHAT_PERSONA_PROMPT,
-  CHAT_PERSONA_VERSION,
-  CHAT_RESPONSE_LENGTH,
-} from "@/server/script-studio/notebooklm/prompts/chat-persona-prompt";
+import { CHAT_RESPONSE_LENGTH, type ChatPersona } from "@/server/script-studio/notebooklm/prompts/chat-persona-prompt";
 import { createLogger } from "@/shared/logger";
 
 import { hasBindingMarker, titleWithMarker } from "../domain/binding-marker";
@@ -109,16 +105,18 @@ export async function ensureNotebook(
   }
 }
 
-// The notebook's chat persona and answer length, set before its first question and again whenever the persona's version
-// changes. It is saved only once NotebookLM confirms it, so a failed attempt is made again on the next use.
+// The notebook's chat persona and answer length, set before the work the persona is for and again whenever the notebook holds
+// another one (a different version, which also covers the other kind of work having run last). It is saved only once
+// NotebookLM confirms it, so a failed attempt is made again on the next use.
 export async function ensureChatPersona(
   caller: NotebookLmCaller,
   bindingId: string,
   notebookId: string,
+  persona: ChatPersona,
   signal?: AbortSignal,
 ): Promise<void> {
   const binding = await requireNotebook(bindingId);
-  if (binding.chatPersonaVersion === CHAT_PERSONA_VERSION) return;
+  if (binding.chatPersonaVersion === persona.version) return;
   parse(
     chatConfiguredSchema,
     await caller.call(
@@ -126,7 +124,7 @@ export async function ensureChatPersona(
       {
         notebook_id: notebookId,
         goal: "custom",
-        custom_prompt: CHAT_PERSONA_PROMPT,
+        custom_prompt: persona.prompt,
         response_length: CHAT_RESPONSE_LENGTH,
       },
       signal,
@@ -134,8 +132,8 @@ export async function ensureChatPersona(
     "chat_configure",
     false,
   );
-  await saveChatPersonaVersion(binding.id, CHAT_PERSONA_VERSION);
-  logger.info("Notebook chat persona applied", { bindingId: binding.id, version: CHAT_PERSONA_VERSION });
+  await saveChatPersonaVersion(binding.id, persona.version);
+  logger.info("Notebook chat persona applied", { bindingId: binding.id, version: persona.version });
 }
 
 // One part of the book as a text source, uploaded once per revision. After a lost answer the notebook's sources are
@@ -187,7 +185,8 @@ export async function ensureSource(
 
 // Asks about the given sources only. NotebookLM would otherwise use every source in the notebook, including revisions this
 // app has superseded, so a question without source IDs is refused. So is a question over NotebookLM's word limit: it would
-// only come back as an opaque `invalid_argument`.
+// only come back as an opaque `invalid_argument`. It is refused, never cut: shortening what the question says would change
+// what is asked.
 export async function queryNotebook(
   caller: NotebookLmCaller,
   input: { notebookId: string; sourceIds: readonly string[]; query: string; timeoutSec?: number },
@@ -200,7 +199,7 @@ export async function queryNotebook(
   if (words > NOTEBOOKLM_QUERY_MAX_WORDS) {
     throw new IntegrationError(
       "NOTEBOOKLM_QUERY_TOO_LONG",
-      `Câu hỏi gửi NotebookLM dài ${words} từ, quá giới hạn ${NOTEBOOKLM_QUERY_MAX_WORDS} từ của một câu hỏi.`,
+      `Câu hỏi gửi NotebookLM dài ${words} từ, quá giới hạn ${NOTEBOOKLM_QUERY_MAX_WORDS} từ của một câu hỏi: bài học (hoặc ghi chú sửa) quá dài. Hãy rút ngắn bài học rồi tạo lại video; ứng dụng không tự cắt bài học.`,
       "REJECTED",
       { details: { words } },
     );

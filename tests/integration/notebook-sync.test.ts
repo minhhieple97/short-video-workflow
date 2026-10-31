@@ -6,11 +6,9 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type * as BindingRepository from "@/features/notebooklm/repositories/notebook-binding.repository";
 import type * as NotebookSync from "@/features/notebooklm/services/notebook-sync.service";
 import type * as DbClient from "@/server/db/client";
+import { NOTEBOOKLM_QUERY_MAX_WORDS } from "@/server/script-studio/notebooklm/notebooklm-query-limit";
 import { NotebookLmSession } from "@/server/script-studio/notebooklm/notebooklm-session";
-import {
-  CHAT_PERSONA_PROMPT,
-  CHAT_PERSONA_VERSION,
-} from "@/server/script-studio/notebooklm/prompts/chat-persona-prompt";
+import { ANALYSIS_PERSONA, DRAFT_PERSONA } from "@/server/script-studio/notebooklm/prompts/chat-persona-prompt";
 
 import { setupTestEnvironment, type TestEnvironment } from "../helpers/test-environment";
 
@@ -173,13 +171,13 @@ describe("ensureChatPersona", () => {
     const caller = await open();
     const notebookId = await sync.ensureNotebook(caller, notebookBindingId, "Sách");
 
-    await sync.ensureChatPersona(caller, notebookBindingId, notebookId);
-    await sync.ensureChatPersona(caller, notebookBindingId, notebookId);
+    await sync.ensureChatPersona(caller, notebookBindingId, notebookId, DRAFT_PERSONA);
+    await sync.ensureChatPersona(caller, notebookBindingId, notebookId, DRAFT_PERSONA);
 
-    const settings = { goal: "custom", custom_prompt: CHAT_PERSONA_PROMPT, response_length: "longer" };
+    const settings = { goal: "custom", custom_prompt: DRAFT_PERSONA.prompt, response_length: "longer" };
     expect(toolCalls("chat_configure")).toEqual([{ notebook_id: notebookId, ...settings }]);
     expect(remote().notebooks[0]?.chat).toEqual(settings);
-    expect(await savedVersion()).toBe(CHAT_PERSONA_VERSION);
+    expect(await savedVersion()).toBe(DRAFT_PERSONA.version);
   });
 
   it("applies the persona again to a notebook set up under an earlier version", async () => {
@@ -190,10 +188,24 @@ describe("ensureChatPersona", () => {
       data: { chatPersonaVersion: "notebooklm-chat-persona-v0" },
     });
 
-    await sync.ensureChatPersona(caller, notebookBindingId, notebookId);
+    await sync.ensureChatPersona(caller, notebookBindingId, notebookId, DRAFT_PERSONA);
 
     expect(toolCalls("chat_configure")).toHaveLength(1);
-    expect(await savedVersion()).toBe(CHAT_PERSONA_VERSION);
+    expect(await savedVersion()).toBe(DRAFT_PERSONA.version);
+  });
+
+  it("switches the notebook between the analysis persona and the draft persona as the work changes, and only then", async () => {
+    const caller = await open();
+    const notebookId = await sync.ensureNotebook(caller, notebookBindingId, "Sách");
+
+    for (const persona of [ANALYSIS_PERSONA, ANALYSIS_PERSONA, DRAFT_PERSONA, DRAFT_PERSONA, ANALYSIS_PERSONA]) {
+      await sync.ensureChatPersona(caller, notebookBindingId, notebookId, persona);
+
+      expect(remote().notebooks[0]?.chat?.custom_prompt).toBe(persona.prompt);
+      expect(await savedVersion()).toBe(persona.version);
+    }
+
+    expect(toolCalls("chat_configure")).toHaveLength(3);
   });
 
   it("saves nothing while NotebookLM refuses or does not confirm the settings, so the next use tries again", async () => {
@@ -205,33 +217,33 @@ describe("ensureChatPersona", () => {
     });
     const notebookId = await sync.ensureNotebook(caller, notebookBindingId, "Sách");
 
-    await expect(sync.ensureChatPersona(caller, notebookBindingId, notebookId)).rejects.toMatchObject({
+    await expect(sync.ensureChatPersona(caller, notebookBindingId, notebookId, DRAFT_PERSONA)).rejects.toMatchObject({
       code: "NOTEBOOKLM_TOOL_ERROR",
       kind: "REJECTED",
     });
-    await expect(sync.ensureChatPersona(caller, notebookBindingId, notebookId)).rejects.toMatchObject({
+    await expect(sync.ensureChatPersona(caller, notebookBindingId, notebookId, DRAFT_PERSONA)).rejects.toMatchObject({
       code: "NOTEBOOKLM_BAD_RESPONSE",
       kind: "REJECTED",
     });
     expect(await savedVersion()).toBeNull();
 
-    await sync.ensureChatPersona(caller, notebookBindingId, notebookId);
-    expect(await savedVersion()).toBe(CHAT_PERSONA_VERSION);
+    await sync.ensureChatPersona(caller, notebookBindingId, notebookId, DRAFT_PERSONA);
+    expect(await savedVersion()).toBe(DRAFT_PERSONA.version);
   });
 
   it("treats a lost answer as temporary, since setting the same persona again is harmless", async () => {
     const caller = await open({ chat_configure: [{ __applyThenHang: true }] });
     const notebookId = await sync.ensureNotebook(caller, notebookBindingId, "Sách");
 
-    await expect(sync.ensureChatPersona(caller, notebookBindingId, notebookId)).rejects.toMatchObject({
+    await expect(sync.ensureChatPersona(caller, notebookBindingId, notebookId, DRAFT_PERSONA)).rejects.toMatchObject({
       code: "MCP_TIMEOUT",
       kind: "TRANSIENT",
     });
     expect(await savedVersion()).toBeNull();
 
-    await sync.ensureChatPersona(await open(), notebookBindingId, notebookId);
+    await sync.ensureChatPersona(await open(), notebookBindingId, notebookId, DRAFT_PERSONA);
     expect(toolCalls("chat_configure")).toHaveLength(2);
-    expect(await savedVersion()).toBe(CHAT_PERSONA_VERSION);
+    expect(await savedVersion()).toBe(DRAFT_PERSONA.version);
   });
 });
 
@@ -340,14 +352,16 @@ describe("queryNotebook", () => {
 
   it("refuses a question over NotebookLM's word limit, which it would only answer with an opaque invalid_argument", async () => {
     const caller = await open();
-    const atLimit = Array.from({ length: 700 }, () => "từ").join(" ");
+    const atLimit = Array.from({ length: NOTEBOOKLM_QUERY_MAX_WORDS }, () => "từ").join(" ");
 
     await expect(
       sync.queryNotebook(caller, { notebookId: "nb", sourceIds: ["s"], query: `${atLimit} thêm` }),
     ).rejects.toMatchObject({
       code: "NOTEBOOKLM_QUERY_TOO_LONG",
       kind: "REJECTED",
-      details: { words: 701 },
+      details: { words: NOTEBOOKLM_QUERY_MAX_WORDS + 1 },
+      // It says what to do, and that the app does not shorten the lesson itself.
+      message: expect.stringContaining("rút ngắn bài học rồi tạo lại video"),
     });
     expect(toolCalls("notebook_query")).toHaveLength(0);
 

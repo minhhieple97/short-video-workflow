@@ -3,8 +3,11 @@ import { describe, expect, it } from "vitest";
 import { STORY_ANGLE_LABELS, STORY_ANGLES } from "@/features/videos/domain/story-angle";
 import {
   SCENE_EDIT_RULE,
+  STORY_ANGLE_BRIEFS,
+  STORY_ANGLES_RULE,
   STORY_REWRITE_RULE,
   STORYTELLING_RULE,
+  storyAngleName,
   storyAngleRule,
 } from "@/server/ai/prompts/storytelling-rule";
 
@@ -95,5 +98,35 @@ describe("story angle rules", () => {
       expect(storyAngleRule(angle)).not.toMatch(/tên sách|cuốn sách/i);
     }
     expect(storyAngleRule("MYTH_BUST")).toContain("không gắn cho “nghiên cứu cho thấy”");
+  });
+});
+
+describe("the six story angles for a notebook's persona", () => {
+  it("list every angle by its name and label with the very brief storyAngleRule gives to Claude", () => {
+    for (const angle of STORY_ANGLES) {
+      expect(STORY_ANGLES_RULE).toContain(`- ${angle} (“${STORY_ANGLE_LABELS[angle]}”): ${STORY_ANGLE_BRIEFS[angle]}`);
+      expect(storyAngleRule(angle)).toContain(STORY_ANGLE_BRIEFS[angle]);
+    }
+  });
+
+  it("tell the model to apply only the angle a question gives, in the same six-part frame", () => {
+    expect(STORY_ANGLES_RULE).toContain("chỉ áp dụng góc ấy, bỏ qua năm góc còn lại");
+    expect(STORY_ANGLES_RULE).toContain("Vẫn đủ sáu phần theo đúng thứ tự");
+    expect(STORY_ANGLES_RULE).toContain("không cho thêm ý ngoài nguồn");
+  });
+
+  it("are named in a question without repeating their text", () => {
+    for (const angle of STORY_ANGLES) {
+      const name = storyAngleName(angle);
+
+      expect(name).toContain(`${angle} (“${STORY_ANGLE_LABELS[angle]}”)`);
+      expect(name).toContain("“Các góc kể”");
+      expect(name).not.toContain(STORY_ANGLE_BRIEFS[angle]);
+      expect(name.length).toBeLessThanOrEqual(200);
+    }
+  });
+
+  it("fit the persona, which NotebookLM limits to 10,000 characters together with everything else in it", () => {
+    expect(STORY_ANGLES_RULE.length).toBeLessThanOrEqual(3_600);
   });
 });

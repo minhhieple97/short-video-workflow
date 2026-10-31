@@ -1,4 +1,4 @@
-import { STORY_ANGLE_LABELS, type StoryAngle } from "@/features/videos/domain/story-angle";
+import { STORY_ANGLE_LABELS, STORY_ANGLES, type StoryAngle } from "@/features/videos/domain/story-angle";
 
 // The craft every prompt that writes a story shares (the manual script and NotebookLM's draft). Changing it means bumping
 // the versions of both. The characters, places and lines it asks for are made up for the video, so they are illustrative.
@@ -15,7 +15,7 @@ export const STORYTELLING_RULE = [
   "- Trung thực: nhân vật, nơi chốn, câu thoại tự nghĩ ra là tình huống minh hoạ; không gắn chúng cho tác giả hay cuốn sách, không nói đó là chuyện có thật, không kể ngôi “tôi” như trải nghiệm của người làm video, không bịa số liệu, nghiên cứu hay trích dẫn. Minh hoạ không chứng minh nguyên lý; chuyện thật giữ đúng sự kiện và tên người.",
 ].join("\n");
 
-const STORY_ANGLE_BRIEFS: Record<StoryAngle, string> = {
+export const STORY_ANGLE_BRIEFS: Record<StoryAngle, string> = {
   PEAK_FIRST:
     "Hook là khoảnh khắc có hệ quả rõ nhất hoặc lạ nhất, chưa giải thích. Tình huống lùi lại kể điều nhân vật muốn và vì sao cách làm cũ có vẻ đúng. Sai lầm dẫn tới khoảnh khắc mở đầu, không thêm bi kịch. Cách giải quyết cho thấy lần sau nhân vật chọn khác ở đúng chỗ đó và kết quả nhỏ đổi theo.",
   DIALOGUE:
@@ -32,6 +32,19 @@ const STORY_ANGLE_BRIEFS: Record<StoryAngle, string> = {
 
 export function storyAngleRule(angle: StoryAngle): string {
   return `- Góc kể được giao cho video này: “${STORY_ANGLE_LABELS[angle]}”. ${STORY_ANGLE_BRIEFS[angle]} Vẫn đủ sáu phần theo đúng thứ tự và mọi quy tắc khác; góc kể chỉ quyết định cách kể, không cho thêm ý ngoài nguồn.`;
+}
+
+// The six angles side by side, for a notebook's chat persona, where the long fixed text of a NotebookLM draft lives (a question
+// is limited to about 800 words). The question then only names the angle it gives (storyAngleName). Editing a brief changes
+// this text and storyAngleRule's alike, so it bumps the versions of every prompt that uses either.
+export const STORY_ANGLES_RULE = [
+  "## Các góc kể",
+  "Câu hỏi giao cho mỗi video đúng MỘT góc kể trong số dưới đây; chỉ áp dụng góc ấy, bỏ qua năm góc còn lại. Vẫn đủ sáu phần theo đúng thứ tự và mọi quy tắc khác; góc kể chỉ quyết định cách kể, không cho thêm ý ngoài nguồn.",
+  ...STORY_ANGLES.map((angle) => `- ${angle} (“${STORY_ANGLE_LABELS[angle]}”): ${STORY_ANGLE_BRIEFS[angle]}`),
+].join("\n");
+
+export function storyAngleName(angle: StoryAngle): string {
+  return `- Góc kể của video này: ${angle} (“${STORY_ANGLE_LABELS[angle]}”), theo mô tả ở mục “Các góc kể” của quy tắc viết bản thảo.`;
 }
 
 export const STORY_REWRITE_RULE =

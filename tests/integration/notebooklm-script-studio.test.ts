@@ -7,7 +7,7 @@ import type * as Studio from "@/features/notebooklm/services/notebooklm-script-s
 import type * as PipelineDepsModule from "@/features/productions/services/pipeline-deps";
 import type { LessonSnapshot } from "@/features/videos/domain/lesson-snapshot";
 import type * as DbClient from "@/server/db/client";
-import { CHAT_PERSONA_VERSION } from "@/server/script-studio/notebooklm/prompts/chat-persona-prompt";
+import { ANALYSIS_PERSONA, DRAFT_PERSONA } from "@/server/script-studio/notebooklm/prompts/chat-persona-prompt";
 import { SCRIPT_DRAFT_PROMPT_VERSION } from "@/server/script-studio/notebooklm/prompts/script-draft-prompt";
 
 import {
@@ -163,8 +163,70 @@ describe("NotebookLmScriptStudio", () => {
     expect(nlm.calls("chat_configure")).toHaveLength(1);
     expect(nlm.remote().notebooks[0]?.chat).toMatchObject({ goal: "custom", response_length: "longer" });
     const binding = await db.prisma.notebookBinding.findFirstOrThrow({ where: { bookId: CONTRACT_BOOK.id } });
-    expect(binding.chatPersonaVersion).toBe(CHAT_PERSONA_VERSION);
-    expect(provider.draftVersion).toBe(`${SCRIPT_DRAFT_PROMPT_VERSION}+${CHAT_PERSONA_VERSION}`);
+    expect(binding.chatPersonaVersion).toBe(DRAFT_PERSONA.version);
+    expect(provider.draftVersion).toBe(`${SCRIPT_DRAFT_PROMPT_VERSION}+${DRAFT_PERSONA.version}`);
+  });
+
+  it("sets the persona of the work each question is for, and switches only when the work changes", async () => {
+    const provider = studio();
+    const source = await provider.ensureSource({
+      book: CONTRACT_BOOK,
+      document: { key: "chapter:c1:part:1", title: "Chương 1", markdown: "[Trang 1]\nNội dung." },
+      known: null,
+    });
+    const persona = () => nlm.remote().notebooks[0]?.chat?.custom_prompt;
+    const extract = () =>
+      provider.extractLessons({
+        sources: [source],
+        bookTitle: CONTRACT_BOOK.title,
+        chapterTitle: "Chương 1",
+        partNumber: 1,
+        partCount: 1,
+        startPage: 1,
+        endPage: 10,
+      });
+    const draft = () =>
+      provider.writeDraft({
+        sources: [source],
+        lesson: SAMPLE_LESSON,
+        range: { minDurationSec: 30, maxDurationSec: 45 },
+        pace: "STANDARD" as const,
+        storyAngle: "PEAK_FIRST" as const,
+        revisionNote: null,
+      });
+
+    expect(nlm.calls("chat_configure")).toHaveLength(0);
+    await extract();
+    expect(persona()).toBe(ANALYSIS_PERSONA.prompt);
+    await extract();
+    await draft();
+    expect(persona()).toBe(DRAFT_PERSONA.prompt);
+    await draft();
+    await extract();
+    expect(persona()).toBe(ANALYSIS_PERSONA.prompt);
+    expect(nlm.calls("chat_configure")).toHaveLength(3);
+  });
+
+  it("refuses sources it did not open itself, since it could not tell which persona their notebook holds", async () => {
+    const opener = studio();
+    const source = await opener.ensureSource({
+      book: CONTRACT_BOOK,
+      document: { key: "chapter:c1:part:1", title: "Chương 1", markdown: "x" },
+      known: null,
+    });
+
+    await expect(
+      studio().extractLessons({
+        sources: [source],
+        bookTitle: CONTRACT_BOOK.title,
+        chapterTitle: "Chương 1",
+        partNumber: 1,
+        partCount: 1,
+        startPage: 1,
+        endPage: 10,
+      }),
+    ).rejects.toMatchObject({ code: "NOTEBOOKLM_SOURCES_INVALID", kind: "REJECTED" });
+    expect(nlm.calls("notebook_query")).toHaveLength(0);
   });
 
   it("refuses a proposed length outside the range, which the one correction can fix", async () => {

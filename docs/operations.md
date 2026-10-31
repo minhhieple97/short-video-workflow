@@ -183,9 +183,10 @@ khi `AI_MODE=cli-auto` và đã đặt `NOTEBOOKLM_PROFILE`.
 Gói được ghim (`NOTEBOOKLM_MCP_PACKAGE`) vì dùng API không chính thức; đừng nâng phiên bản khi chưa kiểm tra lại.
 
 Bản thảo của mỗi video được viết theo một góc kể (xoay tự động theo đợt và vị trí của mục, [requirements.md](requirements.md) §6.4).
-Khi nâng cấp lên persona v3 và bản thảo v7: persona được áp lại một lần cho mỗi notebook ở lần mở sau; bản thảo đã cache với phiên
+Khi nâng cấp lên vai trò phân tích v1, vai trò bản thảo v1 và bản thảo v9: vai trò đúng việc được đặt lại ở câu hỏi kế tiếp của mỗi notebook; bản thảo đã cache với phiên
 bản cũ không được dùng lại, nên video sản xuất sau nâng cấp tốn một lượt NotebookLM cho bản thảo (video đã có bản thảo giữ nguyên).
-Mỗi câu hỏi gửi NotebookLM tối đa 700 từ (NotebookLM từ chối khoảng 750 từ trở lên); quy tắc cố định của bản thảo nằm ở persona.
+Mỗi câu hỏi gửi NotebookLM tối đa 740 từ (NotebookLM từ chối khoảng 800 từ trở lên); quy tắc cố định của bản thảo (kể chuyện, sáu góc kể,
+cách chọn độ dài) nằm ở vai trò (persona) dành riêng cho bản thảo, và bài học luôn được gửi nguyên vẹn, không bị cắt cho vừa.
 Sản xuất lại cùng bài học ở đợt khác thường ra góc kể khác, tức một lượt NotebookLM mới.
 
 ### 3.5 Google Drive
@@ -344,7 +345,7 @@ pnpm, không phải chẩn đoán này.
 | `NOTEBOOKLM_QUOTA`                      | Hết hạn mức NotebookLM                   | Xem giờ đặt lại ở Cài đặt → NotebookLM, rồi **Thử lại**                  |
 | `MCP_TIMEOUT`                           | NotebookLM trả lời chậm quá hạn chờ      | Tự thử lại 5 lần; lặp lại thì nâng `NOTEBOOKLM_CALL_TIMEOUT_SEC`         |
 | `NOTEBOOKLM_UNAVAILABLE`                | NotebookLM tạm lỗi phía Google           | Tự thử lại; lặp lại thì đợi ít phút rồi **Thử lại**                      |
-| `NOTEBOOKLM_QUERY_TOO_LONG`             | Câu hỏi quá 700 từ (NotebookLM từ chối)  | Bài học quá dài: rút ngắn các trường của bài học rồi **Thử lại**         |
+| `NOTEBOOKLM_QUERY_TOO_LONG`             | Câu hỏi quá 740 từ (NotebookLM từ chối)  | Bài học rất lớn: rút ngắn rồi tạo lại video (**Thử lại** vô ích)         |
 | `NOTEBOOKLM_INVALID_REQUEST`            | NotebookLM báo yêu cầu không hợp lệ      | **Thử lại** không giúp: câu hỏi quá dài hoặc nguồn hỏng; xem log worker  |
 | `NOTEBOOKLM_*_INVALID`, `DRAFT_INVALID` | Sai định dạng hoặc sai mạch kể           | Bản thảo: lượt sửa tự động; chương: **Phân tích lại**                    |
 | `PRODUCTION_CORRECTION_EXHAUSTED`       | Đã dùng lượt sửa AI mà vẫn chưa đạt      | Xem lý do (thường quá dài/ngắn); sửa bài học / đợt mới với khoảng khác   |
@@ -470,8 +471,8 @@ Drive; không mất tiến độ khi khởi động lại, không chạy lại c
 - [ ] Ghi lại văn bản lỗi thật nếu gặp (đăng nhập, hạn mức).
 - [ ] Sản xuất một đợt từ sáu bài học trở lên: các video liền kề khác góc kể; hook mở bằng khoảnh khắc cụ thể (không phải câu
       hỏi chung chung); tab **Nguồn kịch bản** đánh dấu minh hoạ ở mọi nhịp có nhân vật hay thoại bịa. Ghi lại tỷ lệ
-      `OVER_TARGET`, `UNDER_MIN` và `SCENE_PLAN_UNSUPPORTED_CLAIM`; nếu NotebookLM từ chối hay cắt câu hỏi bản thảo, chuyển
-      `STORYTELLING_RULE` sang persona (xem `docs/architecture.md`, mục Prompt).
+      `OVER_TARGET`, `UNDER_MIN` và `SCENE_PLAN_UNSUPPORTED_CLAIM`; nếu NotebookLM từ chối câu hỏi bản thảo, xem
+      `NOTEBOOKLM_QUERY_TOO_LONG` và `NOTEBOOKLM_INVALID_REQUEST` ở bảng lỗi.
 
 **Video và Drive**
 

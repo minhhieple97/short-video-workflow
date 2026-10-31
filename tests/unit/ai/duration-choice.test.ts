@@ -4,6 +4,7 @@ import type { Pace } from "@/features/videos/domain/pace";
 import { durationChoices, narrationBudget, NARRATION_BUDGET_RULE } from "@/server/ai/prompts/duration-choice";
 import { buildScenePlanPrompt, SCENE_PLAN_PROMPT_VERSION } from "@/server/ai/prompts/scene-plan-prompt";
 import { buildVideoScriptPrompt, VIDEO_SCRIPT_PROMPT_VERSION } from "@/server/ai/prompts/video-script-prompt";
+import { DRAFT_PERSONA } from "@/server/script-studio/notebooklm/prompts/chat-persona-prompt";
 import { buildScriptDraftPrompt } from "@/server/script-studio/notebooklm/prompts/script-draft-prompt";
 import type { ScriptDraft } from "@/server/script-studio/script-studio-contracts";
 
@@ -62,7 +63,8 @@ describe("narration planning budgets", () => {
       expect(notebook).toContain(`${seconds} (${seconds} giây) ≈ ${units} từ`);
       expect(compiler).toContain(`khoảng ~${units} âm tiết`);
       expect(manual).toContain(`${seconds} (${seconds} giây) ≈ ${units} âm tiết`);
-      for (const prompt of [notebook, compiler, manual]) {
+      // The notebook stage reads its standing rules (the notebook's chat persona) together with the question; the others one prompt.
+      for (const prompt of [`${DRAFT_PERSONA.prompt}\n${notebook}`, compiler, manual]) {
         expect(prompt).toContain(NARRATION_BUDGET_RULE);
         expect(prompt).not.toContain("không dưới ~");
       }

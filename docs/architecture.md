@@ -153,12 +153,13 @@ tối đa 8 lần liên tiếp; sản xuất 10 phút, 5 lần; archive 30 phút
   tiêu đề/caption/hashtag, quy tắc biên tập giữ sức hút của bản thảo, và shot); hai prompt này dùng chung `prompts/shot-rule.ts` (như
   `illustration-rule.ts`), đổi chữ ở đó là tăng cả hai;
   `publish-metadata-v1` (chỉ viết lại tiêu đề/caption/hashtag); ba prompt này dùng chung quy tắc `prompts/publish-rule.ts`, đổi chữ ở đó
-  là tăng cả ba; `notebooklm-chapter-detection-v2`, `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v8` (câu hỏi bản thảo: bài
-  học, góc kể, đề xuất độ dài, ngân sách chữ theo nhịp độ, định dạng JSON),
-  `notebooklm-chat-persona-v4` (vai trò của notebook, kèm quy tắc cố định của bản thảo: ngôn ngữ, mạch kể, quy tắc kể chuyện, nguồn);
-  `draftVersion` của cache = phiên bản bản thảo + phiên bản vai trò. Danh sách độ dài được chọn và ngân sách lời của từng mức sinh từ `prompts/duration-choice.ts`.
+  là tăng cả ba; `notebooklm-chapter-detection-v2`, `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v9` (câu hỏi bản thảo: bài
+  học nguyên vẹn, tên góc kể, các mức độ dài kèm ngân sách chữ theo nhịp độ, định dạng JSON),
+  `notebooklm-analysis-persona-v1` (vai trò ngắn cho xác định chương và lập danh mục bài học) và
+  `notebooklm-draft-persona-v1` (vai trò của notebook khi viết bản thảo, kèm quy tắc cố định của bản thảo: ngôn ngữ, mạch kể, quy tắc kể chuyện, sáu góc kể, cách chọn độ dài, nguồn);
+  `draftVersion` của cache = phiên bản bản thảo + phiên bản vai trò bản thảo. Danh sách độ dài được chọn và ngân sách lời của từng mức sinh từ `prompts/duration-choice.ts`.
   Chữ kể chuyện nằm ở `prompts/storytelling-rule.ts`: `STORYTELLING_RULE` và mô tả từng góc dùng chung cho kịch bản thủ công và bản
-  thảo NotebookLM, `STORY_REWRITE_RULE` cho "Viết lại cảnh", `SCENE_EDIT_RULE` cho biên tập cảnh; đổi chữ ở đó là tăng phiên bản của
+  thảo NotebookLM (bản thảo đặt cả sáu mô tả vào vai trò bản thảo bằng `STORY_ANGLES_RULE`, câu hỏi chỉ nêu tên góc bằng `storyAngleName`), `STORY_REWRITE_RULE` cho "Viết lại cảnh", `SCENE_EDIT_RULE` cho biên tập cảnh; đổi chữ ở đó là tăng phiên bản của
   mọi prompt dùng nó. Không tăng `chapter-analysis` và `lesson-extraction` khi đổi cách kể: tăng sẽ bắt phân tích lại mọi chương.
 - **Góc kể** (`features/videos/domain/story-angle.ts`): sáu góc (`PEAK_FIRST`, `DIALOGUE`, `TWO_PATHS`, `MYTH_BUST`, `TWIST`,
   `ESCALATION`) kể cùng một khung sáu phần; khung và các kiểm tra thứ tự không đổi. `pickStoryAngle(seed, step)` =
@@ -333,19 +334,28 @@ theo số dòng, không trích nội dung. `cleanup` xoá tệp yêu cầu **cu�
   phiên bản (`contentHash`) là một nguồn văn bản mang dấu `[bvs:<id>]`; văn bản đổi → dòng mới, bản cũ `supersededAt` nhưng giữ ID từ xa
   để còn truy nguồn bài học cũ.
 - Tạo mất phản hồi → `UNKNOWN_OUTCOME`; lần sau **tìm dấu** trong `notebook_list`/`notebook_get` trước rồi mới tạo lại.
-- Trước câu hỏi đầu tiên (`openBookNotebook`, lối vào của mọi nguồn), notebook được đặt "Configure chat" qua `chat_configure`: vai trò
-  tuỳ chỉnh `notebooklm-chat-persona-v4` (phân tích sách + biên kịch video dọc, kể bằng khoảnh khắc cụ thể khi viết bản thảo, bám
-  nguồn, câu hỏi đòi định dạng nào trả đúng định dạng đó, và một phần chỉ áp dụng cho bản thảo: ngôn ngữ, mạch kể, `STORYTELLING_RULE`,
-  quy tắc nguồn và trích đoạn) và câu trả lời `longer`. Phiên bản đã áp lưu ở `NotebookBinding.chatPersonaVersion` — chỉ ghi khi NotebookLM xác nhận; notebook
-  cũ hơn phiên bản hiện hành được áp lại ở lần dùng sau. Đặt lại cùng cấu hình vô hại nên mất phản hồi là `TRANSIENT`, không
-  `UNKNOWN_OUTCOME`.
+- Trước mỗi câu hỏi, notebook được đặt "Configure chat" qua `chat_configure` đúng vai trò của việc đó (`NotebookLmScriptStudio.ask`;
+  `openBookNotebook` chỉ lo notebook và nguồn): `ANALYSIS_PERSONA` = `notebooklm-analysis-persona-v1` (1.023 ký tự: phân tích sách + biên
+  kịch video dọc, bám nguồn, câu hỏi đòi định dạng nào trả đúng định dạng đó) cho xác định chương và lập danh mục bài học;
+  `DRAFT_PERSONA` = `notebooklm-draft-persona-v1` (khoảng 7.700 trong 10.000 ký tự: như trên cộng quy tắc cố định của bản thảo là ngôn ngữ,
+  mạch kể, `STORYTELLING_RULE`, sáu góc kể `STORY_ANGLES_RULE`, cách chọn độ dài `DURATION_CHOICE_RULE`, quy tắc nguồn và trích đoạn) cho viết
+  bản thảo; cả hai với câu trả lời `longer`. **Vai trò dài làm trích đoạn kém nguyên văn**: danh mục chương 1 của một sách thật có 17/17
+  trích đoạn khớp nguyên văn dưới vai trò 1.023 ký tự và 15/24 dưới vai trò 7.901 ký tự (trích đoạn quyết định một bài học có sản xuất được
+  hay không), nên luật bản thảo không bao giờ được thêm vào vai trò phân tích. Phiên bản đang áp lưu ở `NotebookBinding.chatPersonaVersion`
+  (hai vai trò có phiên bản khác nhau nên cùng một cột phân biệt được chúng) — chỉ ghi khi NotebookLM xác nhận; notebook đang giữ vai trò
+  kia hay bản cũ được đặt lại trước câu hỏi kế tiếp. Đặt lại cùng cấu hình vô hại nên mất phản hồi là `TRANSIENT`, không
+  `UNKNOWN_OUTCOME`. Câu hỏi về nguồn không do chính phiên làm việc này mở bị từ chối (`NOTEBOOKLM_SOURCES_INVALID`), vì không biết ghi
+  vai trò vào bản ghi nào.
 - Câu hỏi luôn truyền **`source_ids` tường minh** (chỉ phiên bản hiện hành) trong hội thoại mới, vì NotebookLM mặc định dùng mọi nguồn.
   Câu trả lời phải là JSON đúng schema; sai thì từ chối, không vá.
-- **Mỗi câu hỏi tối đa 700 từ** (`NOTEBOOKLM_QUERY_MAX_WORDS`, `notebooklm-query-limit.ts`). NotebookLM từ chối câu hỏi khoảng 750 từ trở lên bằng
-  `invalid_argument` mờ mịt (đo trên tài khoản thật: 750 từ qua, 800 từ không; đếm từ giữa các khoảng trắng, không theo ký tự, byte hay
-  dấu câu). Vì vậy quy tắc cố định của bản thảo ở persona (tối đa 10.000 ký tự), câu hỏi chỉ mang bài học, góc kể, độ dài và định dạng;
-  khi bài học làm câu hỏi vượt giới hạn thì bỏ bớt trích đoạn rồi cắt ngắn từng trường. `queryNotebook` từ chối câu hỏi dài hơn với
-  `NOTEBOOKLM_QUERY_TOO_LONG` trước khi gửi.
+- **Mỗi câu hỏi tối đa 740 từ** (`NOTEBOOKLM_QUERY_MAX_WORDS`, `notebooklm-query-limit.ts`). NotebookLM từ chối câu hỏi khoảng 800 từ trở lên
+  bằng `invalid_argument` mờ mịt (đo trên tài khoản thật: 762 từ tiếng Việt thật và 750 từ chữ đệm qua, 800 từ chữ đệm không; đếm từ giữa
+  các khoảng trắng, không theo ký tự, byte hay dấu câu). Vì vậy quy tắc cố định của bản thảo ở vai trò bản thảo (tối đa 10.000 ký tự), câu hỏi chỉ mang
+  bài học, tên góc kể, các mức độ dài và định dạng (trung vị ~500 từ, lớn nhất ~704 từ trên 344 bài học thật, khoảng 30–300 giây).
+  **Không bao giờ cắt nội dung cho vừa**: bài học vào câu hỏi nguyên vẹn, không rút ngắn trường nào, không bỏ trích đoạn nào, và cũng không
+  thay bằng tiêu đề (thử thật: chỉ tiêu đề làm bản thảo lệch sang bài học khác cùng chương). `queryNotebook` từ chối câu hỏi dài hơn với
+  `NOTEBOOKLM_QUERY_TOO_LONG` trước khi gửi; chỉ xảy ra với bài học rất lớn kèm ghi chú sửa dài, và bản chụp bài học của video không đổi
+  nên phải rút ngắn bài học rồi tạo lại video.
 - Lỗi của một câu hỏi bị từ chối được phân loại theo `error_details.category` mà `notebooklm-mcp-cli` gắn vào (từ vựng cố định, không phải chữ
   của tài khoản): `deadline_exceeded`/`internal`/`unavailable` là `TRANSIENT` (thử lại), `resource_exhausted` là `QUOTA`, `unauthenticated` là `AUTH`,
   `invalid_argument`/`not_found`/`permission_denied` là `REJECTED` với mã riêng; `retryable: true` không rõ tên cũng được thử lại. Chữ lỗi của máy

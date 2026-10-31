@@ -300,15 +300,21 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 - Prompt templates are versioned (`chapter-analysis-v1`, `video-script-v11`, `scene-plan-v10`, `publish-metadata-v1` — the three last share
   `prompts/publish-rule.ts`, so editing it bumps all three; `video-script` and `scene-plan` also share `illustration-rule.ts` and
   `shot-rule.ts` — and for NotebookLM `notebooklm-chapter-detection-v2`,
-  `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v8`, and the notebook's chat persona `notebooklm-chat-persona-v4`, applied once per
-  notebook through `chat_configure` and re-applied when its version changes); changing a prompt's text means bumping its version (the draft and
-  persona versions also key the draft cache). Book content is passed as quoted untrusted data. The storytelling text lives in
-  `prompts/storytelling-rule.ts` and is shared like `publish-rule.ts`: editing it bumps every prompt that uses it, the persona included. Telling
+  `notebooklm-lesson-extraction-v2`, `notebooklm-script-draft-v9`, and the notebook's two chat personas, `notebooklm-analysis-persona-v1` (chapter
+  detection and the lesson catalogue) and `notebooklm-draft-persona-v1` (writing a draft), each set through `chat_configure` before the work it is
+  for and set again when the notebook holds the other one or an older version); changing a prompt's text means bumping its version (the draft and
+  draft-persona versions also key the draft cache). Book content is passed as quoted untrusted data. The storytelling text lives in
+  `prompts/storytelling-rule.ts` and is shared like `publish-rule.ts`: editing it bumps every prompt that uses it, the draft persona included. Telling
   a story better is done when the script is written, never by bumping `chapter-analysis` or `lesson-extraction` (that re-analyses every chapter).
-- **A NotebookLM question may not pass 700 words** (`NOTEBOOKLM_QUERY_MAX_WORDS`; NotebookLM refuses about 750 with an opaque `invalid_argument`,
-  counted between spaces, whatever the characters). A draft's long fixed rules therefore live in the chat persona (10,000 characters), and its
-  question carries only the lesson, the angle, the lengths and the format; `queryNotebook` refuses a longer one before sending it. Never budget a
-  NotebookLM question in characters.
+- **A NotebookLM question may not pass 740 words** (`NOTEBOOKLM_QUERY_MAX_WORDS`; NotebookLM refuses about 800 with an opaque `invalid_argument`,
+  counted between spaces, whatever the characters). A draft's long fixed rules therefore live in the draft persona (10,000 characters): the craft,
+  the six story angles and how to choose a length. Its question carries only the lesson, the angle's name, the lengths and the format.
+  **Never cut content to fit** (the owner does not want it): the lesson goes into the question whole, with no field shortened and no excerpt left
+  out, and `queryNotebook` refuses a longer question before sending it. Never budget a NotebookLM question in characters.
+- **Keep the analysis persona short.** The chat persona holds for every question until it is set again, and a long one makes the model polish
+  its quotations: chapter 1 of a real book was catalogued with 17 of 17 excerpts word for word under the 1,023-character persona and 15 of 24
+  under a 7,901-character one (the excerpts are what makes a lesson producible). So the long rules of a draft live in `DRAFT_PERSONA`, which is
+  set only before a draft; never add them to `ANALYSIS_PERSONA`.
 - Validate model output with Zod; on schema failure mark the job `FAILED` and store nothing. No unbounded retries (respect quota errors). Timeouts + best-effort cancel.
 
 ## 10. Storage & security

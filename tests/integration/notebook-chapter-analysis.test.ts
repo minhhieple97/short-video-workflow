@@ -8,6 +8,7 @@ import type * as Analysis from "@/features/chapters/services/notebook-chapter-an
 import type * as PartAnswers from "@/features/chapters/services/notebook-part-answers.service";
 import { assembleCanonicalMarkdown } from "@/features/extraction/domain/canonical-document";
 import type * as DbClient from "@/server/db/client";
+import { ANALYSIS_PERSONA } from "@/server/script-studio/notebooklm/prompts/chat-persona-prompt";
 import { LESSON_EXTRACTION_PROMPT_VERSION } from "@/server/script-studio/notebooklm/prompts/lesson-extraction-prompt";
 
 import { fakeNotebookLm, notebookAnswer, type FakeNotebookLm } from "../helpers/fake-notebooklm";
@@ -153,6 +154,8 @@ describe("runNotebookChapterAnalysis", () => {
       analysisPromptVersion: LESSON_EXTRACTION_PROMPT_VERSION,
     });
     expect(await db.prisma.aiRun.findFirst({ where: { mode: "notebooklm" } })).toMatchObject({ status: "COMPLETED" });
+    // The catalogue is asked under the short analysis persona, never the long one that holds a draft's rules.
+    expect(nlm.remote().notebooks[0]?.chat?.custom_prompt).toBe(ANALYSIS_PERSONA.prompt);
   });
 
   it("does not ask again while up to date, and a forced run replaces the drafts instead of adding to them", async () => {
