@@ -1,3 +1,4 @@
+import { notifyPublishMetadataMissingWithin } from "@/features/notifications/repositories/notification-events.repository";
 import type { Prisma, Video, VideoScene } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 
@@ -187,6 +188,8 @@ export type ReplacementScript = {
   duration?: { targetDurationSec: number; durationReason: string };
   // The title, caption and hashtags the AI wrote with the script; without them the previous set stays, marked outdated.
   publish?: PublishMetadataWrite;
+  // Why `publish` is missing when the AI was asked for it; reported on Telegram, since the script itself is written.
+  publishIssue?: { code: string; message: string };
 };
 
 // The one place a whole script is written, so the manual flow and the production flow cannot drift apart. The caller
@@ -197,7 +200,9 @@ export async function replaceScriptWithin(tx: Tx, videoId: string, script: Repla
     data: script.scenes.map((scene, order) => ({ ...scene, videoId, order })),
   });
   if (script.publish) await upsertPublishMetadataWithin(tx, videoId, script.publish);
-  return bumpScript(tx, videoId, { hookOptionsJson: script.hookOptions, ...script.duration });
+  const video = await bumpScript(tx, videoId, { hookOptionsJson: script.hookOptions, ...script.duration });
+  if (script.publishIssue) await notifyPublishMetadataMissingWithin(tx, video, script.publishIssue);
+  return video;
 }
 
 export function replaceScript(videoId: string, script: ReplacementScript): Promise<Video> {

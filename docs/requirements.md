@@ -280,8 +280,8 @@ Chưa phân trang: danh mục chọn bài để sản xuất, các đợt nhập
 - Mọi bản render hoàn tất, **nháp lẫn cuối** (cả hai luồng), được lưu tự động khi đã kết nối; chưa kết nối thì chờ tới khi kết nối.
   Mỗi bản render có thư mục và bản lưu riêng (tên MP4 mang kích thước 720×1280 hay 1080×1920, `manifest.json` ghi chất lượng), nên bản
   nháp không đè bản cuối. Bản nháp tính vào dung lượng và hạn mức upload như mọi bản khác. Bản render làm **trước** khi nháp được lưu
-  (không có ý định lưu) không tự lên Drive; bấm **Lưu lên Drive** ở lịch sử render để lưu. Telegram, đầu trang video và danh sách
-  vẫn chỉ nói về video FINAL: bản nháp chỉ hiện ở lịch sử và thẻ Google Drive của trang Render.
+  (không có ý định lưu) không tự lên Drive; bấm **Lưu lên Drive** ở lịch sử render để lưu. Telegram báo cả bản nháp lẫn bản cuối
+  (§8.1). Đầu trang video và danh sách vẫn chỉ nói về video FINAL: bản nháp chỉ hiện ở lịch sử và thẻ Google Drive của trang Render.
 - Mỗi bản lưu, dựng từ snapshot render, gồm MP4, `script.json` (cảnh, bài học và trích đoạn nguồn), `publish.txt` (tiêu đề,
   caption, hashtag — chỉ khi bản render có bộ này, §5.13) và `manifest.json` (thông số, phiên bản, âm thanh, kích thước và SHA-256
   các tệp) trong `Book Video Studio/books/<sách>/videos/<video>/renders/<render>/`. Cảnh là tình huống sáng tác cho video (không
@@ -578,10 +578,14 @@ Không thêm dịch vụ đám mây khác, không Anthropic API, không gộp OC
   mặc định CLI. Không sửa settings toàn máy. Đổi cấu hình cần khởi động lại web/worker; không tự chạy lại artifact đã xong.
 - `CLAUDE_EFFORT` chọn effort cho mọi lần gọi Claude: `low`, `medium`, `high`, `xhigh`, `max`; để trống dùng settings/mặc định CLI.
   Giá trị sai bị từ chối khi đọc cấu hình. Thay effort tách cache Claude scene plan cho lần gọi mới, không đổi cache NotebookLM.
-- Khi bật Telegram, video FINAL chỉ báo sẵn sàng sau khi archive được xác minh, kèm link đúng MP4 trên Drive. Chưa kết nối Drive
-  thì báo video đã render local, cần kết nối; lỗi archive nói rõ MP4 vẫn có và lỗi ở bước lưu Drive.
+- Khi bật Telegram, **mỗi bản render hoàn tất, nháp lẫn cuối**, báo xong sau khi archive được xác minh, kèm link đúng MP4 của
+  bản đó trên Drive (bản nháp: link bản nháp; bản cuối: link bản cuối); tin nói rõ **Bản nháp** hay **Bản cuối** và kích thước. Chưa
+  kết nối Drive thì báo bản đó đã render local, cần kết nối; lỗi archive nói rõ MP4 vẫn có và lỗi ở bước lưu Drive. Mỗi bản render
+  một tin, nên bản nháp và bản cuối của cùng video là hai tin với hai link khác nhau.
 - Báo lỗi cuối hoặc trạng thái cần người dùng xử lý, gồm PDF/OCR/chia chương, phân tích chưa hết, bản thảo, cảnh, TTS, readiness,
-  render và archive. Tin có bước, mã lỗi, nguyên nhân đã lọc, scene/trang nếu có và ID tác vụ. Không gửi token, prompt hay văn bản sách.
+  render và archive (bản nháp lẫn bản cuối). Kịch bản được viết mà thiếu bộ tiêu đề/caption/hashtag hợp lệ vẫn được giữ, nhưng có
+  một tin cảnh báo (mỗi phiên bản kịch bản một tin) để người dùng viết lại ở tab Đăng tải. Tin có bước, mã lỗi, nguyên nhân đã lọc,
+  scene/trang nếu có và ID tác vụ; tin đi vào topic của đúng cuốn sách. Không gửi token, prompt hay văn bản sách.
 - Một lỗi gốc chỉ có một thông báo; không báo lại lỗi bọc của job/batch cha hoặc người dùng chủ động huỷ. Retry thủ công thất bại
   tiếp là một sự kiện mới. Một đợt quota của provider chỉ báo chờ một lần; chỉ báo tiếp tục sau lần gọi thành công.
 - Tin lưu cùng giao dịch với trạng thái nghiệp vụ; worker gửi riêng. Telegram lỗi không chạy lại video. Mất phản hồi được thử gửi

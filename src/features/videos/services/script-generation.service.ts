@@ -122,7 +122,7 @@ export async function runScriptGeneration(
       hookOptions: output.hookOptions,
       scenes,
       duration: { targetDurationSec: output.targetDurationSec, durationReason: output.durationReason },
-      publish: publishWriteFor(output.publish, {
+      ...publishWriteFor(output.publish, {
         logIds: { videoId: video.id },
         promptVersion: VIDEO_SCRIPT_PROMPT_VERSION,
         book: input.book,

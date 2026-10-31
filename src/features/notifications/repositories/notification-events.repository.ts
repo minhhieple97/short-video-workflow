@@ -7,6 +7,7 @@ import { getAppConfig } from "@/shared/config/env";
 import { readStoredRenderSnapshot } from "@/features/videos/domain/render-snapshot";
 
 import type { NotificationFailure } from "../domain/notification-failure";
+import { renderVersionLabel, renderVersionName } from "../domain/render-version";
 import { recordNotificationWithin } from "./notification.repository";
 
 type Tx = Prisma.TransactionClient;
@@ -90,8 +91,7 @@ export async function notifyArchiveFailureWithin(
     where: { id: archiveId },
     include: { render: { include: { video: { include: { book: true } } } } },
   });
-  // A draft's archive is shown in the render history; only a FINAL video is worth a message.
-  if (!archive || archive.render.qualityPreset !== "FINAL") return;
+  if (!archive) return;
   const job = await tx.jobRecord.findFirst({
     where: { entityType: "ARCHIVE", entityId: archiveId },
     orderBy: { createdAt: "desc" },
@@ -100,10 +100,11 @@ export async function notifyArchiveFailureWithin(
     eventKey: `archive-failed:${archiveId}:${randomUUID()}`,
     book: archive.render.video.book,
     kind: "PIPELINE_FAILED",
-    title: "❌ Lưu Google Drive thất bại — video đã render thành công",
+    title: `❌ Lưu Google Drive thất bại — ${renderVersionName(archive.render.qualityPreset).toLowerCase()} đã render thành công`,
     fields: [
       ["Sách", archive.render.video.book.title],
       ["Video", archive.render.video.title],
+      ["Bản render", renderVersionLabel(archive.render)],
       ["Bước", "Lưu Google Drive"],
       ...errorFields(failure),
       ["Đã thử lại", archive.retries],
@@ -124,28 +125,25 @@ export async function notifyVideoReadyWithin(tx: Tx, archiveId: string): Promise
   const file = archive?.files.find(
     (entry) => entry.kind === "VIDEO" && entry.status === "VERIFIED" && entry.remoteFileId,
   );
-  if (
-    !archive ||
-    archive.status !== "COMPLETED" ||
-    archive.render.qualityPreset !== "FINAL" ||
-    archive.render.status !== "COMPLETED" ||
-    !file?.remoteFileId
-  )
+  if (!archive || archive.status !== "COMPLETED" || archive.render.status !== "COMPLETED" || !file?.remoteFileId)
     return;
   const snapshot = readStoredRenderSnapshot(archive.render.snapshotJson, archive.render.snapshotHash);
+  const version = renderVersionName(archive.render.qualityPreset);
   await recordNotificationWithin(tx, {
     eventKey: `video-ready:${archive.renderId}`,
     book: { id: archive.render.video.bookId, title: snapshot?.video.bookTitle ?? archive.render.video.book.title },
     kind: "VIDEO_READY",
-    title: "✅ Video đã sẵn sàng",
+    title: `✅ ${version} đã render xong và lưu lên Google Drive`,
     fields: [
       ["Sách", snapshot?.video.bookTitle ?? archive.render.video.book.title],
       ["Video", snapshot?.video.title ?? archive.render.video.title],
+      ["Bản render", renderVersionLabel(archive.render)],
       ["Thời lượng (giây)", Math.round((archive.render.durationMs ?? 0) / 100) / 10],
       ["Video ID", archive.render.videoId],
       ["Render ID", archive.renderId],
     ],
     videoUrl: `https://drive.google.com/file/d/${encodeURIComponent(file.remoteFileId)}/view`,
+    videoUrlLabel: `Link Drive (${version.toLowerCase()})`,
   });
 }
 
@@ -155,16 +153,17 @@ export async function notifyMissingDriveWithin(tx: Tx, renderId: string): Promis
     where: { id: renderId },
     include: { video: { include: { book: true } } },
   });
-  if (!render || render.status !== "COMPLETED" || render.qualityPreset !== "FINAL") return;
+  if (!render || render.status !== "COMPLETED") return;
   const snapshot = readStoredRenderSnapshot(render.snapshotJson, render.snapshotHash);
   await recordNotificationWithin(tx, {
     eventKey: `video-missing-drive:${renderId}`,
     book: { id: render.video.bookId, title: snapshot?.video.bookTitle ?? render.video.book.title },
     kind: "VIDEO_LINK_UNAVAILABLE",
-    title: "⚠️ Video đã render ở local, chưa có link Drive",
+    title: `⚠️ ${renderVersionName(render.qualityPreset)} đã render ở local, chưa có link Drive`,
     fields: [
       ["Sách", snapshot?.video.bookTitle ?? render.video.book.title],
       ["Video", snapshot?.video.title ?? render.video.title],
+      ["Bản render", renderVersionLabel(render)],
       ["Bước", "Lưu Google Drive"],
       ["Chi tiết", "Kết nối lại Google Drive trong Cài đặt; bản render được giữ nguyên để lưu tiếp."],
       ["Video ID", render.videoId],
@@ -235,7 +234,12 @@ export async function notifyJobFailureWithin(tx: Tx, job: JobRecord, sceneId?: s
       ["Sách", video?.book.title ?? chapter?.book.title],
       ["Chương", chapter?.title],
       ["Video", video?.title],
-      ["Bước", JOB_STAGES[job.jobType] ?? job.jobType],
+      [
+        "Bước",
+        render
+          ? `Render ${renderVersionName(render.qualityPreset).toLowerCase()}`
+          : (JOB_STAGES[job.jobType] ?? job.jobType),
+      ],
       ...errorFields({
         code: job.errorCode ?? "PROCESSOR_ERROR",
         message: job.errorMessage ?? "Tác vụ thất bại.",
@@ -245,6 +249,31 @@ export async function notifyJobFailureWithin(tx: Tx, job: JobRecord, sceneId?: s
       ["Job ID", job.id],
       ["Video ID", videoId],
       ["Entity ID", job.entityId],
+    ],
+  });
+}
+
+// The script is written either way, so a title, caption and hashtags that did not pass would otherwise go unnoticed until
+// someone opens the Đăng tải tab. One message per script version, recorded in the transaction that writes the script.
+export async function notifyPublishMetadataMissingWithin(
+  tx: Tx,
+  video: { id: string; title: string; bookId: string; scriptVersion: number },
+  issue: { code: string; message: string },
+): Promise<void> {
+  if (!enabled()) return;
+  const book = await tx.book.findUnique({ where: { id: video.bookId }, select: { id: true, title: true } });
+  await recordNotificationWithin(tx, {
+    eventKey: `publish-missing:${video.id}:${video.scriptVersion}`,
+    book: book ?? undefined,
+    kind: "PIPELINE_FAILED",
+    title: "⚠️ Chưa có tiêu đề, caption và hashtag",
+    fields: [
+      ["Sách", book?.title],
+      ["Video", video.title],
+      ["Bước", "Viết tiêu đề, caption và hashtag"],
+      ["Mã lỗi", issue.code],
+      ["Chi tiết", `${issue.message} Kịch bản vẫn được giữ; mở tab Đăng tải của video để viết lại.`],
+      ["Video ID", video.id],
     ],
   });
 }

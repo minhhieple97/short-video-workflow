@@ -563,7 +563,8 @@ render COMPLETED (DRAFT hoặc FINAL) + archiveIntentAt ─► requestRenderArch
 - Archive tách khỏi render; `destinationKey` = `permissionId` của tài khoản. Chưa kết nối Drive → không làm gì, ý định vẫn nằm trên
   render. Processor **chỉ upload**. Nút **Lưu lên Drive** (`archiveRenderNow`) gọi `requestRenderArchive(..., { userRequested: true })`,
   bỏ yêu cầu ý định: bản render cũ (trước khi nháp được lưu) chỉ lên Drive khi người dùng bấm, quét nền không tự gom chúng. Tin Telegram
-  về archive (`notifyArchiveFailureWithin`, `notifyVideoReadyWithin`) chỉ cho render FINAL.
+  về archive (`notifyArchiveFailureWithin`, `notifyVideoReadyWithin`, `notifyMissingDriveWithin`) áp dụng cho cả nháp lẫn FINAL;
+  tiêu đề và nhãn link ghi rõ bản nào (`domain/render-version.ts`).
 - `script.json` và `manifest.json` (thông số render, `snapshotHash`, tên + byte + SHA-256 của MP4 và script) dựng **chỉ từ snapshot**,
   không có đường dẫn local, JSON khoá sắp xếp nên dựng lại ra cùng byte. Cảnh minh hoạ: snapshot ghi `illustrative` cho từng cảnh lúc
   chụp (nhịp bản thảo có `illustrative` của item sản xuất, ánh xạ sang loại cảnh bằng `SCENE_TYPE_FOR_BEAT`; video làm tay không có
@@ -708,7 +709,10 @@ ghi một dòng log khi khoảng nghỉ bắt đầu và một dòng khi job ph�
 `NotificationProvider` và adapter Telegram ở `server/notifications/`; nghiệp vụ thông báo ở feature `notifications`.
 Các repository ghi `NotificationDelivery` cùng transaction với sự kiện mới; `eventKey` duy nhất chặn phát lại cùng sự kiện.
 Archive hoàn tất chỉ ghi tin sẵn sàng khi MP4 đã `VERIFIED`; link lấy từ `remoteFileId` của đúng render, tiêu đề ưu tiên snapshot.
-Lỗi production/extraction/archive có nguồn riêng; job/batch cha không phát lại lỗi con.
+Nháp và FINAL đi cùng đường: mỗi render một `eventKey` (`video-ready:<renderId>`), nên hai bản của một video là hai tin, mỗi tin mang
+link bản của nó.
+Lỗi production/extraction/archive có nguồn riêng; job/batch cha không phát lại lỗi con. Kịch bản được ghi mà thiếu bộ tiêu đề/caption/
+hashtag hợp lệ (`publishWriteFor` trả `publishIssue`) báo từ chính transaction `replaceScriptWithin`, `eventKey` theo phiên bản kịch bản.
 
 Worker có sweeper 5 giây, một tin mỗi lượt, timeout HTTP 10 giây và lease 60 giây. Trạng thái `PENDING → SENDING → SENT/FAILED`;
 lease hết hạn được lấy lại sau restart. Tối đa 8 lần gửi cho lỗi tạm/không rõ kết quả, backoff 30 giây tới 30 phút;

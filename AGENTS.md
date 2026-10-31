@@ -262,8 +262,11 @@ Dependency direction: `app → features/*/services → features/*/repositories �
   Its processor claims the item, steps from the checkpoint and defers instead of waiting; cancelling the job cancels the item.
 - An archive and its `ARCHIVE_RENDER` job are written in one transaction (`createArchiveWithJob`); the worker's archive sweep
   (start-up + every minute) archives finished renders, draft or FINAL, that carry an archive intent and re-jobs unfinished archives (`completeRenderRecord` writes the intent
-  for every render; renders from before that have none and are archived only by `archiveRenderNow`). Telegram stays FINAL-only. The archive
+  for every render; renders from before that have none and are archived only by `archiveRenderNow`). Telegram treats a draft like a FINAL
+  render (ready with that render's own Drive link, no Drive connection, Drive failure), naming the version. The archive
   processor only uploads: it never renders, voices or calls an AI.
+- A script write that comes without a usable title, caption and hashtags (`publishWriteFor`) still stores the script and reports the loss
+  on Telegram from the same transaction (`replaceScriptWithin` → `notifyPublishMetadataMissingWithin`), once per script version.
 - Worker `concurrency = WORKER_CONCURRENCY` (default 1); global AI concurrency = 1; Remotion `concurrency = RENDER_CONCURRENCY` (default 1).
 - **One worker per Redis database** (two would each take jobs and break those limits). Before it reconciles or sweeps, the worker takes
   `studio:worker:lock` (`server/queue/worker-lock.ts`: pid, host, start time and data dir, with a TTL that every heartbeat renews) and exits 1,

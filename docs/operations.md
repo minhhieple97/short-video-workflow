@@ -570,9 +570,11 @@ Không dùng `CLAUDE_CODE_EFFORT_LEVEL` cho app vì môi trường subprocess l�
 6. Nếu hết lượt gửi, sửa cấu hình/quyền rồi `pnpm telegram --retry <notificationId>` để worker gửi lại đúng tin đó. Lệnh không
    retry/render lại video; notification ID có trong log `notifications.dispatch`, và mã sự kiện trong tin nhận được.
 
-Telegram mặc định tắt, không gửi lại các kết quả lịch sử. Khi bật: báo video FINAL sau khi lưu Drive được xác minh; báo lỗi
-kèm bước/mã/nguyên nhân/ID, hoặc video đã có local nhưng chưa kết nối Drive; báo một lần chờ quota và khi provider thực sự
-chạy được lại. Không gửi phần trăm hoặc từng retry. Mất phản hồi có thể tạo tin trùng với cùng mã sự kiện.
+Telegram mặc định tắt, không gửi lại các kết quả lịch sử. Khi bật: báo mỗi bản render, **nháp lẫn cuối**, sau khi lưu Drive được
+xác minh, kèm link Drive của đúng bản đó; báo lỗi kèm bước/mã/nguyên nhân/ID, hoặc bản render đã có local nhưng chưa kết nối
+Drive; báo kịch bản thiếu tiêu đề/caption/hashtag hợp lệ; báo một lần chờ quota và khi provider thực sự chạy được lại. Không gửi
+phần trăm hoặc từng retry. Mất phản hồi có thể tạo tin trùng với cùng mã sự kiện. Muốn nhận link bản nháp thì Drive phải đã kết
+nối: bản nháp render trước khi tính năng lưu bản nháp ra đời không có ý định lưu nên không có link (bấm **Lưu lên Drive** để có).
 Lỗi Telegram không ảnh hưởng MP4 hay pipeline. Một tin lỗi mạng được gửi tối đa 8 lần, 429 chờ theo `retry_after`; lỗi token/
 quyền bị dừng để sửa. Đặt `TELEGRAM_ENABLED=false` và restart để ngừng gửi; các tin đang chờ được giữ trong SQLite.
 

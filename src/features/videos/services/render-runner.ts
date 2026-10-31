@@ -127,11 +127,11 @@ async function produceRender(
   if (problem) throw new AppError("RENDER_VERIFICATION_FAILED", `Kiểm tra MP4 thất bại: ${problem}`, 500);
 
   // Every finished render, draft or final, is archived; the intent is part of this write, so it is saved with the MP4 or
-  // not at all. Only a FINAL render is a finished video worth a "no Drive link" warning.
+  // not at all. For the same reason a render with no Drive connection to go to is reported at once, whatever its quality.
   await completeRenderRecord(
     render,
     { durationMs: probe.durationMs, sizeBytes: probe.sizeBytes },
-    { missingDrive: quality === "FINAL" && getAppConfig().telegram.enabled && (await missingArchiveDestination()) },
+    { missingDrive: getAppConfig().telegram.enabled && (await missingArchiveDestination()) },
   );
   return { durationMs: probe.durationMs };
 }

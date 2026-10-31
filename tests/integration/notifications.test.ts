@@ -4,6 +4,7 @@ import type * as Db from "@/server/db/client";
 import type * as Repo from "@/features/notifications/repositories/notification.repository";
 import type * as Dispatch from "@/features/notifications/services/notification-dispatch.service";
 import type * as Productions from "@/features/productions/services/production-request.service";
+import type { PublishMetadataDraft } from "@/features/videos/domain/publish-metadata";
 import { IntegrationError } from "@/server/integrations/integration-error";
 import { MockScenePlanCompiler } from "@/server/scene-plan/mock-scene-plan-compiler";
 import { MockScriptStudioProvider } from "@/server/script-studio/mock-script-studio-provider";
@@ -56,12 +57,23 @@ async function render(qualityPreset: "DRAFT" | "FINAL" = "FINAL") {
       scriptVersion: 1,
       outputPath: "videos/test/r.mp4",
       qualityPreset,
-      width: 1080,
-      height: 1920,
+      width: qualityPreset === "FINAL" ? 1080 : 720,
+      height: qualityPreset === "FINAL" ? 1920 : 1280,
       fps: 30,
       durationMs: 60_000,
     },
   });
+}
+
+async function verifiedArchive(renderId: string, videoFileId: string, destinationKey = "account") {
+  const archive = await import("@/features/archive/repositories/render-archive.repository");
+  const { archive: item } = await archive.ensureRenderArchive({ renderId, provider: "google-drive", destinationKey }, [
+    { kind: "VIDEO", remoteName: "video.mp4" },
+  ]);
+  await archive.saveRemoteIds(item.id, { folderId: `folder-${videoFileId}`, fileIds: { VIDEO: videoFileId } });
+  await archive.markFileUploaded(item.id, "VIDEO", 10);
+  await archive.markFileVerified(item.id, "VIDEO");
+  return { archive, archiveId: item.id };
 }
 
 describe("durable notification delivery", () => {
@@ -264,48 +276,139 @@ describe("business notification sources", () => {
     expect((await row()).bookId).toBe(fixture.bookId);
   });
 
-  it("reports a Drive failure without changing the completed render, then reports recovery", async () => {
-    const archive = await import("@/features/archive/repositories/render-archive.repository");
-    const saved = await render();
-    const { archive: item } = await archive.ensureRenderArchive(
-      { renderId: saved.id, provider: "google-drive", destinationKey: "account" },
-      [{ kind: "VIDEO", remoteName: "video.mp4" }],
-    );
-    await archive.setArchiveStatus(item.id, "FAILED", { code: "DRIVE_STORAGE_FULL", message: "Drive hết dung lượng." });
-    await archive.setArchiveStatus(item.id, "FAILED", { code: "DRIVE_STORAGE_FULL", message: "Drive hết dung lượng." });
-    expect(await rows()).toHaveLength(1);
-    expect((await row()).text).toContain("video đã render thành công");
-    expect((await db.prisma.renderRecord.findUniqueOrThrow({ where: { id: saved.id } })).status).toBe("COMPLETED");
-    await archive.setArchiveStatus(item.id, "RUNNING");
-    await archive.saveRemoteIds(item.id, { folderId: "folder", fileIds: { VIDEO: "recovered-video" } });
-    await archive.markFileUploaded(item.id, "VIDEO", 10);
-    await archive.markFileVerified(item.id, "VIDEO");
-    await archive.completeArchive(item.id);
-    expect((await rows()).map((entry) => entry.kind)).toEqual(["PIPELINE_FAILED", "VIDEO_READY"]);
+  it("sends each version's own Drive link, one message per render, to the book's topic", async () => {
+    const versions = [
+      { quality: "DRAFT", fileId: "draft-video-id", title: "Bản nháp", size: "720×1280", label: "bản nháp" },
+      { quality: "FINAL", fileId: "final-video-id", title: "Bản cuối", size: "1080×1920", label: "bản cuối" },
+    ] as const;
+    const renderIds: Record<string, string> = {};
+    for (const version of versions) {
+      const saved = await render(version.quality);
+      renderIds[version.quality] = saved.id;
+      const { archive, archiveId } = await verifiedArchive(saved.id, version.fileId);
+      expect(await archive.completeArchive(archiveId)).toBe(true);
+    }
+    expect(await rows()).toHaveLength(2);
+    for (const version of versions) {
+      const other = versions.find((candidate) => candidate !== version);
+      const sent = await db.prisma.notificationDelivery.findUniqueOrThrow({
+        where: { eventKey: `video-ready:${renderIds[version.quality]}` },
+      });
+      expect(sent).toMatchObject({ kind: "VIDEO_READY", bookId: fixture.bookId });
+      expect(sent.text).toContain(`✅ ${version.title} đã render xong và lưu lên Google Drive`);
+      expect(sent.text).toContain(`Bản render: ${version.title} · ${version.size}`);
+      expect(sent.text).toContain(
+        `Link Drive (${version.label}): https://drive.google.com/file/d/${version.fileId}/view`,
+      );
+      expect(sent.text).not.toContain(other?.fileId);
+    }
   });
 
-  it("says nothing about a draft render's archive, which the render history already shows", async () => {
-    const archive = await import("@/features/archive/repositories/render-archive.repository");
-    const saved = await render("DRAFT");
-    const { archive: item } = await archive.ensureRenderArchive(
-      { renderId: saved.id, provider: "google-drive", destinationKey: "account" },
-      [{ kind: "VIDEO", remoteName: "video.mp4" }],
-    );
-    await archive.setArchiveStatus(item.id, "FAILED", { code: "DRIVE_STORAGE_FULL", message: "Drive hết dung lượng." });
-    await archive.setArchiveStatus(item.id, "RUNNING");
-    await archive.saveRemoteIds(item.id, { folderId: "folder", fileIds: { VIDEO: "draft-video" } });
-    await archive.markFileUploaded(item.id, "VIDEO", 10);
-    await archive.markFileVerified(item.id, "VIDEO");
-    expect(await archive.completeArchive(item.id)).toBe(true);
-    expect(await rows()).toHaveLength(0);
-  });
+  it.each([
+    ["DRAFT", "bản nháp"],
+    ["FINAL", "bản cuối"],
+  ] as const)(
+    "reports a %s render's Drive failure without changing the render, then reports recovery",
+    async (quality, name) => {
+      const archive = await import("@/features/archive/repositories/render-archive.repository");
+      const saved = await render(quality);
+      const { archive: item } = await archive.ensureRenderArchive(
+        { renderId: saved.id, provider: "google-drive", destinationKey: "account" },
+        [{ kind: "VIDEO", remoteName: "video.mp4" }],
+      );
+      const failure = { code: "DRIVE_STORAGE_FULL", message: "Drive hết dung lượng." };
+      await archive.setArchiveStatus(item.id, "FAILED", failure);
+      await archive.setArchiveStatus(item.id, "FAILED", failure);
+      expect(await rows()).toHaveLength(1);
+      expect((await row()).text).toContain(`${name} đã render thành công`);
+      expect((await row()).text).toContain("DRIVE_STORAGE_FULL");
+      expect((await row()).bookId).toBe(fixture.bookId);
+      expect((await db.prisma.renderRecord.findUniqueOrThrow({ where: { id: saved.id } })).status).toBe("COMPLETED");
+      await archive.setArchiveStatus(item.id, "RUNNING");
+      await archive.saveRemoteIds(item.id, { folderId: "folder", fileIds: { VIDEO: "recovered-video" } });
+      await archive.markFileUploaded(item.id, "VIDEO", 10);
+      await archive.markFileVerified(item.id, "VIDEO");
+      await archive.completeArchive(item.id);
+      expect((await rows()).map((entry) => entry.kind)).toEqual(["PIPELINE_FAILED", "VIDEO_READY"]);
+    },
+  );
 
-  it("records the missing-Drive warning atomically with a completed FINAL render", async () => {
+  it.each([
+    ["DRAFT", "Bản nháp đã render ở local"],
+    ["FINAL", "Bản cuối đã render ở local"],
+  ] as const)("records the missing-Drive warning atomically with a completed %s render", async (quality, title) => {
     const renders = await import("@/features/videos/repositories/render.repository");
-    const saved = await render();
+    const saved = await render(quality);
     await renders.completeRenderRecord(saved, { durationMs: 60_000, sizeBytes: 100 }, { missingDrive: true });
     expect(await rows()).toHaveLength(1);
     expect((await row()).kind).toBe("VIDEO_LINK_UNAVAILABLE");
+    expect((await row()).text).toContain(title);
+    expect((await row()).bookId).toBe(fixture.bookId);
+  });
+
+  it("names the version in the step of a failed render", async () => {
+    const jobs = await import("@/features/jobs/repositories/job-record.repository");
+    const saved = await render("DRAFT");
+    const job = await jobs.createJobRecord({
+      bullmqJobId: "draft-render",
+      jobType: "RENDER_VIDEO",
+      entityType: "RENDER",
+      entityId: saved.id,
+    });
+    await jobs.markJobFailed(job.id, "RENDER_VERIFICATION_FAILED", "Kiểm tra MP4 thất bại.");
+    expect((await row()).text).toContain("Bước: Render bản nháp");
+    expect((await row()).bookId).toBe(fixture.bookId);
+  });
+
+  describe("the title, caption and hashtags written with a script", () => {
+    const valid = {
+      title: "Quản lý thời gian",
+      caption: "Một thói quen nhỏ mỗi sáng.",
+      hashtags: ["thoigian", "thoiquen", "sach"],
+    };
+    const write = async (proposal: PublishMetadataDraft | undefined) => {
+      const { publishWriteFor } = await import("@/features/videos/services/publish-proposal");
+      const { replaceScript } = await import("@/features/videos/repositories/video.repository");
+      const context = {
+        logIds: { videoId: fixture.videoId },
+        promptVersion: "test",
+        book: { title: "Sách", author: null },
+        lessons: [],
+        scenes: [],
+      };
+      return replaceScript(fixture.videoId, { hookOptions: [], scenes: [], ...publishWriteFor(proposal, context) });
+    };
+
+    const broken: [string, PublishMetadataDraft | undefined, string][] = [
+      ["missing", undefined, "PUBLISH_METADATA_MISSING"],
+      ["short of hashtags", { ...valid, hashtags: ["thoigian"] }, "PUBLISH_METADATA_INVALID"],
+      ["made up", { ...valid, title: "3 bí mật ít ai biết" }, "PUBLISH_METADATA_UNSUPPORTED_CLAIM"],
+    ];
+    it.each(broken)(
+      "warns once, in the book's topic, when the AI's set is %s, and keeps the script",
+      async (_name, proposal, code) => {
+        const before = await db.prisma.video.findUniqueOrThrow({ where: { id: fixture.videoId } });
+        const written = await write(proposal);
+        expect(written.scriptVersion).toBe(before.scriptVersion + 1);
+        expect(await db.prisma.videoPublishMetadata.count({ where: { videoId: fixture.videoId } })).toBe(0);
+        expect(await rows()).toHaveLength(1);
+        expect(await row()).toMatchObject({ kind: "PIPELINE_FAILED", bookId: fixture.bookId });
+        expect((await row()).text).toContain("⚠️ Chưa có tiêu đề, caption và hashtag");
+        expect((await row()).text).toContain(`Mã lỗi: ${code}`);
+        expect((await row()).text).toContain("Bước: Viết tiêu đề, caption và hashtag");
+        expect((await row()).text).toContain("Kịch bản vẫn được giữ");
+      },
+    );
+
+    it("says nothing when the set passes, and nothing while Telegram is off", async () => {
+      await write(valid);
+      expect(await db.prisma.videoPublishMetadata.count({ where: { videoId: fixture.videoId } })).toBe(1);
+      expect(await rows()).toHaveLength(0);
+      const { getAppConfig } = await import("@/shared/config/env");
+      getAppConfig().telegram.enabled = false;
+      await write(undefined);
+      expect(await rows()).toHaveLength(0);
+    });
   });
 
   it.each(["PARTIAL", "NEEDS_CHAPTERS", "HELD"])(

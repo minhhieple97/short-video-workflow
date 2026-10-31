@@ -19,6 +19,8 @@ export async function recordNotificationWithin(
     title: string;
     fields: readonly (readonly [string, string | number | null | undefined])[];
     videoUrl?: string;
+    // Names the link, so a message can say which version it opens ("Link Drive (bản nháp)").
+    videoUrlLabel?: string;
     book?: { id: string; title: string };
   },
 ) {
@@ -32,7 +34,7 @@ export async function recordNotificationWithin(
     .filter(([, value]) => value !== undefined && value !== null)
     .map(([label, value]) => `${label}: ${safe(String(value))}`);
   if (event.videoUrl && /^https:\/\/drive\.google\.com\/file\/d\/[A-Za-z0-9_-]+\/view$/.test(event.videoUrl))
-    fields.push(`Xem video: ${event.videoUrl}`);
+    fields.push(`${safe(event.videoUrlLabel ?? "Xem video")}: ${event.videoUrl}`);
   const footer = `\nThời gian: ${formatNotificationTime(now)}\nMã sự kiện: ${id}`;
   const text = [safe(event.title), ...fields].join("\n").slice(0, 4000 - footer.length) + footer;
   return tx.notificationDelivery.upsert({

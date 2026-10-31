@@ -59,7 +59,7 @@ export async function applyScenePlan(input: {
     script: {
       hookOptions: [plan.hook],
       scenes,
-      publish: publishWriteFor(plan.publish, {
+      ...publishWriteFor(plan.publish, {
         logIds: { itemId: input.itemId },
         promptVersion,
         book: input.book,
