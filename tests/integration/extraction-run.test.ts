@@ -667,6 +667,7 @@ describe.skipIf(!poppler)("extraction jobs (needs poppler-utils)", () => {
     const context = (extractionId: string) => ({
       job: job(extractionId),
       jobRecordId: "record",
+      lane: "extraction" as const,
       signal: new AbortController().signal,
       reportProgress: async () => {},
     });

@@ -45,6 +45,7 @@ const runJob = (archiveId: string) =>
   processor.processArchiveRender({
     job: { data: { jobRecordId: "job-1", archiveId } } as unknown as Job,
     jobRecordId: "job-1",
+    lane: "archive",
     signal: new AbortController().signal,
     reportProgress: async () => undefined,
   } as ProcessorContext);

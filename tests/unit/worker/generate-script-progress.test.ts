@@ -17,6 +17,7 @@ function contextFor(data: Record<string, unknown>) {
   const context = {
     job: { data: { jobRecordId: "job-1", ...data } } as unknown as Job,
     jobRecordId: "job-1",
+    lane: "claude" as const,
     signal: new AbortController().signal,
     reportProgress,
   };

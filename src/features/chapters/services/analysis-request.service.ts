@@ -11,7 +11,7 @@ import type { JobDto } from "@/shared/types/job";
 
 import { findChapterWithBook, listChaptersByBook, setChapterAnalysisStatus } from "../repositories/chapter.repository";
 import { analysisInputHash } from "./chapter-analysis.service";
-import { notebookAnalysisInputHash } from "./notebook-chapter-analysis.service";
+import { chapterAnalysisLane, notebookAnalysisInputHash } from "./notebook-chapter-analysis.service";
 
 interface AnalysisTarget {
   id: string;
@@ -40,12 +40,16 @@ export async function isUpToDate(chapter: AnalysisTarget, bookTitle: string): Pr
   );
 }
 
-async function enqueueAnalysis(chapter: AnalysisTarget, force: boolean): Promise<{ job: JobDto; reused: boolean }> {
+async function enqueueAnalysis(
+  chapter: AnalysisTarget,
+  sourceFormat: string,
+  force: boolean,
+): Promise<{ job: JobDto; reused: boolean }> {
   const result = await enqueueTrackedJob({
     jobType: "ANALYZE_CHAPTER",
     entityType: "CHAPTER",
     entityId: chapter.id,
-    payload: { chapterId: chapter.id, force },
+    payload: { chapterId: chapter.id, force, lane: chapterAnalysisLane(sourceFormat) },
     requestFingerprint: `${chapter.contentHash}:${CHAPTER_ANALYSIS_PROMPT_VERSION}:${force ? "force" : "auto"}`,
   });
   if (!result.reused) await setChapterAnalysisStatus(chapter.id, "QUEUED");
@@ -62,7 +66,7 @@ export async function requestChapterAnalysis(chapterId: string, force: boolean):
       409,
     );
   }
-  return (await enqueueAnalysis(chapter, force)).job;
+  return (await enqueueAnalysis(chapter, chapter.book.sourceFormat, force)).job;
 }
 
 function pickChapters<T extends { id: string }>(chapters: readonly T[], chapterIds: readonly string[]): T[] {
@@ -74,8 +78,8 @@ function pickChapters<T extends { id: string }>(chapters: readonly T[], chapterI
   return picked;
 }
 
-// Queues the chosen chapters (every chapter when none are named) that still need analysis, in book order; the single
-// worker processes them one by one.
+// Queues the chosen chapters (every chapter when none are named) that still need analysis, in book order; their lane
+// (NotebookLM's for a PDF book, Claude's otherwise) runs as many at once as Settings allow.
 export async function requestBookAnalysis(
   bookId: string,
   chapterIds?: readonly string[],
@@ -98,7 +102,7 @@ export async function requestBookAnalysis(
       skipped += 1;
       continue;
     }
-    jobs.push((await enqueueAnalysis(chapter, false)).job);
+    jobs.push((await enqueueAnalysis(chapter, book.sourceFormat, false)).job);
   }
   return { jobs, skipped };
 }

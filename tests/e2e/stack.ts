@@ -2,6 +2,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { Queue } from "bullmq";
+import { Redis } from "ioredis";
+
+import { LANE_QUEUE_NAMES } from "../../src/server/queue/lanes";
 import { OFFLINE_INTEGRATIONS_ENV } from "../helpers/offline-env";
 
 export const E2E_PORT = Number(process.env.E2E_PORT ?? 3100);
@@ -33,4 +37,18 @@ export function findRemotionChromium(): string | undefined {
     }
   }
   return undefined;
+}
+
+// Holds back every lane, so a test can look at a page before the worker starts on what the page queued.
+export async function pauseAllLanes(): Promise<{ resume: () => Promise<void> }> {
+  const connection = new Redis(E2E_ENV.REDIS_URL ?? "", { maxRetriesPerRequest: null });
+  const queues = Object.values(LANE_QUEUE_NAMES).map((name) => new Queue(name, { connection }));
+  await Promise.all(queues.map((queue) => queue.pause()));
+  return {
+    resume: async () => {
+      await Promise.all(queues.map((queue) => queue.resume()));
+      await Promise.all(queues.map((queue) => queue.close()));
+      connection.disconnect();
+    },
+  };
 }

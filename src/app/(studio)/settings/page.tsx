@@ -10,6 +10,8 @@ import { getDriveOverview } from "@/features/drive/services/drive-overview.servi
 import { RunTestJobButton } from "@/features/jobs/components/run-test-job-button";
 import { NotebookLmCard } from "@/features/notebooklm/components/notebooklm-card";
 import { getNotebookLmOverview } from "@/features/notebooklm/services/notebooklm-overview.service";
+import { ConcurrencySettingsCard } from "@/features/settings/components/concurrency-settings-card";
+import { getConcurrencySettingsOverview } from "@/features/settings/services/concurrency-settings.service";
 import { getDiagnosticsSnapshot } from "@/server/diagnostics/get-diagnostics-snapshot";
 import type { CheckResult, CheckStatus } from "@/server/diagnostics/types";
 
@@ -70,10 +72,11 @@ interface SettingsPageProps {
 }
 
 export default async function SettingsPage({ searchParams }: Readonly<SettingsPageProps>) {
-  const [snapshot, driveOverview, notebookLmOverview, query] = await Promise.all([
+  const [snapshot, driveOverview, notebookLmOverview, concurrency, query] = await Promise.all([
     getDiagnosticsSnapshot(),
     getDriveOverview(),
     getNotebookLmOverview(),
+    getConcurrencySettingsOverview(),
     searchParams,
   ]);
 
@@ -102,6 +105,13 @@ export default async function SettingsPage({ searchParams }: Readonly<SettingsPa
           <AlertDescription>{driveCallbackError(query.drive_error)}</AlertDescription>
         </Alert>
       ) : null}
+
+      <section aria-labelledby="worker-heading" className="flex flex-col gap-4">
+        <h2 id="worker-heading" className="text-lg font-bold">
+          Worker
+        </h2>
+        <ConcurrencySettingsCard overview={concurrency} />
+      </section>
 
       <section aria-labelledby="integrations-heading" className="flex flex-col gap-4">
         <h2 id="integrations-heading" className="text-lg font-bold">

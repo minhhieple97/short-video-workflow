@@ -75,7 +75,6 @@ const envSchema = z
     CHAPTER_HEADING_PATTERNS: regexList,
 
     AI_MODE: z.enum(["mock", "cli-task", "cli-auto"]).default("cli-task"),
-    MAX_AI_CONCURRENCY: positiveInt(1),
     CLAUDE_CLI_COMMAND: z.string().min(1).default("claude"),
     CLAUDE_MODEL: z.preprocess(
       (value) => (typeof value === "string" ? value.trim() || undefined : value),
@@ -116,8 +115,6 @@ const envSchema = z
     RENDER_WIDTH: positiveInt(1080),
     RENDER_HEIGHT: positiveInt(1920),
     RENDER_FPS: positiveInt(30),
-    RENDER_CONCURRENCY: positiveInt(1),
-    WORKER_CONCURRENCY: positiveInt(1),
     DRAFT_RENDER_WIDTH: positiveInt(720),
     DRAFT_RENDER_HEIGHT: positiveInt(1280),
   })
@@ -162,7 +159,6 @@ export interface AppConfig {
   };
   ai: {
     mode: "mock" | "cli-task" | "cli-auto";
-    maxConcurrency: number;
     claudeCliCommand: string;
     claudeModel: string | undefined;
     claudeEffort: "low" | "medium" | "high" | "xhigh" | "max" | undefined;
@@ -186,7 +182,6 @@ export interface AppConfig {
     final: { width: number; height: number; fps: number };
     draft: { width: number; height: number; fps: number };
   };
-  concurrency: { worker: number; render: number };
 }
 
 export class ConfigError extends Error {
@@ -240,7 +235,6 @@ export function parseAppConfig(source: Record<string, string | undefined>): AppC
     },
     ai: {
       mode: env.AI_MODE,
-      maxConcurrency: env.MAX_AI_CONCURRENCY,
       claudeCliCommand: env.CLAUDE_CLI_COMMAND,
       claudeModel: env.CLAUDE_MODEL,
       claudeEffort: env.CLAUDE_EFFORT,
@@ -269,7 +263,6 @@ export function parseAppConfig(source: Record<string, string | undefined>): AppC
       final: { width: env.RENDER_WIDTH, height: env.RENDER_HEIGHT, fps: env.RENDER_FPS },
       draft: { width: env.DRAFT_RENDER_WIDTH, height: env.DRAFT_RENDER_HEIGHT, fps: env.RENDER_FPS },
     },
-    concurrency: { worker: env.WORKER_CONCURRENCY, render: env.RENDER_CONCURRENCY },
   };
 }
 

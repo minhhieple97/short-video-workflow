@@ -8,6 +8,7 @@ import { parseArgs } from "node:util";
 
 import { openBrowser, renderMedia, selectComposition } from "@remotion/renderer";
 
+import { getConcurrencySettings } from "@/features/settings/services/concurrency-settings.service";
 import { RENDER_TEMPLATE_VERSION, SHORT_VIDEO_COMPOSITION_ID } from "@/features/videos/domain/composition-props";
 import { ensureRemotionBundle } from "@/server/render/render-short-video";
 import { getAppConfig } from "@/shared/config/env";
@@ -47,7 +48,7 @@ async function main(): Promise<number> {
   if (values.quality !== "draft" && values.quality !== "final") throw new Error("--quality must be draft or final");
   const config = getAppConfig();
   const scale = values.quality === "draft" ? config.video.draft.width / config.video.final.width : 1;
-  const concurrency = values.concurrency ? Number(values.concurrency) : config.concurrency.render;
+  const concurrency = values.concurrency ? Number(values.concurrency) : (await getConcurrencySettings()).renderThreads;
   const range = frameRange(values.frames);
 
   const fixture = await loadRenderFixture(values.fixture);

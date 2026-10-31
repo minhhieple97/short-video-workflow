@@ -94,7 +94,8 @@ describe("requesting a production", () => {
     expect(jobs).toHaveLength(1);
     expect(jobs[0]).toMatchObject({ status: "QUEUED", entityType: "PRODUCTION_ITEM" });
     expect(jobs[0]?.dispatch?.dispatchedAt).toBeNull();
-    expect(JSON.parse(jobs[0]?.dispatch?.payloadJson ?? "null")).toEqual({ itemId });
+    // A new item stands at the draft, which is NotebookLM's step.
+    expect(JSON.parse(jobs[0]?.dispatch?.payloadJson ?? "null")).toEqual({ itemId, lane: "notebooklm" });
   });
 
   it("starts no further job when the same request is replayed", async () => {

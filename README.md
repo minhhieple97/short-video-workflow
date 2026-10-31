@@ -282,8 +282,8 @@ flowchart TB
     UI["Browser<br/>Studio UI · React · Tailwind · shadcn/ui"]
     API["Web process · Next.js on 127.0.0.1:3000<br/>Thin route handlers: Zod → service → repository"]
     DB[("SQLite · WAL<br/>Prisma 7")]
-    Q[("Redis<br/>BullMQ queue studio-jobs")]
-    PR["Worker process · concurrency 1<br/>analyze · script · voice · render<br/>extract PDF · produce · archive"]
+    Q[("Redis<br/>BullMQ queue per lane")]
+    PR["Worker process · one worker per lane<br/>analyze · script · voice · render<br/>extract PDF · produce · archive"]
     FS[("DATA_DIR<br/>books · audio · videos")]
     LOCAL["Local tools, spawned with argument arrays<br/>Claude Code CLI · edge-tts · ffmpeg / ffprobe<br/>Remotion + Chromium · Poppler"]
     CLOUD["Optional services, your own accounts<br/>Mistral OCR Batch · NotebookLM over MCP stdio<br/>Google Drive with the drive.file scope"]
@@ -435,11 +435,14 @@ useful settings:
 | `AI_MODE`                                              | `cli-task`                        | `mock`, `cli-task` or `cli-auto` ([AI modes](#ai-modes))            |
 | `TTS_MODE`, `TTS_VOICE`                                | `edge-tts`, `vi-VN-NamMinhNeural` | Voice-over engine and voice                                         |
 | `DEFAULT_PACE`                                         | `STANDARD`                        | Reading pace new videos start with: `STANDARD`, `FAST`, `FASTER`    |
-| `WORKER_CONCURRENCY`, `RENDER_CONCURRENCY`             | `1`, `1`                          | Keep at 1 until you have benchmarked your machine                   |
 | `MAX_PDF_SIZE_MB`, `MAX_PDF_PAGES`                     | `500`, `1000`                     | PDF upload limits                                                   |
 | `OCR_COST_CEILING_USD`, `MISTRAL_API_KEY`              | `3`, _(empty)_                    | Per-book OCR budget and your own Mistral key                        |
 | `NOTEBOOKLM_PROFILE`                                   | _(empty)_                         | Logged-in NotebookLM profile, needed for PDF batch with real AI     |
 | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` | _(empty)_                         | Your own Desktop-app OAuth client; leave empty to keep videos local |
+
+How many tasks of each kind run at once (Claude, NotebookLM, voice-over, render, Google Drive, PDF extraction, and the threads of one
+render) is **not** an environment variable: set it under **Settings → Chạy song song**. The worker picks a new number up within
+seconds, so you can raise it when you move to a stronger machine. Heavy work defaults to 1; NotebookLM and Drive default to 2.
 
 The full table, with limits and troubleshooting, is in [`docs/operations.md`](docs/operations.md).
 

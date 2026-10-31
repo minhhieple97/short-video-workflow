@@ -334,6 +334,37 @@ test("E2E-01: one book, several short videos, rendered as vertical MP4", async (
     await expect(page.locator("tbody tr")).toHaveCount(4);
   });
 
+  await test.step("how many tasks of a kind run at once is set on the Settings page and kept", async () => {
+    await open(page, "/settings");
+    const drive = page.getByLabel("Lưu Google Drive", { exact: true });
+    const render = page.getByLabel("Render video", { exact: true });
+    await expect(drive).toHaveValue("2");
+    await expect(render).toHaveValue("1");
+    const save = page.getByRole("button", { name: "Lưu", exact: true });
+    await expect(save).toBeDisabled();
+
+    await render.fill("0");
+    await expect(page.getByText("Nhập một số nguyên từ 1 đến 8.").first()).toBeVisible();
+    await expect(save).toBeDisabled();
+
+    await render.fill("2");
+    await drive.fill("3");
+    await expect(save).toBeEnabled();
+    await save.click();
+    await expect(page.getByText("Đã lưu số việc chạy cùng lúc.")).toBeVisible();
+
+    await open(page, "/settings");
+    await expect(page.getByLabel("Lưu Google Drive", { exact: true })).toHaveValue("3");
+    await expect(page.getByLabel("Render video", { exact: true })).toHaveValue("2");
+    // The worker is running in this stack, so the page says a new number applies without a restart.
+    await expect(page.getByText(/Worker đang chạy: số mới có hiệu lực trong khoảng 5 giây/)).toBeVisible();
+
+    await page.getByLabel("Render video", { exact: true }).fill("1");
+    await page.getByLabel("Lưu Google Drive", { exact: true }).fill("2");
+    await page.getByRole("button", { name: "Lưu", exact: true }).click();
+    await expect(page.getByText("Đã lưu số việc chạy cùng lúc.")).toBeVisible();
+  });
+
   await test.step("the dark theme can be chosen and is remembered", async () => {
     await open(page, "/");
     const html = page.locator("html");

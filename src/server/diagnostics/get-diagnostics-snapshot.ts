@@ -1,4 +1,10 @@
 import pkg from "../../../package.json";
+import {
+  CONCURRENCY_KEYS,
+  CONCURRENCY_SETTINGS,
+  type ConcurrencySettings,
+} from "@/features/settings/domain/concurrency-settings";
+import { getConcurrencySettings } from "@/features/settings/services/concurrency-settings.service";
 import { PREVIEW_FRAME } from "@/features/videos/domain/safe-zones";
 import { resolveDatabaseFile } from "@/server/db/client";
 import { redactRedisUrl } from "@/server/queue/redis-connection";
@@ -33,8 +39,13 @@ async function runCheck(
   }
 }
 
-function buildConfigRows(): ConfigRow[] {
-  const { video, concurrency, ai, tts, redisUrl, dataDir } = getAppConfig();
+function describeConcurrency(settings: ConcurrencySettings | null): string {
+  if (!settings) return "Không đọc được (SQLite?)";
+  return CONCURRENCY_KEYS.map((key) => `${CONCURRENCY_SETTINGS[key].label} ${settings[key]}`).join(" · ");
+}
+
+function buildConfigRows(concurrency: ConcurrencySettings | null): ConfigRow[] {
+  const { video, ai, tts, redisUrl, dataDir } = getAppConfig();
   return [
     { label: "Hồ sơ video", value: `${video.profile} (${video.aspectRatio})` },
     { label: "Render cuối (final)", value: `${video.final.width}×${video.final.height} @ ${video.final.fps} FPS` },
@@ -45,8 +56,7 @@ function buildConfigRows(): ConfigRow[] {
     },
     { label: "Khoảng thời lượng mặc định", value: `${video.defaultMinDurationSec}s – ${video.maxDurationSec}s` },
     { label: "Preset thời lượng", value: video.durationPresetsSec.map((seconds) => `${seconds}s`).join(" · ") },
-    { label: "Worker concurrency", value: String(concurrency.worker) },
-    { label: "Render concurrency", value: String(concurrency.render) },
+    { label: "Chạy song song", value: describeConcurrency(concurrency) },
     { label: "Chế độ AI", value: ai.mode },
     { label: "Model Claude yêu cầu", value: ai.claudeModel ?? "Theo mặc định Claude CLI" },
     { label: "Effort Claude yêu cầu", value: ai.claudeEffort ?? "Theo mặc định Claude CLI" },
@@ -58,7 +68,18 @@ function buildConfigRows(): ConfigRow[] {
 }
 
 export async function getDiagnosticsSnapshot(): Promise<DiagnosticsSnapshot> {
-  const checks = await Promise.all([
+  const [concurrency, checks] = await Promise.all([getConcurrencySettings().catch(() => null), runChecks()]);
+  return {
+    generatedAt: new Date().toISOString(),
+    overall: checks.some((check) => check.status === "error") ? "degraded" : "ok",
+    app: { name: pkg.name, version: pkg.version },
+    checks,
+    config: buildConfigRows(concurrency),
+  };
+}
+
+function runChecks(): Promise<CheckResult[]> {
+  return Promise.all([
     runCheck("node", "Node.js", checkNodeRuntime),
     runCheck("redis", "Redis", checkRedis),
     runCheck("database", "SQLite", checkDatabase),
@@ -74,12 +95,4 @@ export async function getDiagnosticsSnapshot(): Promise<DiagnosticsSnapshot> {
     runCheck("telegram", "Telegram", checkTelegram),
     runCheck("resources", "Tài nguyên máy", checkWslResources),
   ]);
-
-  return {
-    generatedAt: new Date().toISOString(),
-    overall: checks.some((check) => check.status === "error") ? "degraded" : "ok",
-    app: { name: pkg.name, version: pkg.version },
-    checks,
-    config: buildConfigRows(),
-  };
 }

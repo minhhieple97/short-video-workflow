@@ -7,6 +7,7 @@ import { getVideoArchives } from "@/features/archive/services/archive-control.se
 import { getDriveConnectionStatus } from "@/features/drive/services/drive-connection.service";
 import { JobsAutoRefresh } from "@/features/jobs/components/jobs-auto-refresh";
 import { getVideoProduction } from "@/features/productions/services/video-production.service";
+import { getConcurrencySettings } from "@/features/settings/services/concurrency-settings.service";
 import { scriptJobLabels } from "@/features/videos/components/active-job-labels";
 import { ActiveJobWatcher } from "@/features/videos/components/active-job-watcher";
 import { PreflightList } from "@/features/videos/components/render/preflight-list";
@@ -16,19 +17,19 @@ import { formatPreset } from "@/features/videos/domain/duration";
 import { dimensionsFor, listRenders, preflightFor } from "@/features/videos/services/render.service";
 import { findActiveVideoJob, getVideo } from "@/features/videos/services/video.service";
 import { orNotFound } from "@/server/http/page-helpers";
-import { getAppConfig } from "@/shared/config/env";
 
 export const dynamic = "force-dynamic";
 
 export default async function VideoRenderPage({ params }: Readonly<{ params: Promise<{ videoId: string }> }>) {
   const { videoId } = await params;
   const video = await orNotFound(getVideo(videoId));
-  const [renders, activeJob, production, archives, drive] = await Promise.all([
+  const [renders, activeJob, production, archives, drive, { renderThreads }] = await Promise.all([
     listRenders(videoId),
     findActiveVideoJob(videoId),
     getVideoProduction(videoId),
     getVideoArchives(videoId),
     getDriveConnectionStatus(),
+    getConcurrencySettings(),
   ]);
   const archiving = Object.values(archives).some(
     (archive) => archive.status !== "COMPLETED" && archive.status !== "FAILED",
@@ -55,7 +56,7 @@ export default async function VideoRenderPage({ params }: Readonly<{ params: Pro
       />
       <PageHeader
         title="Render MP4"
-        description={`9:16 · 30 FPS · H.264 + AAC · tối đa ${formatPreset(video.maxDurationSec)} · render concurrency ${getAppConfig().concurrency.render}`}
+        description={`9:16 · 30 FPS · H.264 + AAC · tối đa ${formatPreset(video.maxDurationSec)} · ${renderThreads} luồng mỗi lần render`}
       />
 
       {activeJob ? (

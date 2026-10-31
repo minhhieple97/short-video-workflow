@@ -16,14 +16,15 @@ import { getAppConfig } from "@/shared/config/env";
 import { AppError, JobCancelledError } from "@/shared/errors";
 import { toSafeErrorMessage } from "@/shared/logger";
 
-import { deferred, type JobProcessor } from "./types";
+import { deferred, handoff, type JobProcessor } from "./types";
 
 const MIN_CLAIM_WAIT_MS = 1_000;
 
-// One job advances one production item through as many steps as it can without waiting. It never sleeps for a render or a
-// retry pause: it reports `deferred`, the outbox schedules the same job again, and the worker is free in between. Each run
-// starts from the item's checkpoint, so a restart repeats nothing that is done.
-export const processRunProductionItem: JobProcessor = async ({ job, signal }) => {
+// One job advances one production item through as many steps of its lane as it can without waiting. It never sleeps for a
+// render or a retry pause: it reports `deferred`, the outbox schedules the same job again, and the worker is free in
+// between. A step of another lane (the draft is NotebookLM's, the scene plan Claude's, the voice-over the voice lane's) is
+// handed over to that lane's queue. Each run starts from the item's checkpoint, so a restart repeats nothing that is done.
+export const processRunProductionItem: JobProcessor = async ({ job, lane, signal }) => {
   const { itemId } = runProductionItemPayloadSchema.parse(job.data);
   const claimToken = randomUUID();
   if (!(await claimProductionItem(itemId, claimToken, PRODUCTION_LEASE_MS))) {
@@ -39,7 +40,7 @@ export const processRunProductionItem: JobProcessor = async ({ job, signal }) =>
   try {
     await refreshBatchOf(itemId);
     deps = createPipelineDeps(getAppConfig().ai.mode);
-    outcome = await runProductionPipeline({ itemId, claimToken, signal, deps });
+    outcome = await runProductionPipeline({ itemId, claimToken, signal, deps, lane });
   } catch (error) {
     // Cancelling the job cancels the item. A lost claim means the item is no longer ours to touch. Anything else is
     // recorded as the item's failure, so it never sits in progress without a job.
@@ -64,6 +65,8 @@ export const processRunProductionItem: JobProcessor = async ({ job, signal }) =>
   switch (outcome.kind) {
     case "DEFER":
       return deferred(outcome.retryAfterMs);
+    case "HANDOFF":
+      return handoff(outcome.lane);
     case "FAILED":
       throw new AppError(outcome.code, outcome.message, 422);
     default:

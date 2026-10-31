@@ -157,6 +157,7 @@ describe("NotebookLM status", () => {
       ping.processDiagnosticPing({
         job: { id: "j", data: { jobRecordId: "r", kind: "notebooklm" } } as unknown as Job,
         jobRecordId: "r",
+        lane: "general",
         signal: new AbortController().signal,
         reportProgress: async () => {},
       }),

@@ -5,7 +5,8 @@ import type { JobRecord, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import { ACTIVE_JOB_STATUSES } from "@/shared/types/job";
 
-import { deriveBatchStatus, isTerminalItemStatus, toItemStatus } from "../domain/production-status";
+import { productionLaneFor } from "../domain/production-lane";
+import { deriveBatchStatus, isTerminalItemStatus, toItemCheckpoint, toItemStatus } from "../domain/production-status";
 
 type Tx = Prisma.TransactionClient;
 
@@ -13,14 +14,18 @@ export const PRODUCTION_ITEM_ENTITY = "PRODUCTION_ITEM";
 const RUNNABLE_STATUSES = ["PENDING", "WAITING", "RUNNING"];
 
 // Every change that makes an item runnable starts its job in the same transaction, so an item never waits for a job that
-// was not recorded. The outbox delivers it.
+// was not recorded. The outbox delivers it to the lane of the step the item stands at.
 export async function startItemJobWithin(tx: Tx, itemId: string): Promise<JobRecord> {
+  const { checkpoint } = await tx.productionItem.findUniqueOrThrow({
+    where: { id: itemId },
+    select: { checkpoint: true },
+  });
   const intent = await createJobIntentWithin(tx, {
     bullmqJobId: randomUUID(),
     jobType: "RUN_PRODUCTION_ITEM",
     entityType: PRODUCTION_ITEM_ENTITY,
     entityId: itemId,
-    payload: { itemId },
+    payload: { itemId, lane: productionLaneFor(toItemCheckpoint(checkpoint)) },
   });
   return intent.jobRecord;
 }

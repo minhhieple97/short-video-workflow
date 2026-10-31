@@ -196,7 +196,8 @@ Chưa phân trang: danh mục chọn bài để sản xuất, các đợt nhập
 
 ### 5.4. Phân tích chương và danh mục bài học
 
-- Phân tích một hoặc tất cả chương, **tuần tự**; chỉ chạy lại khi nội dung chương hay phiên bản prompt đổi, trừ khi người dùng
+- Phân tích một hoặc tất cả chương, theo thứ tự sách, tối đa bằng số việc cùng lúc của loại việc đó ở Cài đặt (§5.11; mặc định
+  Claude 1, NotebookLM 2); chỉ chạy lại khi nội dung chương hay phiên bản prompt đổi, trừ khi người dùng
   chọn phân tích lại (có xác nhận).
 - **Phân tích tất cả chương** chỉ bấm được khi còn chương cần phân tích (nhãn nói còn bao nhiêu, báo trước chương sẽ chạy lại vì
   đổi chế độ AI/prompt); chưa có chương, đang chạy hay đang chờ Claude CLI → khoá kèm lý do. Tiến độ là số chương theo trạng thái
@@ -309,6 +310,14 @@ Chưa phân trang: danh mục chọn bài để sản xuất, các đợt nhập
 - Trạng thái mọi thành phần (Redis, worker, SQLite, ffmpeg, edge-tts, Claude CLI, Chromium, tài nguyên WSL, Poppler, Mistral,
   NotebookLM, Drive), chế độ AI; **Chạy tác vụ thử**, **Kiểm tra AI mẫu**.
 - Kết nối / kết nối lại / ngắt Google Drive, mức dùng 24 giờ và dung lượng; đăng nhập và hạn mức NotebookLM.
+- **Chạy song song** (quyết định của chủ dự án, 2026-10-31): mỗi loại việc có một ô số cho biết được chạy mấy việc cùng lúc —
+  Claude CLI, NotebookLM, giọng đọc, render video, lưu Google Drive, trích xuất PDF — cộng số luồng mỗi lần render. Mỗi ô có lời giải
+  thích cái giá của một việc thêm (RAM, hạn mức tài khoản, dịch vụ trực tuyến) và giới hạn trên; số ngoài khoảng bị từ chối kèm lý do bằng
+  tiếng Việt. Số được lưu trong ứng dụng, **không** đặt trong `.env`, nên đổi khi máy mạnh hơn hay đổi máy. Worker đang chạy áp dụng
+  trong vài giây không cần khởi động lại; trang nói rõ worker đang chạy hay chưa. Mặc định giữ 1 cho việc nặng (Claude, giọng đọc,
+  render, trích xuất) và 2 cho NotebookLM, Drive vì phần lớn thời gian của chúng là chờ phản hồi từ xa. Việc nhẹ (kiểm tra hệ thống, áp
+  kế hoạch cảnh, chờ render) không thuộc ô nào. Các loại việc không chặn nhau: lưu Drive không phải chờ render, bản thảo NotebookLM của
+  video sau được viết trong lúc video trước render.
 - Dung lượng lưu trữ hiển thị đúng KiB/MiB/GiB/TiB, tách tổng Google với riêng Drive/thùng rác, có thời điểm đọc và số byte gốc.
   Nút “Đọc lại từ Google” lấy số liệu API thật; lỗi đọc giữ lần thành công trước. Trường Google không cung cấp hiển thị chưa rõ,
   không mặc định bằng 0. Không lấy số byte ước tính từ cache kiểm tra upload làm số liệu API trên giao diện.
@@ -671,8 +680,9 @@ Drive thật (mạch kể, âm thanh, ffprobe, checksum Drive). Danh sách kiể
   của từng sách. Tải đủ tệp trước khi bắt đầu xử lý; tệp không hợp lệ được báo lỗi riêng, sách hợp lệ vẫn được làm tiếp.
 - Người dùng chọn khoảng thời lượng và nhịp độ cho cả đợt. Luồng tự động mới tạo **một video cho mỗi bài học**
   tìm được trong mỗi sách, theo quyết định của chủ dự án. Luồng chọn bài học hiện có vẫn dùng được riêng.
-- Xử lý một sách tại một thời điểm, kể cả giữa nhiều đợt. OCR → phân tích lần lượt từng chương bằng NotebookLM →
-  bản thảo NotebookLM → cảnh JSON Claude Code → giọng đọc → Remotion. Không có bước duyệt tay: mọi bài học được làm video tự chuyển
+- Xử lý một sách tại một thời điểm, kể cả giữa nhiều đợt. OCR → phân tích các chương bằng NotebookLM (cùng lúc tới số đặt ở Cài đặt,
+  mặc định 2; video của sách vẫn theo thứ tự chương) → bản thảo NotebookLM → cảnh JSON Claude Code → giọng đọc → Remotion; mỗi bước chạy
+  ở làn của nó nên bản thảo video sau không chờ render video trước. Không có bước duyệt tay: mọi bài học được làm video tự chuyển
   sang Đã duyệt và kịch bản từng video tự được duyệt khi máy kiểm tra đạt (quyết định của chủ dự án, 2026-10-31).
 - Kết quả cuối của đợt là một loạt video có link Drive. Trang tiến độ nói với từng sách số video đã hoàn tất và số video **Đã lưu
   Drive**, và có nút **Link Drive của video**: bấm mới tải danh sách video của sách (cũ nhất trước) kèm trạng thái Drive và link

@@ -6,9 +6,11 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import { AppError } from "@/shared/errors";
 import { ACTIVE_JOB_STATUSES } from "@/shared/types/job";
+import type { WorkLane } from "@/shared/types/work-lane";
 import { recordNotificationWithin } from "@/features/notifications/repositories/notification.repository";
 
 import { FINISHED_BOOK_IMPORT_ITEMS } from "../domain/book-import-status";
+import { orderByFirstChapter } from "../domain/lesson-order";
 import type { CreateBookImport } from "../schemas/book-import.schema";
 
 const INCLUDE = {
@@ -19,6 +21,7 @@ const INCLUDE = {
         select: {
           id: true,
           deletedAt: true,
+          sourceFormat: true,
           extractions: {
             orderBy: { createdAt: "desc" },
             take: 1,
@@ -174,7 +177,7 @@ export async function activateBookExtraction(itemId: string, extractionId: strin
   });
 }
 
-export async function queueImportedChapter(itemId: string, chapterId: string): Promise<void> {
+export async function queueImportedChapter(itemId: string, chapterId: string, lane: WorkLane): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const item = await tx.bookImportItem.findUniqueOrThrow({ where: { id: itemId }, include: { batch: true } });
     if (!["QUEUED", "RUNNING"].includes(item.batch.status)) return;
@@ -195,17 +198,21 @@ export async function queueImportedChapter(itemId: string, chapterId: string): P
       jobType: "ANALYZE_CHAPTER",
       entityType: "CHAPTER",
       entityId: chapterId,
-      payload: { chapterId, force: false },
+      payload: { chapterId, force: false, lane },
     });
   });
 }
 
-export function listImportedLessonIds(bookId: string) {
-  return prisma.lesson.findMany({
+// In book order: chapters analysed side by side finish in any order, so creation time alone would shuffle the videos.
+export async function listImportedLessonIds(bookId: string): Promise<{ id: string }[]> {
+  const lessons = await prisma.lesson.findMany({
     where: { bookId, status: { not: "ARCHIVED" } },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    select: { id: true },
+    select: { id: true, sources: { select: { chapter: { select: { order: true } } } } },
   });
+  return orderByFirstChapter(
+    lessons.map((lesson) => ({ id: lesson.id, chapterOrders: lesson.sources.map((source) => source.chapter.order) })),
+  ).map(({ id }) => ({ id }));
 }
 
 export function findImportArchives(renderIds: string[]) {

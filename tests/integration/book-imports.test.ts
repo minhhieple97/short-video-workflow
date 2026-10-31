@@ -153,6 +153,104 @@ describe("multi-book import", () => {
     expect(job.status).toBe("QUEUED");
   });
 
+  it("queues as many chapters at once as the analysis lane allows, in book order, each carrying its lane", async () => {
+    await db.prisma.concurrencySetting.deleteMany();
+    const batch = await imports.requestBookImport(input(1));
+    await upload(batch, 0);
+    await imports.beginBookImport(batch.id);
+    const item = await readyForProduction(batch, 0);
+    const bookId = item.bookId ?? "";
+    await db.prisma.chapter.deleteMany({ where: { bookId } });
+    const chapters = [];
+    for (let order = 1; order <= 4; order += 1)
+      chapters.push(
+        await db.prisma.chapter.create({
+          data: {
+            bookId,
+            title: `Chương ${order}`,
+            order,
+            content: "Nội dung",
+            contentHash: `hash-${order}`,
+            analysisStatus: "NOT_ANALYZED",
+          },
+        }),
+      );
+    const queued = async () =>
+      (
+        await db.prisma.jobDispatch.findMany({
+          where: { jobRecord: { jobType: "ANALYZE_CHAPTER" } },
+          include: { jobRecord: true },
+          orderBy: { createdAt: "asc" },
+        })
+      ).map((row) => ({ chapterId: row.jobRecord.entityId, payload: JSON.parse(row.payloadJson) as unknown }));
+
+    // The book is not a PDF with NotebookLM set up here, so its chapters go to the Claude lane, which runs one at a time.
+    await run.sweepBookImports();
+    await run.sweepBookImports();
+    expect(await queued()).toEqual([
+      { chapterId: chapters[0]?.id, payload: { chapterId: chapters[0]?.id, force: false, lane: "claude" } },
+    ]);
+
+    await db.prisma.concurrencySetting.create({ data: { key: "claude", value: 3 } });
+    await run.sweepBookImports();
+    expect((await queued()).map((row) => row.chapterId)).toEqual(chapters.slice(0, 3).map((chapter) => chapter.id));
+
+    // Finishing the first makes room for the fourth, and nothing is queued twice.
+    await db.prisma.chapter.update({ where: { id: chapters[0]?.id ?? "" }, data: { analysisStatus: "ANALYZED" } });
+    await db.prisma.jobRecord.updateMany({
+      where: { entityId: chapters[0]?.id, jobType: "ANALYZE_CHAPTER" },
+      data: { status: "COMPLETED" },
+    });
+    await run.sweepBookImports();
+    expect((await queued()).map((row) => row.chapterId)).toEqual(chapters.map((chapter) => chapter.id));
+    await db.prisma.concurrencySetting.deleteMany();
+  });
+
+  it("makes the videos in the order of the book's chapters, whichever chapter finished its analysis first", async () => {
+    const batch = await imports.requestBookImport(input(1));
+    await upload(batch, 0);
+    await imports.beginBookImport(batch.id);
+    const item = await readyForProduction(batch, 0);
+    const bookId = item.bookId ?? "";
+    await db.prisma.chapter.deleteMany({ where: { bookId } });
+    const lessonIds: Record<number, string> = {};
+    // Chapter 3 was analysed first, then 1, then 2: that is the order the lessons were created in.
+    for (const order of [3, 1, 2]) {
+      const chapter = await db.prisma.chapter.create({
+        data: {
+          bookId,
+          title: `Chương ${order}`,
+          order,
+          content: "Nội dung",
+          contentHash: `hash-${order}`,
+          analysisStatus: "ANALYZED",
+        },
+      });
+      const lesson = await db.prisma.lesson.create({
+        data: {
+          bookId,
+          title: `Bài của chương ${order}`,
+          summary: "s",
+          principle: "p",
+          realLifeScenario: "r",
+          commonMistake: "m",
+          betterApproach: "b",
+          actionableStep: "a",
+          origin: "AI",
+          sources: { create: { chapterId: chapter.id, sourceExcerpt: "Nội dung" } },
+        },
+      });
+      lessonIds[order] = lesson.id;
+    }
+    const { listImportedLessonIds } = await import("@/features/book-imports/repositories/book-import.repository");
+
+    expect((await listImportedLessonIds(bookId)).map((lesson) => lesson.id)).toEqual([
+      lessonIds[1],
+      lessonIds[2],
+      lessonIds[3],
+    ]);
+  });
+
   it("creates a video for every lesson, including catalogues above 100, without duplicate outputs on replay", async () => {
     const batch = await imports.requestBookImport(input(1));
     await upload(batch, 0);

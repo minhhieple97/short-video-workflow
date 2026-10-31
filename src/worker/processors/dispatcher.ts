@@ -14,14 +14,16 @@ import {
   recordJobWaitReason,
   setJobProgress,
 } from "@/features/jobs/repositories/job-record.repository";
-import { deferRunningJob } from "@/features/jobs/services/job-dispatch.service";
+import { deferRunningJob, handOffJob, type EnqueueJob } from "@/features/jobs/services/job-dispatch.service";
 import { deferJobEntity, releaseJobEntity } from "@/features/jobs/services/job-effects";
 import { AppError, JobCancelledError } from "@/shared/errors";
 import { IntegrationError } from "@/server/integrations/integration-error";
+import { laneForJob } from "@/server/queue/lanes";
 import { createLogger, toSafeErrorMessage } from "@/shared/logger";
 import { isJobType, type JobType } from "@/shared/types/job";
+import type { WorkLane } from "@/shared/types/work-lane";
 
-import { isDeferred, isWaitingForCli, type JobProcessor } from "./types";
+import { isDeferred, isHandoff, isWaitingForCli, type JobProcessor } from "./types";
 
 const logger = createLogger("worker.dispatch");
 const CANCEL_POLL_MS = 2_000;
@@ -45,10 +47,18 @@ function watchForCancel(jobRecordId: string): { signal: AbortSignal; stop: () =>
   return { signal: controller.signal, stop: () => clearInterval(timer) };
 }
 
-export function createJobDispatcher(processors: Record<JobType, JobProcessor>): (job: Job) => Promise<unknown> {
+export interface DispatcherOptions {
+  lane: WorkLane;
+  enqueue: EnqueueJob;
+}
+
+export function createJobDispatcher(
+  processors: Record<JobType, JobProcessor>,
+  { lane, enqueue }: DispatcherOptions,
+): (job: Job) => Promise<unknown> {
   return async function processJob(job: Job): Promise<unknown> {
     const { jobRecordId } = baseJobPayloadSchema.parse(job.data);
-    const fields = { jobId: job.id, jobType: job.name, jobRecordId };
+    const fields = { jobId: job.id, jobType: job.name, jobRecordId, lane };
 
     const record = await findJobRecordById(jobRecordId);
     if (!record || record.status === "CANCELLED" || record.status === "CANCEL_REQUESTED") {
@@ -67,6 +77,15 @@ export function createJobDispatcher(processors: Record<JobType, JobProcessor>): 
       return { cancelled: true };
     };
 
+    // A job in another lane's queue (one queued before lanes existed) runs there, so this lane's limit stays true.
+    const data: Record<string, unknown> = job.data;
+    if (isJobType(job.name) && laneForJob(job.name, data) !== lane) {
+      const target = laneForJob(job.name, data);
+      if (!(await handOffJob(jobRecordId, data, target, enqueue))) return await finishCancelled();
+      logger.info("Job moved to its lane", { ...fields, target });
+      return { handedOff: target };
+    }
+
     const watcher = watchForCancel(jobRecordId);
     try {
       if (!isJobType(job.name)) throw new AppError("UNKNOWN_JOB_TYPE", `Loại tác vụ không được hỗ trợ: ${job.name}`);
@@ -76,6 +95,7 @@ export function createJobDispatcher(processors: Record<JobType, JobProcessor>): 
       const result = await processors[job.name]({
         job,
         jobRecordId,
+        lane,
         signal: watcher.signal,
         reportProgress: async (progress) => {
           await job.updateProgress(progress);
@@ -83,7 +103,10 @@ export function createJobDispatcher(processors: Record<JobType, JobProcessor>): 
         },
       });
 
-      if (isWaitingForCli(result)) {
+      if (isHandoff(result)) {
+        if (!(await handOffJob(jobRecordId, job.data, result.lane, enqueue))) return await finishCancelled();
+        logger.info("Job handed off", { ...fields, target: result.lane });
+      } else if (isWaitingForCli(result)) {
         await markJobWaitingForCli(jobRecordId);
         logger.info("Job waiting for Claude CLI", { ...fields, taskDir: result.taskDir });
       } else if (isDeferred(result)) {

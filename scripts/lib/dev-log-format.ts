@@ -9,7 +9,7 @@ function formatValue(value: unknown): string {
 }
 
 // The app's own log lines are JSON (one object per line, for machines). In the terminal of `pnpm dev:all` they read better as
-// "18:18:00 info  worker  Worker started  queue=studio-jobs"; any other line (Next's own output, say) is left as it is.
+// "18:18:00 info  worker.dispatch  Job started  lane=render"; any other line (Next's own output, say) is left as it is.
 export function formatDevLog(line: string): string {
   if (!line.startsWith("{")) return line;
   try {

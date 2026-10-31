@@ -1,4 +1,6 @@
+import type { EnqueueJob } from "@/features/jobs/services/job-dispatch.service";
 import type { JobType } from "@/shared/types/job";
+import type { WorkLane } from "@/shared/types/work-lane";
 
 import { processAnalyzeChapter } from "./analyze-chapter";
 import { processArchiveRender } from "./archive-render";
@@ -24,4 +26,6 @@ const PROCESSORS: Record<JobType, JobProcessor> = {
   EXTRACT_PDF: processExtractPdf,
 };
 
-export const processJob = createJobDispatcher(PROCESSORS);
+export function createLaneProcessor(lane: WorkLane, enqueue: EnqueueJob) {
+  return createJobDispatcher(PROCESSORS, { lane, enqueue });
+}

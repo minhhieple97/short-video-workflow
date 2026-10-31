@@ -624,6 +624,13 @@ model ProviderCooldown {
   episodeId    String?
 }
 
+// How many tasks of one kind the worker runs at once, set on the Settings page. A missing row means the default in code.
+model ConcurrencySetting {
+  key       String   @id
+  value     Int
+  updatedAt DateTime @updatedAt
+}
+
 model NotificationDelivery {
   id              String    @id @default(cuid())
   eventKey        String    @unique

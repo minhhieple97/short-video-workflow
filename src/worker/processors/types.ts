@@ -1,8 +1,12 @@
 import type { Job } from "bullmq";
 
+import type { WorkLane } from "@/shared/types/work-lane";
+
 export interface ProcessorContext {
   job: Job;
   jobRecordId: string;
+  // The lane whose worker runs the job, so a processor can tell when its next step belongs to another one.
+  lane: WorkLane;
   signal: AbortSignal;
   reportProgress: (progress: number) => Promise<void>;
 }
@@ -33,6 +37,20 @@ export function deferred(retryAfterMs: number): Deferred {
 
 export function isDeferred(value: unknown): value is Deferred {
   return typeof value === "object" && value !== null && "deferred" in value && value.deferred === true;
+}
+
+// Returned when the job's next step belongs to another lane: the same JobRecord goes to that lane's queue right away.
+export interface Handoff {
+  handoff: true;
+  lane: WorkLane;
+}
+
+export function handoff(lane: WorkLane): Handoff {
+  return { handoff: true, lane };
+}
+
+export function isHandoff(value: unknown): value is Handoff {
+  return typeof value === "object" && value !== null && "handoff" in value && value.handoff === true;
 }
 
 export type JobProcessor = (context: ProcessorContext) => Promise<unknown>;

@@ -31,6 +31,7 @@ import { LESSON_EXTRACTION_PROMPT_VERSION } from "@/server/script-studio/noteboo
 import type { LessonCandidate, LessonExtraction } from "@/server/script-studio/script-studio-contracts";
 import { AppError, NotFoundError } from "@/shared/errors";
 import { createLogger, toSafeErrorMessage } from "@/shared/logger";
+import type { WorkLane } from "@/shared/types/work-lane";
 
 import { mergeLessonCandidates } from "../domain/lesson-candidates";
 import { findChapterWithBook, setChapterAnalysisStatus } from "../repositories/chapter.repository";
@@ -49,6 +50,14 @@ export function notebookAnalysisInputHash(parts: { contentHash: string; chapterT
       }),
     )
     .digest("hex");
+}
+
+// The lane a chapter's analysis runs in, chosen by the same rule as `notebookAnalysisSettingsFor`.
+export function chapterAnalysisLane(
+  sourceFormat: string,
+  settings: NotebookStudioSettings | null = notebookStudioSettings(),
+): WorkLane {
+  return settings && sourceFormat === "pdf" ? "notebooklm" : "claude";
 }
 
 // PDF books (the v1.2 flow) are catalogued by NotebookLM when it is set up; books imported from text keep the v1.1

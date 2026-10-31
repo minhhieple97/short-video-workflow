@@ -1,14 +1,11 @@
 import fs from "node:fs";
 
 import { expect, test } from "@playwright/test";
-import { Queue } from "bullmq";
-import { Redis } from "ioredis";
 
 import type { BookImportDto } from "../../src/features/book-imports/schemas/book-import.dto";
-import { QUEUE_NAME } from "../../src/server/queue/constants";
 import { buildPdf } from "../helpers/pdf-fixtures";
 import { popplerTestConfig } from "../helpers/poppler";
-import { E2E_ENV } from "./stack";
+import { pauseAllLanes } from "./stack";
 
 test.skip(!popplerTestConfig(), "needs poppler-utils");
 
@@ -33,9 +30,7 @@ test("E2E-03: two PDFs produce every lesson, one book at a time, through render 
     );
     return file;
   });
-  const connection = new Redis(E2E_ENV.REDIS_URL ?? "", { maxRetriesPerRequest: null });
-  const queue = new Queue(QUEUE_NAME, { connection });
-  await queue.pause();
+  const lanes = await pauseAllLanes();
   try {
     await page.goto("/books/import");
     await page.locator("#book-file").setInputFiles(files);
@@ -49,9 +44,7 @@ test("E2E-03: two PDFs produce every lesson, one book at a time, through render 
     await page.evaluate(() => document.documentElement.classList.add("dark"));
     await page.screenshot({ path: testInfo.outputPath("batch-mobile-dark.png"), fullPage: true });
   } finally {
-    await queue.resume();
-    await queue.close();
-    connection.disconnect();
+    await lanes.resume();
   }
   const api = `/api${new URL(page.url()).pathname}`;
   let sawSequentialProduction = false;

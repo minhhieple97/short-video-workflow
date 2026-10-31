@@ -5,6 +5,7 @@ import { z } from "zod";
 import { AppError } from "@/shared/errors";
 import { createLogger, toSafeErrorMessage } from "@/shared/logger";
 import { isJobType, type JobType } from "@/shared/types/job";
+import type { WorkLane } from "@/shared/types/work-lane";
 
 import {
   createJobIntent,
@@ -12,6 +13,7 @@ import {
   listDueJobIntents,
   markIntentDispatched,
   recordIntentFailure,
+  reassignJobIntent,
   rescheduleRunningJob,
   type JobIntent,
 } from "../repositories/job-dispatch.repository";
@@ -76,6 +78,29 @@ export function deferRunningJob(
 ): Promise<boolean> {
   const { jobRecordId: _ownId, ...payload } = payloadSchema.parse(jobData);
   return rescheduleRunningJob(jobRecordId, payload, new Date(now.getTime() + retryAfterMs));
+}
+
+// Moves a job to another lane and delivers it at once; the outbox sweep delivers it instead if Redis refuses now. False means
+// the job was no longer waiting or running.
+export async function handOffJob(
+  jobRecordId: string,
+  jobData: unknown,
+  lane: WorkLane,
+  enqueue: EnqueueJob,
+): Promise<boolean> {
+  const { jobRecordId: _ownId, ...payload } = payloadSchema.parse(jobData);
+  const intent = await reassignJobIntent(jobRecordId, { ...payload, lane });
+  if (!intent) return false;
+  try {
+    await dispatchJobIntent(intent, enqueue);
+  } catch (error) {
+    logger.warn("Hand-off not delivered yet; the outbox sweep will deliver it", {
+      jobRecordId,
+      lane,
+      error: toSafeErrorMessage(error),
+    });
+  }
+  return true;
 }
 
 // The job was refused before it could run (for example Redis is down), so it must not linger as QUEUED.

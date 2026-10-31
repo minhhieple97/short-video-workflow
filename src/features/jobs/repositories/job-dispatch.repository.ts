@@ -41,6 +41,33 @@ export function rescheduleRunningJob(
   });
 }
 
+// Sends a waiting or running job to another lane: it goes back to the outbox under a fresh BullMQ job id, due now. Returns
+// the row to deliver, or null, changing nothing, when the job is neither (for example it was cancelled meanwhile). A job
+// that was running has counted that run as an attempt; moving it on is not a try that failed, so the count goes back.
+export function reassignJobIntent(jobRecordId: string, payload: Record<string, unknown>): Promise<JobIntent | null> {
+  const payloadJson = JSON.stringify(payload);
+  return prisma.$transaction(async (tx) => {
+    const running = await tx.jobRecord.updateMany({
+      where: { id: jobRecordId, status: "RUNNING", attempts: { gt: 0 } },
+      data: { status: "QUEUED", bullmqJobId: randomUUID(), attempts: { decrement: 1 } },
+    });
+    if (running.count === 0) {
+      const waiting = await tx.jobRecord.updateMany({
+        where: { id: jobRecordId, status: "QUEUED" },
+        data: { bullmqJobId: randomUUID() },
+      });
+      if (waiting.count === 0) return null;
+    }
+
+    return tx.jobDispatch.upsert({
+      where: { jobRecordId },
+      create: { jobRecordId, payloadJson },
+      update: { payloadJson, availableAt: new Date(), dispatchedAt: null, attempts: 0, lastError: null },
+      include: { jobRecord: true },
+    });
+  });
+}
+
 export function createJobIntent(input: CreateJobIntentInput): Promise<JobIntent> {
   return createJobIntentWithin(prisma, input);
 }

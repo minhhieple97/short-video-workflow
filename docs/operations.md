@@ -47,8 +47,8 @@ sudo service redis-server start
 ```
 
 **Tài nguyên WSL.** Máy 48 GB RAM không có nghĩa WSL được cấp 48 GB: xem `free -h`, `nproc` hoặc thẻ "Tài nguyên máy"
-ở trang Cài đặt. Mặc định chỉ chạy một tác vụ và một luồng render; render chậm thì render nháp trước, hoặc đo rồi mới
-tăng `RENDER_CONCURRENCY`. Muốn đổi RAM/CPU của WSL, **bạn tự** chỉnh `%UserProfile%\.wslconfig` rồi `wsl --shutdown`;
+ở trang Cài đặt. Mặc định render, Claude, giọng đọc và trích xuất PDF mỗi loại chạy một việc và một luồng render; render chậm
+thì render nháp trước, hoặc đo rồi mới tăng số ở **Cài đặt → Chạy song song** (§2.1). Muốn đổi RAM/CPU của WSL, **bạn tự** chỉnh `%UserProfile%\.wslconfig` rồi `wsl --shutdown`;
 ứng dụng không bao giờ đổi cấu hình máy.
 
 ## 2. Cấu hình `.env`
@@ -102,7 +102,6 @@ Bản render nháp cũng được lưu lên Drive nên tính vào dung lượng 
 | Biến                             | Mặc định              | Ý nghĩa                                                                                   |
 | -------------------------------- | --------------------- | ----------------------------------------------------------------------------------------- |
 | `AI_MODE`                        | `cli-task`            | `mock`, `cli-task` hoặc `cli-auto` (§3.1)                                                 |
-| `MAX_AI_CONCURRENCY`             | `1`                   | Số tác vụ AI cùng lúc                                                                     |
 | `CLAUDE_CLI_COMMAND`             | `claude`              | Lệnh Claude Code CLI                                                                      |
 | `AI_TASK_TIMEOUT_SEC`            | `600`                 | Thời gian tối đa một lần gọi Claude                                                       |
 | `TTS_MODE`                       | `edge-tts`            | `edge-tts`, hoặc `upload` (chỉ âm thanh tải lên)                                          |
@@ -119,8 +118,35 @@ Bản render nháp cũng được lưu lên Drive nên tính vào dung lượng 
 | `RENDER_FPS`                     | `30`                  | FPS của cả bản cuối và bản nháp                                                           |
 | `DRAFT_RENDER_WIDTH`             | `720`                 | Chiều rộng bản nháp                                                                       |
 | `DRAFT_RENDER_HEIGHT`            | `1280`                | Chiều cao bản nháp; tỉ lệ phải đúng 9:16                                                  |
-| `RENDER_CONCURRENCY`             | `1`                   | Luồng render Remotion; chỉ tăng sau khi đo                                                |
-| `WORKER_CONCURRENCY`             | `1`                   | Số job worker chạy cùng lúc; chỉ tăng sau khi đo                                          |
+
+### 2.1. Chạy song song (Cài đặt → Chạy song song)
+
+Số việc mỗi loại chạy cùng lúc **không đặt trong `.env`** mà ở trang **Cài đặt**, để đổi khi máy mạnh hơn hay khi đổi máy.
+Các biến `WORKER_CONCURRENCY`, `RENDER_CONCURRENCY`, `MAX_AI_CONCURRENCY` đã bỏ: dòng còn sót trong `.env` bị bỏ qua. Số được lưu
+trong SQLite; worker đọc lúc khởi động rồi đọc lại mỗi 5 giây, nên số mới có hiệu lực khi worker đang chạy, không cần khởi động lại
+(loại việc nào đang chạy đủ số cũ thì nhận thêm khi một việc đang chạy xong; giảm số thì việc đang chạy vẫn chạy xong). Worker chưa chạy
+thì số đã lưu được dùng khi khởi động.
+
+| Ô trong Cài đặt      | Mặc định | Cho phép | Việc                                                                                      |
+| -------------------- | -------- | -------- | ----------------------------------------------------------------------------------------- |
+| Claude CLI           | 1        | 1–8      | phân tích chương sách TXT/Markdown, kịch bản, tiêu đề/caption, kế hoạch cảnh của sản xuất |
+| NotebookLM           | 2        | 1–8      | mục lục bài học của sách PDF, bản thảo của sản xuất                                       |
+| Giọng đọc            | 1        | 1–8      | lồng tiếng (các cảnh của một video vẫn đọc lần lượt)                                      |
+| Render video         | 1        | 1–8      | mỗi lượt một Chromium                                                                     |
+| Luồng mỗi lần render | 1        | 1–16     | số tab Chromium chụp khung hình của một video (thay `RENDER_CONCURRENCY`)                 |
+| Lưu Google Drive     | 2        | 1–8      | upload bản render                                                                         |
+| Trích xuất PDF       | 1        | 1–8      | Poppler, OCR                                                                              |
+
+Mỗi loại là một **làn** (queue riêng, cùng một tiến trình worker, vẫn một worker mỗi Redis DB). Việc nhẹ (kiểm tra hệ thống, áp kế
+hoạch cảnh, kiểm tra sẵn sàng, chờ render) chạy ở làn chung, cố định 2 việc. Một video trong đợt sản xuất đi qua nhiều làn: bản thảo ở
+làn NotebookLM, kế hoạch cảnh ở làn Claude, giọng đọc ở làn giọng đọc; nhờ vậy bản thảo video sau được viết trong lúc video trước render,
+và Drive upload ngay khi render xong. Việc nằm sẵn trong hàng đợi cũ `studio-jobs` từ trước khi có làn được tự chuyển sang đúng làn.
+
+Gợi ý: giữ 1 cho các việc nặng (render, Claude, giọng đọc) tới khi đo máy bằng `pnpm bench:render` và theo dõi RAM; tăng NotebookLM,
+Drive lên 2–3 khi tài khoản còn hạn mức. NotebookLM tính hạn mức theo cửa sổ khoảng 5 giờ cộng hạn mức tuần, nên nhiều lượt cùng lúc
+dùng hết nhanh hơn chứ không dùng thêm. Drive không công bố giới hạn đồng thời (hạn mức theo phút của Google xa mức này); các lượt dùng
+chung nhịp `DRIVE_MIN_REQUEST_INTERVAL_MS` và băng thông upload, nên lượt thứ hai, thứ ba chỉ nhanh hơn khi mạng còn dư. edge-tts là dịch
+vụ trực tuyến: nhiều lượt cùng lúc dễ bị từ chối tạm thời. Trích xuất vẫn một lô OCR mở mỗi lần trích xuất.
 
 ## 3. AI và tích hợp
 
@@ -303,7 +329,7 @@ pnpm, không phải chẩn đoán này.
 | Chi phí OCR     | 3 USD mỗi sách, không tự nâng     | **Trần chi phí OCR** (0–100 USD, ≥ đã chi + giữ chỗ)       |
 | PDF             | 500 MiB, 1.000 trang              | `MAX_PDF_SIZE_MB`, `MAX_PDF_PAGES`                         |
 | NotebookLM      | Theo gói (ngắn hạn và tuần)       | Xem % đã dùng, giờ đặt lại ở Cài đặt; bản thảo được cache  |
-| Drive           | 5.000 yêu cầu, 10 GiB mỗi 24 giờ  | 1 yêu cầu/giây; `DRIVE_*`; hết hạn mức thì archive chờ     |
+| Drive           | 5.000 yêu cầu, 750 GiB mỗi 24 giờ | 1 yêu cầu/giây; `DRIVE_*`; hết hạn mức thì archive chờ     |
 | Sửa bằng AI     | Một lượt mỗi video sản xuất       | Nội dung/nguồn → NotebookLM; biên dịch/thời lượng → Claude |
 | Thử lại tự động | Sản xuất 5, trích xuất 8, Drive 8 | Lần liên tiếp; sau đó dừng kèm lý do, sửa rồi **Thử lại**  |
 
@@ -485,13 +511,15 @@ Drive; không mất tiến độ khi khởi động lại, không chạy lại c
 
 ### Nhập tự động tối đa 15 PDF
 
-1. Giữ `WORKER_CONCURRENCY=1`, `MAX_AI_CONCURRENCY=1`, `RENDER_CONCURRENCY=1`. Với tài khoản thật, dùng `AI_MODE=cli-auto`,
+1. Giữ nguyên số mặc định ở **Cài đặt → Chạy song song** (render, Claude, giọng đọc 1; NotebookLM, Drive 2) cho tới khi đo máy.
+   Với tài khoản thật, dùng `AI_MODE=cli-auto`,
    NotebookLM đã đăng nhập, edge-tts hoạt động; kết nối Drive nếu muốn lưu từ xa. Mistral chỉ cần khi có trang phải OCR.
 2. Sau khi cập nhật mã, chạy `pnpm db:migrate` rồi `pnpm db:generate`, khởi động lại web và worker. Không chạy hai worker
    chung Redis database. Các migration bổ sung giữ nguyên sách, video và checkpoint cũ.
 3. Vào **Nhập sách** (`/books/import`), chọn 1–15 PDF rồi chọn **Tự động làm video**, khoảng thời lượng và nhịp độ.
    Bấm tải lên. Trang chỉ chuyển sang tiến độ sau khi tệp hợp lệ đã lưu và đợt được xếp hàng; sau đó có thể đóng trang.
-4. Xem lại tại `/book-imports`. Một sách làm xong mới chuyển sách sau. Lỗi từng sách có lý do và liên kết tới sách hoặc
+4. Xem lại tại `/book-imports`. Một sách làm xong mới chuyển sách sau; trong một sách, các chương được NotebookLM phân tích
+   cùng lúc tới số đặt ở Cài đặt, và video vẫn được tạo theo thứ tự chương. Lỗi từng sách có lý do và liên kết tới sách hoặc
    đợt video; sau khi xử lý nguyên nhân, bấm **Thử lại các sách lỗi**. Video đã hoàn tất không được tạo lại.
 
 Hết quota Claude: worker không thất bại vì phải chờ nhiều giờ. Lịch chờ nằm trong SQLite và giữ qua restart. Có giờ

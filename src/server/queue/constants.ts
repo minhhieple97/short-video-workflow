@@ -2,7 +2,6 @@ import type { JobsOptions } from "bullmq";
 
 import type { JobType } from "@/shared/types/job";
 
-export const QUEUE_NAME = "studio-jobs";
 export const WORKER_HEARTBEAT_KEY = "studio:worker:heartbeat";
 export const WORKER_LOCK_KEY = "studio:worker:lock";
 export const WORKER_HEARTBEAT_INTERVAL_MS = 5_000;

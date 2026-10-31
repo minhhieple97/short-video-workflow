@@ -1,22 +1,21 @@
 import "server-only";
 
-import type { Queue } from "bullmq";
-
 import type { JobType } from "@/shared/types/job";
 
-import { addStudioJob, createStudioQueue, removeWaitingJob } from "./producer";
+import { addStudioJob, createStudioQueues, removeWaitingJob, type StudioQueues } from "./producer";
+import { createProducerConnection } from "./redis-connection";
 
-const globalForQueue = globalThis as unknown as { studioQueue?: Queue };
+const globalForQueue = globalThis as unknown as { studioQueues?: StudioQueues };
 
-function getStudioQueue(): Queue {
-  globalForQueue.studioQueue ??= createStudioQueue();
-  return globalForQueue.studioQueue;
+function getStudioQueues(): StudioQueues {
+  globalForQueue.studioQueues ??= createStudioQueues(createProducerConnection());
+  return globalForQueue.studioQueues;
 }
 
 export function enqueueJob(jobType: JobType, data: Record<string, unknown>, bullmqJobId: string): Promise<void> {
-  return addStudioJob(getStudioQueue(), jobType, data, bullmqJobId);
+  return addStudioJob(getStudioQueues(), jobType, data, bullmqJobId);
 }
 
 export function cancelWaitingJob(bullmqJobId: string): Promise<boolean> {
-  return removeWaitingJob(getStudioQueue(), bullmqJobId);
+  return removeWaitingJob(getStudioQueues(), bullmqJobId);
 }

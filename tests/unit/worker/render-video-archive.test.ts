@@ -14,6 +14,7 @@ const context = () =>
   ({
     job: { data: { jobRecordId: "job-1", renderId: "render-1" } } as unknown as Job,
     jobRecordId: "job-1",
+    lane: "render",
     signal: new AbortController().signal,
     reportProgress: vi.fn().mockResolvedValue(undefined),
   }) as const;

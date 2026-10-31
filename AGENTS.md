@@ -29,7 +29,8 @@ Hard constraints (do not relax without an explicit user decision):
   the AI proposes the length inside it (§11). Still one lesson per batch-produced video. No 16:9.
 - **Vietnamese (vi-VN)** for UI copy, scripts, narration, on-screen text and captions. Code, identifiers, file names: English.
 - **Localhost only** (`127.0.0.1`). No auth, no multi-user, no public exposure.
-- **Low-resource machine:** worker concurrency = 1, Remotion render concurrency = 1 until benchmarked on the real machine.
+- **Low-resource machine:** the number of tasks of each kind that run at once (and the threads of one render) is set on the Settings
+  page, not in `.env` (§8); heavy work (Claude, voice, render, PDF extraction) defaults to 1 until benchmarked on the real machine.
 
 ## 2. Commands
 
@@ -83,10 +84,10 @@ Never claim something "works" unless it was actually executed; list what was not
 ```
 Browser ──► Next.js (UI + thin route handlers/server actions)
                 │  validate (Zod) → feature service → repository → SQLite (Prisma)
-                │  enqueue (BullMQ, IDs only) ───────────► Redis  `studio-jobs`
+                │  enqueue (BullMQ, IDs only) ───────────► Redis  one queue per lane
                 ▼                                              │
             returns 202 { jobId, status }                      ▼
-                                                      Worker (Node, separate process, concurrency 1)
+                                                      Worker (Node, separate process, one BullMQ Worker per lane)
                                                       ├─ Claude Code CLI task flow / MockAiProvider
                                                       ├─ edge-tts / uploaded audio + ffprobe
                                                       └─ Remotion renderer + FFmpeg  → data/videos/…
@@ -141,13 +142,18 @@ src/
                        readiness, cancel/retry, start-up reconcile, and the progress pages (`/productions`, `production-view`);
                        `domain/producible-lesson.ts` (which ticked lessons a click makes into videos), `production-settings.service`
                        (form defaults and why production cannot run here), `ProduceLessonsDialog` + `useStartProduction`
-    book-imports/      multi-PDF batches (1–15 books), staged uploads, serial book/chapter scheduling and all-lesson production;
+    book-imports/      multi-PDF batches (1–15 books), staged uploads, serial book scheduling (chapters of the current book go in a window
+                       as wide as the NotebookLM/Claude lane) and all-lesson production in book order (`domain/lesson-order.ts`);
                        worker book-import sweeper orchestrates existing jobs; progress at /book-imports
+    settings/          Settings → Chạy song song: `domain/concurrency-settings.ts` (the lanes' labels, defaults, limits, `resolveConcurrency`),
+                       `ConcurrencySetting` repository/service (read by the web, the worker, the render runner and bench), the Zod schema
+                       shared with the form, and `ConcurrencySettingsCard`; the worker applies it through `lifecycle/concurrency-watcher.ts`
   lib/                 client-safe helpers: utils.ts (shadcn `cn()`), api-client.ts (typed fetch + ApiError), format.ts (vi-VN),
                        use-row-selection.ts (ticked table rows: only rows on the shown page count; bulk buttons and the chapters button use it)
   server/              Server-side infrastructure (never imported by client components or Remotion)
-    db/                client.ts: Prisma + better-sqlite3 singleton, WAL setup (shared by Next, worker, scripts)
-    queue/             constants, redis-connection.ts (shared: connection factories, probe, redaction), queue.ts (Next-only producer),
+    db/                client.ts: Prisma + better-sqlite3 singleton, WAL setup (shared by Next, worker, scripts); serialized-adapter.ts makes
+                       every query and transaction take turns on the one connection (several jobs run at once)
+    queue/             constants, lanes.ts (lane → queue name, `laneForJob`), producer.ts (queues per lane), redis-connection.ts (shared: connection factories, probe, redaction), queue.ts (Next-only producer),
                        worker-lock.ts (the one-worker-per-Redis lock and the worker status read by the web, `pnpm diagnose` and scripts)
     storage/           DATA_DIR resolution (paths.ts), safe-path guard, atomic writes
     ai/                AiProvider interface, MockAiProvider, LocalCliTaskProvider, AutomatedCliProvider, contracts/ (Zod I/O),
@@ -173,14 +179,16 @@ src/
                        (`data/credentials/google-drive.json`, mode 0600, never in SQLite, DTOs or logs), `DriveAccessToken`,
                        and `GoogleDriveArchiveProvider` (folder tree with pre-generated IDs, resumable upload, checksum verify)
     http/              route-helpers.ts (AppError → JSON, readJson/parseInput with Zod), page-helpers.ts (orNotFound)
-  worker/              Standalone process: main.ts, processors/ (dispatcher + one per job type), lifecycle/ (heartbeat + lock renewal, shutdown)
+  worker/              Standalone process: main.ts (one BullMQ Worker per lane), processors/ (dispatcher + one per job type; `handoff` moves a
+                       job to another lane), lifecycle/ (heartbeat + lock renewal, concurrency watcher, shutdown)
   remotion/            Pure React video code: index.ts (registerRoot), root.tsx (ShortVideo + calculateMetadata), compositions/,
                        layers/ (visual track with transitions, voice + caption track, progress chrome), scenes/ (one scene = its shots
                        + headline), stage/ (camera, sets, Open Peeps cast per action, mood and partner, extras, prop/tag overlays),
                        text/ (kinetic headline, text scene, the five shot cards),
                        captions/ (caption pages), timeline/ (scene transitions), peeps/ + props/ (generated art, see
                        THIRD_PARTY_NOTICES.md), theme/ (tokens, bundled font); frame-driven only
-  shared/              Truly shared: config/env.ts (Zod-validated env), logger.ts, errors.ts, pagination.ts (`loadPage`/`slicePage`/`Page<T>`
+  shared/              Truly shared: config/env.ts (Zod-validated env), logger.ts, errors.ts, mutex.ts (`Mutex`, `KeyedMutex`: in-process turns),
+                       types/work-lane.ts (the lane ids), pagination.ts (`loadPage`/`slicePage`/`Page<T>`
                        for server-side paging; the pager UI is `components/layout/pagination.tsx`), types/ (create schemas/ on first need)
   generated/           Prisma client output (gitignored)
 prisma/                schema.prisma, migrations/ (committed), seed.ts
@@ -257,7 +265,10 @@ Dependency direction: `app → features/*/services → features/*/repositories �
 
 ## 8. Jobs & queue
 
-- One queue `studio-jobs`; job types: `ANALYZE_CHAPTER`, `GENERATE_VIDEO_SCRIPT`, `GENERATE_PUBLISH_METADATA`, `GENERATE_SCENE_TTS`, `RENDER_VIDEO`, `RUN_PRODUCTION_ITEM`, `ARCHIVE_RENDER`, `EXTRACT_PDF` (plus `DIAGNOSTIC_PING` for health checks).
+- One queue **per lane** (`src/server/queue/lanes.ts`: `general` = `studio-jobs`, `claude`, `notebooklm`, `voice`, `render`, `archive`,
+  `extraction`), one BullMQ `Worker` each in the one worker process. A lane is named for what limits it, and its number of tasks at
+  once is a row of `ConcurrencySetting`, edited on Settings → Chạy song song and re-read by the worker every 5 s (`concurrency-watcher`);
+  there are no `WORKER_CONCURRENCY` / `RENDER_CONCURRENCY` / `MAX_AI_CONCURRENCY` env vars. Add a job type to `DEFAULT_LANES`. Job types: `ANALYZE_CHAPTER`, `GENERATE_VIDEO_SCRIPT`, `GENERATE_PUBLISH_METADATA`, `GENERATE_SCENE_TTS`, `RENDER_VIDEO`, `RUN_PRODUCTION_ITEM`, `ARCHIVE_RENDER`, `EXTRACT_PDF` (plus `DIAGNOSTIC_PING` for health checks).
 - A production item's job is written in the same transaction that makes the item runnable (creation, retry); never start one any other way.
   Its processor claims the item, steps from the checkpoint and defers instead of waiting; cancelling the job cancels the item.
 - An archive and its `ARCHIVE_RENDER` job are written in one transaction (`createArchiveWithJob`); the worker's archive sweep
@@ -267,7 +278,11 @@ Dependency direction: `app → features/*/services → features/*/repositories �
   processor only uploads: it never renders, voices or calls an AI.
 - A script write that comes without a usable title, caption and hashtags (`publishWriteFor`) still stores the script and reports the loss
   on Telegram from the same transaction (`replaceScriptWithin` → `notifyPublishMetadataMissingWithin`), once per script version.
-- Worker `concurrency = WORKER_CONCURRENCY` (default 1); global AI concurrency = 1; Remotion `concurrency = RENDER_CONCURRENCY` (default 1).
+- Lane concurrency comes from `ConcurrencySetting` (defaults: Claude, voice, render, extraction 1; NotebookLM, Drive 2; `general` fixed at 2);
+  Remotion's per-render threads are the `renderThreads` setting. A job whose next step belongs to another lane returns `handoff(lane)`
+  (same `JobRecord`, back through the outbox with `lane` in the payload, not counted as an attempt); `RUN_PRODUCTION_ITEM` checks
+  `productionLaneFor(checkpoint)` before every step. Anything shared by jobs of the worker must be safe with several at once: the DB
+  adapter is serialized (`server/db/serialized-adapter.ts`), NotebookLM set-up runs under `setUpLocks` and questions pass `PersonaGate`.
 - **One worker per Redis database** (two would each take jobs and break those limits). Before it reconciles or sweeps, the worker takes
   `studio:worker:lock` (`server/queue/worker-lock.ts`: pid, host, start time and data dir, with a TTL that every heartbeat renews) and exits 1,
   logging the holder's status, when another worker holds it. A holder that ran on this machine and no longer exists is taken over at once,
@@ -466,11 +481,12 @@ unverified. The hook limit is 4 s / 120 frames for every flow. Each video carrie
 - DO keep route handlers thin and return `202` for long work; DON'T await AI/TTS/render in a request.
 - DO keep modules shared with the worker free of `server-only`; DON'T import `server-only` modules from `src/worker/**` or `scripts/**`.
 - DO spawn with argument arrays; DON'T concatenate shell commands from input.
-- DO keep concurrency at 1 until benchmarked; DON'T spawn extra Chromium instances.
+- DO keep heavy lanes (render, Claude, voice, extraction) at 1 until benchmarked, and change concurrency only on the Settings page; DON'T read it from
+  `.env`, DON'T spawn Chromium outside the render lane, DON'T share a mutable module-level value between jobs without making it safe for several at once.
 - DO keep UI copy in Vietnamese and identifiers in English; DON'T hardcode content in Remotion components.
 - DO export only components from `"use client"` files; DON'T import constants/functions from a client module into a Server Component (it receives a client reference, not the value — move shared values to a plain module).
 - DO import DTO types from `schemas/*.dto.ts` in client components; DON'T import from `services/` there.
-- DO run Claude only through `askClaude()` (used by `pnpm ai:run` and, when `AI_MODE=cli-auto`, by the worker) with no built-in tools, `--strict-mcp-config` (no MCP servers from the user's config) and a sanitized env; DON'T spawn `claude` from the web, from route handlers, or in parallel, and DON'T make `cli-auto` the default.
+- DO run Claude only through `askClaude()` (used by `pnpm ai:run` and, when `AI_MODE=cli-auto`, by the worker) with no built-in tools, `--strict-mcp-config` (no MCP servers from the user's config) and a sanitized env; DON'T spawn `claude` from the web, from route handlers, or outside the Claude lane (whose number of tasks at once is the Settings number, default 1), and DON'T make `cli-auto` the default.
 - DO keep `@remotion/bundler` / `@remotion/renderer` in worker-only modules (`server/render/*`, `*-runner.ts`); DON'T import them from anything a route or page imports.
 - DO keep per-frame state (current frame/time) in a small sibling of `<Player>` and pass the click event to `play(e)`; DON'T put it in the
   component that renders `<Player>` (it would re-render 30 times a second).

@@ -11,6 +11,8 @@ import type { ScenePlanCompiler } from "@/server/scene-plan/scene-plan-compiler"
 import type { ScriptStudioProvider, SourceRef } from "@/server/script-studio/script-studio-provider";
 import { AppError, JobCancelledError, NotFoundError } from "@/shared/errors";
 import { createLogger, toSafeErrorMessage } from "@/shared/logger";
+import type { WorkLane } from "@/shared/types/work-lane";
+import { productionLaneFor } from "../domain/production-lane";
 import { productionStep } from "../domain/production-labels";
 import type { NotificationFailure } from "@/features/notifications/domain/notification-failure";
 import { toItemCheckpoint } from "../domain/production-status";
@@ -62,6 +64,7 @@ export interface PipelineDeps {
 export type StepOutcome =
   | { kind: "CONTINUE" }
   | { kind: "DEFER"; retryAfterMs: number }
+  | { kind: "HANDOFF"; lane: WorkLane }
   | { kind: "COMPLETED" }
   | ({ kind: "FAILED" } & NotificationFailure)
   | { kind: "CANCELLED" };
@@ -319,6 +322,8 @@ export async function runProductionStep(input: {
   signal?: AbortSignal;
   deps: PipelineDeps;
   renew?: () => Promise<void>;
+  // The lane running this job; a step that belongs to another lane is handed over instead of run. Omitted, any step runs.
+  lane?: WorkLane;
 }): Promise<StepOutcome> {
   const item = await findProductionItemForRun(input.itemId);
   if (!item) throw new NotFoundError("PRODUCTION_ITEM_NOT_FOUND", "Không tìm thấy mục sản xuất.");
@@ -326,6 +331,8 @@ export async function runProductionStep(input: {
   // Cancelling is checked before every step, so once an item is cancelled no later step starts.
   if (item.status === "CANCELLED") return { kind: "CANCELLED" };
   if (input.signal?.aborted) throw new JobCancelledError();
+  const lane = productionLaneFor(toItemCheckpoint(item.checkpoint));
+  if (input.lane !== undefined && lane !== input.lane) return { kind: "HANDOFF", lane };
 
   try {
     let providerSucceeded = false;
@@ -366,13 +373,16 @@ export async function runProductionStep(input: {
 
 // Steps in a row until the item finishes, fails, is cancelled or has to wait. It never waits itself: a render in progress
 // or a pause between retries ends the run with DEFER, and the item's job is scheduled again.
-export async function runProductionPipeline(input: {
+export interface RunProductionPipelineInput {
   itemId: string;
   claimToken: string;
   signal?: AbortSignal;
   deps: PipelineDeps;
   leaseMs?: number;
-}): Promise<RunOutcome> {
+  lane?: WorkLane;
+}
+
+export async function runProductionPipeline(input: RunProductionPipelineInput): Promise<RunOutcome> {
   const leaseMs = input.leaseMs ?? PRODUCTION_LEASE_MS;
   const renew = async (): Promise<void> => {
     if (!(await renewProductionClaim(input.itemId, input.claimToken, leaseMs))) throw lostClaim();
@@ -404,6 +414,10 @@ export async function settleProductionRun(input: {
       return;
     case "DEFER":
       await releaseProductionClaim(itemId, claimToken, "WAITING");
+      return;
+    case "HANDOFF":
+      // Not parked: queued for the lane of its next step.
+      await releaseProductionClaim(itemId, claimToken, "PENDING");
       return;
   }
 }

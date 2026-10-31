@@ -9,6 +9,7 @@ import { getAppConfig } from "@/shared/config/env";
 import { AppError, JobCancelledError, NotFoundError } from "@/shared/errors";
 import { createLogger, toSafeErrorMessage } from "@/shared/logger";
 import { currentArchiveDestination } from "@/features/archive/services/archive-request.service";
+import { getConcurrencySettings } from "@/features/settings/services/concurrency-settings.service";
 
 import { shortVideoPropsSchema, toCompositionProps } from "../domain/composition-props";
 import { runPreflight } from "../domain/preflight";
@@ -101,11 +102,12 @@ async function produceRender(
 
   let lastReported = 0;
   const dims = snapshot.render;
+  const { renderThreads } = await getConcurrencySettings();
   try {
     await deps.renderVideo({
       props: shortVideoPropsSchema.parse(toCompositionProps(toCompositionSource(snapshot), assetServer.urlFor)),
       scale: dims.width / getAppConfig().video.final.width,
-      concurrency: getAppConfig().concurrency.render,
+      concurrency: renderThreads,
       outputFile,
       cancelSignal: makeRenderCancelSignal(run.signal),
       onProgress: (progress) => {

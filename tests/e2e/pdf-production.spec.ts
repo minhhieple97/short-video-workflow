@@ -3,14 +3,10 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { expect, test, type Page } from "@playwright/test";
-import { Queue } from "bullmq";
-import { Redis } from "ioredis";
-
-import { QUEUE_NAME } from "../../src/server/queue/constants";
 
 import { buildPdf } from "../helpers/pdf-fixtures";
 import { popplerTestConfig } from "../helpers/poppler";
-import { E2E_DATA_DIR, E2E_ENV } from "./stack";
+import { E2E_DATA_DIR, pauseAllLanes } from "./stack";
 
 // E2E-02, the v1.2 path a user sees: a PDF book becomes chapters and a lesson catalogue, the user picks a lesson without
 // approving anything, and batch production makes a vertical video that ends up archived in (a fake) Google Drive.
@@ -53,9 +49,7 @@ test("E2E-02: PDF → catalogue → chosen lesson → vertical video archived to
   const publishBefore = new Set(videoFiles("-publish.txt"));
 
   await test.step("upload the PDF and wait for its chapters", async () => {
-    const connection = new Redis(E2E_ENV.REDIS_URL ?? "", { maxRetriesPerRequest: null });
-    const queue = new Queue(QUEUE_NAME, { connection });
-    await queue.pause();
+    const lanes = await pauseAllLanes();
     try {
       await open(page, "/books/import");
       await page.locator("#book-file").setInputFiles(pdfFile);
@@ -71,9 +65,7 @@ test("E2E-02: PDF → catalogue → chosen lesson → vertical video archived to
       expect(rejected.status()).toBe(409);
       expect(await rejected.json()).toMatchObject({ error: { code: "BOOK_HAS_NO_CHAPTERS" } });
     } finally {
-      await queue.resume();
-      await queue.close();
-      connection.disconnect();
+      await lanes.resume();
     }
     await expect(page.getByText("Đã trích xuất", { exact: true })).toBeVisible({ timeout: 120_000 });
     await page.reload();

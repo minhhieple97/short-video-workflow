@@ -14,7 +14,7 @@ Mistral OCR, NotebookLM và Google Drive đã có trong mã, được kiểm th�
 Trình duyệt ──127.0.0.1:3000──► Next.js (UI + route mỏng) ──Prisma──► SQLite (WAL)
                                    │ outbox / queue.add (chỉ ID)          ▲
                                    ▼                                      │
-                              Redis `studio-jobs` ──► Worker (concurrency 1) ──► DATA_DIR
+                              Redis (7 queue, mỗi làn một) ──► Worker (mỗi làn một BullMQ Worker) ──► DATA_DIR
                                                        ├─ tiến trình con: claude -p, edge-tts, ffmpeg/ffprobe,
                                                        │  Poppler, uvx notebooklm-mcp (stdio), Chromium (Remotion)
                                                        └─ HTTPS: Mistral, Google
@@ -24,15 +24,55 @@ Terminal người dùng: pnpm ai:run ──► claude -p ──► ai-tasks/<id>
 - **Web:** Zod → service → repository; việc dài chỉ được ghi thành tác vụ, trả `202 { jobId }`, UI hỏi lại mỗi 2–3 giây. Không bao
   giờ chạy AI, TTS, render. Redis/worker tắt thì trang vẫn mở và báo suy giảm (`/api/status`: không có khoá worker, tiến trình giữ khoá đã chết, hoặc heartbeat cũ hơn 15 giây); thao tác cần
   Redis ngay thì `PING` thử rồi trả `503 QUEUE_UNAVAILABLE`.
-- **Worker:** mọi việc nặng và mọi lời gọi ra ngoài; concurrency mặc định 1; không tới được Redis thì thoát mã 1. **Chỉ một worker mỗi Redis DB:** ngay sau khi ping Redis, trước mọi bước bên dưới, worker giữ khoá
+- **Worker:** mọi việc nặng và mọi lời gọi ra ngoài; mỗi **làn** có queue và BullMQ `Worker` riêng (§1.1); không tới được Redis thì thoát mã 1. **Chỉ một worker mỗi Redis DB:** ngay sau khi ping Redis, trước mọi bước bên dưới, worker giữ khoá
   `studio:worker:lock` (`SET NX` kèm TTL 30 giây, mỗi heartbeat gia hạn; gia hạn, nhả và thay khoá đều là script Lua so khớp giá trị nên
   worker đã mất khoá không đụng được khoá của worker mới); đã có worker khác thì ghi trạng thái của nó rồi thoát mã 1. Chủ khoá cùng máy
   mà tiến trình không còn thì bị thay ngay (`tsx watch` SIGKILL worker chậm rồi chạy bản mới tức thì), khoá ghi từ máy khác phải chờ hết
   hạn. Khởi động: giữ khoá → bật WAL →
   `sweepDueJobIntents` (giao outbox còn sót trước, để đối soát chỉ xét job đáng lẽ đã ở Redis) → `reconcileJobRecords` →
   `reconcileProductionItems`, `reconcileExtractions` (cấp job mới cho việc dở đã mất job; chỉ lúc khởi động để lỗi lặp không thành vòng)
-  → `sweepRenderArchives` → mở BullMQ `Worker`. Định kỳ: heartbeat 5 giây, quét outbox 5 giây, quét archive 60 giây. SIGINT/SIGTERM:
-  đóng trong tối đa 15 giây, nhả khoá sau khi job cuối kết thúc; job dở thành stalled và được đối soát lần sau.
+  → `sweepRenderArchives` → đọc số việc cùng lúc từ Cài đặt và mở một BullMQ `Worker` mỗi làn. Định kỳ: heartbeat 5 giây, quét outbox
+  5 giây, quét archive 60 giây, đọc lại Cài đặt 5 giây. SIGINT/SIGTERM: đóng mọi `Worker` trong tối đa 15 giây, nhả khoá sau khi job
+  cuối kết thúc; job dở thành stalled và được đối soát lần sau.
+
+### 1.1. Làn (lane) và số việc cùng lúc
+
+Số việc chạy cùng lúc đặt theo **thứ giới hạn nó**, không theo màn hình (`src/shared/types/work-lane.ts`, `src/server/queue/lanes.ts`):
+
+| Làn          | Queue Redis         | Việc                                                                                                                          |
+| ------------ | ------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `claude`     | `studio-claude`     | `ANALYZE_CHAPTER` (sách không phải PDF), `GENERATE_VIDEO_SCRIPT`, `GENERATE_PUBLISH_METADATA`, bước kế hoạch cảnh (`DRAFTED`) |
+| `notebooklm` | `studio-notebooklm` | `ANALYZE_CHAPTER` của sách PDF, bước bản thảo (`NONE`)                                                                        |
+| `voice`      | `studio-voice`      | `GENERATE_SCENE_TTS`, bước lồng tiếng (`APPLIED`)                                                                             |
+| `render`     | `studio-render`     | `RENDER_VIDEO`                                                                                                                |
+| `archive`    | `studio-archive`    | `ARCHIVE_RENDER`                                                                                                              |
+| `extraction` | `studio-extraction` | `EXTRACT_PDF`                                                                                                                 |
+| `general`    | `studio-jobs`       | `DIAGNOSTIC_PING`, các bước chỉ chạm cơ sở dữ liệu của sản xuất (`COMPILED`, `VOICED`, `READY`/chờ render); cố định 2 việc    |
+
+- **Định tuyến:** `laneForJob(jobType, payload)` — làn đặt trong payload (`lane`, siêu dữ liệu nhỏ) thắng, không có thì theo loại job.
+  Mọi đường enqueue đã đi qua một `EnqueueJob` (outbox), nên chỉ closure chọn queue. `general` giữ tên `studio-jobs` để job nằm sẵn
+  trong Redis từ trước khi có làn vẫn được nhận; dispatcher thấy job nằm sai làn thì chuyển nó đi trước khi chạy (không tính một lần thử).
+- **Chuyển làn (`handoff`):** processor trả `handoff(lane)` khi bước kế tiếp thuộc làn khác; dispatcher đặt lại cùng `JobRecord` vào
+  outbox với `lane` mới, dưới `bullmqJobId` mới, tới hạn ngay và giao ngay (lượt quét 5 giây giao nếu Redis từ chối lúc đó). Lần chạy
+  vừa rồi không tính là một lần thử (`attempts` giảm lại). `RUN_PRODUCTION_ITEM` kiểm làn trước **mỗi** bước (`productionLaneFor`
+  theo checkpoint): bước không thuộc làn đang chạy thì kết cục `HANDOFF`, nhả claim về `PENDING`, và tiến trình MCP của NotebookLM đóng
+  ngay thay vì sống qua bước Claude và giọng đọc. AI correction lùi checkpoint thì tự quay về đúng làn. `ANALYZE_CHAPTER` chọn làn lúc
+  xếp việc (`chapterAnalysisLane`: PDF và NotebookLM đã cấu hình → `notebooklm`, còn lại → `claude`) và tự chuyển nếu cấu hình đổi.
+- **Số việc cùng lúc** nằm ở bảng `ConcurrencySetting` (khoá làn hoặc `renderThreads`; thiếu dòng = mặc định trong mã), sửa ở Cài đặt
+  qua `PUT /api/settings/concurrency`. Worker đọc lúc khởi động rồi mỗi 5 giây gán lại `worker.concurrency` (BullMQ đọc nó trước mỗi lần
+  lấy job, `src/worker/lifecycle/concurrency-watcher.ts`). Đây là nơi duy nhất: không còn `WORKER_CONCURRENCY`, `RENDER_CONCURRENCY`,
+  `MAX_AI_CONCURRENCY`. `renderThreads` được `render-runner` đọc lúc bắt đầu mỗi render.
+- **Một worker mỗi Redis DB vẫn giữ.** Các làn chung một tiến trình, một kết nối Redis, một khoá worker; việc phối hợp giữa các job
+  (khoá, cổng persona) chỉ cần đúng trong tiến trình này.
+- **An toàn khi nhiều việc cùng lúc:** (1) SQLite — adapter better-sqlite3 của Prisma dùng một kết nối mỗi tiến trình và chỉ xếp
+  hàng các transaction với nhau; truy vấn ngoài transaction chạy xen vào transaction đang mở của việc khác (đọc dòng chưa commit, mất
+  khi transaction rollback). `src/server/db/serialized-adapter.ts` bọc adapter để mọi truy vấn và transaction thay nhau trên một khoá,
+  giữ từ lúc transaction bắt đầu tới commit/rollback. (2) Drive — bộ giãn nhịp giữ chỗ đồng bộ trước khi ngủ, một `DriveAccessToken`
+  dùng chung cả worker (một lần làm mới, một lần ghi credential), dung lượng cộng bằng `increment`, dựng thư mục tuần tự theo tiến
+  trình. (3) NotebookLM — notebook, nguồn, persona dựng dưới khoá theo binding/nguồn; `PersonaGate` cho các câu hỏi cùng persona của một
+  notebook chạy song song và xếp hàng FIFO câu hỏi cần persona khác (persona áp dụng cho tới khi đặt lại, nên catalogue và bản thảo của
+  một sách không được xen nhau). (4) Thời gian chờ nhà cung cấp — `clearProviderCooldown` chỉ xoá dòng mà lời gọi đã thấy, không xoá
+  thời gian chờ mà việc khác vừa đặt trong lúc nó chạy.
 
 ## 2. Mô hình dữ liệu
 
@@ -49,7 +89,8 @@ biến, nguồn của manifest Drive).
   `VideoPublishMetadata` (duy nhất `videoId`: tiêu đề, caption, hashtag để đăng; `origin` `AI`/`EDITED`; `sourceTextHash` =
   `scriptTextHash()` của chữ các cảnh hiện lúc viết hay lưu — khác hash hiện tại thì "Cần xem lại"; không dùng `scriptVersion` vì lồng
   tiếng cũng tăng nó).
-- **Tác vụ:** `JobRecord` (read model) · `JobDispatch` (hàng outbox, 1:1) · `AiRun` (chế độ, phiên bản prompt, hash đầu vào; không bí mật).
+- **Tác vụ:** `JobRecord` (read model) · `JobDispatch` (hàng outbox, 1:1) · `AiRun` (chế độ, phiên bản prompt, hash đầu vào; không bí mật)
+  · `ConcurrencySetting` (khoá → số việc cùng lúc; thiếu dòng = mặc định trong mã, §1.1).
 - **PDF:** `BookExtraction` (gắn `sourceHash`; chi phí OCR bằng micro-USD nguyên) · `ExtractionPage` (duy nhất
   `(extractionId, pageNumber)`; số trang PDF, không bao giờ là offset; `confidence` chỉ khi provider báo) · `OcrOperation` (duy nhất
   `requestKey`, ghi **trước** khi gửi; `outputStoredAt` có trước `cleanedAt`).
@@ -746,11 +787,13 @@ topic từ tên trùng. Topic đóng/xoá trả lỗi rõ, không tự tạo m�
 
 ## 15. Các quyết định chính
 
-- **Hai tiến trình, một queue, concurrency 1** — render, TTS, AI chiếm CPU/RAM hàng phút; UI phải luôn phản hồi; một người dùng, máy yếu.
+- **Hai tiến trình, mỗi làn một queue, số việc cùng lúc đặt trong Cài đặt** — render, TTS, AI chiếm CPU/RAM hàng phút và Drive,
+  NotebookLM chủ yếu chờ từ xa, nên mỗi loại có giới hạn riêng (mặc định 1 cho việc nặng, 2 cho Drive và NotebookLM); chủ dự án muốn
+  đổi số khi đổi máy mà không sửa `.env` (2026-10-31). Vẫn một worker mỗi Redis DB, một người dùng, UI luôn phản hồi.
 - **SQLite + WAL** — một người dùng, cục bộ; sao lưu chỉ là sao chép một thư mục.
 - **BullMQ thực thi, `JobRecord` là read model, đối soát khi khởi động** — UI đọc nhanh; Redis bị xoá hay worker chết vẫn được sửa lại.
 - **Outbox `JobDispatch`** — job ghi cùng giao dịch với thay đổi nghiệp vụ; chết giữa SQLite và Redis không làm mất job.
-- **Hoãn qua outbox, không ngủ trong worker** — lô OCR chạy hàng giờ; worker concurrency 1 không được bị giữ; lịch sống qua restart.
+- **Hoãn qua outbox, không ngủ trong worker** — lô OCR chạy hàng giờ; một làn không được bị giữ; lịch sống qua restart.
 - **Claude chỉ qua CLI của người dùng, `cli-task` mặc định** — không API key; mỗi lần gọi do người dùng chủ động trừ khi họ bật `cli-auto`.
 - **Mỗi tích hợp một port, ngoài `AiProvider`** — đổi nhà cung cấp không đụng nghiệp vụ; chi tiết Batch, MCP, OAuth nằm kín trong adapter.
 - **`UNKNOWN_OUTCOME` + đối soát theo khoá, dấu tiêu đề, ID cấp trước** — mất phản hồi không dẫn tới trả tiền hai lần hay bản trùng.

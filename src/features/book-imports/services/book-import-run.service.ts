@@ -4,6 +4,7 @@ import { currentArchiveDestination } from "@/features/archive/services/archive-r
 import { findRenderArchive } from "@/features/archive/repositories/render-archive.repository";
 import { retryArchiveRecord } from "@/features/archive/services/archive-retry.service";
 import { resetExtractionForRetry } from "@/features/extraction/repositories/extraction-jobs.repository";
+import { chapterAnalysisLane } from "@/features/chapters/services/notebook-chapter-analysis.service";
 import { resetItemForRetry } from "@/features/productions/repositories/production-jobs.repository";
 import { findActiveJobForEntity } from "@/features/jobs/repositories/job-record.repository";
 import {
@@ -12,6 +13,8 @@ import {
   findProductionByKey,
 } from "@/features/productions/repositories/production.repository";
 import { MAX_LESSONS_PER_PRODUCTION } from "@/features/productions/schemas/production.schema";
+import { concurrencyForLane } from "@/features/settings/domain/concurrency-settings";
+import { getConcurrencySettings } from "@/features/settings/services/concurrency-settings.service";
 import { buildLessonSnapshot } from "@/features/videos/services/lesson-snapshot-builder";
 import { AppError } from "@/shared/errors";
 import { toSafeErrorMessage } from "@/shared/logger";
@@ -103,20 +106,25 @@ async function advanceBook(batch: BookImportRecord, item: ImportItem): Promise<v
     return;
   }
   if (book.chapters.length === 0) throw new AppError("BOOK_HAS_NO_CHAPTERS", "Sách chưa có chương để phân tích.", 422);
-  const chapter = book.chapters.find((row) => row.analysisStatus !== "ANALYZED");
-  if (chapter) {
-    const active = await findActiveJobForEntity("ANALYZE_CHAPTER", "CHAPTER", chapter.id);
-    if (!active && item.status !== "QUEUED" && ["FAILED", "PARTIAL"].includes(chapter.analysisStatus)) {
-      const previous = await findLatestImportChapterJob(chapter.id);
-      if (previous?.errorCode !== "JOB_LOST")
-        throw new AppError(
-          "CHAPTER_ANALYSIS_STOPPED",
-          `Chương “${chapter.title.slice(0, 120)}” phân tích chưa hoàn tất. Hãy kiểm tra trước khi thử lại.`,
-          422,
-        );
+  const pending = book.chapters.filter((row) => row.analysisStatus !== "ANALYZED");
+  if (pending.length > 0) {
+    // The first chapters still to do, as many as their lane runs at once; one more is queued as each one finishes.
+    const lane = chapterAnalysisLane(book.sourceFormat);
+    const window = pending.slice(0, concurrencyForLane(await getConcurrencySettings(), lane));
+    for (const chapter of window) {
+      const active = await findActiveJobForEntity("ANALYZE_CHAPTER", "CHAPTER", chapter.id);
+      if (!active && item.status !== "QUEUED" && ["FAILED", "PARTIAL"].includes(chapter.analysisStatus)) {
+        const previous = await findLatestImportChapterJob(chapter.id);
+        if (previous?.errorCode !== "JOB_LOST")
+          throw new AppError(
+            "CHAPTER_ANALYSIS_STOPPED",
+            `Chương “${chapter.title.slice(0, 120)}” phân tích chưa hoàn tất. Hãy kiểm tra trước khi thử lại.`,
+            422,
+          );
+      }
     }
     await setBookImportItem(item.id, "ANALYZING");
-    await queueImportedChapter(item.id, chapter.id);
+    for (const chapter of window) await queueImportedChapter(item.id, chapter.id, lane);
     return;
   }
   if (item.status !== "PRODUCING") {

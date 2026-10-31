@@ -6,11 +6,14 @@ import {
 import { analyzeChapterPayloadSchema } from "@/features/jobs/schemas/job-payload.schema";
 import { withProviderCooldown } from "@/features/jobs/services/provider-cooldown.service";
 
-import type { JobProcessor } from "./types";
+import { handoff, type JobProcessor } from "./types";
 
-export const processAnalyzeChapter: JobProcessor = async ({ job, jobRecordId, signal, reportProgress }) => {
+export const processAnalyzeChapter: JobProcessor = async ({ job, jobRecordId, lane, signal, reportProgress }) => {
   const payload = analyzeChapterPayloadSchema.parse(job.data);
   const notebook = await notebookAnalysisSettingsFor(payload.chapterId);
+  // Whoever queued it chose the lane from the book; the set-up may have changed since, and each lane keeps its own limit.
+  const wanted = notebook ? "notebooklm" : "claude";
+  if (lane !== wanted) return handoff(wanted);
   if (notebook) {
     return withProviderCooldown(
       "notebooklm",

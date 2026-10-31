@@ -1,10 +1,7 @@
 import { expect, test, type Response } from "@playwright/test";
-import { Queue } from "bullmq";
-import { Redis } from "ioredis";
 
-import { QUEUE_NAME } from "../../src/server/queue/constants";
 import { buildPdf } from "../helpers/pdf-fixtures";
-import { E2E_ENV } from "./stack";
+import { pauseAllLanes } from "./stack";
 
 const pdf = (name: string) => ({
   name: `${name}.pdf`,
@@ -69,9 +66,7 @@ test("unified import: one page, PDF modes, validation and accessible icon action
 });
 
 test("unified import: multiple PDFs can enter the library without automatic videos", async ({ page }) => {
-  const connection = new Redis(E2E_ENV.REDIS_URL ?? "", { maxRetriesPerRequest: null });
-  const queue = new Queue(QUEUE_NAME, { connection });
-  await queue.pause();
+  const lanes = await pauseAllLanes();
   const uploaded: Response[] = [];
   page.on("response", (response) => {
     if (new URL(response.url()).pathname === "/api/books/import/pdf" && response.status() === 202) {
@@ -93,9 +88,7 @@ test("unified import: multiple PDFs can enter the library without automatic vide
       await expect(page.locator(`a[href="/books/${book.bookId}"]`)).toBeVisible();
     }
   } finally {
-    await queue.resume();
-    await queue.close();
-    connection.disconnect();
+    await lanes.resume();
   }
 });
 

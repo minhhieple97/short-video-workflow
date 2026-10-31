@@ -42,7 +42,7 @@ describe("parseAppConfig", () => {
     }
     expect(() => parseAppConfig({ ...VALID_ENV, TELEGRAM_CHAT_ID: "invalid channel" })).toThrow(ConfigError);
   });
-  it("applies vertical defaults: 9:16, 1080x1920 final, 720x1280 draft, 30 s – 5 min, concurrency 1", () => {
+  it("applies vertical defaults: 9:16, 1080x1920 final, 720x1280 draft, 30 s – 5 min", () => {
     const config = parseAppConfig(VALID_ENV);
 
     expect(config.video.aspectRatio).toBe("9:16");
@@ -50,15 +50,14 @@ describe("parseAppConfig", () => {
     expect(config.video.draft).toEqual({ width: 720, height: 1280, fps: 30 });
     expect(config.video.defaultMinDurationSec).toBe(30);
     expect(config.video.maxDurationSec).toBe(300);
-    expect(config.concurrency).toEqual({ worker: 1, render: 1 });
     expect(config.ai.mode).toBe("cli-task");
   });
 
   it("coerces numeric strings read from the environment", () => {
-    const config = parseAppConfig({ ...VALID_ENV, DEFAULT_MIN_VIDEO_DURATION_SEC: "45", WORKER_CONCURRENCY: "2" });
+    const config = parseAppConfig({ ...VALID_ENV, DEFAULT_MIN_VIDEO_DURATION_SEC: "45", RENDER_FPS: "30" });
 
     expect(config.video.defaultMinDurationSec).toBe(45);
-    expect(config.concurrency.worker).toBe(2);
+    expect(config.video.final.fps).toBe(30);
   });
 
   it("allows larger Drive batches by default while keeping explicitly configured limits", () => {

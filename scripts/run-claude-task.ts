@@ -21,7 +21,8 @@ import {
   type TaskMeta,
 } from "@/server/ai/cli-task/task-files";
 import { prisma } from "@/server/db/client";
-import { addStudioJob, createStudioQueue } from "@/server/queue/producer";
+import { addStudioJob, closeStudioQueues, createStudioQueues } from "@/server/queue/producer";
+import { createProducerConnection } from "@/server/queue/redis-connection";
 import { getAppConfig } from "@/shared/config/env";
 import { AppError } from "@/shared/errors";
 import { toSafeErrorMessage } from "@/shared/logger";
@@ -41,18 +42,20 @@ async function listWaiting(): Promise<number> {
 
 async function requeue(jobId: string, meta: TaskMeta): Promise<void> {
   if (!meta.resume) throw new AppError("AI_TASK_NOT_RESUMABLE", "Tác vụ này không gắn với job nào để tiếp tục.");
-  const queue = createStudioQueue();
+  const connection = createProducerConnection();
+  const queues = createStudioQueues(connection);
   const bullmqJobId = randomUUID();
   try {
     await requeueJobRecord(jobId, bullmqJobId);
-    await addStudioJob(queue, meta.resume.jobType, { ...meta.resume.payload, jobRecordId: jobId }, bullmqJobId);
+    await addStudioJob(queues, meta.resume.jobType, { ...meta.resume.payload, jobRecordId: jobId }, bullmqJobId);
   } catch (error) {
     await markJobWaitingForCli(jobId);
     throw new Error(`Đã lưu kết quả nhưng không đưa lại được vào hàng đợi (Redis?): ${toSafeErrorMessage(error)}`, {
       cause: error,
     });
   } finally {
-    await queue.close();
+    await closeStudioQueues(queues);
+    connection.disconnect();
   }
 }
 

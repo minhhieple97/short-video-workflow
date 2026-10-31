@@ -105,6 +105,43 @@ describe("runProductionPipeline", () => {
     });
   });
 
+  it("hands the item to the lane of each step instead of running a step that is not its lane's", async () => {
+    const { deps, calls } = makeDeps();
+    const inLane = (lane: Pipeline.RunProductionPipelineInput["lane"]) =>
+      pipeline.runProductionPipeline({ itemId, claimToken: TOKEN, deps, lane });
+
+    // The draft is NotebookLM's step; asked in the Claude lane, nothing runs.
+    expect(await inLane("claude")).toEqual({ kind: "HANDOFF", lane: "notebooklm" });
+    expect(await item()).toMatchObject({ checkpoint: "NONE" });
+    expect(calls.drafts).toHaveLength(0);
+
+    expect(await inLane("notebooklm")).toEqual({ kind: "HANDOFF", lane: "claude" });
+    expect((await item()).checkpoint).toBe("DRAFTED");
+    expect(calls.drafts).toHaveLength(1);
+
+    expect(await inLane("claude")).toEqual({ kind: "HANDOFF", lane: "general" });
+    expect((await item()).checkpoint).toBe("COMPILED");
+    expect(calls.compiles).toHaveLength(1);
+
+    expect(await inLane("general")).toEqual({ kind: "HANDOFF", lane: "voice" });
+    expect((await item()).checkpoint).toBe("APPLIED");
+
+    expect(await inLane("voice")).toEqual({ kind: "HANDOFF", lane: "general" });
+    expect((await item()).checkpoint).toBe("VOICED");
+
+    expect(await inLane("general")).toEqual({ kind: "DEFER", retryAfterMs: pipeline.RENDER_POLL_MS });
+    expect((await item()).checkpoint).toBe("READY");
+  });
+
+  it("releases a handed-over item as waiting to be queued, not parked", async () => {
+    const { deps } = makeDeps();
+    const outcome = await pipeline.runProductionPipeline({ itemId, claimToken: TOKEN, deps, lane: "claude" });
+
+    await pipeline.settleProductionRun({ itemId, claimToken: TOKEN, outcome });
+
+    expect(await item()).toMatchObject({ status: "PENDING", claimToken: null });
+  });
+
   it("resumes after the last finished step instead of starting again", async () => {
     const first = makeDeps({ compileFails: () => new IntegrationError("X", "outage", "TRANSIENT") });
     expect(await run(first.deps)).toMatchObject({ kind: "DEFER" });
